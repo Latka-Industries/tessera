@@ -1,6 +1,6 @@
 ---
 name: Export / import
-about: Foreign format interchange (Markdown, HTML, PDF, DOCX)
+description: Foreign format interchange (Markdown, HTML, PDF, DOCX)
 title: "[io] "
 labels:
   - export

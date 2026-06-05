@@ -1,6 +1,6 @@
 ---
 name: Spec / documentation
-about: Wire format, export contracts, CLI design, or decision records
+description: Wire format, export contracts, CLI design, or decision records
 title: "[spec] "
 labels:
   - spec

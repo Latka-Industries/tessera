@@ -1,6 +1,6 @@
 ---
 name: Implementation
-about: Rust library, CLI, fixtures, or CI work tied to the spec
+description: Rust library, CLI, fixtures, or CI work tied to the spec
 title: "[impl] "
 labels:
   - implementation
@@ -50,6 +50,6 @@ body:
       label: Preflight
       options:
         - label: Spec section exists or is linked from a spec issue
-          required: true
         - label: No scope creep into GUI / Aleph
-          required: false
+    validations:
+      required: false
