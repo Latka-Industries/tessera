@@ -1,0 +1,28 @@
+[package]
+name = "tessera"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+authors = ["AHurowitz <latkaindustries@gmail.com>"]
+description = "Open document format (.tes): mmap-friendly chunked binary for notes, wikis, manuscripts, and slides — AI-friendly text exports, tes CLI — Rust crate"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Latka-Industries/tessera"
+keywords = []
+categories = []
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "tes"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
