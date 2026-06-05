@@ -1,0 +1,41 @@
+---
+name: Export / import
+about: Foreign format interchange (Markdown, HTML, PDF, DOCX)
+title: "[io] "
+labels:
+  - export
+body:
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Direction
+      options:
+        - Export (tes → foreign)
+        - Import (foreign → tes)
+        - Both
+    validations:
+      required: true
+  - type: checkboxes
+    id: formats
+    attributes:
+      label: Format(s)
+      options:
+        - label: Markdown
+        - label: HTML
+        - label: PDF
+        - label: DOCX
+        - label: Raw / AI text / JSONL (see exports.md)
+  - type: textarea
+    id: contract
+    attributes:
+      label: Export/import contract
+      description: Link `docs/exports.md` section; note lossy vs lossless
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Golden files, round-trip expectations, CLI flags
+    validations:
+      required: true

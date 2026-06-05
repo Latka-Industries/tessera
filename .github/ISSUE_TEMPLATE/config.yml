@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Tessera README
+    url: https://github.com/Latka-Industries/tessera/blob/master/README.md
+    about: Product overview and design principles
+  - name: Layout v0 spec
+    url: https://github.com/Latka-Industries/tessera/blob/master/docs/layout_v0.md
+    about: On-disk wire format

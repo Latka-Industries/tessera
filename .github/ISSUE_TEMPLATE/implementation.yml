@@ -1,0 +1,55 @@
+---
+name: Implementation
+about: Rust library, CLI, fixtures, or CI work tied to the spec
+title: "[impl] "
+labels:
+  - implementation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Implementation issues must reference a frozen spec section.
+        See `docs/roadmap.md` for phase ordering.
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Roadmap phase
+      options:
+        - "Phase 1 — Write path"
+        - "Phase 2 — Read path"
+        - "Phase 3 — Core exports"
+        - "Phase 4 — Markdown import"
+        - "Phase 5 — Vault graph"
+        - "Phase 6+ — Later"
+    validations:
+      required: true
+  - type: textarea
+    id: spec-link
+    attributes:
+      label: Spec / doc link(s)
+      placeholder: "docs/layout_v0.md, docs/cli.md#tes-verify"
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What this issue includes and explicitly excludes
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Tests, CLI behavior, fixtures — measurable done when
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Preflight
+      options:
+        - label: Spec section exists or is linked from a spec issue
+          required: true
+        - label: No scope creep into GUI / Aleph
+          required: false

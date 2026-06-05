@@ -1,0 +1,41 @@
+---
+name: Spec / documentation
+about: Wire format, export contracts, CLI design, or decision records
+title: "[spec] "
+labels:
+  - spec
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Link the relevant doc section (`docs/layout_v0.md`, `docs/exports.md`, etc.).
+        Spec issues should define **done when** before implementation starts.
+  - type: textarea
+    id: doc-link
+    attributes:
+      label: Doc link(s)
+      description: Path(s) and section anchor(s) this issue updates or depends on
+      placeholder: "docs/layout_v0.md#chunk-index-entry-48-bytes-fixed"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / gap
+      description: What is underspecified or wrong today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Concrete spec change or new section text
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How do we know the spec work is complete?
+    validations:
+      required: true
