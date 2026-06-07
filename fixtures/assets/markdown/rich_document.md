@@ -13,29 +13,29 @@ tags: [fixture, markdown, import-test]
 
 ## Image gallery
 
-Local files live in `fixtures/assets/markdown/images/` (paths below are relative to this `.md` file).
+Local files live in `fixtures/assets/images/` (paths below are relative to this `.md` file).
 
 Landscape JPEG:
 
-![Forest trail through morning light](images/landscape.jpg "Landscape fixture")
+![Forest trail through morning light](../images/landscape.jpg "Landscape fixture")
 
 Portrait JPEG:
 
-![Vertical composition](images/portrait.jpg)
+![Vertical composition](../images/portrait.jpg)
 
 Square JPEG:
 
-![Square frame](images/square.jpg)
+![Square frame](../images/square.jpg)
 
 PNG with alpha (transparency):
 
-![RGBA transparency demo](images/transparency.png)
+![RGBA transparency demo](../images/transparency.png)
 
 Reference-style link (same square image):
 
 ![alt text via reference][square-ref]
 
-[square-ref]: images/square.jpg "Reference definition"
+[square-ref]: ../images/square.jpg "Reference definition"
 
 ## Typography and inline markup
 

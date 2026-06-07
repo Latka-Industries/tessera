@@ -13,7 +13,7 @@ Synthetic and downloaded media for exercising the import → chunk compiler (M4+
 | `html/rich_document.html` | Semantic HTML mirror of the Markdown specimen |
 | `text/plain_lorem.txt` | Plain text without markup |
 | `text/lorem_long.txt` | **~893 KiB** plain-text length stress test (same paragraph count as `lorem_long.md`) |
-| `markdown/images/` | Local JPEG/PNG files referenced by `rich_document.md` |
+| `images/` | Shared JPEG/PNG files referenced by `rich_document.md` and `rich_document.html` |
 | `citations/sample.bib` | BibTeX stub for future research / cite-chunk tests |
 
 ## Image licenses
