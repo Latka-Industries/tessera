@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="author" content="Tessera Fixtures">
+  <meta name="created" content="2026-06-05T12:00:00Z">
+  <title>Specimen Document — HTML Import Stress Test</title>
+  <style>
+    /* Inline CSS: importers should strip or ignore for chunk extraction */
+    body { font-family: Georgia, serif; max-width: 42rem; margin: 2rem auto; }
+    .note { background: #f4f4f4; padding: 0.5rem 1rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 0.35rem 0.5rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Specimen Document — HTML Import Stress Test</h1>
+    <p class="note"><strong>Lorem ipsum</strong> dolor sit amet, <em>consectetur adipiscing elit</em>. Imported from semantic HTML to exercise the HTML → chunk compiler.</p>
+  </header>
+
+  <nav aria-label="Table of contents">
+    <ol>
+      <li><a href="#typography">Typography</a></li>
+      <li><a href="#code">Code</a></li>
+      <li><a href="#media">Media</a></li>
+      <li><a href="#tables">Tables</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="intro">
+      <p>Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Link to <a href="https://example.com/docs/specimen">external reference</a> and <a href="../../docs/exports.md">relative spec</a>.</p>
+      <blockquote cite="https://example.com/quote">
+        <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+      </blockquote>
+    </section>
+
+    <section id="typography">
+      <h2>Typography and inline markup</h2>
+      <p>
+        Mixed <strong>bold</strong>, <em>italic</em>, <strong><em>both</em></strong>,
+        <del>deleted</del>, <code>inline code</code>, <sub>sub</sub>, <sup>sup</sup>,
+        and <mark>highlighted</mark> text.
+      </p>
+
+      <h3>Lists</h3>
+      <ul>
+        <li>Unordered alpha</li>
+        <li>Unordered beta
+          <ul>
+            <li>Nested gamma</li>
+          </ul>
+        </li>
+        <li>Unordered delta</li>
+      </ul>
+
+      <ol>
+        <li>First ordered</li>
+        <li>Second ordered</li>
+        <li>Third ordered</li>
+      </ol>
+
+      <dl>
+        <dt>Term A</dt>
+        <dd>Definition for term A with lorem ipsum.</dd>
+        <dt>Term B</dt>
+        <dd>Definition for term B.</dd>
+      </dl>
+    </section>
+
+    <section id="code">
+      <h2>Code blocks</h2>
+      <pre><code class="language-rust">use tessera::layout::Superblock;
+
+fn main() {
+    let sb = Superblock::default_v0();
+    assert_eq!(&amp;sb.magic, b&quot;TESS&quot;);
+}</code></pre>
+
+      <pre><code class="language-html">&lt;p&gt;Escaped entities: &amp;lt;tag&amp;gt; &amp;amp; &amp;quot;quotes&amp;quot;&lt;/p&gt;</code></pre>
+    </section>
+
+    <section id="tables">
+      <h2>Table</h2>
+      <table>
+        <caption>Chunk role mapping</caption>
+        <thead>
+          <tr>
+            <th scope="col">Role</th>
+            <th scope="col">HTML source</th>
+            <th scope="col">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>heading</code></td>
+            <td><code>&lt;h1&gt;…&lt;/h1&gt;</code></td>
+            <td>Level from tag name</td>
+          </tr>
+          <tr>
+            <td><code>paragraph</code></td>
+            <td><code>&lt;p&gt;…&lt;/p&gt;</code></td>
+            <td>Body for AI export</td>
+          </tr>
+          <tr>
+            <td><code>list_item</code></td>
+            <td><code>&lt;li&gt;…&lt;/li&gt;</code></td>
+            <td>Ordered vs unordered flag</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="media">
+      <h2>Images and figures</h2>
+
+      <figure>
+        <img src="../markdown/images/landscape.jpg" alt="Forest trail through morning light" width="800" height="533" loading="lazy">
+        <figcaption>Landscape JPEG fixture (<code>landscape.jpg</code>)</figcaption>
+      </figure>
+
+      <p>
+        <img src="../markdown/images/portrait.jpg" alt="Vertical composition" width="200" height="300">
+        Inline portrait with explicit dimensions.
+      </p>
+
+      <figure>
+        <img src="../markdown/images/square.jpg" alt="Square frame">
+        <figcaption>Square crop without width/height attributes</figcaption>
+      </figure>
+
+      <figure>
+        <img src="../markdown/images/transparency.png" alt="RGBA transparency demo">
+        <figcaption>PNG alpha channel test</figcaption>
+      </figure>
+    </section>
+
+    <section id="mixed">
+      <h2>Mixed scripts and symbols</h2>
+      <p>Emoji 📎 🦀 · CJK 文档导入 · Greek α β · Arrows → ←</p>
+    </section>
+
+    <section id="noise">
+      <h2>Parser noise (should not become prose chunks)</h2>
+      <!-- Comment: metadata only -->
+      <script>console.log("scripts must be dropped");</script>
+      <noscript>Fallback when JS disabled</noscript>
+      <template><p>Template content invisible in DOM render</p></template>
+      <svg width="24" height="24" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
+    </section>
+
+    <hr>
+
+    <footer>
+      <p><small>Closing paragraph. <em>Curabitur</em> pretium tincidunt lacus. End of HTML specimen.</small></p>
+    </footer>
+  </main>
+</body>
+</html>
