@@ -15,4 +15,4 @@ Regenerate after writer changes:
 cargo run --example gen_v0_fixtures
 ```
 
-Golden CI: `tests/golden_v0.rs` asserts on-disk bytes match `TesWriterSession::encode_file()`.
+Golden CI: `src/tests/golden_v0.rs` asserts on-disk bytes match `TesWriterSession::encode_file()`.

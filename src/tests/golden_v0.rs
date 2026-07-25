@@ -3,8 +3,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tessera::catalog::{DocumentCatalog, TesWriterSession, TextHeader};
-use tessera::layout::{DocKind, SUPERBLOCK_LEN, SuperblockV0};
+use crate::catalog::{DocumentCatalog, TesWriterSession, TextHeader};
+use crate::layout::{DocKind, SUPERBLOCK_LEN, SuperblockV0};
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/v0")

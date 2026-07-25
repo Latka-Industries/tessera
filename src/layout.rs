@@ -2,6 +2,11 @@
 //!
 //! Wire spec: `docs/layout_v0.md` — *Superblock v0 (64 bytes)*.
 
+use std::fs::File;
+use std::path::Path;
+
+use memmap2::Mmap;
+
 use crate::error::{Result, TesError};
 use crate::wire::{LeReader, LeWriter};
 
@@ -120,6 +125,31 @@ impl Region {
     pub const fn end(self) -> u64 {
         self.offset + self.length
     }
+
+    /// Slice `bytes` for this region, checking bounds against `file_len`.
+    pub fn slice<'a>(self, bytes: &'a [u8], structure: &'static str) -> Result<&'a [u8]> {
+        let file_len = bytes.len() as u64;
+        if !self.is_present() {
+            return Ok(&[]);
+        }
+        if self.end() > file_len {
+            return Err(TesError::OutOfBounds {
+                structure,
+                offset: self.offset,
+                length: self.length,
+                file_len,
+            });
+        }
+        let start = self.offset as usize;
+        let end = self.end() as usize;
+        Ok(&bytes[start..end])
+    }
+}
+
+/// Memory-map an existing `.tes` file for read-only access.
+pub fn open_mmap(path: &Path) -> Result<Mmap> {
+    let file = File::open(path)?;
+    Ok(unsafe { Mmap::map(&file)? })
 }
 
 /// The fixed 64-byte header at offset 0 of a `.tes` file.
