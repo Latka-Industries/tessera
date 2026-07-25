@@ -1,10 +1,29 @@
 name: Build
 
+# Run only when Rust / fixtures / this workflow change. Docs-only pushes skip the matrix.
+# Markdown under matching trees is excluded with `!**/*.md` (GitHub forbids pairing `paths`
+# with `paths-ignore` on the same event — use `!` negation instead).
 on:
   push:
     branches: [main, master]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "fixtures/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/ci.yml"
+      - "!**/*.md"
   pull_request:
     branches: [main, master]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "fixtures/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/ci.yml"
+      - "!**/*.md"
 
 jobs:
   test:
