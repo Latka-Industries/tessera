@@ -14,6 +14,7 @@ use tessera::error::TesError;
 use tessera::export::{ExportOptions, ExportView, export_view};
 use tessera::import::{MarkdownImportOptions, import_markdown_v0};
 use tessera::layout::DocKind;
+use tessera::vault::{Vault, parse_target};
 use tessera::verify::{
     format_verify_human, format_verify_json, format_verify_quiet, verify_tes_file,
 };
@@ -123,6 +124,41 @@ enum Commands {
         #[arg(long)]
         doc_id: Option<String>,
     },
+
+    /// Resolve and inspect links across a vault directory
+    Link {
+        /// Vault root containing .tes files
+        #[arg(long)]
+        vault: PathBuf,
+        #[command(subcommand)]
+        command: LinkCommands,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum LinkCommands {
+    /// Resolve UUID[/chunk] to a document and optional text body
+    Resolve {
+        /// UUID or UUID/chunk
+        target: String,
+        /// Emit JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// List documents linking to UUID
+    Backlinks {
+        /// Target document UUID
+        doc_id: String,
+        /// Emit JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Check that every graph target exists
+    Check {
+        /// Emit JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -188,6 +224,7 @@ fn main() -> ExitCode {
                 exit_for(&err)
             }
         },
+        Commands::Link { vault, command } => run_link(&vault, command),
     }
 }
 
@@ -337,6 +374,77 @@ fn parse_doc_kind(value: &str) -> Result<DocKind, TesError> {
             io::ErrorKind::InvalidInput,
             format!("unknown doc kind '{value}'"),
         ))),
+    }
+}
+
+fn run_link(root: &PathBuf, command: LinkCommands) -> ExitCode {
+    let result = (|| -> Result<bool, TesError> {
+        let vault = Vault::open(root)?;
+        match command {
+            LinkCommands::Resolve { target, json } => {
+                let (doc_id, chunk_id) = parse_target(&target)?;
+                let resolved = vault.resolve(doc_id, chunk_id)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&resolved)?);
+                } else {
+                    println!(
+                        "{}\t{}\t{}",
+                        resolved.document.doc_id,
+                        resolved.document.title,
+                        resolved.document.path.display()
+                    );
+                    if let Some(text) = resolved.text {
+                        println!("{text}");
+                    }
+                }
+                Ok(true)
+            }
+            LinkCommands::Backlinks { doc_id, json } => {
+                let (doc_id, _) = parse_target(&doc_id)?;
+                let backlinks = vault.backlinks(doc_id);
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&backlinks)?);
+                } else {
+                    for link in &backlinks {
+                        println!(
+                            "{}\t{}\tchunk={}",
+                            link.source_doc_id, link.source_title, link.source_chunk_id
+                        );
+                    }
+                }
+                Ok(true)
+            }
+            LinkCommands::Check { json } => {
+                let broken = vault.check()?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&broken)?);
+                } else if broken.is_empty() {
+                    println!("status=ok\tdocuments={}", vault.documents().count());
+                } else {
+                    for link in &broken {
+                        println!(
+                            "missing\tsource={}/{}\ttarget={}/{}\t{}",
+                            link.source_doc_id,
+                            link.source_chunk_id,
+                            link.target_doc_id,
+                            link.target_chunk_id,
+                            link.message
+                        );
+                    }
+                    println!("status=failed\tbroken={}", broken.len());
+                }
+                Ok(broken.is_empty())
+            }
+        }
+    })();
+
+    match result {
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::from(1),
+        Err(err) => {
+            eprintln!("error: {err}");
+            exit_for(&err)
+        }
     }
 }
 

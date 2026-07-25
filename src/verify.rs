@@ -13,6 +13,7 @@ use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::{
     ChunkIndexEntry, ChunkIndexHeader, Codec, ENTRY_LEN, HEADER_LEN, MAGIC as TIDX_MAGIC,
 };
+use crate::catalog::link::read_link_table;
 use crate::error::Result;
 use crate::layout::{self, MAGIC as TESS_MAGIC, Region, SUPERBLOCK_LEN};
 
@@ -171,12 +172,16 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
         }
     }
 
-    // 3. Link table is not emitted by the v0 writer yet.
+    // 3. Link table magic, version, and fixed-row bounds.
     if superblock.link_table.is_present() {
-        findings.push(Finding::warning(
-            "link_table.present",
-            "link table found; TLNK verification lands with the vault milestone",
-        ));
+        match superblock.link_table.slice(bytes, "link_table") {
+            Ok(region) => {
+                if let Err(err) = read_link_table(region) {
+                    findings.push(Finding::error("link_table.parse", err.to_string()));
+                }
+            }
+            Err(err) => findings.push(Finding::error("link_table.bounds", err.to_string())),
+        }
     }
 
     // 4. Chunk index magic, version, and length arithmetic.

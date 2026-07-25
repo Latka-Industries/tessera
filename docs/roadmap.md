@@ -1,12 +1,13 @@
 # Roadmap and phases
 
-**Status:** implementation plan derived from the [README](../README.md) and [layout_v0.md](layout_v0.md). Not a release schedule.
+**Status:** M0–M5 implemented; Phase 6 (HTML import/export) is next. This is
+an implementation plan, not a release schedule.
 
 Use this doc to create **GitHub milestones and issues**. Each phase lists acceptance criteria and doc links.
 
 ---
 
-## Phase 0 — Spec freeze (current)
+## Phase 0 — Spec freeze (done)
 
 **Goal:** Decisions and wire format written down before Rust modules multiply.
 

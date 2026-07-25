@@ -189,17 +189,17 @@ Reuse the **pattern** (superblock, catalog, chunk index, footer/history, verify/
 
 ## Status
 
-**Not started** — product sketch and naming only. Implementation order (suggested):
+**Active pre-release implementation.** The Rust reference engine now covers
+milestones M0–M5:
 
-1. Layout v0 spec (chunk types, index entry, magic/footer).
-2. Ingest prototype (PDF or DOCX → text chunks + page rasters).
-3. Library: mmap open, export `linear_text`, `chunks_jsonl`.
-4. CLI: `tes info`, `tes export`, `tes verify`.
-5. GUI: short-form notes + long-form editor (sections, links, images).
-6. Research mode: cite chunks, import PDF, resolve quotes across corpus.
-7. Print export: paginated PDF from structure + theme (PDF-like output).
-8. GUI or module: presentations (slides reusing same chunk types).
-9. Fiction-friendly exports (manuscript PDF, chapter-scoped chunks).
+- v0 `TESS` superblock, `TIDX` chunk index, catalog JSON, and `TLNK` links
+- sealed session writer, mmap reader, golden fixtures, and deep verification
+- `tes info`, `tes verify`, and decoded text/JSONL/Markdown exports
+- CommonMark-subset import (`tes import --markdown`)
+- vault graph resolution, backlinks, and broken-link checks (`tes link`)
+
+Next: HTML import/export and preview (M6), then print/research/presentation layers.
+The wire format remains pre-release and may change before v1.
 
 ---
 
@@ -211,8 +211,8 @@ Reuse the **pattern** (superblock, catalog, chunk index, footer/history, verify/
 
 ## Open questions
 
-- Vault layout: folder of `.tes` + `vault.tes` catalog vs single multi-doc archive file.
-- Hub doc wire format: ordered link list vs nested sections only.
+- Optional `vault.tes` acceleration index vs scan-on-open for small vaults.
+- Nested hub sections beyond the flat v0 link list.
 - Slide model: freeform blocks vs template regions only.
 - Chunking policy for RAG (size, overlap, never split tables mid-row).
 - CRDT vs revision log for multi-device edit.
