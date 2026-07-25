@@ -9,8 +9,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use tessera::catalog::{DocumentCatalog, LinkEntry, LinkKind, TesWriterSession, TextHeader};
-use tessera::layout::DocKind;
+use tessera_doc::catalog::{DocumentCatalog, LinkEntry, LinkKind, TesWriterSession, TextHeader};
+use tessera_doc::layout::DocKind;
 use uuid::Uuid;
 
 fn fixtures_dir() -> PathBuf {

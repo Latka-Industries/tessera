@@ -11,18 +11,18 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{ArgGroup, Parser, Subcommand};
-use tessera::bib::{BibFormat, BibImportOptions, export_bibliography, import_bibliography};
-use tessera::catalog::{format_info_human, format_info_json, format_info_quiet, read_summary_v0};
-use tessera::error::TesError;
-use tessera::export::{ExportOptions, ExportView, export_view};
-use tessera::import::{
+use tessera_doc::bib::{BibFormat, BibImportOptions, export_bibliography, import_bibliography};
+use tessera_doc::catalog::{format_info_human, format_info_json, format_info_quiet, read_summary_v0};
+use tessera_doc::error::TesError;
+use tessera_doc::export::{ExportOptions, ExportView, export_view};
+use tessera_doc::import::{
     HtmlImportOptions, MarkdownImportOptions, import_html_v0, import_markdown_v0,
 };
-use tessera::layout::DocKind;
-use tessera::pdf::{PdfExportOptions, export_pdf};
-use tessera::preview::{ServeOptions, serve_preview};
-use tessera::vault::{Vault, parse_target};
-use tessera::verify::{
+use tessera_doc::layout::DocKind;
+use tessera_doc::pdf::{PdfExportOptions, export_pdf};
+use tessera_doc::preview::{ServeOptions, serve_preview};
+use tessera_doc::vault::{Vault, parse_target};
+use tessera_doc::verify::{
     format_verify_human, format_verify_json, format_verify_quiet, verify_tes_file,
 };
 

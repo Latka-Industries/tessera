@@ -33,7 +33,7 @@ pub mod wire;
 #[cfg(test)]
 mod tests;
 
-/// Common types for embedders: `use tessera::prelude::*;`.
+/// Common types for embedders: `use tessera_doc::prelude::*;`.
 pub mod prelude {
     pub use crate::bib::{
         BibEntry, BibFormat, BibImportOptions, export_bibliography, import_bibliography,

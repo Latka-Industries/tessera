@@ -857,7 +857,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tessera"
+name = "tessera-doc"
 version = "0.1.0"
 dependencies = [
  "anyhow",

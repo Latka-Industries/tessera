@@ -81,7 +81,7 @@ Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 | `--raw`, `--linear` | Golden diff tests |
 | `--ai-text` | No HTML/MD sigils in output |
 | `--chunks-jsonl` | Line count = reading-order chunks |
-| Library API | `tessera::export::*` documented in rustdoc |
+| Library API | `tessera_doc::export::*` documented in rustdoc |
 
 **Depends on:** Phase 2. Spec: [exports.md](exports.md).
 

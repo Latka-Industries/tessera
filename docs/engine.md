@@ -218,7 +218,7 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 
 ## Public API sketch (library)
 
-Embedders import `tessera::prelude` (planned):
+Embedders import `tessera_doc::prelude` (planned):
 
 | Type / fn | Role |
 | --- | --- |

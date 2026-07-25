@@ -1,7 +1,7 @@
 # Tessera
 
-[![Crates.io](https://img.shields.io/crates/v/tessera.svg)](https://crates.io/crates/tessera)
-[![docs.rs](https://img.shields.io/docsrs/tessera)](https://docs.rs/tessera)
+[![Crates.io](https://img.shields.io/crates/v/tessera-doc.svg)](https://crates.io/crates/tessera-doc)
+[![docs.rs](https://img.shields.io/docsrs/tessera-doc)](https://docs.rs/tessera-doc)
 ![Build](https://github.com/Latka-Industries/tessera/workflows/Build/badge.svg)
 ![Rust](https://img.shields.io/badge/rust-1.95-orange.svg)
 

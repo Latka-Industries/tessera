@@ -263,11 +263,11 @@ Every CLI command maps to a library entry point:
 
 | CLI | Library (planned) |
 | --- | --- |
-| `tes info` | `tessera::catalog::read_summary_v0` |
-| `tes verify` | `tessera::verify::verify_tes_file` |
-| `tes export` | `tessera::export::export_view` |
-| `tes import` | `tessera::import::import_markdown_v0` |
-| `tes serve` | `tessera::preview::serve_preview` |
+| `tes info` | `tessera_doc::catalog::read_summary_v0` |
+| `tes verify` | `tessera_doc::verify::verify_tes_file` |
+| `tes export` | `tessera_doc::export::export_view` |
+| `tes import` | `tessera_doc::import::import_markdown_v0` |
+| `tes serve` | `tessera_doc::preview::serve_preview` |
 | `tes edit-*` / `apply` | planned typed compile/mutation API |
 
 Embedders use the library directly; CLI is a thin wrapper.

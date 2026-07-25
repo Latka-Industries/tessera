@@ -80,7 +80,7 @@ Small caps are rare; `monospace` blocks inline references like `TesWriterSession
 Inline `let x: u64 = 0xDEADBEEF;` then a fenced Rust block:
 
 ```rust
-use tessera::layout::Superblock;
+use tessera_doc::layout::Superblock;
 
 fn main() {
     let sb = Superblock::default_v0();
