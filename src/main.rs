@@ -1,7 +1,7 @@
 //! `tes` — command-line interface for the Tessera document format.
 //!
-//! See `docs/cli.md` for the full command surface. This binary currently ships
-//! `info`, `verify`, and `export`; `import` lands in a later milestone.
+//! See `docs/cli.md` for the full command surface. This binary ships `info`,
+//! `verify`, `export`, and the v0 CommonMark subset of `import`.
 
 use std::fs;
 use std::io::{self, Write};
@@ -12,6 +12,8 @@ use clap::{ArgGroup, Parser, Subcommand};
 use tessera::catalog::{format_info_human, format_info_json, format_info_quiet, read_summary_v0};
 use tessera::error::TesError;
 use tessera::export::{ExportOptions, ExportView, export_view};
+use tessera::import::{MarkdownImportOptions, import_markdown_v0};
+use tessera::layout::DocKind;
 use tessera::verify::{
     format_verify_human, format_verify_json, format_verify_quiet, verify_tes_file,
 };
@@ -62,7 +64,7 @@ enum Commands {
     #[command(group(
         ArgGroup::new("view")
             .required(true)
-            .args(["raw", "linear", "ai_text", "chunks_jsonl"])
+            .args(["raw", "linear", "ai_text", "chunks_jsonl", "markdown"])
     ))]
     Export {
         /// Path to a .tes file
@@ -79,6 +81,9 @@ enum Commands {
         /// One JSON object per reading-order chunk
         #[arg(long = "chunks-jsonl")]
         chunks_jsonl: bool,
+        /// Lossy GFM-ish Markdown
+        #[arg(long)]
+        markdown: bool,
         /// Restrict to a single chunk id
         #[arg(long = "chunk")]
         chunk: Option<u64>,
@@ -97,6 +102,26 @@ enum Commands {
         /// Write to PATH instead of stdout
         #[arg(short = 'o', long = "output")]
         output: Option<PathBuf>,
+    },
+
+    /// Import a foreign document into a sealed .tes file
+    Import {
+        /// Parse input as the supported CommonMark subset
+        #[arg(long, required = true)]
+        markdown: bool,
+        /// Source document
+        input: PathBuf,
+        /// Destination .tes (must not already exist)
+        output: PathBuf,
+        /// note|document|manuscript|research|deck|wiki_page|hub|index
+        #[arg(long, default_value = "document")]
+        doc_kind: String,
+        /// Override catalog title
+        #[arg(long)]
+        title: Option<String>,
+        /// Stable UUID (generated when omitted)
+        #[arg(long)]
+        doc_id: Option<String>,
     },
 }
 
@@ -122,6 +147,7 @@ fn main() -> ExitCode {
             linear,
             ai_text,
             chunks_jsonl,
+            markdown,
             chunk,
             include_headers,
             annotate,
@@ -134,6 +160,7 @@ fn main() -> ExitCode {
             linear,
             ai_text,
             chunks_jsonl,
+            markdown,
             chunk,
             include_headers,
             annotate,
@@ -141,6 +168,20 @@ fn main() -> ExitCode {
             no_cites,
             output.as_ref(),
         ) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("error: {err}");
+                exit_for(&err)
+            }
+        },
+        Commands::Import {
+            markdown,
+            input,
+            output,
+            doc_kind,
+            title,
+            doc_id,
+        } => match run_import(markdown, &input, &output, &doc_kind, title, doc_id) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
                 eprintln!("error: {err}");
@@ -206,6 +247,7 @@ fn run_export(
     linear: bool,
     ai_text: bool,
     chunks_jsonl: bool,
+    markdown: bool,
     chunk: Option<u64>,
     include_headers: bool,
     annotate: bool,
@@ -221,6 +263,8 @@ fn run_export(
         ExportView::AiText
     } else if chunks_jsonl {
         ExportView::ChunksJsonl
+    } else if markdown {
+        ExportView::Markdown
     } else {
         return Err(TesError::ExportViewRequired);
     };
@@ -248,6 +292,52 @@ fn print_out(out: &str) -> Result<(), TesError> {
         stdout.write_all(b"\n")?;
     }
     Ok(())
+}
+
+fn run_import(
+    markdown: bool,
+    input: &PathBuf,
+    output: &PathBuf,
+    doc_kind: &str,
+    title: Option<String>,
+    doc_id: Option<String>,
+) -> Result<(), TesError> {
+    if !markdown {
+        return Err(TesError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "select an import format (currently --markdown)",
+        )));
+    }
+    let options = MarkdownImportOptions {
+        doc_kind: parse_doc_kind(doc_kind)?,
+        title,
+        doc_id,
+    };
+    let report = import_markdown_v0(input, output, &options)?;
+    println!(
+        "imported {}\tchunks={}\tdoc_id={}",
+        report.output.display(),
+        report.chunk_count,
+        report.doc_id
+    );
+    Ok(())
+}
+
+fn parse_doc_kind(value: &str) -> Result<DocKind, TesError> {
+    match value {
+        "note" => Ok(DocKind::Note),
+        "document" => Ok(DocKind::Document),
+        "manuscript" => Ok(DocKind::Manuscript),
+        "research" => Ok(DocKind::Research),
+        "deck" => Ok(DocKind::Deck),
+        "wiki_page" => Ok(DocKind::WikiPage),
+        "hub" => Ok(DocKind::Hub),
+        "index" => Ok(DocKind::Index),
+        _ => Err(TesError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unknown doc kind '{value}'"),
+        ))),
+    }
 }
 
 fn exit_for(err: &TesError) -> ExitCode {

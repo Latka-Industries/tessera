@@ -25,6 +25,8 @@ pub enum ExportView {
     AiText,
     /// One JSON object per reading-order chunk (`--chunks-jsonl`).
     ChunksJsonl,
+    /// Lossy GFM-ish Markdown projection (`--markdown`).
+    Markdown,
 }
 
 /// Options that refine an [`ExportView`].
@@ -59,6 +61,7 @@ pub fn export_file(file: &TesFile, view: ExportView, options: &ExportOptions) ->
         ExportView::Linear => export_linear(file, options),
         ExportView::AiText => export_ai_text(file, options),
         ExportView::ChunksJsonl => export_chunks_jsonl(file, options),
+        ExportView::Markdown => export_markdown(file, options),
     }
 }
 
@@ -132,6 +135,39 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
         if i + 1 < entries.len() {
             out.push('\n');
         }
+    }
+    Ok(out)
+}
+
+fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
+    let entries = selected_text_entries(file, options)?;
+    let mut parts = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let (header, body) = decode_text_entry(file, entry)?;
+        let body = body.trim_end();
+        let rendered = match header.role {
+            TextRole::Heading => {
+                let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
+                format!("{} {body}", "#".repeat(level))
+            }
+            TextRole::ListItem => match header.list_kind.unwrap_or(ListKind::Bullet) {
+                ListKind::Bullet => format!("- {body}"),
+                ListKind::Ordered => format!("1. {body}"),
+            },
+            TextRole::Blockquote => body
+                .lines()
+                .map(|line| format!("> {line}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            TextRole::CodeBlock => format!("```\n{body}\n```"),
+            TextRole::Table => format!("```tsv\n{body}\n```"),
+            TextRole::Paragraph => body.to_owned(),
+        };
+        parts.push(rendered);
+    }
+    let mut out = parts.join("\n\n");
+    if !out.is_empty() {
+        out.push('\n');
     }
     Ok(out)
 }
@@ -437,6 +473,15 @@ mod tests {
         let out = export_view(&path, ExportView::Linear, &ExportOptions::default()).unwrap();
         assert!(out.starts_with("# Methods\n"));
         assert!(out.contains("\n- Calibrate first\n"));
+    }
+
+    #[test]
+    fn markdown_preserves_block_structure_lossily() {
+        let dir = tempdir().unwrap();
+        let path = write_article(dir.path());
+        let out = export_view(&path, ExportView::Markdown, &ExportOptions::default()).unwrap();
+        assert!(out.starts_with("# Methods\n\n"));
+        assert!(out.contains("\n\n- Calibrate first\n"));
     }
 
     #[test]

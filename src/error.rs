@@ -118,8 +118,17 @@ pub enum TesError {
     },
 
     /// Export was called without selecting a view.
-    #[error("export requires a view flag (--raw, --linear, --ai-text, or --chunks-jsonl)")]
+    #[error(
+        "export requires a view flag (--raw, --linear, --ai-text, --chunks-jsonl, or --markdown)"
+    )]
     ExportViewRequired,
+
+    /// A supplied catalog document id was not a UUID.
+    #[error("invalid document UUID '{value}'")]
+    InvalidDocId {
+        /// User-supplied value.
+        value: String,
+    },
 
     /// Underlying filesystem I/O failed.
     #[error(transparent)]
