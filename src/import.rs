@@ -168,15 +168,13 @@ impl ParseState {
             Tag::Heading { level, .. } => {
                 self.begin(TextHeader::heading(heading_level(level)));
             }
-            Tag::Paragraph => {
-                if self.active.is_none() {
-                    let header = if self.blockquote_depth > 0 {
-                        header_for_role(TextRole::Blockquote)
-                    } else {
-                        TextHeader::paragraph()
-                    };
-                    self.begin(header);
-                }
+            Tag::Paragraph if self.active.is_none() => {
+                let header = if self.blockquote_depth > 0 {
+                    header_for_role(TextRole::Blockquote)
+                } else {
+                    TextHeader::paragraph()
+                };
+                self.begin(header);
             }
             Tag::List(start) => {
                 self.list_stack.push(if start.is_some() {
