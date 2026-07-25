@@ -7,7 +7,9 @@ pub mod index;
 pub mod info;
 pub mod session;
 
-pub use chunk::{ListKind, TextHeader, TextRole, decode_text_payload, encode_text_payload};
+pub use chunk::{
+    CitePayload, ListKind, TextHeader, TextRole, decode_text_payload, encode_text_payload,
+};
 pub use document::DocumentCatalog;
 pub use file::TesFile;
 pub use index::{ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec};

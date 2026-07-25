@@ -52,6 +52,21 @@ pub struct TextHeader {
     pub emphasis: Vec<String>,
 }
 
+impl TextRole {
+    /// Lowercase role name used in JSONL / debug headers.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Paragraph => "paragraph",
+            Self::Heading => "heading",
+            Self::ListItem => "list_item",
+            Self::Blockquote => "blockquote",
+            Self::CodeBlock => "code_block",
+            Self::Table => "table",
+        }
+    }
+}
+
 impl TextHeader {
     /// A plain paragraph header.
     #[must_use]
@@ -73,6 +88,49 @@ impl TextHeader {
             list_kind: None,
             emphasis: Vec::new(),
         }
+    }
+
+    /// A list-item header.
+    #[must_use]
+    pub fn list_item(kind: ListKind) -> Self {
+        Self {
+            role: TextRole::ListItem,
+            level: None,
+            list_kind: Some(kind),
+            emphasis: Vec::new(),
+        }
+    }
+}
+
+/// Cite chunk JSON payload (type `4`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CitePayload {
+    /// Quoted text.
+    pub quote: String,
+    /// Target document UUID string.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_doc_id: Option<String>,
+    /// Target chunk id (`0` / absent = whole document).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_chunk_id: Option<u64>,
+    /// Inclusive/exclusive byte range on the target.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_byte_start: Option<u32>,
+    /// Exclusive end of the target byte range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_byte_end: Option<u32>,
+    /// Citation label (e.g. `Smith2024`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// Optional page number from an imported PDF.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<u32>,
+}
+
+impl CitePayload {
+    /// Parse a cite payload from UTF-8 JSON bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
     }
 }
 

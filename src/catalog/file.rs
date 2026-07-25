@@ -1,11 +1,12 @@
 //! Read-only mmap'd `.tes` document (`docs/engine.md` — read path).
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use memmap2::Mmap;
 
 use crate::catalog::document::DocumentCatalog;
-use crate::catalog::index::{ChunkIndexEntry, read_chunk_index};
+use crate::catalog::index::{ChunkIndexEntry, Codec, read_chunk_index};
 use crate::error::{Result, TesError};
 use crate::layout::{self, SUPERBLOCK_LEN, SuperblockV0};
 
@@ -135,6 +136,63 @@ impl TesFile {
             });
         }
         Ok(&self.mmap[entry.payload_offset as usize..end as usize])
+    }
+
+    /// Decode a payload to its raw (uncompressed) bytes.
+    pub fn decode_payload<'a>(&'a self, entry: &ChunkIndexEntry) -> Result<Cow<'a, [u8]>> {
+        let stored = self.payload_bytes(entry)?;
+        match entry.codec {
+            Codec::Raw => {
+                if stored.len() as u64 != entry.raw_byte_len {
+                    return Err(TesError::Decode {
+                        chunk_id: entry.chunk_id,
+                        message: format!(
+                            "raw codec: stored_byte_len {} != raw_byte_len {}",
+                            stored.len(),
+                            entry.raw_byte_len
+                        ),
+                    });
+                }
+                Ok(Cow::Borrowed(stored))
+            }
+            Codec::Zstd => {
+                let raw = zstd::decode_all(stored).map_err(|e| TesError::Decode {
+                    chunk_id: entry.chunk_id,
+                    message: format!("zstd: {e}"),
+                })?;
+                if raw.len() as u64 != entry.raw_byte_len {
+                    return Err(TesError::Decode {
+                        chunk_id: entry.chunk_id,
+                        message: format!(
+                            "zstd decoded to {} bytes, index says {}",
+                            raw.len(),
+                            entry.raw_byte_len
+                        ),
+                    });
+                }
+                Ok(Cow::Owned(raw))
+            }
+        }
+    }
+
+    /// Look up a chunk by id.
+    pub fn chunk_by_id(&self, chunk_id: u64) -> Result<&ChunkIndexEntry> {
+        self.chunks
+            .iter()
+            .find(|c| c.chunk_id == chunk_id)
+            .ok_or(TesError::ChunkNotFound { chunk_id })
+    }
+
+    /// Reading-order index rows, sorted by ascending `chunk_id`.
+    #[must_use]
+    pub fn reading_order_chunks(&self) -> Vec<&ChunkIndexEntry> {
+        let mut rows: Vec<&ChunkIndexEntry> = self
+            .chunks
+            .iter()
+            .filter(|c| c.is_reading_order())
+            .collect();
+        rows.sort_by_key(|c| c.chunk_id);
+        rows
     }
 }
 

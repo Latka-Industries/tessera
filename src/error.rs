@@ -101,6 +101,26 @@ pub enum TesError {
         got: u64,
     },
 
+    /// Payload codec decode failed or length mismatched `raw_byte_len`.
+    #[error("decode failed for chunk {chunk_id}: {message}")]
+    Decode {
+        /// Chunk that failed to decode.
+        chunk_id: u64,
+        /// Human-readable reason.
+        message: String,
+    },
+
+    /// Requested chunk id was not found in the index.
+    #[error("chunk {chunk_id} not found")]
+    ChunkNotFound {
+        /// Requested chunk id.
+        chunk_id: u64,
+    },
+
+    /// Export was called without selecting a view.
+    #[error("export requires a view flag (--raw, --linear, --ai-text, or --chunks-jsonl)")]
+    ExportViewRequired,
+
     /// Underlying filesystem I/O failed.
     #[error(transparent)]
     Io(#[from] std::io::Error),
