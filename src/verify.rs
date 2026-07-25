@@ -281,6 +281,8 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
         }
     }
 
+    verify_figure_targets(&mut findings, &entries, bytes);
+
     // 6. History footer flag.
     if superblock.has_history_footer()
         && (file_len < 16 || &bytes[file_len as usize - 4..] != b"THST")
@@ -297,6 +299,7 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
 fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, payload: &[u8]) {
     use crate::catalog::chunk::decode_text_payload;
     use crate::catalog::index::ChunkType;
+    use crate::catalog::media::{FigureRef, ImagePayload};
 
     match entry.codec {
         Codec::Raw => {}
@@ -321,13 +324,82 @@ fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, p
         }
     }
 
-    if entry.chunk_type == ChunkType::Text
-        && let Err(err) = decode_text_payload(payload)
-    {
-        findings.push(Finding::error(
-            "chunk.text_payload",
-            format!("chunk {}: {err}", entry.chunk_id),
-        ));
+    match entry.chunk_type {
+        ChunkType::Text => {
+            if let Err(err) = decode_text_payload(payload) {
+                findings.push(Finding::error(
+                    "chunk.text_payload",
+                    format!("chunk {}: {err}", entry.chunk_id),
+                ));
+            }
+        }
+        ChunkType::Image => {
+            if let Err(err) = ImagePayload::from_bytes(payload) {
+                findings.push(Finding::error(
+                    "chunk.image_payload",
+                    format!("chunk {}: {err}", entry.chunk_id),
+                ));
+            }
+        }
+        ChunkType::Figure => {
+            if let Err(err) = FigureRef::from_bytes(payload) {
+                findings.push(Finding::error(
+                    "chunk.figure_payload",
+                    format!("chunk {}: {err}", entry.chunk_id),
+                ));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn verify_figure_targets(findings: &mut Vec<Finding>, entries: &[ChunkIndexEntry], bytes: &[u8]) {
+    use crate::catalog::index::ChunkType;
+    use crate::catalog::media::FigureRef;
+    use std::collections::HashMap;
+
+    let by_id: HashMap<u64, &ChunkIndexEntry> = entries.iter().map(|e| (e.chunk_id, e)).collect();
+
+    for entry in entries {
+        if entry.chunk_type != ChunkType::Figure {
+            continue;
+        }
+        let start = entry.payload_offset as usize;
+        let end = start + entry.stored_byte_len as usize;
+        if end > bytes.len() {
+            continue;
+        }
+        let Ok(figure) = FigureRef::from_bytes(&bytes[start..end]) else {
+            continue;
+        };
+        match by_id.get(&figure.image_chunk_id) {
+            None => findings.push(Finding::error(
+                "figure.target",
+                format!(
+                    "figure {} references missing image chunk {}",
+                    entry.chunk_id, figure.image_chunk_id
+                ),
+            )),
+            Some(target) if target.chunk_type != ChunkType::Image => findings.push(Finding::error(
+                "figure.target",
+                format!(
+                    "figure {} references chunk {} of type '{}', expected image",
+                    entry.chunk_id,
+                    figure.image_chunk_id,
+                    target.chunk_type.as_str()
+                ),
+            )),
+            Some(_) => {}
+        }
+        if entry.chunk_flags & crate::catalog::index::chunk_flags::READING_ORDER == 0 {
+            findings.push(Finding::warning(
+                "figure.reading_order",
+                format!(
+                    "figure {} is not marked reading-order; exports may skip it",
+                    entry.chunk_id
+                ),
+            ));
+        }
     }
 }
 

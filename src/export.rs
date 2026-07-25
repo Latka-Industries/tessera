@@ -12,6 +12,7 @@ use serde::Serialize;
 use crate::catalog::chunk::{CitePayload, ListKind, TextHeader, TextRole, decode_text_payload};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
+use crate::catalog::media::{FigureRef, ImagePayload, base64_encode};
 use crate::error::{Result, TesError};
 
 /// Which decoded view to emit.
@@ -50,6 +51,8 @@ pub struct ExportOptions {
     pub standalone: bool,
     /// CSS embedded in a `<style>` element.
     pub embedded_css: Option<String>,
+    /// When set, figure `<img src>` uses `{prefix}{image_chunk_id}` instead of data URIs.
+    pub media_url_prefix: Option<String>,
 }
 
 /// Export `path` as the selected view.
@@ -103,43 +106,61 @@ fn export_raw(file: &TesFile, options: &ExportOptions) -> Result<String> {
 }
 
 fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
-    let entries = selected_text_entries(file, options)?;
+    let entries = selected_content_entries(file, options)?;
     let mut out = String::new();
     for (i, entry) in entries.iter().enumerate() {
-        let (header, body) = decode_text_entry(file, entry)?;
-        match header.role {
-            TextRole::Heading => {
-                let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
-                out.push_str(&"#".repeat(level));
-                out.push(' ');
-                out.push_str(body.trim_end());
-                out.push('\n');
-            }
-            TextRole::ListItem => {
-                let marker = match header.list_kind.unwrap_or(ListKind::Bullet) {
-                    ListKind::Bullet => "- ".to_owned(),
-                    ListKind::Ordered => "1. ".to_owned(),
-                };
-                out.push_str(&marker);
-                out.push_str(body.trim_end());
-                out.push('\n');
-            }
-            TextRole::Blockquote => {
-                for line in body.lines() {
-                    out.push_str("> ");
-                    out.push_str(line);
-                    out.push('\n');
+        match entry.chunk_type {
+            ChunkType::Text => {
+                let (header, body) = decode_text_entry(file, entry)?;
+                match header.role {
+                    TextRole::Heading => {
+                        let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
+                        out.push_str(&"#".repeat(level));
+                        out.push(' ');
+                        out.push_str(body.trim_end());
+                        out.push('\n');
+                    }
+                    TextRole::ListItem => {
+                        let marker = match header.list_kind.unwrap_or(ListKind::Bullet) {
+                            ListKind::Bullet => "- ".to_owned(),
+                            ListKind::Ordered => "1. ".to_owned(),
+                        };
+                        out.push_str(&marker);
+                        out.push_str(body.trim_end());
+                        out.push('\n');
+                    }
+                    TextRole::Blockquote => {
+                        for line in body.lines() {
+                            out.push_str("> ");
+                            out.push_str(line);
+                            out.push('\n');
+                        }
+                    }
+                    TextRole::CodeBlock => {
+                        out.push_str("```\n");
+                        out.push_str(body.trim_end());
+                        out.push_str("\n```\n");
+                    }
+                    TextRole::Paragraph | TextRole::Table => {
+                        out.push_str(body.trim_end());
+                        out.push('\n');
+                    }
                 }
             }
-            TextRole::CodeBlock => {
-                out.push_str("```\n");
-                out.push_str(body.trim_end());
-                out.push_str("\n```\n");
+            ChunkType::Figure => {
+                let figure = decode_figure_entry(file, entry)?;
+                let _ = writeln!(
+                    out,
+                    "[figure image={} placement={}]\n{}",
+                    figure.image_chunk_id,
+                    figure.placement.as_str(),
+                    figure.alt_text.trim_end()
+                );
+                if let Some(caption) = figure.caption.as_deref() {
+                    let _ = writeln!(out, "{caption}");
+                }
             }
-            TextRole::Paragraph | TextRole::Table => {
-                out.push_str(body.trim_end());
-                out.push('\n');
-            }
+            _ => {}
         }
         if i + 1 < entries.len() {
             out.push('\n');
@@ -149,30 +170,49 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
 }
 
 fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
-    let entries = selected_text_entries(file, options)?;
+    let entries = selected_content_entries(file, options)?;
     let mut parts = Vec::with_capacity(entries.len());
     for entry in entries {
-        let (header, body) = decode_text_entry(file, entry)?;
-        let body = body.trim_end();
-        let rendered = match header.role {
-            TextRole::Heading => {
-                let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
-                format!("{} {body}", "#".repeat(level))
+        match entry.chunk_type {
+            ChunkType::Text => {
+                let (header, body) = decode_text_entry(file, entry)?;
+                let body = body.trim_end();
+                let rendered = match header.role {
+                    TextRole::Heading => {
+                        let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
+                        format!("{} {body}", "#".repeat(level))
+                    }
+                    TextRole::ListItem => match header.list_kind.unwrap_or(ListKind::Bullet) {
+                        ListKind::Bullet => format!("- {body}"),
+                        ListKind::Ordered => format!("1. {body}"),
+                    },
+                    TextRole::Blockquote => body
+                        .lines()
+                        .map(|line| format!("> {line}"))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    TextRole::CodeBlock => format!("```\n{body}\n```"),
+                    TextRole::Table => format!("```tsv\n{body}\n```"),
+                    TextRole::Paragraph => body.to_owned(),
+                };
+                parts.push(rendered);
             }
-            TextRole::ListItem => match header.list_kind.unwrap_or(ListKind::Bullet) {
-                ListKind::Bullet => format!("- {body}"),
-                ListKind::Ordered => format!("1. {body}"),
-            },
-            TextRole::Blockquote => body
-                .lines()
-                .map(|line| format!("> {line}"))
-                .collect::<Vec<_>>()
-                .join("\n"),
-            TextRole::CodeBlock => format!("```\n{body}\n```"),
-            TextRole::Table => format!("```tsv\n{body}\n```"),
-            TextRole::Paragraph => body.to_owned(),
-        };
-        parts.push(rendered);
+            ChunkType::Figure => {
+                let figure = decode_figure_entry(file, entry)?;
+                let mut block = format!(
+                    "![{}](media:chunk-{})",
+                    markdown_escape_alt(&figure.alt_text),
+                    figure.image_chunk_id
+                );
+                if let Some(caption) = figure.caption.as_deref() {
+                    block.push_str("\n\n*");
+                    block.push_str(caption.trim());
+                    block.push('*');
+                }
+                parts.push(block);
+            }
+            _ => {}
+        }
     }
     let mut out = parts.join("\n\n");
     if !out.is_empty() {
@@ -182,7 +222,7 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
 }
 
 fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
-    let entries = selected_text_entries(file, options)?;
+    let entries = selected_content_entries(file, options)?;
     let doc_id = file
         .catalog()
         .map(|catalog| catalog.doc_id.as_str())
@@ -194,57 +234,65 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
 
     for entry in entries {
-        let (header, body) = decode_text_entry(file, entry)?;
-        let escaped = escape_html(&body);
-        let class = html_class_attr(&header.classes);
-        let rendered = match header.role {
-            TextRole::Heading => {
-                let level = header.level.unwrap_or(1).clamp(1, 6);
-                format!(
-                    "  <h{level} id=\"chunk-{}\"{class}>{escaped}</h{level}>\n",
-                    entry.chunk_id
-                )
-            }
-            TextRole::Paragraph => format!(
-                "  <p data-chunk-id=\"{}\"{class}>{escaped}</p>\n",
-                entry.chunk_id
-            ),
-            TextRole::ListItem => {
-                let (open, close) = match header.list_kind.unwrap_or(ListKind::Bullet) {
-                    ListKind::Bullet => ("ul", "ul"),
-                    ListKind::Ordered => ("ol", "ol"),
-                };
-                format!(
-                    "  <{open}><li data-chunk-id=\"{}\"{class}>{escaped}</li></{close}>\n",
-                    entry.chunk_id
-                )
-            }
-            TextRole::Blockquote => format!(
-                "  <blockquote data-chunk-id=\"{}\"{class}>{escaped}</blockquote>\n",
-                entry.chunk_id
-            ),
-            TextRole::CodeBlock => format!(
-                "  <pre data-chunk-id=\"{}\"{class}><code>{escaped}</code></pre>\n",
-                entry.chunk_id
-            ),
-            TextRole::Table => {
-                let rows = body
-                    .lines()
-                    .map(|line| {
-                        let cells = line
-                            .split('\t')
-                            .map(|cell| format!("<td>{}</td>", escape_html(cell)))
+        match entry.chunk_type {
+            ChunkType::Text => {
+                let (header, body) = decode_text_entry(file, entry)?;
+                let escaped = escape_html(&body);
+                let class = html_class_attr(&header.classes);
+                let rendered = match header.role {
+                    TextRole::Heading => {
+                        let level = header.level.unwrap_or(1).clamp(1, 6);
+                        format!(
+                            "  <h{level} id=\"chunk-{}\"{class}>{escaped}</h{level}>\n",
+                            entry.chunk_id
+                        )
+                    }
+                    TextRole::Paragraph => format!(
+                        "  <p data-chunk-id=\"{}\"{class}>{escaped}</p>\n",
+                        entry.chunk_id
+                    ),
+                    TextRole::ListItem => {
+                        let (open, close) = match header.list_kind.unwrap_or(ListKind::Bullet) {
+                            ListKind::Bullet => ("ul", "ul"),
+                            ListKind::Ordered => ("ol", "ol"),
+                        };
+                        format!(
+                            "  <{open}><li data-chunk-id=\"{}\"{class}>{escaped}</li></{close}>\n",
+                            entry.chunk_id
+                        )
+                    }
+                    TextRole::Blockquote => format!(
+                        "  <blockquote data-chunk-id=\"{}\"{class}>{escaped}</blockquote>\n",
+                        entry.chunk_id
+                    ),
+                    TextRole::CodeBlock => format!(
+                        "  <pre data-chunk-id=\"{}\"{class}><code>{escaped}</code></pre>\n",
+                        entry.chunk_id
+                    ),
+                    TextRole::Table => {
+                        let rows = body
+                            .lines()
+                            .map(|line| {
+                                let cells = line
+                                    .split('\t')
+                                    .map(|cell| format!("<td>{}</td>", escape_html(cell)))
+                                    .collect::<String>();
+                                format!("<tr>{cells}</tr>")
+                            })
                             .collect::<String>();
-                        format!("<tr>{cells}</tr>")
-                    })
-                    .collect::<String>();
-                format!(
-                    "  <table data-chunk-id=\"{}\"{class}><tbody>{rows}</tbody></table>\n",
-                    entry.chunk_id
-                )
+                        format!(
+                            "  <table data-chunk-id=\"{}\"{class}><tbody>{rows}</tbody></table>\n",
+                            entry.chunk_id
+                        )
+                    }
+                };
+                article.push_str(&rendered);
             }
-        };
-        article.push_str(&rendered);
+            ChunkType::Figure => {
+                article.push_str(&render_figure_html(file, entry, options)?);
+            }
+            _ => {}
+        }
     }
     article.push_str("</article>\n");
 
@@ -272,6 +320,79 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     } else {
         Ok(format!("{styles}{article}"))
     }
+}
+
+fn render_figure_html(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    options: &ExportOptions,
+) -> Result<String> {
+    let figure = decode_figure_entry(file, entry)?;
+    let image_entry = file.chunk_by_id(figure.image_chunk_id)?;
+    if image_entry.chunk_type != ChunkType::Image {
+        return Err(TesError::InvalidFigure {
+            message: format!(
+                "figure {} points at chunk {} of type '{}'",
+                entry.chunk_id,
+                figure.image_chunk_id,
+                image_entry.chunk_type.as_str()
+            ),
+        });
+    }
+    let image = {
+        let raw = file.decode_payload(image_entry)?;
+        ImagePayload::from_bytes(&raw).map_err(|e| TesError::Decode {
+            chunk_id: image_entry.chunk_id,
+            message: e.to_string(),
+        })?
+    };
+
+    let src = if let Some(prefix) = &options.media_url_prefix {
+        format!("{prefix}{}", figure.image_chunk_id)
+    } else {
+        format!(
+            "data:{};base64,{}",
+            image.media_type,
+            base64_encode(&image.data)
+        )
+    };
+
+    let mut dims = String::new();
+    if image.width_px > 0 {
+        let _ = write!(dims, " width=\"{}\"", image.width_px);
+    }
+    if image.height_px > 0 {
+        let _ = write!(dims, " height=\"{}\"", image.height_px);
+    }
+
+    let region = match &figure.placement {
+        crate::catalog::media::ImagePlacement::Region { name } => {
+            format!(" data-region=\"{}\"", escape_html(name))
+        }
+        _ => String::new(),
+    };
+
+    let mut html = format!(
+        "  <figure data-chunk-id=\"{}\" data-image-chunk=\"{}\" data-placement=\"{}\"{region}>\n    <img src=\"{}\" alt=\"{}\"{dims}>\n",
+        entry.chunk_id,
+        figure.image_chunk_id,
+        figure.placement.as_str(),
+        escape_html(&src),
+        escape_html(&figure.alt_text),
+    );
+    if let Some(caption) = figure.caption.as_deref() {
+        let _ = writeln!(
+            html,
+            "    <figcaption>{}</figcaption>",
+            escape_html(caption)
+        );
+    }
+    html.push_str("  </figure>\n");
+    Ok(html)
+}
+
+fn markdown_escape_alt(value: &str) -> String {
+    value.replace('[', "\\[").replace(']', "\\]")
 }
 
 fn escape_html(value: &str) -> String {
@@ -346,6 +467,19 @@ fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<String> {
                     }
                 }
             }
+            ChunkType::Figure => {
+                let figure = decode_figure_entry(file, entry)?;
+                let mut text = format!("[image: {}]", figure.alt_text.trim());
+                if let Some(caption) = figure.caption.as_deref() {
+                    text.push(' ');
+                    text.push_str(caption.trim());
+                }
+                if options.annotate {
+                    parts.push(format!("<!-- chunk:{} -->\n{text}", entry.chunk_id));
+                } else {
+                    parts.push(text);
+                }
+            }
             _ => {}
         }
     }
@@ -383,6 +517,16 @@ struct ChunkJsonlRow<'a> {
     label: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     resolved_text: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_chunk_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    alt_text: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    caption: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    placement: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    media_type: Option<&'a str>,
 }
 
 fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -396,7 +540,11 @@ fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String
     } else {
         file.reading_order_chunks()
             .into_iter()
-            .filter(|c| c.chunk_type == ChunkType::Text || c.chunk_type == ChunkType::Cite)
+            .filter(|c| {
+                c.chunk_type == ChunkType::Text
+                    || c.chunk_type == ChunkType::Cite
+                    || c.chunk_type == ChunkType::Figure
+            })
             .collect()
     };
 
@@ -424,6 +572,11 @@ fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String
                     target_chunk_id: None,
                     label: None,
                     resolved_text: None,
+                    image_chunk_id: None,
+                    alt_text: None,
+                    caption: None,
+                    placement: None,
+                    media_type: None,
                 };
                 out.push_str(&serde_json::to_string(&row)?);
                 out.push('\n');
@@ -459,6 +612,45 @@ fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String
                     target_chunk_id: cite.target_chunk_id,
                     label: cite.label.as_deref(),
                     resolved_text: resolved,
+                    image_chunk_id: None,
+                    alt_text: None,
+                    caption: None,
+                    placement: None,
+                    media_type: None,
+                };
+                out.push_str(&serde_json::to_string(&row)?);
+                out.push('\n');
+            }
+            ChunkType::Figure => {
+                let figure = decode_figure_entry(file, entry)?;
+                let media_type = file
+                    .chunk_by_id(figure.image_chunk_id)
+                    .ok()
+                    .filter(|e| e.chunk_type == ChunkType::Image)
+                    .and_then(|e| file.decode_payload(e).ok())
+                    .and_then(|raw| ImagePayload::from_bytes(&raw).ok())
+                    .map(|img| img.media_type);
+                let media_type_ref = media_type.as_deref();
+                let row = ChunkJsonlRow {
+                    doc_id,
+                    doc_title,
+                    chunk_id: entry.chunk_id,
+                    chunk_type: "figure",
+                    role: None,
+                    level: None,
+                    list_kind: None,
+                    byte_len: None,
+                    text: None,
+                    quote: None,
+                    target_doc_id: None,
+                    target_chunk_id: None,
+                    label: None,
+                    resolved_text: None,
+                    image_chunk_id: Some(figure.image_chunk_id),
+                    alt_text: Some(figure.alt_text.as_str()),
+                    caption: figure.caption.as_deref(),
+                    placement: Some(figure.placement.as_str()),
+                    media_type: media_type_ref,
                 };
                 out.push_str(&serde_json::to_string(&row)?);
                 out.push('\n');
@@ -479,6 +671,11 @@ fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String
                     target_chunk_id: None,
                     label: None,
                     resolved_text: None,
+                    image_chunk_id: None,
+                    alt_text: None,
+                    caption: None,
+                    placement: None,
+                    media_type: None,
                 };
                 out.push_str(&serde_json::to_string(&row)?);
                 out.push('\n');
@@ -487,6 +684,91 @@ fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String
         }
     }
     Ok(out)
+}
+
+/// Typed multimodal export parts for API adapters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AiPart {
+    /// Plain UTF-8 prose.
+    Text(String),
+    /// Image bytes referenced from a figure (or direct image chunk).
+    Image {
+        /// Figure chunk id when exported from a figure; else the image chunk id.
+        chunk_id: u64,
+        /// Target image chunk id holding the bytes.
+        image_chunk_id: u64,
+        /// IANA media type.
+        media_type: String,
+        /// Intrinsic width (0 = unknown).
+        width_px: u32,
+        /// Intrinsic height (0 = unknown).
+        height_px: u32,
+        /// Raw image bytes.
+        data: Vec<u8>,
+        /// Alt text from the figure (or empty for bare image).
+        alt_text: String,
+        /// Optional caption.
+        caption: Option<String>,
+    },
+}
+
+/// Export reading-order content as typed [`AiPart`]s (text + image bytes).
+pub fn export_ai_parts(file: &TesFile, options: &ExportOptions) -> Result<Vec<AiPart>> {
+    let entries: Vec<&ChunkIndexEntry> = if let Some(id) = options.chunk_id {
+        vec![file.chunk_by_id(id)?]
+    } else {
+        file.reading_order_chunks()
+    };
+
+    let mut parts = Vec::new();
+    for entry in entries {
+        match entry.chunk_type {
+            ChunkType::Text => {
+                let (_header, body) = decode_text_entry(file, entry)?;
+                let body = body.trim_end().to_owned();
+                if !body.is_empty() {
+                    parts.push(AiPart::Text(body));
+                }
+            }
+            ChunkType::Figure => {
+                let figure = decode_figure_entry(file, entry)?;
+                let image_entry = file.chunk_by_id(figure.image_chunk_id)?;
+                let raw = file.decode_payload(image_entry)?;
+                let image = ImagePayload::from_bytes(&raw).map_err(|e| TesError::Decode {
+                    chunk_id: image_entry.chunk_id,
+                    message: e.to_string(),
+                })?;
+                parts.push(AiPart::Image {
+                    chunk_id: entry.chunk_id,
+                    image_chunk_id: figure.image_chunk_id,
+                    media_type: image.media_type,
+                    width_px: image.width_px,
+                    height_px: image.height_px,
+                    data: image.data,
+                    alt_text: figure.alt_text,
+                    caption: figure.caption,
+                });
+            }
+            ChunkType::Cite if !options.no_cites => {
+                let raw = file.decode_payload(entry)?;
+                if let Ok(cite) = CitePayload::from_bytes(&raw) {
+                    let text = if cite.quote.trim().is_empty() {
+                        format!(
+                            "[citation unresolved: {}]",
+                            cite.label.as_deref().unwrap_or("unknown")
+                        )
+                    } else if let Some(label) = cite.label.as_deref() {
+                        format!("{label} reported that {}", cite.quote.trim())
+                    } else {
+                        cite.quote.trim().to_owned()
+                    };
+                    parts.push(AiPart::Text(text));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(parts)
 }
 
 fn selected_text_entries<'a>(
@@ -513,9 +795,41 @@ fn selected_text_entries<'a>(
         .collect())
 }
 
+fn selected_content_entries<'a>(
+    file: &'a TesFile,
+    options: &ExportOptions,
+) -> Result<Vec<&'a ChunkIndexEntry>> {
+    if let Some(id) = options.chunk_id {
+        let entry = file.chunk_by_id(id)?;
+        if !matches!(entry.chunk_type, ChunkType::Text | ChunkType::Figure) {
+            return Err(TesError::Decode {
+                chunk_id: id,
+                message: format!(
+                    "chunk type is '{}'; content exports require text or figure",
+                    entry.chunk_type.as_str()
+                ),
+            });
+        }
+        return Ok(vec![entry]);
+    }
+    Ok(file
+        .reading_order_chunks()
+        .into_iter()
+        .filter(|c| matches!(c.chunk_type, ChunkType::Text | ChunkType::Figure))
+        .collect())
+}
+
 fn decode_text_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<(TextHeader, String)> {
     let raw = file.decode_payload(entry)?;
     decode_text_payload(&raw).map_err(|e| TesError::Decode {
+        chunk_id: entry.chunk_id,
+        message: e.to_string(),
+    })
+}
+
+fn decode_figure_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<FigureRef> {
+    let raw = file.decode_payload(entry)?;
+    FigureRef::from_bytes(&raw).map_err(|e| TesError::Decode {
         chunk_id: entry.chunk_id,
         message: e.to_string(),
     })
@@ -644,5 +958,94 @@ mod tests {
         };
         let out = export_view(&path, ExportView::AiText, &opts).unwrap();
         assert!(out.starts_with("<!-- chunk:1 -->\nHello from Tessera."));
+    }
+
+    #[test]
+    fn reusable_image_two_figures_and_exports() {
+        use crate::catalog::{FigureRef, ImagePayload, ImagePlacement};
+        use std::fs;
+
+        let dir = tempdir().unwrap();
+        let jpeg = fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/assets/images/square.jpg"),
+        )
+        .unwrap();
+        let path = dir.path().join("figures.tes");
+        let mut s = TesWriterSession::create(&path, DocKind::Document);
+        s.set_catalog(DocumentCatalog::new(
+            "770e8400-e29b-41d4-a716-446655440002",
+            "Figures",
+            "2026-07-25T00:00:00Z",
+            "2026-07-25T00:00:00Z",
+            DocKind::Document,
+        ))
+        .unwrap();
+        s.add_text_chunk(&TextHeader::heading(1), "Gallery")
+            .unwrap();
+        let image_id = s
+            .add_image_chunk(&ImagePayload {
+                media_type: "image/jpeg".into(),
+                width_px: 100,
+                height_px: 100,
+                data: jpeg,
+            })
+            .unwrap();
+        s.add_figure(&FigureRef {
+            image_chunk_id: image_id,
+            alt_text: "Square crop".into(),
+            caption: Some("First use".into()),
+            placement: ImagePlacement::Flow,
+        })
+        .unwrap();
+        s.add_figure(&FigureRef {
+            image_chunk_id: image_id,
+            alt_text: "Square crop again".into(),
+            caption: Some("Second use, full width".into()),
+            placement: ImagePlacement::FullWidth,
+        })
+        .unwrap();
+        s.commit().unwrap();
+
+        let file = crate::catalog::TesFile::open(&path).unwrap();
+        assert_eq!(file.chunks().len(), 4); // heading + image + 2 figures
+        let html = export_file(&file, ExportView::Html, &ExportOptions::default()).unwrap();
+        assert!(html.contains("<figure data-chunk-id=\"3\""));
+        assert!(html.contains("<figure data-chunk-id=\"4\""));
+        assert!(html.contains("data-image-chunk=\"2\""));
+        assert!(html.contains("data:image/jpeg;base64,"));
+        assert_eq!(html.matches("data:image/jpeg;base64,").count(), 2);
+
+        let md = export_file(&file, ExportView::Markdown, &ExportOptions::default()).unwrap();
+        assert!(md.contains("![Square crop](media:chunk-2)"));
+        assert!(md.contains("![Square crop again](media:chunk-2)"));
+
+        let parts = export_ai_parts(&file, &ExportOptions::default()).unwrap();
+        assert!(matches!(parts[0], AiPart::Text(_)));
+        assert!(matches!(
+            &parts[1],
+            AiPart::Image {
+                image_chunk_id: 2,
+                alt_text,
+                ..
+            } if alt_text == "Square crop"
+        ));
+        assert!(matches!(
+            &parts[2],
+            AiPart::Image {
+                image_chunk_id: 2,
+                ..
+            }
+        ));
+        // Same underlying bytes reused.
+        let AiPart::Image { data: d1, .. } = &parts[1] else {
+            panic!("expected image");
+        };
+        let AiPart::Image { data: d2, .. } = &parts[2] else {
+            panic!("expected image");
+        };
+        assert_eq!(d1, d2);
+
+        let report = crate::verify::verify_tes_file(&path, true).unwrap();
+        assert!(report.ok, "{:?}", report.findings);
     }
 }

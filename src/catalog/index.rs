@@ -69,6 +69,8 @@ pub enum ChunkType {
     Slide = 5,
     /// Imported PDF page raster.
     Page = 6,
+    /// Contextual figure use referencing an [`Image`] chunk.
+    Figure = 7,
 }
 
 impl ChunkType {
@@ -81,6 +83,7 @@ impl ChunkType {
             4 => Self::Cite,
             5 => Self::Slide,
             6 => Self::Page,
+            7 => Self::Figure,
             other => {
                 return Err(TesError::InvalidEnum {
                     field: "chunk_type",
@@ -106,6 +109,7 @@ impl ChunkType {
             Self::Cite => "cite",
             Self::Slide => "slide",
             Self::Page => "page",
+            Self::Figure => "figure",
         }
     }
 }
@@ -351,6 +355,7 @@ mod tests {
             ChunkType::Cite,
             ChunkType::Slide,
             ChunkType::Page,
+            ChunkType::Figure,
         ] {
             assert_eq!(ChunkType::from_u32(t.as_u32()).unwrap(), t);
         }
@@ -359,7 +364,7 @@ mod tests {
             Err(TesError::InvalidEnum { .. })
         ));
         assert!(matches!(
-            ChunkType::from_u32(7),
+            ChunkType::from_u32(8),
             Err(TesError::InvalidEnum { .. })
         ));
     }

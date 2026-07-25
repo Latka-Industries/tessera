@@ -197,10 +197,24 @@ pub enum TesError {
         template_id: String,
     },
 
-    /// `tes serve` refused a non-loopback bind address.
+    /// InvalidServeHost refused a non-loopback bind address.
     #[error("tes serve refuses non-loopback host '{host}' (use 127.0.0.1, localhost, or ::1)")]
     InvalidServeHost {
         /// Rejected host string.
         host: String,
+    },
+
+    /// Image payload failed validation or decode.
+    #[error("invalid image payload: {message}")]
+    InvalidImage {
+        /// Human-readable reason.
+        message: String,
+    },
+
+    /// Figure reference failed validation or decode.
+    #[error("invalid figure: {message}")]
+    InvalidFigure {
+        /// Human-readable reason.
+        message: String,
     },
 }

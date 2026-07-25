@@ -428,6 +428,7 @@ fn run_export(
         },
         standalone,
         embedded_css,
+        media_url_prefix: None,
     };
     let out = export_view(path, view, &options)?;
     if let Some(path) = output {

@@ -202,13 +202,15 @@ Total index size: **`32 + entry_count × 48`**.
 | `chunk_type` | Name | Payload summary |
 | --- | --- | --- |
 | `1` | `text` | Semantic header + UTF-8 body |
-| `2` | `image` | MIME, dimensions, raw or compressed bytes |
+| `2` | `image` | MIME, dimensions, raw image bytes |
 | `3` | `link` | Display + resolved target (redundant with link table; optional) |
 | `4` | `cite` | Quote span + target doc/chunk/range |
 | `5` | `slide` | Layout id + ordered block list |
 | `6` | `page` | Imported PDF page raster (optional v0) |
+| `7` | `figure` | Contextual use of an image chunk (alt, caption, placement) |
 
-v0 reference implementation **must** support **`text`**; **`link` table + cite** recommended before slide/image.
+v0 reference implementation **must** support **`text`**; **`image` + `figure`** are
+available for media; **`link` table + cite** recommended before slide/page.
 
 ---
 
@@ -278,11 +280,14 @@ Also mirrored in **link table** with `link_kind = 2`. Export views resolve to hu
 Defined for layout stability; the reference writer may emit
 **`UnsupportedChunkType`** until the M7 image and later payload work lands.
 
-- **Image (`2`):** `mime` string + width/height + bytes (png/jpeg).
+- **Image (`2`):** `u32 mime_len | mime | u32 width | u32 height | u64 data_len | bytes`.
+  Not reading-order. See [structure_v1 — media](structure_v1.md#media-and-attachments).
+- **Figure (`7`):** UTF-8 JSON figure ref pointing at an image chunk id with required
+  `alt_text`, optional `caption`, and `placement`. Reading-order.
 - **Slide (`5`):** `layout_id` + JSON block list (`title`, `body`, `media` slots).
 - **Page (`6`):** raster bytes + source page number for PDF import.
 
-Full field layouts deferred to **layout v1** when import pipelines land.
+Full field layouts for slide/page remain deferred; image + figure are implemented.
 
 ---
 

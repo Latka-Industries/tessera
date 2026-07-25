@@ -112,6 +112,7 @@ pub fn render_preview_html(options: &ServeOptions, ctx: &PreviewContext) -> Resu
         &ExportOptions {
             standalone: true,
             theme_href: Some("/theme.css".into()),
+            media_url_prefix: Some("/media/".into()),
             ..ExportOptions::default()
         },
     )?;
@@ -219,6 +220,34 @@ fn handle_client(
         "/healthz" => {
             write_response(&mut stream, 200, "text/plain; charset=utf-8", b"ok\n", true)?;
         }
+        other if other.starts_with("/media/") => {
+            let id_str = other.trim_start_matches("/media/");
+            match id_str.parse::<u64>() {
+                Ok(chunk_id) => match load_image_media(&options.path, chunk_id) {
+                    Ok((media_type, data)) => {
+                        write_response(&mut stream, 200, &media_type, &data, true)?;
+                    }
+                    Err(_) => {
+                        write_response(
+                            &mut stream,
+                            404,
+                            "text/plain; charset=utf-8",
+                            b"media not found\n",
+                            true,
+                        )?;
+                    }
+                },
+                Err(_) => {
+                    write_response(
+                        &mut stream,
+                        404,
+                        "text/plain; charset=utf-8",
+                        b"not found\n",
+                        true,
+                    )?;
+                }
+            }
+        }
         _ => {
             write_response(
                 &mut stream,
@@ -230,6 +259,22 @@ fn handle_client(
         }
     }
     Ok(())
+}
+
+fn load_image_media(path: &Path, chunk_id: u64) -> Result<(String, Vec<u8>)> {
+    use crate::catalog::index::ChunkType;
+    use crate::catalog::media::ImagePayload;
+
+    let file = TesFile::open(path)?;
+    let entry = file.chunk_by_id(chunk_id)?;
+    if entry.chunk_type != ChunkType::Image {
+        return Err(TesError::InvalidImage {
+            message: format!("chunk {chunk_id} is not an image"),
+        });
+    }
+    let raw = file.decode_payload(entry)?;
+    let image = ImagePayload::from_bytes(&raw)?;
+    Ok((image.media_type, image.data))
 }
 
 fn write_response(

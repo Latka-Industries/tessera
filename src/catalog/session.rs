@@ -19,6 +19,7 @@ use crate::catalog::index::{
     ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, ENTRY_LEN, HEADER_LEN, chunk_flags,
 };
 use crate::catalog::link::{LinkEntry, encode_link_table};
+use crate::catalog::media::{FigureRef, ImagePayload};
 use crate::error::{Result, TesError};
 use crate::layout::{DocKind, Region, SUPERBLOCK_LEN, SuperblockV0};
 use crate::wire::align8;
@@ -79,6 +80,34 @@ impl TesWriterSession {
             payload,
         });
         Ok(())
+    }
+
+    /// Append a reusable image media chunk (not reading-order).
+    ///
+    /// Returns the 1-based `chunk_id` assigned on commit.
+    pub fn add_image_chunk(&mut self, image: &ImagePayload) -> Result<u64> {
+        self.ensure_open()?;
+        let payload = image.to_bytes()?;
+        self.chunks.push(PendingChunk {
+            chunk_type: ChunkType::Image,
+            chunk_flags: 0,
+            payload,
+        });
+        Ok(self.chunks.len() as u64)
+    }
+
+    /// Append a reading-order figure referencing an image chunk.
+    ///
+    /// Returns the 1-based `chunk_id` assigned on commit.
+    pub fn add_figure(&mut self, figure: &FigureRef) -> Result<u64> {
+        self.ensure_open()?;
+        let payload = figure.to_bytes()?;
+        self.chunks.push(PendingChunk {
+            chunk_type: ChunkType::Figure,
+            chunk_flags: chunk_flags::READING_ORDER,
+            payload,
+        });
+        Ok(self.chunks.len() as u64)
     }
 
     /// Add an outbound/internal link-table edge.

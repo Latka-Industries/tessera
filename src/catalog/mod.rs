@@ -6,6 +6,7 @@ pub mod file;
 pub mod index;
 pub mod info;
 pub mod link;
+pub mod media;
 pub mod session;
 
 pub use chunk::{
@@ -18,4 +19,5 @@ pub use info::{
     TesInfoReport, format_info_human, format_info_json, format_info_quiet, read_summary_v0,
 };
 pub use link::{LinkEntry, LinkKind};
+pub use media::{FigureRef, ImagePayload, ImagePlacement, base64_encode};
 pub use session::TesWriterSession;

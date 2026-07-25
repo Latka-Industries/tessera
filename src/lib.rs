@@ -32,11 +32,12 @@ mod tests;
 /// Common types for embedders: `use tessera::prelude::*;`.
 pub mod prelude {
     pub use crate::catalog::{
-        ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog, TesFile,
-        TesInfoReport, TesWriterSession, TextHeader, TextRole, read_summary_v0,
+        ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog, FigureRef,
+        ImagePayload, ImagePlacement, TesFile, TesInfoReport, TesWriterSession, TextHeader,
+        TextRole, read_summary_v0,
     };
     pub use crate::error::{Result, TesError};
-    pub use crate::export::{ExportOptions, ExportView, export_view};
+    pub use crate::export::{AiPart, ExportOptions, ExportView, export_ai_parts, export_view};
     pub use crate::import::{
         HtmlImportOptions, HtmlImportReport, MarkdownImportOptions, MarkdownImportReport,
         import_html_v0, import_markdown_v0,

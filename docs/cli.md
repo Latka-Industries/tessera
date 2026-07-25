@@ -177,9 +177,9 @@ tes serve paper.tes --theme print --watch
 | `--watch-secs N` | Refresh interval when `--watch` is set |
 | `--allow-theme-js` | Opt in for packs that declare `requires_theme_js` (still CSS-served) |
 
-Routes: `/` (standalone HTML), `/theme.css` (selected theme), `/healthz`.
-Each request re-opens the `.tes` file. CSP is CSS-only by default. See
-[security.md](security.md).
+Routes: `/` (standalone HTML), `/theme.css` (selected theme), `/media/{chunk_id}`
+(image bytes), `/healthz`. Each request re-opens the `.tes` file. CSP is CSS-only
+by default. See [security.md](security.md).
 
 ---
 
