@@ -107,8 +107,8 @@ Optional **`tes export --chunks-jsonl --max-bytes N --overlap N`** added in a la
 
 | Imported | Discarded |
 | --- | --- |
-| `h1`–`h6`, `p`, `ul/ol/li`, `blockquote`, `pre/code`, `table`, `a[href]` | `script`, `style`, inline `style=""` (v0) |
-| `href` → link table entry | DOM id/class soup without semantic role |
+| `h1`–`h6`, `p`, `ul/ol/li`, `blockquote`, `pre/code`, `table`, `a` display text | `script`, `style`, inline `style=""` (v0) |
+| Internal document edges → `TLNK` | External `href` persistence (v0 `TLNK` stores UUID targets, not URLs) |
 
 **Export:** HTML is generated from chunks + theme CSS — not round-tripped from imported HTML source.
 
@@ -123,7 +123,7 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 | Supported | Deferred |
 | --- | --- |
 | ATX headings, paragraphs, `-` / `*` lists, ordered lists, fenced code, blockquotes | GFM tables (import via HTML path first), footnotes, raw HTML blocks |
-| `[text](url)` external links only | Wikilinks `[[page]]` compile to link table if vault resolver provided |
+| Link display text (destination persistence deferred) | External URL records; wikilinks compile to `TLNK` when a vault resolver is provided |
 
 **Export:** `tes export --markdown` generates GFM-ish Markdown from chunks; **lossy** for cite/slide richness.
 

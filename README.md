@@ -190,15 +190,16 @@ Reuse the **pattern** (superblock, catalog, chunk index, footer/history, verify/
 ## Status
 
 **Active pre-release implementation.** The Rust reference engine now covers
-milestones M0–M5:
+milestones M0–M6:
 
 - v0 `TESS` superblock, `TIDX` chunk index, catalog JSON, and `TLNK` links
 - sealed session writer, mmap reader, golden fixtures, and deep verification
 - `tes info`, `tes verify`, and decoded text/JSONL/Markdown exports
 - CommonMark-subset import (`tes import --markdown`)
 - vault graph resolution, backlinks, and broken-link checks (`tes link`)
+- semantic HTML import/export and standalone previews
 
-Next: HTML import/export and preview (M6), then print/research/presentation layers.
+Next: print/PDF, then research and presentation layers.
 The wire format remains pre-release and may change before v1.
 
 ---

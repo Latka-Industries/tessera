@@ -9,9 +9,9 @@
 //! - [`catalog::file`] — [`TesFile`] mmap reader + catalog/index parse.
 //! - [`verify`] — layout health findings for `tes verify`.
 //! - [`export`] — decoded views (`--raw`, `--ai-text`, …).
+//! - [`import`] — CommonMark and semantic HTML compilation into chunks.
+//! - [`vault`] — stable link resolution and backlinks.
 //! - [`wire`] — little-endian primitives and `align8`.
-//!
-//! Higher layers (link table, import, vault) land in later milestones.
 
 pub mod catalog;
 pub mod error;
@@ -33,7 +33,10 @@ pub mod prelude {
     };
     pub use crate::error::{Result, TesError};
     pub use crate::export::{ExportOptions, ExportView, export_view};
-    pub use crate::import::{MarkdownImportOptions, MarkdownImportReport, import_markdown_v0};
+    pub use crate::import::{
+        HtmlImportOptions, HtmlImportReport, MarkdownImportOptions, MarkdownImportReport,
+        import_html_v0, import_markdown_v0,
+    };
     pub use crate::layout::{DocKind, Region, SuperblockV0};
     pub use crate::vault::{Backlink, ResolvedTarget, Vault, VaultDocument};
     pub use crate::verify::{TesVerifyReport, verify_tes_file};

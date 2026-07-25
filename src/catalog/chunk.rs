@@ -50,6 +50,9 @@ pub struct TextHeader {
     /// Emphasis spans (v0: usually empty; structure lives in fields).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub emphasis: Vec<String>,
+    /// Theme hints imported from semantic HTML `class` attributes.
+    #[serde(default, rename = "class", skip_serializing_if = "Vec::is_empty")]
+    pub classes: Vec<String>,
 }
 
 impl TextRole {
@@ -76,6 +79,7 @@ impl TextHeader {
             level: None,
             list_kind: None,
             emphasis: Vec::new(),
+            classes: Vec::new(),
         }
     }
 
@@ -87,6 +91,7 @@ impl TextHeader {
             level: Some(level),
             list_kind: None,
             emphasis: Vec::new(),
+            classes: Vec::new(),
         }
     }
 
@@ -98,6 +103,7 @@ impl TextHeader {
             level: None,
             list_kind: Some(kind),
             emphasis: Vec::new(),
+            classes: Vec::new(),
         }
     }
 }

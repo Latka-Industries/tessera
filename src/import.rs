@@ -4,6 +4,8 @@
 //! paragraphs, lists, fenced code, and blockquotes. Inline presentation is
 //! parsed once and flattened into clean canonical text.
 
+pub mod html;
+
 use std::path::{Path, PathBuf};
 
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
@@ -14,6 +16,8 @@ use uuid::Uuid;
 use crate::catalog::{DocumentCatalog, ListKind, TesWriterSession, TextHeader, TextRole};
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
+
+pub use html::{HtmlImportOptions, HtmlImportReport, import_html_v0, parse_html_blocks};
 
 /// Options for Markdown → `.tes` import.
 #[derive(Debug, Clone)]
@@ -164,15 +168,13 @@ impl ParseState {
             Tag::Heading { level, .. } => {
                 self.begin(TextHeader::heading(heading_level(level)));
             }
-            Tag::Paragraph => {
-                if self.active.is_none() {
-                    let header = if self.blockquote_depth > 0 {
-                        header_for_role(TextRole::Blockquote)
-                    } else {
-                        TextHeader::paragraph()
-                    };
-                    self.begin(header);
-                }
+            Tag::Paragraph if self.active.is_none() => {
+                let header = if self.blockquote_depth > 0 {
+                    header_for_role(TextRole::Blockquote)
+                } else {
+                    TextHeader::paragraph()
+                };
+                self.begin(header);
             }
             Tag::List(start) => {
                 self.list_stack.push(if start.is_some() {
@@ -275,6 +277,7 @@ fn header_for_role(role: TextRole) -> TextHeader {
         level: None,
         list_kind: None,
         emphasis: Vec::new(),
+        classes: Vec::new(),
     }
 }
 
