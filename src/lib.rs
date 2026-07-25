@@ -8,12 +8,14 @@
 //! - [`catalog::session`] — [`TesWriterSession`] sealed-file writer.
 //! - [`catalog::file`] — [`TesFile`] mmap reader + catalog/index parse.
 //! - [`verify`] — layout health findings for `tes verify`.
+//! - [`export`] — decoded views (`--raw`, `--ai-text`, …).
 //! - [`wire`] — little-endian primitives and `align8`.
 //!
-//! Higher layers (link table, export, import, vault) land in later milestones.
+//! Higher layers (link table, import, vault) land in later milestones.
 
 pub mod catalog;
 pub mod error;
+pub mod export;
 pub mod layout;
 pub mod verify;
 pub mod wire;
@@ -28,6 +30,7 @@ pub mod prelude {
         TesInfoReport, TesWriterSession, TextHeader, TextRole, read_summary_v0,
     };
     pub use crate::error::{Result, TesError};
+    pub use crate::export::{ExportOptions, ExportView, export_view};
     pub use crate::layout::{DocKind, Region, SuperblockV0};
     pub use crate::verify::{TesVerifyReport, verify_tes_file};
 }
