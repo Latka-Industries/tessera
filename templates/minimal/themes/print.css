@@ -111,6 +111,28 @@ th {
   font-weight: 600;
 }
 
+figure {
+  margin: 1em 0;
+  page-break-inside: avoid;
+}
+
+figure img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+figure[data-placement="full_width"] img {
+  width: 100%;
+}
+
+figcaption {
+  margin-top: 0.35em;
+  font-size: 9.5pt;
+  color: var(--tes-muted);
+  font-style: italic;
+}
+
 @media screen {
   body {
     background: #ececec;

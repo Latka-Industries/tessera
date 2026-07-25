@@ -1,8 +1,8 @@
 //! `tes` — command-line interface for the Tessera document format.
 //!
 //! See `docs/cli.md` for the full command surface. This binary ships `info`,
-//! `verify`, `export`, CommonMark/HTML `import`, vault-aware `link`, and
-//! loopback `serve` preview.
+//! `verify`, `export` (including `--pdf`), CommonMark/HTML `import`,
+//! vault-aware `link`, and loopback `serve` preview.
 
 use std::env;
 use std::fs;
@@ -18,6 +18,7 @@ use tessera::import::{
     HtmlImportOptions, MarkdownImportOptions, import_html_v0, import_markdown_v0,
 };
 use tessera::layout::DocKind;
+use tessera::pdf::{PdfExportOptions, export_pdf};
 use tessera::preview::{ServeOptions, serve_preview};
 use tessera::vault::{Vault, parse_target};
 use tessera::verify::{
@@ -77,6 +78,7 @@ enum Commands {
                 "chunks_jsonl",
                 "markdown",
                 "html",
+                "pdf",
             ])
     ))]
     Export {
@@ -100,6 +102,9 @@ enum Commands {
         /// Semantic HTML5 fragment or standalone page
         #[arg(long)]
         html: bool,
+        /// Print-theme PDF via headless Chromium (requires -o)
+        #[arg(long)]
+        pdf: bool,
         /// Restrict to a single chunk id
         #[arg(long = "chunk")]
         chunk: Option<u64>,
@@ -115,7 +120,7 @@ enum Commands {
         /// Omit cite expansion from --ai-text
         #[arg(long = "no-cites")]
         no_cites: bool,
-        /// Write to PATH instead of stdout
+        /// Write to PATH instead of stdout (required for --pdf)
         #[arg(short = 'o', long = "output")]
         output: Option<PathBuf>,
         /// Stylesheet path/href for --html
@@ -127,6 +132,15 @@ enum Commands {
         /// Read --theme and embed its CSS
         #[arg(long, requires = "theme")]
         embed_css: bool,
+        /// Template pack id for --pdf (default: catalog or minimal)
+        #[arg(long, requires = "pdf")]
+        template: Option<String>,
+        /// Template pack root for --pdf (env: TES_TEMPLATE_ROOT)
+        #[arg(long = "template-root", requires = "pdf")]
+        template_root: Option<PathBuf>,
+        /// Pack theme id for --pdf (default: print)
+        #[arg(long = "theme-id", requires = "pdf")]
+        theme_id: Option<String>,
     },
 
     /// Import a foreign document into a sealed .tes file
@@ -247,6 +261,7 @@ fn main() -> ExitCode {
             chunks_jsonl,
             markdown,
             html,
+            pdf,
             chunk,
             include_headers,
             annotate,
@@ -256,6 +271,9 @@ fn main() -> ExitCode {
             theme,
             standalone,
             embed_css,
+            template,
+            template_root,
+            theme_id,
         } => match run_export(
             &path,
             raw,
@@ -264,6 +282,7 @@ fn main() -> ExitCode {
             chunks_jsonl,
             markdown,
             html,
+            pdf,
             chunk,
             include_headers,
             annotate,
@@ -273,6 +292,9 @@ fn main() -> ExitCode {
             theme.as_ref(),
             standalone,
             embed_css,
+            template,
+            template_root,
+            theme_id,
         ) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
@@ -384,6 +406,7 @@ fn run_export(
     chunks_jsonl: bool,
     markdown: bool,
     html: bool,
+    pdf: bool,
     chunk: Option<u64>,
     include_headers: bool,
     annotate: bool,
@@ -393,7 +416,32 @@ fn run_export(
     theme: Option<&PathBuf>,
     standalone: bool,
     embed_css: bool,
+    template: Option<String>,
+    template_root: Option<PathBuf>,
+    theme_id: Option<String>,
 ) -> Result<(), TesError> {
+    if pdf {
+        let Some(out_path) = output else {
+            return Err(TesError::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "--pdf requires -o/--output PATH",
+            )));
+        };
+        let template_root = template_root
+            .or_else(|| env::var_os("TES_TEMPLATE_ROOT").map(PathBuf::from))
+            .unwrap_or_else(|| PathBuf::from("templates"));
+        return export_pdf(
+            path,
+            out_path,
+            &PdfExportOptions {
+                template_root,
+                template_id: template,
+                theme_id: theme_id.or_else(|| Some("print".into())),
+                chrome_path: env::var_os("TES_CHROME").map(PathBuf::from),
+            },
+        );
+    }
+
     let view = if raw {
         ExportView::Raw
     } else if linear {
@@ -614,7 +662,7 @@ fn run_link(root: &PathBuf, command: LinkCommands) -> ExitCode {
 
 fn exit_for(err: &TesError) -> ExitCode {
     match err {
-        TesError::Io(_) => ExitCode::from(2),
+        TesError::Io(_) | TesError::PdfEngine { .. } => ExitCode::from(2),
         _ => ExitCode::from(1),
     }
 }

@@ -13,6 +13,7 @@
 //! - [`vault`] — stable link resolution and backlinks.
 //! - [`template`] — external theme/template packs.
 //! - [`preview`] — loopback `tes serve` HTML preview.
+//! - [`pdf`] — print-theme HTML → headless PDF.
 //! - [`wire`] — little-endian primitives and `align8`.
 
 pub mod catalog;
@@ -20,6 +21,7 @@ pub mod error;
 pub mod export;
 pub mod import;
 pub mod layout;
+pub mod pdf;
 pub mod preview;
 pub mod template;
 pub mod vault;
@@ -43,6 +45,7 @@ pub mod prelude {
         import_html_v0, import_markdown_v0,
     };
     pub use crate::layout::{DocKind, Region, SuperblockV0};
+    pub use crate::pdf::{PdfExportOptions, export_pdf, render_themed_html};
     pub use crate::preview::{ServeOptions, preview_html_for_path, serve_preview};
     pub use crate::template::{TemplateManifest, TemplatePack};
     pub use crate::vault::{Backlink, ResolvedTarget, Vault, VaultDocument};

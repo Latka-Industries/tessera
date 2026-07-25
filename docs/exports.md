@@ -240,11 +240,23 @@ catalog metadata. In-text and bibliography rendering uses the template's
 
 ---
 
-## `--pdf` (print, later)
+## `--pdf`
 
 Paginated PDF via the same semantic HTML + print theme (`@page`, margins)
-served by `tes serve`. Browser preview and PDF are two sinks of one render
-path. Phase 7 per [roadmap](roadmap.md).
+used by `tes serve --theme print`. The exporter embeds print CSS and image
+data URIs, then prints through a headless Chromium/Chrome binary
+(`TES_CHROME` or auto-detect). On Linux and in CI, Tessera passes
+`--no-sandbox` so Chromium can run when user namespaces are restricted
+(override anytime with `TES_CHROME_NO_SANDBOX`).
+
+| Flag | Behavior |
+| --- | --- |
+| `-o PATH` | **Required** output PDF path |
+| `--theme-id ID` | Pack theme (default `print`) |
+| `--template ID` / `--template-root DIR` | Template pack selection |
+
+PDF is a lossy print sink — never an editable canonical source. Browser
+preview and PDF are two sinks of one render path.
 
 ---
 

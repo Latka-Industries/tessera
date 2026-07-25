@@ -93,9 +93,14 @@ tes export note.tes --raw
 tes export note.tes --ai-text -o context.txt
 tes export paper.tes --chunks-jsonl -o chunks.jsonl
 tes export doc.tes --markdown -o doc.md
+tes export paper.tes --pdf -o paper.pdf --theme-id print
 tes export doc.tes --ai --format markdown
 tes export doc.tes --meta toml
 ```
+
+`--pdf` uses the same semantic HTML + template theme path as `tes serve`.
+Requires a Chromium/Chrome binary (`TES_CHROME` or auto-detect). PDF is a
+lossy print sink, not an editable source.
 
 | Flag | Effect |
 | --- | --- |
@@ -105,9 +110,12 @@ tes export doc.tes --meta toml
 | `--chunks-jsonl` | One JSON object per chunk line |
 | `--markdown` | Lossy Markdown |
 | `--html` | HTML fragment (+ `--theme`, `--standalone`) |
+| `--pdf` | Print-theme PDF via headless Chromium (requires `-o`) |
+| `--template ID` | Pack id for `--pdf` (default: catalog or `minimal`) |
+| `--template-root DIR` | Pack root for `--pdf` (env: `TES_TEMPLATE_ROOT`) |
+| `--theme-id ID` | Pack theme for `--pdf` (default: `print`) |
 | `--ai --format markdown\|html` | AI-safe structured profile (planned v1) |
 | `--meta json\|yaml\|toml` | Catalog metadata projection (planned v1) |
-| `--pdf` | HTML + print-theme PDF (planned M7) |
 | `--chunk ID` | Single chunk (where applicable) |
 | `-o`, `--output PATH` | Write file instead of stdout |
 | `--annotate` | Include chunk ids in `--ai-text` |
@@ -226,7 +234,9 @@ content-addressed payloads only while stored inside the history-bearing source.
 | --- | --- |
 | `TES_VAULT` | Default vault directory for `tes link` |
 | `TES_THEME` | Default CSS path for `--html` export |
-| `TES_TEMPLATE_ROOT` | Default template pack root for `tes serve` |
+| `TES_TEMPLATE_ROOT` | Default template pack root for `tes serve` / `--pdf` |
+| `TES_CHROME` | Chromium/Chrome binary for `tes export --pdf` |
+| `TES_CHROME_NO_SANDBOX` | Force `--no-sandbox` for headless print (also auto on Linux / `CI`) |
 | `RUST_LOG` | `trace`/`debug` for library logging |
 
 ---

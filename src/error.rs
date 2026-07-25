@@ -128,7 +128,7 @@ pub enum TesError {
 
     /// Export was called without selecting a view.
     #[error(
-        "export requires a view flag (--raw, --linear, --ai-text, --chunks-jsonl, --markdown, or --html)"
+        "export requires a view flag (--raw, --linear, --ai-text, --chunks-jsonl, --markdown, --html, or --pdf)"
     )]
     ExportViewRequired,
 
@@ -214,6 +214,13 @@ pub enum TesError {
     /// Figure reference failed validation or decode.
     #[error("invalid figure: {message}")]
     InvalidFigure {
+        /// Human-readable reason.
+        message: String,
+    },
+
+    /// PDF export failed (missing engine, launch error, or bad output).
+    #[error("pdf export failed: {message}")]
+    PdfEngine {
         /// Human-readable reason.
         message: String,
     },
