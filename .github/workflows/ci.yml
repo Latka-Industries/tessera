@@ -8,7 +8,7 @@ on:
     branches: [main, master]
     paths:
       - "src/**"
-      - "tests/**"
+      - "examples/**"
       - "fixtures/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -18,7 +18,7 @@ on:
     branches: [main, master]
     paths:
       - "src/**"
-      - "tests/**"
+      - "examples/**"
       - "fixtures/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -53,6 +53,28 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose
+
+  fixtures:
+    name: Verify golden fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci-ubuntu-latest"
+
+      - name: Build tes
+        run: cargo build --bin tes
+
+      # Exits 1 on any corrupt fixture; --deep also decodes every payload.
+      - name: tes verify fixtures
+        run: ./target/debug/tes verify --deep fixtures/v0/*.tes
 
   msrv:
     name: MSRV Check
