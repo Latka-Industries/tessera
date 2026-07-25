@@ -7,14 +7,15 @@
 //! - [`catalog::index`] — the chunk index (`TIDX`) header and 48-byte rows.
 //! - [`catalog::session`] — [`TesWriterSession`] sealed-file writer.
 //! - [`catalog::file`] — [`TesFile`] mmap reader + catalog/index parse.
+//! - [`verify`] — layout health findings for `tes verify`.
 //! - [`wire`] — little-endian primitives and `align8`.
 //!
-//! Higher layers (link table, verify, export, import, vault) land in later
-//! milestones.
+//! Higher layers (link table, export, import, vault) land in later milestones.
 
 pub mod catalog;
 pub mod error;
 pub mod layout;
+pub mod verify;
 pub mod wire;
 
 #[cfg(test)]
@@ -28,4 +29,5 @@ pub mod prelude {
     };
     pub use crate::error::{Result, TesError};
     pub use crate::layout::{DocKind, Region, SuperblockV0};
+    pub use crate::verify::{TesVerifyReport, verify_tes_file};
 }
