@@ -12,7 +12,9 @@ use std::process::ExitCode;
 
 use clap::{ArgGroup, Parser, Subcommand};
 use tessera_doc::bib::{BibFormat, BibImportOptions, export_bibliography, import_bibliography};
-use tessera_doc::catalog::{format_info_human, format_info_json, format_info_quiet, read_summary_v0};
+use tessera_doc::catalog::{
+    format_info_human, format_info_json, format_info_quiet, read_summary_v0,
+};
 use tessera_doc::error::TesError;
 use tessera_doc::export::{ExportOptions, ExportView, export_view};
 use tessera_doc::import::{
