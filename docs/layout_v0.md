@@ -267,11 +267,21 @@ UTF-8 JSON:
   "target_byte_start": 0,
   "target_byte_end": 42,
   "label": "Smith2024",
-  "page": 7
+  "page": 7,
+  "source": {
+    "cite_key": "Smith2024",
+    "entry_type": "article",
+    "author": "Smith, Ada",
+    "title": "Example",
+    "year": "2024"
+  }
 }
 ```
 
-Also mirrored in **link table** with `link_kind = 2`. Export views resolve to human-readable citations; see [exports](exports.md).
+`source` holds bibliographic fields for BibTeX/CSL interchange; display style is
+selected by catalog/template `cite_style_id`, never stored here. When
+`target_doc_id` is set, the writer also mirrors a **link table** row with
+`link_kind = 2`. See [exports](exports.md).
 
 ---
 

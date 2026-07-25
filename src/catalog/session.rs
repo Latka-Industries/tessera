@@ -13,12 +13,14 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::catalog::chunk::{TextHeader, encode_text_payload};
+use uuid::Uuid;
+
+use crate::catalog::chunk::{CitePayload, TextHeader, encode_text_payload};
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::{
     ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, ENTRY_LEN, HEADER_LEN, chunk_flags,
 };
-use crate::catalog::link::{LinkEntry, encode_link_table};
+use crate::catalog::link::{LinkEntry, LinkKind, encode_link_table};
 use crate::catalog::media::{FigureRef, ImagePayload};
 use crate::error::{Result, TesError};
 use crate::layout::{DocKind, Region, SUPERBLOCK_LEN, SuperblockV0};
@@ -108,6 +110,35 @@ impl TesWriterSession {
             payload,
         });
         Ok(self.chunks.len() as u64)
+    }
+
+    /// Append a reading-order cite chunk, mirroring a `TLNK` citation edge when targeted.
+    ///
+    /// Returns the 1-based `chunk_id` assigned on commit.
+    pub fn add_cite_chunk(&mut self, cite: &CitePayload) -> Result<u64> {
+        self.ensure_open()?;
+        let payload = cite.to_bytes()?;
+        self.chunks.push(PendingChunk {
+            chunk_type: ChunkType::Cite,
+            chunk_flags: chunk_flags::READING_ORDER,
+            payload,
+        });
+        let chunk_id = self.chunks.len() as u64;
+        if let Some(doc_id) = cite.target_doc_id.as_deref() {
+            let uuid = Uuid::parse_str(doc_id).map_err(|_| TesError::InvalidDocId {
+                value: doc_id.to_owned(),
+            })?;
+            let end = u32::try_from(cite.quote.len()).unwrap_or(u32::MAX);
+            self.links.push(LinkEntry::new(
+                chunk_id,
+                0,
+                end,
+                uuid,
+                cite.target_chunk_id.unwrap_or(0),
+                LinkKind::Citation,
+            ));
+        }
+        Ok(chunk_id)
     }
 
     /// Add an outbound/internal link-table edge.

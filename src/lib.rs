@@ -14,8 +14,10 @@
 //! - [`template`] — external theme/template packs.
 //! - [`preview`] — loopback `tes serve` HTML preview.
 //! - [`pdf`] — print-theme HTML → headless PDF.
+//! - [`bib`] — BibTeX / CSL-JSON bibliography interchange.
 //! - [`wire`] — little-endian primitives and `align8`.
 
+pub mod bib;
 pub mod catalog;
 pub mod error;
 pub mod export;
@@ -33,6 +35,10 @@ mod tests;
 
 /// Common types for embedders: `use tessera::prelude::*;`.
 pub mod prelude {
+    pub use crate::bib::{
+        BibEntry, BibFormat, BibImportOptions, export_bibliography, import_bibliography,
+        parse_bibtex,
+    };
     pub use crate::catalog::{
         ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog, FigureRef,
         ImagePayload, ImagePlacement, TesFile, TesInfoReport, TesWriterSession, TextHeader,

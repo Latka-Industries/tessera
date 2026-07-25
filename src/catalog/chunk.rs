@@ -1,7 +1,9 @@
 //! Chunk payload codecs (`docs/layout_v0.md` — *Text chunk payload*).
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
+use crate::bib::BibEntry;
 use crate::error::{Result, TesError};
 use crate::wire::{LeReader, LeWriter};
 
@@ -131,12 +133,49 @@ pub struct CitePayload {
     /// Optional page number from an imported PDF.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page: Option<u32>,
+    /// Optional bibliographic source (interchange metadata; not a display style).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<BibEntry>,
 }
 
 impl CitePayload {
     /// Parse a cite payload from UTF-8 JSON bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(serde_json::from_slice(bytes)?)
+        let cite: Self = serde_json::from_slice(bytes)?;
+        cite.validate()?;
+        Ok(cite)
+    }
+
+    /// Serialize to UTF-8 JSON bytes after validation.
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        self.validate()?;
+        Ok(serde_json::to_vec(self)?)
+    }
+
+    /// Reject inconsistent ranges and malformed target UUIDs.
+    pub fn validate(&self) -> Result<()> {
+        if let (Some(start), Some(end)) = (self.target_byte_start, self.target_byte_end)
+            && start >= end
+        {
+            return Err(TesError::InvalidCite {
+                message: format!("target_byte_start ({start}) must be < target_byte_end ({end})"),
+            });
+        }
+        if let Some(doc_id) = self.target_doc_id.as_deref()
+            && Uuid::parse_str(doc_id).is_err()
+        {
+            return Err(TesError::InvalidDocId {
+                value: doc_id.to_owned(),
+            });
+        }
+        if let Some(source) = &self.source
+            && source.cite_key.trim().is_empty()
+        {
+            return Err(TesError::InvalidCite {
+                message: "source.cite_key must be non-empty".into(),
+            });
+        }
+        Ok(())
     }
 }
 
@@ -206,5 +245,36 @@ mod tests {
         assert_eq!(h2.role, TextRole::Heading);
         assert_eq!(h2.level, Some(2));
         assert_eq!(b2, "Methods");
+    }
+
+    #[test]
+    fn cite_payload_round_trip() {
+        let cite = CitePayload {
+            quote: "We measured …".into(),
+            target_doc_id: Some("660e8400-e29b-41d4-a716-446655440001".into()),
+            target_chunk_id: Some(12),
+            target_byte_start: Some(0),
+            target_byte_end: Some(42),
+            label: Some("Smith2024".into()),
+            page: Some(7),
+            source: None,
+        };
+        let decoded = CitePayload::from_bytes(&cite.to_bytes().unwrap()).unwrap();
+        assert_eq!(decoded, cite);
+    }
+
+    #[test]
+    fn cite_rejects_inverted_byte_range() {
+        let cite = CitePayload {
+            quote: String::new(),
+            target_doc_id: None,
+            target_chunk_id: None,
+            target_byte_start: Some(10),
+            target_byte_end: Some(10),
+            label: None,
+            page: None,
+            source: None,
+        };
+        assert!(cite.validate().is_err());
     }
 }

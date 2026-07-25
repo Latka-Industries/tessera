@@ -282,6 +282,7 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
     }
 
     verify_figure_targets(&mut findings, &entries, bytes);
+    verify_cite_mirrors(&mut findings, &entries, &superblock, bytes);
 
     // 6. History footer flag.
     if superblock.has_history_footer()
@@ -297,7 +298,7 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
 }
 
 fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, payload: &[u8]) {
-    use crate::catalog::chunk::decode_text_payload;
+    use crate::catalog::chunk::{CitePayload, decode_text_payload};
     use crate::catalog::index::ChunkType;
     use crate::catalog::media::{FigureRef, ImagePayload};
 
@@ -349,7 +350,75 @@ fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, p
                 ));
             }
         }
+        ChunkType::Cite => {
+            if let Err(err) = CitePayload::from_bytes(payload) {
+                findings.push(Finding::error(
+                    "chunk.cite_payload",
+                    format!("chunk {}: {err}", entry.chunk_id),
+                ));
+            }
+        }
         _ => {}
+    }
+}
+
+fn verify_cite_mirrors(
+    findings: &mut Vec<Finding>,
+    entries: &[ChunkIndexEntry],
+    superblock: &crate::layout::SuperblockV0,
+    bytes: &[u8],
+) {
+    use crate::catalog::chunk::CitePayload;
+    use crate::catalog::index::ChunkType;
+    use crate::catalog::link::{LinkKind, read_link_table};
+    use uuid::Uuid;
+
+    let links = if superblock.link_table.is_present() {
+        match superblock.link_table.slice(bytes, "link_table") {
+            Ok(region) => match read_link_table(region) {
+                Ok(links) => links,
+                Err(_) => return,
+            },
+            Err(_) => return,
+        }
+    } else {
+        Vec::new()
+    };
+
+    for entry in entries {
+        if entry.chunk_type != ChunkType::Cite {
+            continue;
+        }
+        let start = entry.payload_offset as usize;
+        let end = start + entry.stored_byte_len as usize;
+        if end > bytes.len() {
+            continue;
+        }
+        let Ok(cite) = CitePayload::from_bytes(&bytes[start..end]) else {
+            continue;
+        };
+        let Some(doc_id) = cite.target_doc_id.as_deref() else {
+            continue;
+        };
+        let Ok(uuid) = Uuid::parse_str(doc_id) else {
+            continue;
+        };
+        let target_chunk = cite.target_chunk_id.unwrap_or(0);
+        let mirrored = links.iter().any(|link| {
+            link.link_kind == LinkKind::Citation
+                && link.source_chunk_id == entry.chunk_id
+                && link.target_uuid() == uuid
+                && link.target_chunk_id == target_chunk
+        });
+        if !mirrored {
+            findings.push(Finding::warning(
+                "cite.mirror",
+                format!(
+                    "cite {} targets {} but has no matching TLNK citation row",
+                    entry.chunk_id, doc_id
+                ),
+            ));
+        }
     }
 }
 

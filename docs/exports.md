@@ -196,7 +196,7 @@ One JSON object per line — **one row per index entry** with `chunk_flags & 1` 
 | `blockquote` | `>` |
 | `table` | v0 TSV fallback; v1 structured GFM-compatible table |
 | Internal link | `[title](<doc_id>.tes#chunk-12)` (vault-relative convention) |
-| Cite | Pandoc-style `[@label]` or footnote (TBD in research phase) |
+| Cite | Pandoc-style `[@label]` plus a generated `## References` list (numeric) |
 
 **Non-goals v0:** lossless round-trip from exported Markdown back to identical
 chunks. Layout v1 adds a lossless editor profile, **Tessera Markdown**
@@ -232,11 +232,13 @@ sanitized fragment.
 
 ---
 
-## `--bibliography` (research, later)
+## `--bibliography`
 
-Import/export **BibTeX** or **CSL JSON** from structured cite chunks +
-catalog metadata. In-text and bibliography rendering uses the template's
-`cite_style_id`; no display style is baked into cite payloads. Not v0.
+Export **BibTeX** or **CSL JSON** from cite-chunk `source` metadata (fallback:
+`label` / `quote` / `page`). Import via `tes import --bibtex` / `--csl-json`.
+
+In-text rendering uses catalog/template `cite_style_id` (v0 ships `numeric`:
+`[1]`, `[2]`, …). Display style is never stored inside cite payloads.
 
 ---
 

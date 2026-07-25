@@ -94,6 +94,8 @@ tes export note.tes --ai-text -o context.txt
 tes export paper.tes --chunks-jsonl -o chunks.jsonl
 tes export doc.tes --markdown -o doc.md
 tes export paper.tes --pdf -o paper.pdf --theme-id print
+tes export paper.tes --bibliography --bib-format bibtex -o refs.bib
+tes import --bibtex fixtures/assets/citations/sample.bib refs.tes
 tes export doc.tes --ai --format markdown
 tes export doc.tes --meta toml
 ```
@@ -111,6 +113,8 @@ lossy print sink, not an editable source.
 | `--markdown` | Lossy Markdown |
 | `--html` | HTML fragment (+ `--theme`, `--standalone`) |
 | `--pdf` | Print-theme PDF via headless Chromium (requires `-o`) |
+| `--bibliography` | BibTeX / CSL-JSON from cite chunks (`--bib-format`) |
+| `--bib-format` | `bibtex` (default) or `csl-json` with `--bibliography` |
 | `--template ID` | Pack id for `--pdf` (default: catalog or `minimal`) |
 | `--template-root DIR` | Pack root for `--pdf` (env: `TES_TEMPLATE_ROOT`) |
 | `--theme-id ID` | Pack theme for `--pdf` (default: `print`) |
@@ -131,6 +135,7 @@ Build a `.tes` from foreign formats. **Parse once** into chunks.
 ```bash
 tes import --markdown article.md article.tes
 tes import --html page.html page.tes
+tes import --bibtex refs.bib refs.tes
 tes import --pdf scan.pdf scan.tes --page-rasters
 ```
 
@@ -138,7 +143,8 @@ tes import --pdf scan.pdf scan.tes --page-rasters
 | --- | --- |
 | `--markdown` | CommonMark subset ([decisions](decisions.md#markdown-import--export)) |
 | `--html` | Semantic block import |
-| `--pdf` | Text extract + optional `--page-rasters` |
+| `--bibtex` / `--csl-json` | Bibliography → research cite chunks |
+| `--pdf` | Text extract + optional `--page-rasters` (not yet) |
 | `--doc-kind KIND` | Override superblock `doc_kind` |
 | `--title TEXT` | Catalog title |
 | `--doc-id UUID` | Stable id (generate if omitted) |

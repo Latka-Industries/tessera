@@ -30,6 +30,9 @@ pub struct DocumentCatalog {
     /// Optional theme hint.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme_id: Option<String>,
+    /// Optional citation style id (e.g. `numeric`); display only, never in cite payloads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cite_style_id: Option<String>,
 }
 
 impl DocumentCatalog {
@@ -51,6 +54,7 @@ impl DocumentCatalog {
             tags: Vec::new(),
             template_id: None,
             theme_id: None,
+            cite_style_id: None,
         }
     }
 
@@ -104,6 +108,7 @@ mod tests {
         cat.tags = vec!["ml".into(), "notes".into()];
         cat.template_id = Some("academic".into());
         cat.theme_id = Some("print".into());
+        cat.cite_style_id = Some("numeric".into());
         let decoded = DocumentCatalog::from_bytes(&cat.to_bytes().unwrap()).unwrap();
         assert_eq!(decoded, cat);
     }

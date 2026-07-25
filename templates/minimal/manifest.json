@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "compatible_layout": 0,
   "doc_kind_default": "document",
-  "cite_style_id": null,
+  "cite_style_id": "numeric",
   "themes": {
     "draft": "themes/draft.css",
     "print": "themes/print.css"

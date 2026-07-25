@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{ArgGroup, Parser, Subcommand};
+use tessera::bib::{BibFormat, BibImportOptions, export_bibliography, import_bibliography};
 use tessera::catalog::{format_info_human, format_info_json, format_info_quiet, read_summary_v0};
 use tessera::error::TesError;
 use tessera::export::{ExportOptions, ExportView, export_view};
@@ -79,6 +80,7 @@ enum Commands {
                 "markdown",
                 "html",
                 "pdf",
+                "bibliography",
             ])
     ))]
     Export {
@@ -105,6 +107,16 @@ enum Commands {
         /// Print-theme PDF via headless Chromium (requires -o)
         #[arg(long)]
         pdf: bool,
+        /// BibTeX or CSL-JSON bibliography from cite chunks
+        #[arg(long)]
+        bibliography: bool,
+        /// Bibliography format: bibtex | csl-json (default: bibtex)
+        #[arg(
+            long = "bib-format",
+            default_value = "bibtex",
+            requires = "bibliography"
+        )]
+        bib_format: String,
         /// Restrict to a single chunk id
         #[arg(long = "chunk")]
         chunk: Option<u64>,
@@ -147,7 +159,7 @@ enum Commands {
     #[command(group(
         ArgGroup::new("import_format")
             .required(true)
-            .args(["markdown", "html"])
+            .args(["markdown", "html", "bibtex", "csl_json"])
     ))]
     Import {
         /// Parse input as the supported CommonMark subset
@@ -156,6 +168,12 @@ enum Commands {
         /// Parse semantic HTML
         #[arg(long)]
         html: bool,
+        /// Import BibTeX into research cite chunks
+        #[arg(long)]
+        bibtex: bool,
+        /// Import CSL-JSON into research cite chunks
+        #[arg(long = "csl-json")]
+        csl_json: bool,
         /// Source document
         input: PathBuf,
         /// Destination .tes (must not already exist)
@@ -262,6 +280,8 @@ fn main() -> ExitCode {
             markdown,
             html,
             pdf,
+            bibliography,
+            bib_format,
             chunk,
             include_headers,
             annotate,
@@ -283,6 +303,8 @@ fn main() -> ExitCode {
             markdown,
             html,
             pdf,
+            bibliography,
+            &bib_format,
             chunk,
             include_headers,
             annotate,
@@ -305,12 +327,16 @@ fn main() -> ExitCode {
         Commands::Import {
             markdown,
             html,
+            bibtex,
+            csl_json,
             input,
             output,
             doc_kind,
             title,
             doc_id,
-        } => match run_import(markdown, html, &input, &output, &doc_kind, title, doc_id) {
+        } => match run_import(
+            markdown, html, bibtex, csl_json, &input, &output, &doc_kind, title, doc_id,
+        ) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
                 eprintln!("error: {err}");
@@ -407,6 +433,8 @@ fn run_export(
     markdown: bool,
     html: bool,
     pdf: bool,
+    bibliography: bool,
+    bib_format: &str,
     chunk: Option<u64>,
     include_headers: bool,
     annotate: bool,
@@ -420,6 +448,17 @@ fn run_export(
     template_root: Option<PathBuf>,
     theme_id: Option<String>,
 ) -> Result<(), TesError> {
+    if bibliography {
+        let format = BibFormat::parse(bib_format)?;
+        let out = export_bibliography(path, format)?;
+        if let Some(path) = output {
+            fs::write(path, out.as_bytes())?;
+        } else {
+            print_out(&out)?;
+        }
+        return Ok(());
+    }
+
     if pdf {
         let Some(out_path) = output else {
             return Err(TesError::Io(io::Error::new(
@@ -496,15 +535,56 @@ fn print_out(out: &str) -> Result<(), TesError> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_import(
     markdown: bool,
     html: bool,
+    bibtex: bool,
+    csl_json: bool,
     input: &PathBuf,
     output: &PathBuf,
     doc_kind: &str,
     title: Option<String>,
     doc_id: Option<String>,
 ) -> Result<(), TesError> {
+    if bibtex || csl_json {
+        let format = if bibtex {
+            BibFormat::Bibtex
+        } else {
+            BibFormat::CslJson
+        };
+        // Clap default is `document`; bibliography imports prefer research.
+        let kind = if doc_kind == "document" {
+            DocKind::Research
+        } else {
+            parse_doc_kind(doc_kind)?
+        };
+        import_bibliography(
+            input,
+            output,
+            format,
+            &BibImportOptions {
+                doc_kind: kind,
+                title,
+                doc_id,
+                cite_style_id: Some("numeric".into()),
+            },
+        )?;
+        let summary = read_summary_v0(output)?;
+        let doc_id = summary
+            .catalog
+            .as_ref()
+            .map(|c| c.doc_id.as_str())
+            .unwrap_or("");
+        println!(
+            "imported {}\tchunks={}\tdoc_id={}",
+            output.display(),
+            summary.chunks.len(),
+            doc_id
+        );
+        return Ok(());
+    }
+
     let doc_kind = parse_doc_kind(doc_kind)?;
     let (chunk_count, report_doc_id) = if markdown {
         let report = import_markdown_v0(
@@ -531,7 +611,7 @@ fn run_import(
     } else {
         return Err(TesError::Io(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "select --markdown or --html",
+            "select --markdown, --html, --bibtex, or --csl-json",
         )));
     };
     println!(

@@ -9,6 +9,10 @@ use std::path::Path;
 
 use serde::Serialize;
 
+use crate::bib::{
+    BibEntry, format_numeric_marker, format_numeric_reference, format_pandoc_cite,
+    format_reference_body,
+};
 use crate::catalog::chunk::{CitePayload, ListKind, TextHeader, TextRole, decode_text_payload};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
@@ -107,7 +111,9 @@ fn export_raw(file: &TesFile, options: &ExportOptions) -> Result<String> {
 
 fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let entries = selected_content_entries(file, options)?;
+    let cite_numbers = cite_number_map(file, &entries)?;
     let mut out = String::new();
+    let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
     for (i, entry) in entries.iter().enumerate() {
         match entry.chunk_type {
             ChunkType::Text => {
@@ -160,10 +166,30 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
                     let _ = writeln!(out, "{caption}");
                 }
             }
+            ChunkType::Cite if !options.no_cites => {
+                let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
+                let marker = format_numeric_marker(n);
+                if cite.quote.trim().is_empty() {
+                    let _ = writeln!(out, "{marker}");
+                } else {
+                    let _ = writeln!(out, "{marker} {}", cite.quote.trim());
+                }
+                bib_items.push((n, bib));
+            }
             _ => {}
         }
         if i + 1 < entries.len() {
             out.push('\n');
+        }
+    }
+    if !bib_items.is_empty() {
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push('\n');
+        }
+        out.push_str("\nReferences\n");
+        bib_items.sort_by_key(|(n, _)| *n);
+        for (n, entry) in bib_items {
+            let _ = writeln!(out, "{}", format_numeric_reference(n, &entry));
         }
     }
     Ok(out)
@@ -171,7 +197,9 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
 
 fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let entries = selected_content_entries(file, options)?;
+    let cite_numbers = cite_number_map(file, &entries)?;
     let mut parts = Vec::with_capacity(entries.len());
+    let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
     for entry in entries {
         match entry.chunk_type {
             ChunkType::Text => {
@@ -211,8 +239,34 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
                 }
                 parts.push(block);
             }
+            ChunkType::Cite if !options.no_cites => {
+                let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
+                let label = cite
+                    .label
+                    .as_deref()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(bib.cite_key.as_str());
+                let label = if label.is_empty() { "unknown" } else { label };
+                let mut block = format_pandoc_cite(label);
+                if !cite.quote.trim().is_empty() {
+                    block.push(' ');
+                    block.push('"');
+                    block.push_str(cite.quote.trim());
+                    block.push('"');
+                }
+                parts.push(block);
+                bib_items.push((n, bib));
+            }
             _ => {}
         }
+    }
+    if !bib_items.is_empty() {
+        bib_items.sort_by_key(|(n, _)| *n);
+        let mut refs = String::from("## References\n");
+        for (n, entry) in &bib_items {
+            let _ = writeln!(refs, "{}", format_numeric_reference(*n, entry));
+        }
+        parts.push(refs.trim_end().to_owned());
     }
     let mut out = parts.join("\n\n");
     if !out.is_empty() {
@@ -223,6 +277,7 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
 
 fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let entries = selected_content_entries(file, options)?;
+    let cite_numbers = cite_number_map(file, &entries)?;
     let doc_id = file
         .catalog()
         .map(|catalog| catalog.doc_id.as_str())
@@ -232,6 +287,7 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
         .map(|catalog| catalog.title.as_str())
         .unwrap_or("Untitled");
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
+    let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
 
     for entry in entries {
         match entry.chunk_type {
@@ -291,8 +347,46 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
             ChunkType::Figure => {
                 article.push_str(&render_figure_html(file, entry, options)?);
             }
+            ChunkType::Cite if !options.no_cites => {
+                let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
+                let label = cite
+                    .label
+                    .as_deref()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(bib.cite_key.as_str());
+                let label = if label.is_empty() { "unknown" } else { label };
+                let marker = format_numeric_marker(n);
+                if cite.quote.trim().is_empty() {
+                    let _ = writeln!(
+                        article,
+                        "  <p data-chunk-id=\"{}\" class=\"citation\"><a href=\"#ref-{n}\"><cite>{marker}</cite></a> <span class=\"cite-label\">{}</span></p>",
+                        entry.chunk_id,
+                        escape_html(label)
+                    );
+                } else {
+                    let _ = writeln!(
+                        article,
+                        "  <p data-chunk-id=\"{}\" class=\"citation\"><a href=\"#ref-{n}\"><cite>{marker}</cite></a> {}</p>",
+                        entry.chunk_id,
+                        escape_html(cite.quote.trim())
+                    );
+                }
+                bib_items.push((n, bib));
+            }
             _ => {}
         }
+    }
+    if !bib_items.is_empty() {
+        bib_items.sort_by_key(|(n, _)| *n);
+        article.push_str("  <section class=\"bibliography\">\n    <h2>References</h2>\n    <ol>\n");
+        for (n, entry) in &bib_items {
+            let _ = writeln!(
+                article,
+                "      <li id=\"ref-{n}\">{}</li>",
+                escape_html(&format_reference_body(entry))
+            );
+        }
+        article.push_str("    </ol>\n  </section>\n");
     }
     article.push_str("</article>\n");
 
@@ -591,6 +685,7 @@ fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String
                     target_byte_end: None,
                     label: None,
                     page: None,
+                    source: None,
                 });
                 let resolved = if cite.quote.is_empty() {
                     None
@@ -801,11 +896,14 @@ fn selected_content_entries<'a>(
 ) -> Result<Vec<&'a ChunkIndexEntry>> {
     if let Some(id) = options.chunk_id {
         let entry = file.chunk_by_id(id)?;
-        if !matches!(entry.chunk_type, ChunkType::Text | ChunkType::Figure) {
+        if !matches!(
+            entry.chunk_type,
+            ChunkType::Text | ChunkType::Figure | ChunkType::Cite
+        ) {
             return Err(TesError::Decode {
                 chunk_id: id,
                 message: format!(
-                    "chunk type is '{}'; content exports require text or figure",
+                    "chunk type is '{}'; content exports require text, figure, or cite",
                     entry.chunk_type.as_str()
                 ),
             });
@@ -815,8 +913,67 @@ fn selected_content_entries<'a>(
     Ok(file
         .reading_order_chunks()
         .into_iter()
-        .filter(|c| matches!(c.chunk_type, ChunkType::Text | ChunkType::Figure))
+        .filter(|c| {
+            matches!(
+                c.chunk_type,
+                ChunkType::Text | ChunkType::Figure | ChunkType::Cite
+            )
+        })
         .collect())
+}
+
+fn cite_number_map(
+    file: &TesFile,
+    entries: &[&ChunkIndexEntry],
+) -> Result<std::collections::HashMap<u64, usize>> {
+    let mut map = std::collections::HashMap::new();
+    let mut n = 0usize;
+    for entry in entries {
+        if entry.chunk_type != ChunkType::Cite {
+            continue;
+        }
+        // Ensure payload decodes so numbering stays aligned with valid cites.
+        let _ = decode_cite_entry(file, entry)?;
+        n += 1;
+        map.insert(entry.chunk_id, n);
+    }
+    Ok(map)
+}
+
+fn decode_cite_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<CitePayload> {
+    let raw = file.decode_payload(entry)?;
+    CitePayload::from_bytes(&raw).map_err(|e| TesError::Decode {
+        chunk_id: entry.chunk_id,
+        message: e.to_string(),
+    })
+}
+
+fn decode_numbered_cite(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    numbers: &std::collections::HashMap<u64, usize>,
+) -> Result<(usize, CitePayload, BibEntry)> {
+    let cite = decode_cite_entry(file, entry)?;
+    let n = *numbers.get(&entry.chunk_id).unwrap_or(&0);
+    let bib = if let Some(source) = &cite.source {
+        source.clone()
+    } else {
+        BibEntry {
+            cite_key: cite
+                .label
+                .clone()
+                .unwrap_or_else(|| format!("chunk-{}", entry.chunk_id)),
+            entry_type: "misc".into(),
+            title: if cite.quote.trim().is_empty() {
+                None
+            } else {
+                Some(cite.quote.clone())
+            },
+            note: cite.page.map(|p| format!("page {p}")),
+            ..BibEntry::default()
+        }
+    };
+    Ok((n, cite, bib))
 }
 
 fn decode_text_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<(TextHeader, String)> {
@@ -1047,5 +1204,99 @@ mod tests {
 
         let report = crate::verify::verify_tes_file(&path, true).unwrap();
         assert!(report.ok, "{:?}", report.findings);
+    }
+
+    #[test]
+    fn research_cites_mirror_tlnk_and_export() {
+        use crate::bib::{BibEntry, BibFormat, export_bibliography, import_bibliography};
+        use crate::catalog::link::LinkKind;
+        use crate::catalog::{CitePayload, TesFile};
+
+        let dir = tempdir().unwrap();
+        let sample =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/assets/citations/sample.bib");
+        let bib_tes = dir.path().join("from_bib.tes");
+        import_bibliography(
+            &sample,
+            &bib_tes,
+            BibFormat::Bibtex,
+            &crate::bib::BibImportOptions::default(),
+        )
+        .unwrap();
+
+        let target = "770e8400-e29b-41d4-a716-446655440099";
+        let path = dir.path().join("paper.tes");
+        let mut catalog = DocumentCatalog::new(
+            "880e8400-e29b-41d4-a716-446655440088",
+            "Cite specimen",
+            "2026-07-25T00:00:00Z",
+            "2026-07-25T00:00:00Z",
+            DocKind::Research,
+        );
+        catalog.cite_style_id = Some("numeric".into());
+        let mut session = TesWriterSession::create(&path, DocKind::Research);
+        session.set_catalog(catalog).unwrap();
+        session
+            .add_text_chunk(
+                &TextHeader::paragraph(),
+                "Prior work established the baseline.",
+            )
+            .unwrap();
+        session
+            .add_cite_chunk(&CitePayload {
+                quote: "Chunk-oriented containers help.".into(),
+                target_doc_id: Some(target.into()),
+                target_chunk_id: Some(1),
+                target_byte_start: Some(0),
+                target_byte_end: Some(12),
+                label: Some("keller2020chunking".into()),
+                page: Some(3),
+                source: Some(BibEntry {
+                    cite_key: "keller2020chunking".into(),
+                    entry_type: "article".into(),
+                    author: Some("Keller, Ada and Hurowitz, Alex".into()),
+                    title: Some("Chunk-Oriented Document Containers for Local-First Notes".into()),
+                    journal: Some("Fixtures Review".into()),
+                    year: Some("2020".into()),
+                    ..BibEntry::default()
+                }),
+            })
+            .unwrap();
+        session.commit().unwrap();
+
+        let file = TesFile::open(&path).unwrap();
+        assert_eq!(file.links().len(), 1);
+        assert_eq!(file.links()[0].link_kind, LinkKind::Citation);
+        assert_eq!(file.links()[0].source_chunk_id, 2);
+
+        let md = export_view(&path, ExportView::Markdown, &ExportOptions::default()).unwrap();
+        assert!(md.contains("[@keller2020chunking]"));
+        assert!(md.contains("## References"));
+
+        let html = export_view(&path, ExportView::Html, &ExportOptions::default()).unwrap();
+        assert!(html.contains("class=\"citation\""));
+        assert!(html.contains("class=\"bibliography\""));
+        assert!(html.contains("[1]"));
+
+        let bibtex = export_bibliography(&path, BibFormat::Bibtex).unwrap();
+        assert!(bibtex.contains("@article{keller2020chunking,"));
+
+        let from_bib = TesFile::open(&bib_tes).unwrap();
+        assert_eq!(
+            from_bib
+                .reading_order_chunks()
+                .iter()
+                .filter(|c| c.chunk_type == ChunkType::Cite)
+                .count(),
+            3
+        );
+
+        let report = crate::verify::verify_tes_file(&path, true).unwrap();
+        assert!(report.ok, "{:?}", report.findings);
+        assert!(
+            !report.findings.iter().any(|f| f.check == "cite.mirror"),
+            "{:?}",
+            report.findings
+        );
     }
 }
