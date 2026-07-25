@@ -1,8 +1,10 @@
 //! `tes` — command-line interface for the Tessera document format.
 //!
 //! See `docs/cli.md` for the full command surface. This binary ships `info`,
-//! `verify`, `export`, CommonMark/HTML `import`, and vault-aware `link`.
+//! `verify`, `export`, CommonMark/HTML `import`, vault-aware `link`, and
+//! loopback `serve` preview.
 
+use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -16,6 +18,7 @@ use tessera::import::{
     HtmlImportOptions, MarkdownImportOptions, import_html_v0, import_markdown_v0,
 };
 use tessera::layout::DocKind;
+use tessera::preview::{ServeOptions, serve_preview};
 use tessera::vault::{Vault, parse_target};
 use tessera::verify::{
     format_verify_human, format_verify_json, format_verify_quiet, verify_tes_file,
@@ -162,6 +165,36 @@ enum Commands {
         #[command(subcommand)]
         command: LinkCommands,
     },
+
+    /// Live browser preview on loopback (semantic HTML + template theme)
+    Serve {
+        /// Path to a .tes file
+        path: PathBuf,
+        /// Template pack id under --template-root (default: catalog or minimal)
+        #[arg(long)]
+        template: Option<String>,
+        /// Directory containing template packs (env: TES_TEMPLATE_ROOT)
+        #[arg(long = "template-root")]
+        template_root: Option<PathBuf>,
+        /// Theme id from the pack: draft or print (default: catalog or draft)
+        #[arg(long)]
+        theme: Option<String>,
+        /// Loopback host (127.0.0.1, localhost, or ::1)
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
+        /// Port (0 = ephemeral)
+        #[arg(long, default_value_t = 7878)]
+        port: u16,
+        /// Inject meta-refresh so the browser reloads while editing
+        #[arg(long)]
+        watch: bool,
+        /// Meta-refresh interval in seconds
+        #[arg(long = "watch-secs", default_value_t = 2)]
+        watch_secs: u64,
+        /// Allow packs that declare requires_theme_js (still CSS-only serving)
+        #[arg(long = "allow-theme-js")]
+        allow_theme_js: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -263,6 +296,33 @@ fn main() -> ExitCode {
             }
         },
         Commands::Link { vault, command } => run_link(&vault, command),
+        Commands::Serve {
+            path,
+            template,
+            template_root,
+            theme,
+            host,
+            port,
+            watch,
+            watch_secs,
+            allow_theme_js,
+        } => match run_serve(
+            path,
+            template,
+            template_root,
+            theme,
+            host,
+            port,
+            watch,
+            watch_secs,
+            allow_theme_js,
+        ) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("error: {err}");
+                exit_for(&err)
+            }
+        },
     }
 }
 
@@ -432,6 +492,35 @@ fn run_import(
         report_doc_id
     );
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_serve(
+    path: PathBuf,
+    template: Option<String>,
+    template_root: Option<PathBuf>,
+    theme: Option<String>,
+    host: String,
+    port: u16,
+    watch: bool,
+    watch_secs: u64,
+    allow_theme_js: bool,
+) -> Result<(), TesError> {
+    let template_root = template_root
+        .or_else(|| env::var_os("TES_TEMPLATE_ROOT").map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("templates"));
+    let options = ServeOptions {
+        path,
+        template_root,
+        template_id: template,
+        theme_id: theme,
+        host,
+        port,
+        watch,
+        watch_secs,
+        allow_theme_js,
+    };
+    serve_preview(options, None)
 }
 
 fn parse_doc_kind(value: &str) -> Result<DocKind, TesError> {

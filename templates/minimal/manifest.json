@@ -1,0 +1,23 @@
+{
+  "id": "minimal",
+  "version": "0.1.0",
+  "compatible_layout": 0,
+  "doc_kind_default": "document",
+  "cite_style_id": null,
+  "themes": {
+    "draft": "themes/draft.css",
+    "print": "themes/print.css"
+  },
+  "slide_regions": ["title", "body", "media"],
+  "allowed_blocks": [
+    "paragraph",
+    "heading",
+    "list_item",
+    "blockquote",
+    "code_block",
+    "table"
+  ],
+  "export_targets": ["html", "pdf"],
+  "starter": null,
+  "requires_theme_js": false
+}

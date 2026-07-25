@@ -11,6 +11,8 @@
 //! - [`export`] — decoded views (`--raw`, `--ai-text`, …).
 //! - [`import`] — CommonMark and semantic HTML compilation into chunks.
 //! - [`vault`] — stable link resolution and backlinks.
+//! - [`template`] — external theme/template packs.
+//! - [`preview`] — loopback `tes serve` HTML preview.
 //! - [`wire`] — little-endian primitives and `align8`.
 
 pub mod catalog;
@@ -18,6 +20,8 @@ pub mod error;
 pub mod export;
 pub mod import;
 pub mod layout;
+pub mod preview;
+pub mod template;
 pub mod vault;
 pub mod verify;
 pub mod wire;
@@ -38,6 +42,8 @@ pub mod prelude {
         import_html_v0, import_markdown_v0,
     };
     pub use crate::layout::{DocKind, Region, SuperblockV0};
+    pub use crate::preview::{ServeOptions, preview_html_for_path, serve_preview};
+    pub use crate::template::{TemplateManifest, TemplatePack};
     pub use crate::vault::{Backlink, ResolvedTarget, Vault, VaultDocument};
     pub use crate::verify::{TesVerifyReport, verify_tes_file};
 }

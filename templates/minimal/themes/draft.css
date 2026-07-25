@@ -1,0 +1,115 @@
+/* Tessera minimal draft theme — screen reading / live preview */
+
+:root {
+  --tes-bg: #f7f5f2;
+  --tes-ink: #1c1b19;
+  --tes-muted: #5c574f;
+  --tes-accent: #0f5c4c;
+  --tes-rule: #d8d2c8;
+  --tes-code-bg: #ece7df;
+  --tes-measure: 42rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--tes-bg);
+  color: var(--tes-ink);
+}
+
+body {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  line-height: 1.55;
+  font-size: 1.05rem;
+}
+
+article {
+  max-width: var(--tes-measure);
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Avenir Next", "Segoe UI", Candara, sans-serif;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 1.6em 0 0.55em;
+  color: var(--tes-ink);
+}
+
+h1 {
+  font-size: 2.1rem;
+  margin-top: 0;
+  border-bottom: 1px solid var(--tes-rule);
+  padding-bottom: 0.35em;
+}
+
+h2 {
+  font-size: 1.45rem;
+  color: var(--tes-accent);
+}
+
+p,
+li,
+blockquote,
+td,
+th {
+  margin: 0 0 0.9em;
+}
+
+ul,
+ol {
+  padding-left: 1.3em;
+}
+
+blockquote {
+  margin: 1.1em 0;
+  padding: 0.15em 0 0.15em 1em;
+  border-left: 3px solid var(--tes-accent);
+  color: var(--tes-muted);
+}
+
+pre {
+  margin: 1.1em 0;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+  background: var(--tes-code-bg);
+  border-radius: 0.35rem;
+  font-size: 0.92em;
+}
+
+code {
+  font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+pre code {
+  background: transparent;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.2em 0;
+  font-size: 0.95em;
+}
+
+th,
+td {
+  border: 1px solid var(--tes-rule);
+  padding: 0.45em 0.65em;
+  text-align: start;
+  vertical-align: top;
+}
+
+th {
+  background: var(--tes-code-bg);
+  font-weight: 600;
+}

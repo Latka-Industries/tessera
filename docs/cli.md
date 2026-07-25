@@ -17,7 +17,7 @@ Related: [layout_v0.md](layout_v0.md),
 | [`tes export`](#tes-export) `<path.tes>` | — | Decoded views ([exports.md](exports.md)) |
 | [`tes import`](#tes-import) `<in> <out.tes>` | — | Foreign format → `.tes` (staged rollout) |
 | [`tes link`](#tes-link) | — | Resolve / inspect links across a vault |
-| `tes serve <path.tes\|vault>` | — | Local themed browser preview (planned) |
+| [`tes serve`](#tes-serve) `<path.tes>` | — | Local themed browser preview |
 | `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
 | `tes edit-read` / `edit-write` | — | Virtual Tessera Markdown editor protocol (planned) |
 | `tes apply` | — | Verified Tessera Markdown/typed-op mutation (planned) |
@@ -155,12 +155,37 @@ Vault-level link operations (requires `--vault DIR`).
 
 ---
 
-## Planned preview and mutation protocol
+## `tes serve`
+
+Loopback browser preview via the same semantic HTML export used by
+`tes export --html`, styled by an external template pack.
 
 ```bash
-# Live preview: semantic HTML + selected template/theme.
-tes serve paper.tes --theme print
+# From the repo root (ships templates/minimal):
+tes serve fixtures/v0/note_one_chunk.tes --theme draft
+tes serve paper.tes --theme print --watch
+```
 
+| Flag | Effect |
+| --- | --- |
+| `--template ID` | Pack id under `--template-root` (default: catalog `template_id` or `minimal`) |
+| `--template-root DIR` | Pack search root (env: `TES_TEMPLATE_ROOT`, default `templates`) |
+| `--theme ID` | Pack theme (`draft` / `print`, or catalog `theme_id`) |
+| `--host` | Loopback only: `127.0.0.1`, `localhost`, or `::1` |
+| `--port` | Bind port (default `7878`; `0` = ephemeral) |
+| `--watch` | Inject HTML meta-refresh (no theme JavaScript) |
+| `--watch-secs N` | Refresh interval when `--watch` is set |
+| `--allow-theme-js` | Opt in for packs that declare `requires_theme_js` (still CSS-served) |
+
+Routes: `/` (standalone HTML), `/theme.css` (selected theme), `/healthz`.
+Each request re-opens the `.tes` file. CSP is CSS-only by default. See
+[security.md](security.md).
+
+---
+
+## Planned mutation protocol
+
+```bash
 # Catalog-only round trip.
 tes export paper.tes --meta toml > meta.toml
 tes meta set paper.tes --from meta.toml
@@ -177,9 +202,6 @@ tes apply paper.tes --patch change.tessprek --source-hash HASH
 `edit-write` and `apply` acquire an advisory per-file lock, re-check the source
 hash, compile to a sibling temporary file, deep-verify, and atomically replace.
 Vim/Neovim integrations are thin adapters over these commands.
-
-`tes serve` binds to loopback and allows CSS-only themes by default. Theme
-JavaScript requires explicit trust; see [security.md](security.md).
 
 ---
 
@@ -204,6 +226,7 @@ content-addressed payloads only while stored inside the history-bearing source.
 | --- | --- |
 | `TES_VAULT` | Default vault directory for `tes link` |
 | `TES_THEME` | Default CSS path for `--html` export |
+| `TES_TEMPLATE_ROOT` | Default template pack root for `tes serve` |
 | `RUST_LOG` | `trace`/`debug` for library logging |
 
 ---
@@ -228,7 +251,7 @@ Every CLI command maps to a library entry point:
 | `tes verify` | `tessera::verify::verify_tes_file` |
 | `tes export` | `tessera::export::export_view` |
 | `tes import` | `tessera::import::import_markdown_v0` |
-| `tes serve` | planned `tessera::preview::serve` |
+| `tes serve` | `tessera::preview::serve_preview` |
 | `tes edit-*` / `apply` | planned typed compile/mutation API |
 
 Embedders use the library directly; CLI is a thin wrapper.

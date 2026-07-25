@@ -164,4 +164,43 @@ pub enum TesError {
     /// JSON encode/decode failed.
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+
+    /// Template pack directory or manifest was not found.
+    #[error("template not found: {id_or_path}")]
+    TemplateNotFound {
+        /// Pack id or filesystem path.
+        id_or_path: String,
+    },
+
+    /// Template manifest failed validation.
+    #[error("invalid template: {message}")]
+    InvalidTemplate {
+        /// Human-readable reason.
+        message: String,
+    },
+
+    /// Requested theme id is not declared by the pack.
+    #[error("theme '{theme_id}' not found in template '{template_id}'")]
+    ThemeNotFound {
+        /// Pack id.
+        template_id: String,
+        /// Missing theme id.
+        theme_id: String,
+    },
+
+    /// Pack requires theme JS but the caller did not opt in.
+    #[error(
+        "template '{template_id}' requires theme JS; pass --allow-theme-js to opt in (still CSS-served by default)"
+    )]
+    ThemeJsNotAllowed {
+        /// Pack id that declared `requires_theme_js`.
+        template_id: String,
+    },
+
+    /// `tes serve` refused a non-loopback bind address.
+    #[error("tes serve refuses non-loopback host '{host}' (use 127.0.0.1, localhost, or ::1)")]
+    InvalidServeHost {
+        /// Rejected host string.
+        host: String,
+    },
 }

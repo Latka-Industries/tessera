@@ -1,0 +1,125 @@
+/* Tessera minimal print theme — shared path for preview + future PDF */
+
+:root {
+  --tes-ink: #111;
+  --tes-muted: #444;
+  --tes-rule: #bbb;
+  --tes-measure: 6.5in;
+}
+
+@page {
+  size: letter;
+  margin: 0.85in;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: #fff;
+  color: var(--tes-ink);
+}
+
+body {
+  margin: 0;
+  font-family: "Times New Roman", Times, "Liberation Serif", serif;
+  font-size: 11pt;
+  line-height: 1.45;
+}
+
+article {
+  max-width: var(--tes-measure);
+  margin: 0 auto;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  line-height: 1.2;
+  margin: 1.3em 0 0.45em;
+  page-break-after: avoid;
+}
+
+h1 {
+  font-size: 18pt;
+  margin-top: 0;
+  border-bottom: 0.6pt solid var(--tes-rule);
+  padding-bottom: 0.25em;
+}
+
+h2 {
+  font-size: 14pt;
+}
+
+h3 {
+  font-size: 12pt;
+}
+
+p,
+li,
+td,
+th {
+  orphans: 3;
+  widows: 3;
+}
+
+blockquote {
+  margin: 0.9em 0;
+  padding-left: 0.9em;
+  border-left: 2pt solid var(--tes-rule);
+  color: var(--tes-muted);
+  page-break-inside: avoid;
+}
+
+pre {
+  margin: 0.9em 0;
+  padding: 0.55em 0.7em;
+  border: 0.5pt solid var(--tes-rule);
+  font-size: 9pt;
+  white-space: pre-wrap;
+  page-break-inside: avoid;
+}
+
+code {
+  font-family: "Courier New", Courier, monospace;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.9em 0;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+
+th,
+td {
+  border: 0.5pt solid var(--tes-rule);
+  padding: 0.3em 0.45em;
+  text-align: start;
+  vertical-align: top;
+}
+
+th {
+  font-weight: 600;
+}
+
+@media screen {
+  body {
+    background: #ececec;
+    padding: 1.25rem;
+  }
+
+  article {
+    background: #fff;
+    padding: 0.85in;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+  }
+}
