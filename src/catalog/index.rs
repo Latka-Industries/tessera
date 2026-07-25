@@ -95,6 +95,19 @@ impl ChunkType {
     pub const fn as_u32(self) -> u32 {
         self as u32
     }
+
+    /// Lowercase type name for CLI / JSON summaries.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Image => "image",
+            Self::Link => "link",
+            Self::Cite => "cite",
+            Self::Slide => "slide",
+            Self::Page => "page",
+        }
+    }
 }
 
 /// A single 48-byte chunk index row.
@@ -221,6 +234,27 @@ impl ChunkIndexHeader {
         r.skip(16); // reserved
         Ok(Self { entry_count })
     }
+}
+
+/// Parse a full chunk-index region (`TIDX` header + fixed entries).
+///
+/// Requires `bytes.len()` to equal `32 + entry_count × 48`.
+pub fn read_chunk_index(bytes: &[u8]) -> Result<Vec<ChunkIndexEntry>> {
+    if bytes.is_empty() {
+        return Ok(Vec::new());
+    }
+    let header = ChunkIndexHeader::from_bytes(bytes)?;
+    let expected = header.region_len();
+    let got = bytes.len() as u64;
+    if got != expected {
+        return Err(TesError::IndexLengthMismatch { expected, got });
+    }
+    let mut entries = Vec::with_capacity(header.entry_count as usize);
+    for i in 0..header.entry_count as usize {
+        let start = HEADER_LEN + i * ENTRY_LEN;
+        entries.push(ChunkIndexEntry::from_bytes(&bytes[start..])?);
+    }
+    Ok(entries)
 }
 
 #[cfg(test)]

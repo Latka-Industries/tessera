@@ -79,6 +79,28 @@ pub enum TesError {
         structure: &'static str,
     },
 
+    /// A region extends past the end of the file (or payload past EOF).
+    #[error("{structure} out of bounds: offset {offset} + length {length} > file_len {file_len}")]
+    OutOfBounds {
+        /// Name of the region or payload.
+        structure: &'static str,
+        /// Start offset.
+        offset: u64,
+        /// Requested length.
+        length: u64,
+        /// Mapped file length.
+        file_len: u64,
+    },
+
+    /// Chunk index region length does not match `32 + entry_count × 48`.
+    #[error("chunk index length mismatch: expected {expected} bytes, region is {got}")]
+    IndexLengthMismatch {
+        /// Size implied by the `TIDX` header.
+        expected: u64,
+        /// Size from the superblock region.
+        got: u64,
+    },
+
     /// Underlying filesystem I/O failed.
     #[error(transparent)]
     Io(#[from] std::io::Error),
