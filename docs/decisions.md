@@ -1,8 +1,12 @@
-# Design decisions (v0)
+# Design decisions
 
-**Status:** accepted defaults for the first implementation pass. Revise via new ADR entries when layout v1+ requires breaking changes.
+**Status:** v0 defaults plus accepted layout v1 direction. A v1 decision
+explicitly supersedes a conflicting v0 decision; shipped v0 readers remain
+unchanged until migration code lands.
 
-Related: [layout_v0.md](layout_v0.md), [format-comparison.md](format-comparison.md), [README](../README.md).
+Related: [layout_v0.md](layout_v0.md),
+[structure_v1.md](structure_v1.md), [security](security.md),
+[format-comparison.md](format-comparison.md), [README](../README.md).
 
 ---
 
@@ -36,27 +40,30 @@ Related: [layout_v0.md](layout_v0.md), [format-comparison.md](format-comparison.
 
 ## Slide model
 
-**Decision:** v0 spec defines **slide chunk type `5`** but reference writer **does not emit slides** until Phase 8. Slides use **template regions** first.
+**Decision:** v0 spec defines **slide chunk type `5`** but the reference writer
+does not emit slides until M9. Slides use **template regions**.
 
 | v0 | v1+ |
 | --- | --- |
-| Wire type stubbed | `layout_id` + blocks mapped to CSS grid regions (`title`, `body`, `media`) |
-| No freeform pixel layout | Freeform blocks within regions optional later |
+| Wire type stubbed | `layout_id` + refs mapped to CSS grid regions (`title`, `body`, `media`) |
+| No freeform pixel layout | CSS grid/flex controls geometry |
 
-**Rejected for v0:** PowerPoint-compatible masters, animations, speaker-notes sync beyond text chunks.
+**Rejected for v1:** canonical `x/y/w/h`, PowerPoint-compatible masters, and
+animation bytecode. Theme CSS supplies visual latitude; trusted external theme
+code may add presentation motion.
 
 ---
 
-## Tables in v0
+## Tables
 
-**Decision:** Tables are **one text chunk** with `"role": "table"` and **body = UTF-8 TSV** (rows newline-separated, cells tab-separated). No mid-row chunk splits.
+**v0 decision:** one text chunk with `"role": "table"` and a UTF-8 TSV body.
 
-| Rule | Reason |
-| --- | --- |
-| Never split a table across chunks in v0 | RAG and export simplicity |
-| HTML/Markdown import flattens to TSV on ingest | Parse once |
+**v1 decision (supersedes D4):** a structured table payload contains rows and
+cells with text, spans, alignment, header status, and row/column spans. One
+table remains one reading-order unit. HTML/Markdown tables compile into that
+structure.
 
-**Future:** optional structured JSON table body in v1 if TSV proves lossy.
+Tables and other structured/spanned blocks are never auto-split.
 
 ---
 
@@ -68,22 +75,28 @@ Related: [layout_v0.md](layout_v0.md), [format-comparison.md](format-comparison.
 | --- | --- |
 | Primary unit | One index row = one RAG row in `chunks_jsonl` |
 | Overlap | **None** in v0 |
-| Max size | Soft limit **8 KiB** UTF-8 body per text chunk (writer splits paragraphs) |
+| Max size | Soft target **8 KiB** for plain, unspanned prose only |
 | Tables | Whole table chunk = one RAG row |
 
 Optional **`tes export --chunks-jsonl --max-bytes N --overlap N`** added in a later issue; not v0.
+
+Writers never split inside an inline span or structured payload. Export-time
+RAG windows may split a projection without changing canonical chunk ids.
 
 ---
 
 ## Collaboration / revision
 
-**Decision:** v0 is **single-writer, sealed files**. No CRDT, no live multi-user edit.
+**Decision:** v0/v1 files are **single-writer, sealed files**. No CRDT or live
+multi-user edit.
 
-| Shipped | Later |
+| Shipped / near-term | Later |
 | --- | --- |
-| Optional `THST` history footer (append-only ops log) | Revision log per chunk, sync protocol |
+| Source-hash + advisory write lock; optional `THST` suffix | M10 content-addressed revisions, drafts, diff, and review |
 
-**Rejected for v0:** operational transforms on open file, Google Docs–style sessions.
+M10 represents full logical revisions with shared content-addressed payloads.
+Pending authored operations power redline and accept/reject. CRDT/live cursors
+remain rejected for v1.
 
 ---
 
@@ -108,9 +121,12 @@ Optional **`tes export --chunks-jsonl --max-bytes N --overlap N`** added in a la
 | Imported | Discarded |
 | --- | --- |
 | `h1`–`h6`, `p`, `ul/ol/li`, `blockquote`, `pre/code`, `table`, `a` display text | `script`, `style`, inline `style=""` (v0) |
-| Internal document edges → `TLNK` | External `href` persistence (v0 `TLNK` stores UUID targets, not URLs) |
+| Internal document edges → `TLNK` | External `href` persistence in v0 |
 
 **Export:** HTML is generated from chunks + theme CSS — not round-tripped from imported HTML source.
+
+Layout v1 adds typed internal, external-URI, and attachment link targets; URI
+bytes live outside the fixed v0 row.
 
 See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousin-and-the-main-antagonist).
 
@@ -122,10 +138,14 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 
 | Supported | Deferred |
 | --- | --- |
-| ATX headings, paragraphs, `-` / `*` lists, ordered lists, fenced code, blockquotes | GFM tables (import via HTML path first), footnotes, raw HTML blocks |
-| Link display text (destination persistence deferred) | External URL records; wikilinks compile to `TLNK` when a vault resolver is provided |
+| ATX headings, paragraphs, lists, fenced code, blockquotes | Footnotes and raw HTML blocks |
+| Link display text; wikilinks compile to `TLNK` when a vault resolver is provided | External URL persistence in v0 |
 
 **Export:** `tes export --markdown` generates GFM-ish Markdown from chunks; **lossy** for cite/slide richness.
+
+Layout v1 uses Tessera Markdown (working nickname: Tessprek): Markdown plus
+narrow attributes/directives that losslessly preserve ids, spans, placement,
+citations, and other enum-backed fields for editor round trips.
 
 ---
 
@@ -164,14 +184,50 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 
 ---
 
+## Layout v1 structure freeze
+
+The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
+
+1. **Inline structure:** pure UTF-8 bodies plus validated ranged
+   `InlineKind` enums. Markdown/HTML are projections.
+2. **Math:** LaTeX source for math only (`TextRole::Math` and inline math);
+   not a whole-document language.
+3. **Language:** optional BCP-47 document language plus block override; code
+   blocks retain an optional programming language.
+4. **Layout intent:** enum-backed alignment and image placement; soft wrap,
+   pagination, and computed numbering are renderer concerns.
+5. **Media:** image bytes are reusable; each `FigureRef` owns contextual alt,
+   caption, placement, and reading-order position. Generic attachments are
+   inert.
+6. **References:** stable semantic anchors; numbers generated on export.
+   Citation data is structured; BibTeX/CSL are interchange; cite style comes
+   from a template.
+7. **Templates:** external versioned packs referenced by id/hash supply CSS,
+   defaults, cite style, slide regions, and starter Tessera Markdown.
+8. **AI:** Markdown and sanitized semantic HTML are first-class text
+   projections; pixels travel as typed multimodal parts. Embeddings stay
+   external.
+9. **Mutation:** editors and agents use Tessera Markdown or typed operations,
+   then compile, verify, and atomically replace under source-hash + advisory
+   lock checks.
+10. **Evolution:** unknown optional features are skippable with a warning;
+    unknown must-understand features fail.
+11. **Security/accessibility:** no document macros; theme code is external and
+    disabled by default; semantic/a11y verification is first-class. See
+    [security.md](security.md).
+12. **Search:** native graph + light vault catalog; full-text and embeddings
+    are external indexes keyed by stable ids/hashes.
+
+---
+
 ## Decision log index
 
 | ID | Topic | Status |
 | --- | --- | --- |
 | D1 | Vault = folder + optional index file | Accepted |
 | D2 | Hub = text chunks + link table | Accepted |
-| D3 | Slides stubbed; template regions later | Accepted |
-| D4 | Tables = single TSV text chunk | Accepted |
+| D3 | Slides use template regions; no canonical freeform geometry | Accepted |
+| D4 | Tables = single TSV text chunk | Superseded by D13 for v1 |
 | D5 | RAG unit = text chunk, no overlap v0 | Accepted |
 | D6 | No CRDT v0 | Accepted |
 | D7 | Standalone wire crate | Accepted |
@@ -179,3 +235,12 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 | D9 | CommonMark subset import | Accepted |
 | D10 | PDF = text + optional rasters | Accepted |
 | D11 | Page tensors deferred | Accepted |
+| D12 | Ranged enum-backed inline spans | Accepted for v1 |
+| D13 | Structured table payload | Accepted for v1 |
+| D14 | LaTeX source for math only | Accepted for v1 |
+| D15 | Reusable images + contextual figure refs | Accepted for v1 |
+| D16 | Typed external/internal/attachment links | Accepted for v1 |
+| D17 | External template/theme/cite-style packs | Accepted for v1 |
+| D18 | Optional-vs-required forward compatibility | Accepted for v1 |
+| D19 | Tessera Markdown virtual editing + typed AI ops | Accepted direction |
+| D20 | Content-addressed drafts/review in `THST` | M10 direction |

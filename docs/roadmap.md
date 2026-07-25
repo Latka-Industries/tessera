@@ -1,9 +1,27 @@
 # Roadmap and phases
 
-**Status:** M0–M6 implemented; Phase 7 (print/PDF export) is next. This is an
-implementation plan, not a release schedule.
+**Status:** M0–M5 are merged; M6 HTML is the current merge gate. The next work
+is a short [layout v1 structure freeze](structure_v1.md), then preview/themes,
+images, and Phase 7 print/PDF. This is an implementation plan, not a release
+schedule.
 
-Use this doc to create **GitHub milestones and issues**. Each phase lists acceptance criteria and doc links.
+Linear is the canonical tracker. Each phase lists acceptance criteria and doc
+links.
+
+## Capability snapshot
+
+| Area | Shipped now | Frozen next | Later milestone |
+| --- | --- | --- | --- |
+| Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify | optional/required feature policy | conformance kit grows continuously |
+| Prose | typed text roles, Markdown/HTML import/export | ranged inline spans, math, code language, BCP-47 language | Tessera Markdown editor adapters |
+| Tables | TSV role | structured rows/cells supersede TSV | rich import/export |
+| Links | internal UUID/chunk graph | typed internal/external/attachment targets | light `vault.tes` catalog |
+| Media | chunk id reserved | reusable image payload + contextual figure refs; generic attachments | image implementation before PDF |
+| Human render | standalone HTML | template packs, `tes serve`, draft/print themes | PDF (M7), slides (M9) |
+| AI | raw/linear/AI text/JSONL | Markdown or semantic HTML profiles; typed multimodal parts | research citations (M8) |
+| History | `THST` suffix reserved | content hashes/revision manifest direction | drafts, diff, review (M10) |
+
+Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
 ---
 
@@ -112,17 +130,41 @@ Use this doc to create **GitHub milestones and issues**. Each phase lists accept
 
 ---
 
-## Phase 7 — Print PDF export
+## Structure-freeze checkpoint
+
+**Goal:** write down the layout v1 semantic contract before later modes build
+incompatible one-off models.
+
+| Issue theme | Acceptance |
+| --- | --- |
+| Inline structure | Enum-backed ranged spans; math uses LaTeX source only |
+| Rich blocks | Structured tables; code/document language fields |
+| Graph/media | Typed link targets; image payload vs figure use; inert attachments |
+| Templates | Pack manifest for theme, cite style, export defaults, starter Tessera Markdown |
+| Safety/evolution | [Security](security.md), optional-vs-required feature policy |
+| Tracker | Tessera Linear summary current; M7–M10 populated |
+
+This is a short specification pass, not a rewrite of M0–M6 and not a code
+milestone. See [structure_v1.md](structure_v1.md).
+
+---
+
+## Phase 7 — Preview, themes, and print/PDF
 
 **Goal:** “Send a PDF” from structure + print theme.
 
 | Issue theme | Acceptance |
 | --- | --- |
-| Print theme CSS | `@page`, margins, page breaks |
+| Template/theme pack | Manifest, ids/hashes, draft + print CSS |
+| `tes serve` | Loopback live preview; file watch; CSS-only by default |
+| Images | Reusable image payload + `FigureRef`; alt/caption/placement |
+| Print theme CSS | `@page`, margins, page breaks, accessible HTML input |
 | `tes export --pdf` | Print-ready output from long-form fixture |
-| Draft vs print | Two theme ids documented |
+| One render path | Browser preview and PDF use the same semantic HTML + theme |
 
-**Depends on:** Phase 6 (HTML render path). Non-goal: PDF as editable source.
+**Depends on:** Phase 6 and the structure-freeze checkpoint. Does not depend
+on citations or slides. Non-goals: PDF as editable source; pixel coordinates
+in `.tes`.
 
 ---
 
@@ -132,12 +174,14 @@ Use this doc to create **GitHub milestones and issues**. Each phase lists accept
 
 | Issue theme | Acceptance |
 | --- | --- |
-| Cite chunks + link kind 2 | Wire + writer |
+| Cite chunks + link kind 2 | Writer + ranged cite spans + graph mirror |
+| Cite styles | Template-selected APA/MLA/Chicago/numeric-style projection |
 | `tes import --pdf` | Text + optional page rasters |
-| `--ai-text` cite expansion | Resolved quotes in prose |
-| `--bibliography` | BibTeX or CSL JSON export |
+| AI cite expansion | Markdown/HTML/plain projections resolve cite data |
+| Bibliography interchange | BibTeX and CSL JSON import/export |
 
-**Depends on:** Phase 5, Phase 7 optional.
+**Depends on:** Phase 5 and the structure freeze. Phase 7 is optional except
+for producing an academic PDF.
 
 ---
 
@@ -147,15 +191,34 @@ Use this doc to create **GitHub milestones and issues**. Each phase lists accept
 
 | Issue theme | Acceptance |
 | --- | --- |
-| Slide payload v1 wire | Extend layout doc |
+| Slide payload v1 wire | `layout_id` + named region refs |
 | Deck export | HTML or PDF slide mode |
 | Reuse prose/images | Import chunks from research doc into deck |
 
-**Depends on:** Phase 6–7. Decision: [slides](decisions.md#slide-model).
+**Depends on:** Phase 6–7. Freeform coordinates are not canonical. Decision:
+[slides](decisions.md#slide-model).
 
 ---
 
-## Phase 10 — Fiction + manuscript exports
+## Phase 10 — History + review
+
+**Goal:** full logical drafts with compact shared storage, readable diffs, and
+asynchronous track changes.
+
+| Issue theme | Acceptance |
+| --- | --- |
+| `THST` v1 | Content-addressed payload store + revision manifests |
+| Drafts | Save/checkout/export named full revisions |
+| Diff | Tessera Markdown textconv; structural `tes diff` / changelog |
+| Review | Authored pending ops; redline; accept/reject; comments |
+| Git interop | `.gitattributes` textconv; optional verified merge driver |
+
+**Depends on:** chunk hashes and stable ids specified during the structure
+freeze. CRDT/live cursors are not part of M10.
+
+---
+
+## Phase 11 — Fiction + manuscript exports
 
 **Goal:** Chapter-scoped exports, beta-reader PDF.
 
@@ -175,29 +238,24 @@ Use this doc to create **GitHub milestones and issues**. Each phase lists accept
 | --- | --- |
 | DOCX import | Office interchange, not canonical |
 | `tes repair` | Tetration parity |
-| Revision log / sync | Post–v0 collab |
+| CRDT / live collaboration | Post-M10; async review first |
 | Page tensors | Vision `[H,W,C]` export |
 | Aleph GUI | Workspace on top of `.tes`; separate product |
+| Native full-text index | Projected text / external sidecar first |
 | Shared wire crate with Tetration | Revisit after v0 stable |
 
 ---
 
-## Suggested first GitHub issues (batch)
+## Next Linear issue batch
 
-Copy into issues after Phase 0 review:
-
-1. **layout:** Implement superblock + chunk index types (`layout_v0.md`)
-2. **writer:** Session writer + `note_one_chunk.tes` fixture
-3. **reader:** mmap catalog + index reader
-4. **cli:** `tes verify` with golden corrupt fixtures
-5. **cli:** `tes info` default + `--json`
-6. **export:** `--raw` and `--ai-text` + golden tests
-7. **export:** `--chunks-jsonl`
-8. **import:** Markdown → `.tes` (CommonMark subset)
-9. **vault:** Link table write + `hub_links.tes` fixture
-10. **ci:** Wire `tes verify` on fixtures in GitHub Actions
-
-**Milestone map:** M0 = issues 1–2, M1 = 3–5, M2 = 6–7, M3 = 8, M4 = 9–10.
+1. **spec:** freeze enum-backed spans, math, tables, language, links, figures,
+   attachments, and forward-compatibility rules.
+2. **template:** define the template/theme/cite-style manifest.
+3. **preview:** implement `tes serve` with draft/print themes and safe reload.
+4. **media:** implement image payload + `FigureRef` and multimodal export parts.
+5. **print:** add `tes export --pdf` on the shared HTML render path.
+6. **open format:** MIME/magic entries and v1 conformance cases.
+7. **benchmark:** measure the specific mmap/link/export claims in the README.
 
 ---
 

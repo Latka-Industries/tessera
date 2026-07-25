@@ -2,7 +2,9 @@
 
 **Status:** draft spec for the reference implementation. Describes the **v0** `.tes` container: a fixed **64-byte superblock** at offset 0, optional **document catalog**, optional **link table**, **chunk index**, **chunk payloads**, and an optional **`THST` history footer**.
 
-Related: [exports](exports.md) (decoded views), [engine](engine.md) (crate architecture), [CLI](cli.md), [decisions](decisions.md), [glossary](glossary.md).
+Related: [layout v1 structure freeze](structure_v1.md),
+[exports](exports.md) (decoded views), [engine](engine.md) (crate architecture),
+[CLI](cli.md), [decisions](decisions.md), [glossary](glossary.md).
 
 ---
 
@@ -122,6 +124,11 @@ When `catalog_length > 0`, bytes at `catalog_offset` are **UTF-8 JSON** (no BOM)
 | `template_id`, `theme_id` | no | Export / GUI hints |
 
 v0 does not spill large catalog fields; keep catalog **≤ 16 KiB** (reference writer limit).
+
+Layout v1 plans optional `lang`, `cite_style_id`, template/theme hashes, and
+publish metadata (`slug`, description, author, publish date, draft/published,
+navigation order, canonical URL). Catalog projections round-trip through
+JSON/YAML/TOML; the binary catalog remains canonical.
 
 ---
 
@@ -268,7 +275,8 @@ Also mirrored in **link table** with `link_kind = 2`. Export views resolve to hu
 
 ## Image / slide / page payloads (v0 stubs)
 
-Defined for layout stability; reference writer may emit **`UnsupportedChunkType`** until Phase 8+.
+Defined for layout stability; the reference writer may emit
+**`UnsupportedChunkType`** until the M7 image and later payload work lands.
 
 - **Image (`2`):** `mime` string + width/height + bytes (png/jpeg).
 - **Slide (`5`):** `layout_id` + JSON block list (`title`, `body`, `media` slots).
@@ -308,7 +316,7 @@ Chunk payload bounds use **`file_len − footer_suffix`** when flag set.
 
 ## Reference writer subset (v0)
 
-The first shipped writer (`TesWriterSession`, name TBD) MUST:
+The first shipped writer (`TesWriterSession`) MUST:
 
 1. Write valid 64-byte superblock + catalog JSON.
 2. Append one or more **text** chunks with raw UTF-8.
@@ -338,7 +346,7 @@ Same as Tetration v1:
 
 ## File health (`tes verify`)
 
-Checks (library: `verify_tes_file`, TBD):
+Checks (library: `verify_tes_file`):
 
 1. Magic, `layout_version`, offset/length bounds.
 2. Catalog JSON parse + required keys.
@@ -369,6 +377,28 @@ Regenerate via `cargo run --example gen_v0_fixtures` (issue-tracked).
 | Version | Theme |
 | --- | --- |
 | **v0** (this doc) | Text + link table + catalog; mmap index |
-| **v1** (future) | Image/slide/page wire layouts; metadata spill; vault catalog record |
+| **v1** (frozen direction) | Ranged spans, structured tables, typed links, image/figure split, attachments, templates, feature policy |
 
 Readers MUST reject newer `layout_version` with a clear error until upgraded.
+
+That final rule applies to v0 readers and an unknown whole layout. Layout v1
+will distinguish unknown **optional** features (skip with warning) from
+unknown **must-understand** features (fail), so additive optional chunks do
+not force a format-wide break.
+
+### Accepted v1 direction (not yet wire offsets)
+
+The normative semantic design is [structure_v1.md](structure_v1.md):
+
+- text bodies stay plain UTF-8; inline formatting uses validated ranged enums;
+- LaTeX is stored only for math;
+- tables become structured rows/cells and supersede v0 TSV;
+- code/document language and semantic alignment are explicit;
+- links have internal, external URI, and attachment targets;
+- image bytes are reusable while each `FigureRef` owns alt/caption/placement;
+- generic attachments are inert;
+- slides use named template regions, never freeform coordinates;
+- `THST` evolves toward content-addressed logical full revisions in M10.
+
+Exact field layouts, discriminants, migration behavior, and golden fixtures
+must be specified before incrementing `layout_version`.

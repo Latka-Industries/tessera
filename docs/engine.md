@@ -1,6 +1,8 @@
 # Tessera reference engine — architecture
 
-**Status:** planned module map for the `tessera` Rust crate and `tes` CLI. No implementation yet.
+**Status:** architecture reference. The v0 engine through Markdown/HTML,
+vault, and verification is implemented; layout v1 additions are planned in
+[structure_v1.md](structure_v1.md).
 
 This doc sits **between** the wire spec and the user-facing CLI: how bytes become documents, how documents become exports, and what is **not** in the engine (GUI, query stack, Tetration dependency).
 
@@ -10,6 +12,8 @@ This doc sits **between** the wire spec and the user-facing CLI: how bytes becom
 | Decoded views | [exports.md](exports.md) |
 | CLI commands | [cli.md](cli.md) |
 | Design choices | [decisions.md](decisions.md) |
+| Layout v1 semantics | [structure_v1.md](structure_v1.md) |
+| Security | [security.md](security.md) |
 
 ---
 
@@ -21,7 +25,10 @@ The **Tessera engine** is the reference library that:
 2. **Validates** on-disk health (`verify`).
 3. **Imports** foreign formats into chunks **once** (`import`).
 4. **Exports** decoded views for humans and models (`export`).
-5. **Resolves** cross-document links across a vault (`vault`, later).
+5. **Resolves** cross-document links across a vault (`vault`, implemented).
+6. **Previews** semantic HTML with external templates/themes (`serve`, planned).
+7. **Applies** editor/agent changes through typed compile/verify/replace APIs
+   (planned).
 
 It is **not**:
 
@@ -81,6 +88,8 @@ The CLI (`tes`) is a thin wrapper around library entry points.
 | `export` | `--raw`, `--ai-text`, `--chunks-jsonl`, … | [exports.md](exports.md) |
 | `import` | `--markdown`, `--html`, `--pdf`, … | [decisions](decisions.md), Phase 4+ |
 | `vault` | Multi-file link resolve, backlinks, `vault.tes` | Phase 5 |
+| `template` / `preview` | Resolve packs; HTML + theme; local serve | Phase 7 |
+| `edit` / `ops` | Tessera Markdown and typed safe mutation | Layout v1 |
 
 `repair/` is **optional** post–v0 (Tetration parity); not in initial module tree.
 
@@ -134,6 +143,10 @@ flowchart LR
 6. **Finalize** — rewrite superblock with final offsets; optional `THST` + set `flags & 1`.
 
 Single-writer, sealed file — same concurrency model as Tetration ([layout_v0 — concurrency](layout_v0.md#concurrency-informative)).
+
+Layout v1 mutation adds a short advisory per-file lock, source-hash recheck,
+sibling temporary output, deep verification, and atomic replacement. Existing
+mmap readers continue reading the old file until they reopen the replaced path.
 
 **Import path** builds chunks in memory then calls the same session API (`import` → `session`).
 

@@ -2,7 +2,9 @@
 
 **Status:** design reference for the **`tes`** binary. Flags may change until v0.1; **`tes -h`** is authoritative after implementation.
 
-Related: [layout_v0.md](layout_v0.md), [exports.md](exports.md), [engine.md](engine.md), [roadmap.md](roadmap.md).
+Related: [layout_v0.md](layout_v0.md),
+[structure_v1.md](structure_v1.md), [exports.md](exports.md),
+[engine.md](engine.md), [roadmap.md](roadmap.md).
 
 ---
 
@@ -14,7 +16,12 @@ Related: [layout_v0.md](layout_v0.md), [exports.md](exports.md), [engine.md](eng
 | [`tes verify`](#tes-verify) `<path.tes>` | — | Layout health check (exit 1 on failure) |
 | [`tes export`](#tes-export) `<path.tes>` | — | Decoded views ([exports.md](exports.md)) |
 | [`tes import`](#tes-import) `<in> <out.tes>` | — | Foreign format → `.tes` (staged rollout) |
-| [`tes link`](#tes-link) | — | Resolve / inspect links (vault-aware, later) |
+| [`tes link`](#tes-link) | — | Resolve / inspect links across a vault |
+| `tes serve <path.tes\|vault>` | — | Local themed browser preview (planned) |
+| `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
+| `tes edit-read` / `edit-write` | — | Virtual Tessera Markdown editor protocol (planned) |
+| `tes apply` | — | Verified Tessera Markdown/typed-op mutation (planned) |
+| `tes log\|diff\|checkout\|changelog` | — | M10 revision/history tools |
 
 v0 ships **`info`**, **`verify`**, **`export`** first.
 
@@ -86,6 +93,8 @@ tes export note.tes --raw
 tes export note.tes --ai-text -o context.txt
 tes export paper.tes --chunks-jsonl -o chunks.jsonl
 tes export doc.tes --markdown -o doc.md
+tes export doc.tes --ai --format markdown
+tes export doc.tes --meta toml
 ```
 
 | Flag | Effect |
@@ -96,6 +105,9 @@ tes export doc.tes --markdown -o doc.md
 | `--chunks-jsonl` | One JSON object per chunk line |
 | `--markdown` | Lossy Markdown |
 | `--html` | HTML fragment (+ `--theme`, `--standalone`) |
+| `--ai --format markdown\|html` | AI-safe structured profile (planned v1) |
+| `--meta json\|yaml\|toml` | Catalog metadata projection (planned v1) |
+| `--pdf` | HTML + print-theme PDF (planned M7) |
 | `--chunk ID` | Single chunk (where applicable) |
 | `-o`, `--output PATH` | Write file instead of stdout |
 | `--annotate` | Include chunk ids in `--ai-text` |
@@ -139,7 +151,50 @@ Vault-level link operations (requires `--vault DIR`).
 | `backlinks UUID` | List docs linking to target |
 | `check` | Validate all link table targets exist in vault |
 
-**Phase:** Phase 5 ([roadmap](roadmap.md)). Stub returns exit 2 in v0.
+**Phase:** implemented in Phase 5 ([roadmap](roadmap.md)).
+
+---
+
+## Planned preview and mutation protocol
+
+```bash
+# Live preview: semantic HTML + selected template/theme.
+tes serve paper.tes --theme print
+
+# Catalog-only round trip.
+tes export paper.tes --meta toml > meta.toml
+tes meta set paper.tes --from meta.toml
+
+# Editor-neutral virtual buffer protocol.
+tes edit-read paper.tes --format tessprek
+tes edit-write paper.tes --format tessprek --source-hash HASH --stdin
+
+# Agent-safe structural mutation.
+tes apply paper.tes --ops ops.json --source-hash HASH --dry-run
+tes apply paper.tes --patch change.tessprek --source-hash HASH
+```
+
+`edit-write` and `apply` acquire an advisory per-file lock, re-check the source
+hash, compile to a sibling temporary file, deep-verify, and atomically replace.
+Vim/Neovim integrations are thin adapters over these commands.
+
+`tes serve` binds to loopback and allows CSS-only themes by default. Theme
+JavaScript requires explicit trust; see [security.md](security.md).
+
+---
+
+## Planned history commands (M10)
+
+```bash
+tes save paper.tes --draft outline
+tes log paper.tes
+tes diff paper.tes rev-a rev-b --format tessprek
+tes changelog paper.tes --between rev-a rev-b
+tes export-revs paper.tes --all-drafts -o drafts/
+```
+
+Every exported revision is self-contained. Logical full drafts share
+content-addressed payloads only while stored inside the history-bearing source.
 
 ---
 
@@ -173,5 +228,7 @@ Every CLI command maps to a library entry point:
 | `tes verify` | `tessera::verify::verify_tes_file` |
 | `tes export` | `tessera::export::export_view` |
 | `tes import` | `tessera::import::import_markdown_v0` |
+| `tes serve` | planned `tessera::preview::serve` |
+| `tes edit-*` / `apply` | planned typed compile/mutation API |
 
 Embedders use the library directly; CLI is a thin wrapper.

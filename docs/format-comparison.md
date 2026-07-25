@@ -1,6 +1,9 @@
 # Format comparison — HTML, PDF, DOCX, Markdown, and Tessera
 
-**Status:** design reference. Tessera is not implemented yet; this doc explains *why* the format exists and *where* it competes, with **HTML as the primary point of comparison**.
+**Status:** design reference. The v0 engine is active through the HTML
+import/export milestone; this doc explains *why* the format exists and *where*
+it competes, with **HTML as the primary point of comparison**. The accepted
+next structure model is [structure_v1.md](structure_v1.md).
 
 The README states the problem in one line: we overload formats built for **printing** (PDF, DOCX) or **plain-text authoring** (Markdown) when we need **structured, linkable, partially readable documents** that humans edit, machines index, and models consume without parsing markup.
 
@@ -190,9 +193,11 @@ Suggested order aligned with the README roadmap and the comparisons above:
 
 ## Open questions (format strategy)
 
-- **HTML import:** preserve class names as theme hints vs strip to semantic blocks only?
+- **HTML import:** semantic blocks + class hints are implemented; layout v1
+  adds ranged inline semantics and typed external links.
 - **Single-file `.html` vs site:** import one page per `.tes` or multi-page via chunk sections?
-- **Markdown compatibility:** which CommonMark/GFM features compile into v1 chunk types?
+- **Markdown compatibility:** exact Tessera Markdown directive syntax for
+  enum-backed fields and lossless virtual editing.
 - **PDF import:** text-only first vs page rasters + text for research mode?
 - **When to export HTML vs Markdown** for human readers vs git — document per `doc_kind` defaults?
 

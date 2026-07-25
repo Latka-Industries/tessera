@@ -114,6 +114,12 @@ Layout is the hard part. Tessera avoids “Word coordinates in binary” and “
 | **Theme**     | CSS (or design tokens → CSS), global or per-file                                   | Power users; gallery for everyone else |
 | **Render**    | _Not stored_ — HTML, PDF, slides via export                                        | Engine applies structure + theme       |
 
+The accepted layout v1 direction is documented in
+[docs/structure_v1.md](docs/structure_v1.md): ranged inline semantics,
+structured tables, LaTeX source for math only, typed links, reusable images,
+template packs, safe editor/AI mutation, and forward-compatible optional
+features.
+
 **Figma-like model:** content is tiles; **injectable CSS** (or template packs) controls look. A template is a manifest: allowed block types + `theme.css` + export targets (pdf, html, deck).
 
 - **Notes (short-form)** — minimal template, typography-only CSS.
@@ -189,8 +195,9 @@ Reuse the **pattern** (superblock, catalog, chunk index, footer/history, verify/
 
 ## Status
 
-**Active pre-release implementation.** The Rust reference engine now covers
-milestones M0–M6:
+**Active pre-release implementation.** M0–M5 are merged; the Rust reference
+engine also implements M6 semantic HTML import/export, currently at its merge
+gate:
 
 - v0 `TESS` superblock, `TIDX` chunk index, catalog JSON, and `TLNK` links
 - sealed session writer, mmap reader, golden fixtures, and deep verification
@@ -199,7 +206,9 @@ milestones M0–M6:
 - vault graph resolution, backlinks, and broken-link checks (`tes link`)
 - semantic HTML import/export and standalone previews
 
-Next: print/PDF, then research and presentation layers.
+Next: a short layout v1 structure freeze, then theme/template packs +
+`tes serve`, reusable images, print/PDF, research, presentations, and
+history/review. See [the roadmap](docs/roadmap.md).
 The wire format remains pre-release and may change before v1.
 
 ---
@@ -212,10 +221,13 @@ The wire format remains pre-release and may change before v1.
 
 ## Open questions
 
-- Optional `vault.tes` acceleration index vs scan-on-open for small vaults.
+- Exact v1 byte layouts/discriminants and v0→v1 migration.
+- Optional `vault.tes` catalog details; full-text and embeddings remain
+  external indexes keyed by stable ids/hashes.
 - Nested hub sections beyond the flat v0 link list.
-- Slide model: freeform blocks vs template regions only.
-- Chunking policy for RAG (size, overlap, never split tables mid-row).
-- CRDT vs revision log for multi-device edit.
+- Theme/template pack distribution and trusted-signature policy.
+- Print engine choice for reproducible `tes export --pdf`.
+- Exact `THST` content-addressed revision manifest.
+- CRDT/live collaboration after asynchronous M10 review.
 - Page tensors in v1 or text + images + slides first.
 - Shared Rust wire crate with Tetration vs standalone copy.

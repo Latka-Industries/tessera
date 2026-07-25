@@ -8,8 +8,11 @@ Related: [layout_v0.md](layout_v0.md) (wire format), [engine.md](engine.md) (mod
 
 ## Principles
 
-1. **Models read views, not wire format** — RAG pipelines call `export_ai_text()` / `chunks_jsonl`, not hex dumps.
-2. **No markup escapes in AI views** — reading-order UTF-8; structure is metadata, not `**` or `<p>`.
+1. **Models read views, not wire format** — pipelines request Markdown,
+   semantic HTML, plain AI text, JSONL, or typed multimodal parts.
+2. **Markup is profile-specific** — `--ai-text` remains markup-free;
+   Markdown is the compact default for general LLM prompts; AI HTML is a
+   sanitized semantic fragment.
 3. **HTML is an export** — generated from chunks + theme; see [format-comparison.md](format-comparison.md).
 4. **Lossy is explicit** — Markdown/HTML/PDF exports document what they drop.
 
@@ -25,6 +28,8 @@ Related: [layout_v0.md](layout_v0.md) (wire format), [engine.md](engine.md) (mod
 | Chunks JSONL | `--chunks-jsonl` | RAG indexing |
 | Markdown | `--markdown` | Git, Obsidian migration, pandoc |
 | HTML | `--html` | Browser preview, static site |
+| AI Markdown/HTML | `--ai --format markdown\|html` | LLM prompts |
+| Metadata | `--meta json\|yaml\|toml` | Agents, static-site tools |
 | Bibliography | `--bibliography` | Research mode (later) |
 | PDF | `--pdf` | Print / send (later, themed) |
 
@@ -70,7 +75,7 @@ The mean was 12.4°C.
 | `role: heading` | Prefix `#` repeated `level` times + space + body |
 | `role: paragraph` | Body only |
 | `role: list_item` | `- ` or `1. ` from `list_kind` |
-| `role: table` | TSV body unchanged |
+| `role: table` | v0 TSV; v1 structured cells in reading order |
 | Links | Inline `[display](doc:UUID/chunk)` form |
 
 **Guarantees:**
@@ -110,6 +115,26 @@ Resolved from cite chunks + link table; unresolved cites → `[citation unresolv
 
 ---
 
+## `--ai --format markdown|html` (layout v1 profile)
+
+General LLM prompting defaults to Markdown because headings, lists, emphasis,
+links, citations, math, and image positions are compact and familiar to
+models. Semantic HTML is available when explicit element boundaries matter.
+
+| Format | Contract |
+| --- | --- |
+| `markdown` | Reconstruct structure and ranged spans; no presentation wrappers |
+| `html` | Semantic fragment only; no CSS, scripts, navigation, or theme wrappers |
+
+Both are projections of the same typed blocks/spans. Neither is canonical.
+`--ai-text` remains the choice for pure-text embeddings.
+
+Images in either textual view include an anchor, alt text, and caption.
+Pixels are delivered by a library-level typed multimodal export
+(`Text | Image | Text`), not as base64 inside prose.
+
+---
+
 ## `--chunks-jsonl`
 
 One JSON object per line — **one row per index entry** with `chunk_flags & 1` by default.
@@ -134,6 +159,7 @@ One JSON object per line — **one row per index entry** with `chunk_flags & 1` 
 | `doc_id`, `doc_title` | From catalog |
 | `chunk_id`, `chunk_type` | From index |
 | `role`, `level`, `list_kind` | From text header JSON |
+| `spans` | Layout v1 ranged inline semantics |
 | `text` | Body UTF-8 only |
 
 **Cite rows** (`chunk_type: cite`):
@@ -166,13 +192,16 @@ One JSON object per line — **one row per index entry** with `chunk_flags & 1` 
 | --- | --- |
 | `heading` | ATX `#` |
 | `list_item` | `-` or `1.` |
-| `code_block` | Fenced ``` |
+| `code_block` | Fenced code with optional language |
 | `blockquote` | `>` |
-| `table` | GFM table when detectable from TSV; else code block |
+| `table` | v0 TSV fallback; v1 structured GFM-compatible table |
 | Internal link | `[title](<doc_id>.tes#chunk-12)` (vault-relative convention) |
 | Cite | Pandoc-style `[@label]` or footnote (TBD in research phase) |
 
-**Non-goals v0:** lossless round-trip from exported Markdown back to identical chunks.
+**Non-goals v0:** lossless round-trip from exported Markdown back to identical
+chunks. Layout v1 adds a lossless editor profile, **Tessera Markdown**
+(working nickname Tessprek), with attributes/directives for ids, spans,
+placement, citations, and other enum-backed fields.
 
 ---
 
@@ -197,17 +226,33 @@ Generated **DOM-like** HTML5 fragment + linked theme CSS.
 
 **Phase:** implemented in Phase 6.
 
+Website/preview HTML and AI HTML are distinct profiles. The former may link a
+trusted external theme and standalone scaffolding; the latter is always a
+sanitized fragment.
+
 ---
 
 ## `--bibliography` (research, later)
 
-Emit **BibTeX** or **CSL JSON** from cite chunks + catalog metadata. Not v0.
+Import/export **BibTeX** or **CSL JSON** from structured cite chunks +
+catalog metadata. In-text and bibliography rendering uses the template's
+`cite_style_id`; no display style is baked into cite payloads. Not v0.
 
 ---
 
 ## `--pdf` (print, later)
 
-Paginated PDF via structure + print theme (`@page`, margins). Requires HTML/layout engine. Phase 7 per [roadmap](roadmap.md).
+Paginated PDF via the same semantic HTML + print theme (`@page`, margins)
+served by `tes serve`. Browser preview and PDF are two sinks of one render
+path. Phase 7 per [roadmap](roadmap.md).
+
+---
+
+## `--meta json|yaml|toml` (layout v1 profile)
+
+Export catalog-only metadata for agents and static-site generators. The reverse
+operation, `tes meta set PATH --from meta.toml` (and YAML/JSON equivalents),
+validates and updates the catalog without replacing body chunks.
 
 ---
 
