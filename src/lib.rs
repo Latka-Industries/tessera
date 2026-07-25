@@ -1,4 +1,4 @@
-//! **tessera** — Rust library for the Tessera open document format (`.tes`).
+//! **tessera-doc** — Rust library for the Tessera open document format (`.tes`).
 //!
 //! This crate is the reference engine described in `docs/engine.md`. The v0
 //! container layer is spec'd in `docs/layout_v0.md`:
