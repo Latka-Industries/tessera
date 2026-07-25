@@ -7,8 +7,6 @@
 
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
-Sibling engineering pattern to [Tetration](https://github.com/Latka-Industries/tetration) (`.tet` tensors), applied to **authored documents** instead of numeric arrays.
-
 **In active development — layout v0 wire may change before a stable v1.**
 
 ## What it does today
@@ -58,17 +56,6 @@ Spec, decisions, and engine notes live under [`docs/`](docs/) (this README stays
 | **[Security](docs/security.md)** | Threat model for serve / themes |
 | **[Glossary](docs/glossary.md)** | Terms |
 | **[Format comparison](docs/format-comparison.md)** | vs Markdown / DOCX / PDF |
-
-## Relation to Tetration
-
-| | **Tetration** | **Tessera** |
-| --- | --- | --- |
-| Domain | Numeric tensors | Authored documents |
-| File | `.tet` | `.tes` |
-| CLI | `tet` | `tes` |
-| Typical ops | query / convert / reduce | export / import / link / serve |
-
-Same pattern (superblock, catalog, chunk index, verify). Different payload model.
 
 ## License
 
