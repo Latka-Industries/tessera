@@ -138,7 +138,7 @@ Outbound and internal links for **backlink resolution** without scanning text pa
 | 8 | 8 | `entry_count` | Number of fixed entries following |
 | 16 | 8 | reserved | Write **0** |
 
-### Link table entry (40 bytes, fixed)
+### Link table entry (48 bytes, fixed)
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -150,7 +150,7 @@ Outbound and internal links for **backlink resolution** without scanning text pa
 | `link_kind` | `u32` | `0` = wiki, `1` = footnote, `2` = citation stub |
 | `reserved` | `u32` | **0** |
 
-Total table size: `24 + entry_count × 40`.
+Total table size: `24 + entry_count × 48`.
 
 **Hub docs** may have many entries with `source_chunk_id` pointing at hub list chunks; see [decisions — hub format](decisions.md#hub-documents).
 

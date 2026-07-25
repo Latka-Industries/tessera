@@ -25,8 +25,8 @@ pub struct TesInfoReport {
     pub catalog: Option<DocumentCatalog>,
     /// Chunk index rows (no payload bodies).
     pub chunks: Vec<ChunkInfo>,
-    /// Link table entries (empty until TLNK reader lands).
-    pub links: Vec<serde_json::Value>,
+    /// Link table entries.
+    pub links: Vec<LinkInfo>,
 }
 
 /// Superblock projection for JSON output.
@@ -103,6 +103,23 @@ impl ChunkInfo {
     }
 }
 
+/// One link-table row for JSON output.
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkInfo {
+    /// Source chunk containing the anchor.
+    pub source_chunk_id: u64,
+    /// Anchor byte range.
+    pub source_byte_start: u32,
+    /// Exclusive anchor end.
+    pub source_byte_end: u32,
+    /// Target document UUID.
+    pub target_doc_id: String,
+    /// Target chunk (`0` = whole document).
+    pub target_chunk_id: u64,
+    /// Link kind.
+    pub link_kind: &'static str,
+}
+
 /// Build an info report from an open file.
 #[must_use]
 pub fn info_report(file: &TesFile) -> TesInfoReport {
@@ -120,7 +137,18 @@ pub fn info_report(file: &TesFile) -> TesInfoReport {
         },
         catalog: file.catalog().cloned(),
         chunks: file.chunks().iter().map(ChunkInfo::from_entry).collect(),
-        links: Vec::new(),
+        links: file
+            .links()
+            .iter()
+            .map(|link| LinkInfo {
+                source_chunk_id: link.source_chunk_id,
+                source_byte_start: link.source_byte_start,
+                source_byte_end: link.source_byte_end,
+                target_doc_id: link.target_uuid().to_string(),
+                target_chunk_id: link.target_chunk_id,
+                link_kind: link.link_kind.as_str(),
+            })
+            .collect(),
     }
 }
 

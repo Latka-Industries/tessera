@@ -18,6 +18,7 @@ use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::{
     ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, ENTRY_LEN, HEADER_LEN, chunk_flags,
 };
+use crate::catalog::link::{LinkEntry, encode_link_table};
 use crate::error::{Result, TesError};
 use crate::layout::{DocKind, Region, SUPERBLOCK_LEN, SuperblockV0};
 use crate::wire::align8;
@@ -34,6 +35,7 @@ pub struct TesWriterSession {
     doc_kind: DocKind,
     catalog: Option<DocumentCatalog>,
     chunks: Vec<PendingChunk>,
+    links: Vec<LinkEntry>,
     sealed: bool,
 }
 
@@ -45,6 +47,7 @@ impl TesWriterSession {
             doc_kind,
             catalog: None,
             chunks: Vec::new(),
+            links: Vec::new(),
             sealed: false,
         }
     }
@@ -75,6 +78,13 @@ impl TesWriterSession {
             chunk_flags: chunk_flags::READING_ORDER,
             payload,
         });
+        Ok(())
+    }
+
+    /// Add an outbound/internal link-table edge.
+    pub fn add_link(&mut self, link: LinkEntry) -> Result<()> {
+        self.ensure_open()?;
+        self.links.push(link);
         Ok(())
     }
 
@@ -112,6 +122,20 @@ impl TesWriterSession {
             Region::new(offset, length)
         } else {
             Region::NONE
+        };
+
+        let link_bytes = if self.links.is_empty() {
+            Vec::new()
+        } else {
+            encode_link_table(&self.links)
+        };
+        let link_table_region = if link_bytes.is_empty() {
+            Region::NONE
+        } else {
+            let offset = align8(cursor);
+            let length = link_bytes.len() as u64;
+            cursor = align8(offset + length);
+            Region::new(offset, length)
         };
 
         let (chunk_index_region, index_bytes, payload_blobs) = if self.chunks.is_empty() {
@@ -154,7 +178,7 @@ impl TesWriterSession {
             flags: 0,
             doc_kind: self.doc_kind,
             catalog: catalog_region,
-            link_table: Region::NONE,
+            link_table: link_table_region,
             chunk_index: chunk_index_region,
         };
 
@@ -164,6 +188,11 @@ impl TesWriterSession {
         if let Some(cat) = catalog_bytes {
             pad_to(&mut out, catalog_region.offset as usize);
             out.extend_from_slice(&cat);
+        }
+
+        if !link_bytes.is_empty() {
+            pad_to(&mut out, link_table_region.offset as usize);
+            out.extend_from_slice(&link_bytes);
         }
 
         if !index_bytes.is_empty() {

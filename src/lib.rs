@@ -18,6 +18,7 @@ pub mod error;
 pub mod export;
 pub mod import;
 pub mod layout;
+pub mod vault;
 pub mod verify;
 pub mod wire;
 
@@ -34,5 +35,6 @@ pub mod prelude {
     pub use crate::export::{ExportOptions, ExportView, export_view};
     pub use crate::import::{MarkdownImportOptions, MarkdownImportReport, import_markdown_v0};
     pub use crate::layout::{DocKind, Region, SuperblockV0};
+    pub use crate::vault::{Backlink, ResolvedTarget, Vault, VaultDocument};
     pub use crate::verify::{TesVerifyReport, verify_tes_file};
 }

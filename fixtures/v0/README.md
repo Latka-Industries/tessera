@@ -7,7 +7,7 @@ Byte-exact containers for layout / writer / verify tests.
 | `empty.tes` | Superblock only (64 bytes) |
 | `note_one_chunk.tes` | Single paragraph note + catalog + `TIDX` |
 | `note_three_chunks.tes` | *(planned)* Heading + two paragraphs |
-| `hub_links.tes` | *(planned)* Hub doc + link table |
+| `hub_links.tes` | Hub doc linking to `note_one_chunk.tes` through `TLNK` |
 
 Regenerate after writer changes:
 

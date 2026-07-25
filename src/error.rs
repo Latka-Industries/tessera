@@ -101,6 +101,15 @@ pub enum TesError {
         got: u64,
     },
 
+    /// Link table region length does not match `24 + entry_count × 48`.
+    #[error("link table length mismatch: expected {expected} bytes, region is {got}")]
+    LinkTableLengthMismatch {
+        /// Size implied by the `TLNK` header.
+        expected: u64,
+        /// Size from the superblock region.
+        got: u64,
+    },
+
     /// Payload codec decode failed or length mismatched `raw_byte_len`.
     #[error("decode failed for chunk {chunk_id}: {message}")]
     Decode {
@@ -128,6 +137,24 @@ pub enum TesError {
     InvalidDocId {
         /// User-supplied value.
         value: String,
+    },
+
+    /// Two files in one vault declared the same document UUID.
+    #[error("duplicate document UUID {doc_id}: {first} and {second}")]
+    DuplicateDocId {
+        /// Duplicated UUID.
+        doc_id: String,
+        /// First path encountered.
+        first: String,
+        /// Conflicting path.
+        second: String,
+    },
+
+    /// No document with this UUID exists in the vault.
+    #[error("document {doc_id} not found in vault")]
+    DocumentNotFound {
+        /// Requested UUID.
+        doc_id: String,
     },
 
     /// Underlying filesystem I/O failed.

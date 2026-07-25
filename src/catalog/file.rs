@@ -7,6 +7,7 @@ use memmap2::Mmap;
 
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::{ChunkIndexEntry, Codec, read_chunk_index};
+use crate::catalog::link::{LinkEntry, read_link_table};
 use crate::error::{Result, TesError};
 use crate::layout::{self, SUPERBLOCK_LEN, SuperblockV0};
 
@@ -17,6 +18,7 @@ pub struct TesFile {
     superblock: SuperblockV0,
     catalog: Option<DocumentCatalog>,
     chunks: Vec<ChunkIndexEntry>,
+    links: Vec<LinkEntry>,
 }
 
 impl TesFile {
@@ -47,6 +49,8 @@ impl TesFile {
 
         let index_bytes = superblock.chunk_index.slice(&mmap, "chunk_index")?;
         let chunks = read_chunk_index(index_bytes)?;
+        let link_bytes = superblock.link_table.slice(&mmap, "link_table")?;
+        let links = read_link_table(link_bytes)?;
 
         // Light payload-bound check (full verify lands in THI-6).
         let file_len = mmap.len() as u64;
@@ -76,6 +80,7 @@ impl TesFile {
             superblock,
             catalog,
             chunks,
+            links,
         })
     }
 
@@ -107,6 +112,12 @@ impl TesFile {
     #[must_use]
     pub fn chunks(&self) -> &[ChunkIndexEntry] {
         &self.chunks
+    }
+
+    /// Parsed outbound/internal link-table entries.
+    #[must_use]
+    pub fn links(&self) -> &[LinkEntry] {
+        &self.links
     }
 
     /// Raw mmap bytes.
