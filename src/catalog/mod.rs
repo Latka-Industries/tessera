@@ -1,6 +1,11 @@
 //! Catalog layer: the document model stored inside a single `.tes` file.
-//!
-//! v0 scope covers the chunk index (`TIDX`). Catalog JSON, link table
-//! (`TLNK`), chunk payloads, and the writer session land in later THI issues.
 
+pub mod chunk;
+pub mod document;
 pub mod index;
+pub mod session;
+
+pub use chunk::{ListKind, TextHeader, TextRole, decode_text_payload, encode_text_payload};
+pub use document::DocumentCatalog;
+pub use index::{ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec};
+pub use session::TesWriterSession;

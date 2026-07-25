@@ -49,4 +49,41 @@ pub enum TesError {
         /// Raw value read from the buffer.
         value: u32,
     },
+
+    /// Document catalog exceeds the v0 reference writer limit (16 KiB).
+    #[error("document catalog too large: {len} bytes (limit {limit})")]
+    CatalogTooLarge {
+        /// Serialized catalog size.
+        len: usize,
+        /// Maximum allowed size.
+        limit: usize,
+    },
+
+    /// Text chunk semantic header exceeds the v0 limit (4 KiB).
+    #[error("text chunk header too large: {len} bytes (limit {limit})")]
+    TextHeaderTooLarge {
+        /// Serialized header size.
+        len: usize,
+        /// Maximum allowed size.
+        limit: usize,
+    },
+
+    /// The writer session was already sealed (committed).
+    #[error("writer session already sealed")]
+    SessionSealed,
+
+    /// A text payload body was not valid UTF-8.
+    #[error("invalid UTF-8 in {structure}")]
+    InvalidUtf8 {
+        /// Name of the structure containing the bad bytes.
+        structure: &'static str,
+    },
+
+    /// Underlying filesystem I/O failed.
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    /// JSON encode/decode failed.
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 }

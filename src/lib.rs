@@ -5,10 +5,11 @@
 //!
 //! - [`layout`] — the fixed 64-byte superblock (`TESS`).
 //! - [`catalog::index`] — the chunk index (`TIDX`) header and 48-byte rows.
+//! - [`catalog::session`] — [`TesWriterSession`] sealed-file writer.
 //! - [`wire`] — little-endian primitives and `align8`.
 //!
-//! Higher layers (catalog JSON, link table, writer session, verify, export,
-//! import, vault) land in later milestones.
+//! Higher layers (link table, verify, export, import, vault) land in later
+//! milestones.
 
 pub mod catalog;
 pub mod error;
@@ -17,7 +18,10 @@ pub mod wire;
 
 /// Common types for embedders: `use tessera::prelude::*;`.
 pub mod prelude {
-    pub use crate::catalog::index::{ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec};
+    pub use crate::catalog::{
+        ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog, TesWriterSession,
+        TextHeader, TextRole,
+    };
     pub use crate::error::{Result, TesError};
     pub use crate::layout::{DocKind, Region, SuperblockV0};
 }
