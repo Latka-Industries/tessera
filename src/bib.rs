@@ -73,6 +73,10 @@ pub enum BibFormat {
 
 impl BibFormat {
     /// Parse a CLI/format string.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidBib`] if `s` is not a known format name.
     pub fn parse(s: &str) -> Result<Self> {
         match s {
             "bibtex" | "bib" => Ok(Self::Bibtex),
@@ -118,6 +122,10 @@ impl Default for BibImportOptions {
 }
 
 /// Parse a BibTeX subset sufficient for Tessera fixtures and interchange.
+///
+/// # Errors
+///
+/// Returns [`TesError::InvalidBib`] if the input is not well-formed BibTeX.
 pub fn parse_bibtex(input: &str) -> Result<Vec<BibEntry>> {
     let mut entries = Vec::new();
     let bytes = input.as_bytes();
@@ -230,18 +238,31 @@ pub fn to_bibtex(entries: &[BibEntry]) -> String {
 }
 
 /// Serialize entries to a CSL-JSON array.
+///
+/// # Errors
+///
+/// Returns [`TesError::Json`] if serialization fails.
 pub fn to_csl_json(entries: &[BibEntry]) -> Result<String> {
     let items: Vec<CslItem> = entries.iter().map(CslItem::from_bib).collect();
     Ok(serde_json::to_string_pretty(&items)?)
 }
 
 /// Parse a CSL-JSON array into bibliography entries.
+///
+/// # Errors
+///
+/// Returns [`TesError::Json`] if `input` is not a valid CSL-JSON array.
 pub fn parse_csl_json(input: &str) -> Result<Vec<BibEntry>> {
     let items: Vec<CslItem> = serde_json::from_str(input)?;
     Ok(items.into_iter().map(CslItem::into_bib).collect())
 }
 
 /// Collect bibliography entries from cite chunks in `file`.
+///
+/// # Errors
+///
+/// Returns [`TesError::Decode`] if a cite payload cannot be decoded, or
+/// payload decode errors from [`TesFile::decode_payload`].
 pub fn collect_bib_entries(file: &TesFile) -> Result<Vec<BibEntry>> {
     let mut out = Vec::new();
     for entry in file.reading_order_chunks() {
@@ -259,6 +280,11 @@ pub fn collect_bib_entries(file: &TesFile) -> Result<Vec<BibEntry>> {
 }
 
 /// Export bibliography from a `.tes` path.
+///
+/// # Errors
+///
+/// Returns errors from [`TesFile::open`], [`collect_bib_entries`], or
+/// [`to_csl_json`] (for CSL-JSON).
 pub fn export_bibliography(path: impl AsRef<Path>, format: BibFormat) -> Result<String> {
     let file = TesFile::open(path.as_ref())?;
     let entries = collect_bib_entries(&file)?;
@@ -269,6 +295,12 @@ pub fn export_bibliography(path: impl AsRef<Path>, format: BibFormat) -> Result<
 }
 
 /// Import BibTeX or CSL-JSON into a new research `.tes` (one cite chunk per entry).
+///
+/// # Errors
+///
+/// Returns [`TesError::Io`] on read/write failure, [`TesError::InvalidBib`] if
+/// parsing fails or the file has no entries, [`TesError::InvalidDocId`] for a
+/// bad UUID override, or writer-session errors while sealing the output.
 pub fn import_bibliography(
     input: impl AsRef<Path>,
     output: impl AsRef<Path>,

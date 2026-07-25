@@ -24,7 +24,7 @@ use crate::catalog::link::{LinkEntry, LinkKind, encode_link_table};
 use crate::catalog::media::{FigureRef, ImagePayload};
 use crate::error::{Result, TesError};
 use crate::layout::{DocKind, Region, SUPERBLOCK_LEN, SuperblockV0};
-use crate::wire::align8;
+use argus::align8;
 
 struct PendingChunk {
     chunk_type: ChunkType,
@@ -62,6 +62,10 @@ impl TesWriterSession {
     }
 
     /// Set (or replace) the document catalog written after the superblock.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if the session was already committed.
     pub fn set_catalog(&mut self, catalog: DocumentCatalog) -> Result<()> {
         self.ensure_open()?;
         // Keep superblock `doc_kind` aligned with the catalog string mirror.
@@ -73,6 +77,11 @@ impl TesWriterSession {
     }
 
     /// Append a reading-order text chunk with the given semantic header and body.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if sealed, or payload encode errors
+    /// from [`encode_text_payload`].
     pub fn add_text_chunk(&mut self, header: &TextHeader, body: &str) -> Result<()> {
         self.ensure_open()?;
         let payload = encode_text_payload(header, body)?;
@@ -87,6 +96,11 @@ impl TesWriterSession {
     /// Append a reusable image media chunk (not reading-order).
     ///
     /// Returns the 1-based `chunk_id` assigned on commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if sealed, or encode/validation
+    /// errors from [`ImagePayload::to_bytes`].
     pub fn add_image_chunk(&mut self, image: &ImagePayload) -> Result<u64> {
         self.ensure_open()?;
         let payload = image.to_bytes()?;
@@ -101,6 +115,11 @@ impl TesWriterSession {
     /// Append a reading-order figure referencing an image chunk.
     ///
     /// Returns the 1-based `chunk_id` assigned on commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if sealed, or encode/validation
+    /// errors from [`FigureRef::to_bytes`].
     pub fn add_figure(&mut self, figure: &FigureRef) -> Result<u64> {
         self.ensure_open()?;
         let payload = figure.to_bytes()?;
@@ -115,6 +134,11 @@ impl TesWriterSession {
     /// Append a reading-order cite chunk, mirroring a `TLNK` citation edge when targeted.
     ///
     /// Returns the 1-based `chunk_id` assigned on commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if sealed, cite encode/validation
+    /// errors, or [`TesError::InvalidDocId`] if `target_doc_id` is not a UUID.
     pub fn add_cite_chunk(&mut self, cite: &CitePayload) -> Result<u64> {
         self.ensure_open()?;
         let payload = cite.to_bytes()?;
@@ -142,6 +166,10 @@ impl TesWriterSession {
     }
 
     /// Add an outbound/internal link-table edge.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if the session was already committed.
     pub fn add_link(&mut self, link: LinkEntry) -> Result<()> {
         self.ensure_open()?;
         self.links.push(link);
@@ -151,6 +179,11 @@ impl TesWriterSession {
     /// Write a sealed `.tes` and consume the session.
     ///
     /// Creates the file with `create_new` (fails if it already exists).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if already sealed, catalog encode
+    /// errors from [`Self::encode_file`], or [`TesError::Io`] on create/write.
     pub fn commit(mut self) -> Result<()> {
         self.ensure_open()?;
         let bytes = self.encode_file()?;
@@ -165,6 +198,12 @@ impl TesWriterSession {
     }
 
     /// Encode the sealed file bytes without writing (for tests / fixtures).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if sealed, or
+    /// [`TesError::CatalogTooLarge`] / [`TesError::Json`] when encoding the
+    /// catalog.
     pub fn encode_file(&self) -> Result<Vec<u8>> {
         self.ensure_open()?;
 

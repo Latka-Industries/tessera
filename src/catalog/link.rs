@@ -5,7 +5,7 @@
 use uuid::Uuid;
 
 use crate::error::{Result, TesError};
-use crate::wire::{LeReader, LeWriter};
+use argus::{LeReader, LeWriter};
 
 /// Magic tag at the start of a link table.
 pub const MAGIC: [u8; 4] = *b"TLNK";
@@ -30,6 +30,10 @@ pub enum LinkKind {
 
 impl LinkKind {
     /// Decode a wire discriminant.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidEnum`] if `value` is not a known link kind.
     pub fn from_u32(value: u32) -> Result<Self> {
         match value {
             0 => Ok(Self::Wiki),
@@ -120,6 +124,11 @@ impl LinkEntry {
     }
 
     /// Decode one fixed row.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::BufferTooSmall`] if `bytes` is shorter than
+    /// [`ENTRY_LEN`], or [`TesError::InvalidEnum`] for a bad `link_kind`.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let mut r = LeReader::require(bytes, "LinkEntry", ENTRY_LEN)?;
         let source_chunk_id = r.take_u64();
@@ -158,6 +167,13 @@ pub fn encode_link_table(entries: &[LinkEntry]) -> Vec<u8> {
 }
 
 /// Decode a complete `TLNK` region.
+///
+/// # Errors
+///
+/// Returns [`TesError::BufferTooSmall`] / [`TesError::BadMagic`] /
+/// [`TesError::UnsupportedVersion`] for a bad header,
+/// [`TesError::LinkTableLengthMismatch`] if the region length is wrong, or
+/// entry decode errors.
 pub fn read_link_table(bytes: &[u8]) -> Result<Vec<LinkEntry>> {
     if bytes.is_empty() {
         return Ok(Vec::new());

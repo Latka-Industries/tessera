@@ -60,6 +60,11 @@ pub struct ExportOptions {
 }
 
 /// Export `path` as the selected view.
+///
+/// # Errors
+///
+/// Returns open/parse errors from [`TesFile::open`], or view-specific errors from
+/// [`export_file`].
 pub fn export_view(
     path: impl AsRef<Path>,
     view: ExportView,
@@ -70,6 +75,12 @@ pub fn export_view(
 }
 
 /// Export an already-open file.
+///
+/// # Errors
+///
+/// Returns [`TesError::ChunkNotFound`] if a requested chunk is missing,
+/// [`TesError::Decode`] / [`TesError::InvalidFigure`] when a payload cannot be decoded,
+/// or other payload errors from [`TesFile::decode_payload`].
 pub fn export_file(file: &TesFile, view: ExportView, options: &ExportOptions) -> Result<String> {
     match view {
         ExportView::Raw => export_raw(file, options),
@@ -278,14 +289,10 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
 fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let entries = selected_content_entries(file, options)?;
     let cite_numbers = cite_number_map(file, &entries)?;
-    let doc_id = file
-        .catalog()
-        .map(|catalog| catalog.doc_id.as_str())
-        .unwrap_or("");
+    let doc_id = file.catalog().map_or("", |catalog| catalog.doc_id.as_str());
     let title = file
         .catalog()
-        .map(|catalog| catalog.title.as_str())
-        .unwrap_or("Untitled");
+        .map_or("Untitled", |catalog| catalog.title.as_str());
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
 
@@ -293,103 +300,120 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
-                let escaped = escape_html(&body);
-                let class = html_class_attr(&header.classes);
-                let rendered = match header.role {
-                    TextRole::Heading => {
-                        let level = header.level.unwrap_or(1).clamp(1, 6);
-                        format!(
-                            "  <h{level} id=\"chunk-{}\"{class}>{escaped}</h{level}>\n",
-                            entry.chunk_id
-                        )
-                    }
-                    TextRole::Paragraph => format!(
-                        "  <p data-chunk-id=\"{}\"{class}>{escaped}</p>\n",
-                        entry.chunk_id
-                    ),
-                    TextRole::ListItem => {
-                        let (open, close) = match header.list_kind.unwrap_or(ListKind::Bullet) {
-                            ListKind::Bullet => ("ul", "ul"),
-                            ListKind::Ordered => ("ol", "ol"),
-                        };
-                        format!(
-                            "  <{open}><li data-chunk-id=\"{}\"{class}>{escaped}</li></{close}>\n",
-                            entry.chunk_id
-                        )
-                    }
-                    TextRole::Blockquote => format!(
-                        "  <blockquote data-chunk-id=\"{}\"{class}>{escaped}</blockquote>\n",
-                        entry.chunk_id
-                    ),
-                    TextRole::CodeBlock => format!(
-                        "  <pre data-chunk-id=\"{}\"{class}><code>{escaped}</code></pre>\n",
-                        entry.chunk_id
-                    ),
-                    TextRole::Table => {
-                        let rows = body
-                            .lines()
-                            .map(|line| {
-                                let cells = line
-                                    .split('\t')
-                                    .map(|cell| format!("<td>{}</td>", escape_html(cell)))
-                                    .collect::<String>();
-                                format!("<tr>{cells}</tr>")
-                            })
-                            .collect::<String>();
-                        format!(
-                            "  <table data-chunk-id=\"{}\"{class}><tbody>{rows}</tbody></table>\n",
-                            entry.chunk_id
-                        )
-                    }
-                };
-                article.push_str(&rendered);
+                article.push_str(&render_text_chunk_html(entry.chunk_id, &header, &body));
             }
             ChunkType::Figure => {
                 article.push_str(&render_figure_html(file, entry, options)?);
             }
             ChunkType::Cite if !options.no_cites => {
-                let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
-                let label = cite
-                    .label
-                    .as_deref()
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(bib.cite_key.as_str());
-                let label = if label.is_empty() { "unknown" } else { label };
-                let marker = format_numeric_marker(n);
-                if cite.quote.trim().is_empty() {
-                    let _ = writeln!(
-                        article,
-                        "  <p data-chunk-id=\"{}\" class=\"citation\"><a href=\"#ref-{n}\"><cite>{marker}</cite></a> <span class=\"cite-label\">{}</span></p>",
-                        entry.chunk_id,
-                        escape_html(label)
-                    );
-                } else {
-                    let _ = writeln!(
-                        article,
-                        "  <p data-chunk-id=\"{}\" class=\"citation\"><a href=\"#ref-{n}\"><cite>{marker}</cite></a> {}</p>",
-                        entry.chunk_id,
-                        escape_html(cite.quote.trim())
-                    );
-                }
-                bib_items.push((n, bib));
+                append_cite_html(file, entry, &cite_numbers, &mut article, &mut bib_items)?;
             }
             _ => {}
         }
     }
-    if !bib_items.is_empty() {
-        bib_items.sort_by_key(|(n, _)| *n);
-        article.push_str("  <section class=\"bibliography\">\n    <h2>References</h2>\n    <ol>\n");
-        for (n, entry) in &bib_items {
-            let _ = writeln!(
-                article,
-                "      <li id=\"ref-{n}\">{}</li>",
-                escape_html(&format_reference_body(entry))
-            );
-        }
-        article.push_str("    </ol>\n  </section>\n");
-    }
+    append_html_bibliography(&mut article, &mut bib_items);
     article.push_str("</article>\n");
 
+    let styles = html_theme_styles(options);
+    if options.standalone {
+        Ok(format!(
+            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{}</title>\n{styles}</head>\n<body>\n{article}</body>\n</html>\n",
+            escape_html(title)
+        ))
+    } else {
+        Ok(format!("{styles}{article}"))
+    }
+}
+
+fn render_text_chunk_html(chunk_id: u64, header: &TextHeader, body: &str) -> String {
+    let escaped = escape_html(body);
+    let class = html_class_attr(&header.classes);
+    match header.role {
+        TextRole::Heading => {
+            let level = header.level.unwrap_or(1).clamp(1, 6);
+            format!("  <h{level} id=\"chunk-{chunk_id}\"{class}>{escaped}</h{level}>\n")
+        }
+        TextRole::Paragraph => {
+            format!("  <p data-chunk-id=\"{chunk_id}\"{class}>{escaped}</p>\n")
+        }
+        TextRole::ListItem => {
+            let (open, close) = match header.list_kind.unwrap_or(ListKind::Bullet) {
+                ListKind::Bullet => ("ul", "ul"),
+                ListKind::Ordered => ("ol", "ol"),
+            };
+            format!("  <{open}><li data-chunk-id=\"{chunk_id}\"{class}>{escaped}</li></{close}>\n")
+        }
+        TextRole::Blockquote => {
+            format!("  <blockquote data-chunk-id=\"{chunk_id}\"{class}>{escaped}</blockquote>\n")
+        }
+        TextRole::CodeBlock => {
+            format!("  <pre data-chunk-id=\"{chunk_id}\"{class}><code>{escaped}</code></pre>\n")
+        }
+        TextRole::Table => {
+            let rows = body.lines().fold(String::new(), |mut acc, line| {
+                let cells = line.split('\t').fold(String::new(), |mut acc, cell| {
+                    let _ = write!(acc, "<td>{}</td>", escape_html(cell));
+                    acc
+                });
+                let _ = write!(acc, "<tr>{cells}</tr>");
+                acc
+            });
+            format!("  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>\n")
+        }
+    }
+}
+
+fn append_cite_html(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    cite_numbers: &std::collections::HashMap<u64, usize>,
+    article: &mut String,
+    bib_items: &mut Vec<(usize, BibEntry)>,
+) -> Result<()> {
+    let (n, cite, bib) = decode_numbered_cite(file, entry, cite_numbers)?;
+    let label = cite
+        .label
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(bib.cite_key.as_str());
+    let label = if label.is_empty() { "unknown" } else { label };
+    let marker = format_numeric_marker(n);
+    if cite.quote.trim().is_empty() {
+        let _ = writeln!(
+            article,
+            "  <p data-chunk-id=\"{}\" class=\"citation\"><a href=\"#ref-{n}\"><cite>{marker}</cite></a> <span class=\"cite-label\">{}</span></p>",
+            entry.chunk_id,
+            escape_html(label)
+        );
+    } else {
+        let _ = writeln!(
+            article,
+            "  <p data-chunk-id=\"{}\" class=\"citation\"><a href=\"#ref-{n}\"><cite>{marker}</cite></a> {}</p>",
+            entry.chunk_id,
+            escape_html(cite.quote.trim())
+        );
+    }
+    bib_items.push((n, bib));
+    Ok(())
+}
+
+fn append_html_bibliography(article: &mut String, bib_items: &mut [(usize, BibEntry)]) {
+    if bib_items.is_empty() {
+        return;
+    }
+    bib_items.sort_by_key(|(n, _)| *n);
+    article.push_str("  <section class=\"bibliography\">\n    <h2>References</h2>\n    <ol>\n");
+    for (n, entry) in bib_items.iter() {
+        let _ = writeln!(
+            article,
+            "      <li id=\"ref-{n}\">{}</li>",
+            escape_html(&format_reference_body(entry))
+        );
+    }
+    article.push_str("    </ol>\n  </section>\n");
+}
+
+fn html_theme_styles(options: &ExportOptions) -> String {
     let mut styles = String::new();
     if let Some(css) = &options.embedded_css {
         styles.push_str("<style>\n");
@@ -405,15 +429,7 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
             escape_html(href)
         );
     }
-
-    if options.standalone {
-        Ok(format!(
-            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{}</title>\n{styles}</head>\n<body>\n{article}</body>\n</html>\n",
-            escape_html(title)
-        ))
-    } else {
-        Ok(format!("{styles}{article}"))
-    }
+    styles
 }
 
 fn render_figure_html(
@@ -624,161 +640,162 @@ struct ChunkJsonlRow<'a> {
 }
 
 fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String> {
-    let doc_id = file.catalog().map(|c| c.doc_id.as_str()).unwrap_or("");
-    let doc_title = file.catalog().map(|c| c.title.as_str()).unwrap_or("");
-
-    let entries: Vec<&ChunkIndexEntry> = if let Some(id) = options.chunk_id {
-        vec![file.chunk_by_id(id)?]
-    } else if options.all_types {
-        file.chunks().iter().collect()
-    } else {
-        file.reading_order_chunks()
-            .into_iter()
-            .filter(|c| {
-                c.chunk_type == ChunkType::Text
-                    || c.chunk_type == ChunkType::Cite
-                    || c.chunk_type == ChunkType::Figure
-            })
-            .collect()
-    };
+    let doc_id = file.catalog().map_or("", |c| c.doc_id.as_str());
+    let doc_title = file.catalog().map_or("", |c| c.title.as_str());
+    let entries = jsonl_entries(file, options)?;
 
     let mut out = String::new();
     for entry in entries {
         match entry.chunk_type {
             ChunkType::Text => {
-                let (header, body) = decode_text_entry(file, entry)?;
-                let list_kind = header.list_kind.map(|k| match k {
-                    ListKind::Bullet => "bullet",
-                    ListKind::Ordered => "ordered",
-                });
-                let row = ChunkJsonlRow {
-                    doc_id,
-                    doc_title,
-                    chunk_id: entry.chunk_id,
-                    chunk_type: "text",
-                    role: Some(header.role.as_str()),
-                    level: header.level,
-                    list_kind,
-                    byte_len: Some(body.len()),
-                    text: Some(&body),
-                    quote: None,
-                    target_doc_id: None,
-                    target_chunk_id: None,
-                    label: None,
-                    resolved_text: None,
-                    image_chunk_id: None,
-                    alt_text: None,
-                    caption: None,
-                    placement: None,
-                    media_type: None,
-                };
-                out.push_str(&serde_json::to_string(&row)?);
-                out.push('\n');
+                append_jsonl_text(&mut out, file, entry, doc_id, doc_title)?;
             }
             ChunkType::Cite => {
-                let raw = file.decode_payload(entry)?;
-                let cite = CitePayload::from_bytes(&raw).unwrap_or(CitePayload {
-                    quote: String::new(),
-                    target_doc_id: None,
-                    target_chunk_id: None,
-                    target_byte_start: None,
-                    target_byte_end: None,
-                    label: None,
-                    page: None,
-                    source: None,
-                });
-                let resolved = if cite.quote.is_empty() {
-                    None
-                } else {
-                    Some(cite.quote.as_str())
-                };
-                let row = ChunkJsonlRow {
-                    doc_id,
-                    doc_title,
-                    chunk_id: entry.chunk_id,
-                    chunk_type: "cite",
-                    role: None,
-                    level: None,
-                    list_kind: None,
-                    byte_len: None,
-                    text: None,
-                    quote: Some(cite.quote.as_str()),
-                    target_doc_id: cite.target_doc_id.as_deref(),
-                    target_chunk_id: cite.target_chunk_id,
-                    label: cite.label.as_deref(),
-                    resolved_text: resolved,
-                    image_chunk_id: None,
-                    alt_text: None,
-                    caption: None,
-                    placement: None,
-                    media_type: None,
-                };
-                out.push_str(&serde_json::to_string(&row)?);
-                out.push('\n');
+                append_jsonl_cite(&mut out, file, entry, doc_id, doc_title)?;
             }
             ChunkType::Figure => {
-                let figure = decode_figure_entry(file, entry)?;
-                let media_type = file
-                    .chunk_by_id(figure.image_chunk_id)
-                    .ok()
-                    .filter(|e| e.chunk_type == ChunkType::Image)
-                    .and_then(|e| file.decode_payload(e).ok())
-                    .and_then(|raw| ImagePayload::from_bytes(&raw).ok())
-                    .map(|img| img.media_type);
-                let media_type_ref = media_type.as_deref();
-                let row = ChunkJsonlRow {
-                    doc_id,
-                    doc_title,
-                    chunk_id: entry.chunk_id,
-                    chunk_type: "figure",
-                    role: None,
-                    level: None,
-                    list_kind: None,
-                    byte_len: None,
-                    text: None,
-                    quote: None,
-                    target_doc_id: None,
-                    target_chunk_id: None,
-                    label: None,
-                    resolved_text: None,
-                    image_chunk_id: Some(figure.image_chunk_id),
-                    alt_text: Some(figure.alt_text.as_str()),
-                    caption: figure.caption.as_deref(),
-                    placement: Some(figure.placement.as_str()),
-                    media_type: media_type_ref,
-                };
-                out.push_str(&serde_json::to_string(&row)?);
-                out.push('\n');
+                append_jsonl_figure(&mut out, file, entry, doc_id, doc_title)?;
             }
             other if options.all_types => {
-                let row = ChunkJsonlRow {
-                    doc_id,
-                    doc_title,
-                    chunk_id: entry.chunk_id,
-                    chunk_type: other.as_str(),
-                    role: None,
-                    level: None,
-                    list_kind: None,
-                    byte_len: None,
-                    text: None,
-                    quote: None,
-                    target_doc_id: None,
-                    target_chunk_id: None,
-                    label: None,
-                    resolved_text: None,
-                    image_chunk_id: None,
-                    alt_text: None,
-                    caption: None,
-                    placement: None,
-                    media_type: None,
-                };
-                out.push_str(&serde_json::to_string(&row)?);
-                out.push('\n');
+                push_jsonl_row(
+                    &mut out,
+                    &ChunkJsonlRow::bare(doc_id, doc_title, entry.chunk_id, other.as_str()),
+                )?;
             }
             _ => {}
         }
     }
     Ok(out)
+}
+
+fn jsonl_entries<'a>(
+    file: &'a TesFile,
+    options: &ExportOptions,
+) -> Result<Vec<&'a ChunkIndexEntry>> {
+    if let Some(id) = options.chunk_id {
+        return Ok(vec![file.chunk_by_id(id)?]);
+    }
+    if options.all_types {
+        return Ok(file.chunks().iter().collect());
+    }
+    Ok(file
+        .reading_order_chunks()
+        .into_iter()
+        .filter(|c| {
+            c.chunk_type == ChunkType::Text
+                || c.chunk_type == ChunkType::Cite
+                || c.chunk_type == ChunkType::Figure
+        })
+        .collect())
+}
+
+impl<'a> ChunkJsonlRow<'a> {
+    fn bare(doc_id: &'a str, doc_title: &'a str, chunk_id: u64, chunk_type: &'static str) -> Self {
+        Self {
+            doc_id,
+            doc_title,
+            chunk_id,
+            chunk_type,
+            role: None,
+            level: None,
+            list_kind: None,
+            byte_len: None,
+            text: None,
+            quote: None,
+            target_doc_id: None,
+            target_chunk_id: None,
+            label: None,
+            resolved_text: None,
+            image_chunk_id: None,
+            alt_text: None,
+            caption: None,
+            placement: None,
+            media_type: None,
+        }
+    }
+}
+
+fn push_jsonl_row(out: &mut String, row: &ChunkJsonlRow<'_>) -> Result<()> {
+    out.push_str(&serde_json::to_string(row)?);
+    out.push('\n');
+    Ok(())
+}
+
+fn append_jsonl_text(
+    out: &mut String,
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    doc_id: &str,
+    doc_title: &str,
+) -> Result<()> {
+    let (header, body) = decode_text_entry(file, entry)?;
+    let list_kind = header.list_kind.map(|k| match k {
+        ListKind::Bullet => "bullet",
+        ListKind::Ordered => "ordered",
+    });
+    let mut row = ChunkJsonlRow::bare(doc_id, doc_title, entry.chunk_id, "text");
+    row.role = Some(header.role.as_str());
+    row.level = header.level;
+    row.list_kind = list_kind;
+    row.byte_len = Some(body.len());
+    row.text = Some(&body);
+    push_jsonl_row(out, &row)
+}
+
+fn append_jsonl_cite(
+    out: &mut String,
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    doc_id: &str,
+    doc_title: &str,
+) -> Result<()> {
+    let raw = file.decode_payload(entry)?;
+    let cite = CitePayload::from_bytes(&raw).unwrap_or(CitePayload {
+        quote: String::new(),
+        target_doc_id: None,
+        target_chunk_id: None,
+        target_byte_start: None,
+        target_byte_end: None,
+        label: None,
+        page: None,
+        source: None,
+    });
+    let resolved = if cite.quote.is_empty() {
+        None
+    } else {
+        Some(cite.quote.as_str())
+    };
+    let mut row = ChunkJsonlRow::bare(doc_id, doc_title, entry.chunk_id, "cite");
+    row.quote = Some(cite.quote.as_str());
+    row.target_doc_id = cite.target_doc_id.as_deref();
+    row.target_chunk_id = cite.target_chunk_id;
+    row.label = cite.label.as_deref();
+    row.resolved_text = resolved;
+    push_jsonl_row(out, &row)
+}
+
+fn append_jsonl_figure(
+    out: &mut String,
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    doc_id: &str,
+    doc_title: &str,
+) -> Result<()> {
+    let figure = decode_figure_entry(file, entry)?;
+    let media_type = file
+        .chunk_by_id(figure.image_chunk_id)
+        .ok()
+        .filter(|e| e.chunk_type == ChunkType::Image)
+        .and_then(|e| file.decode_payload(e).ok())
+        .and_then(|raw| ImagePayload::from_bytes(&raw).ok())
+        .map(|img| img.media_type);
+    let mut row = ChunkJsonlRow::bare(doc_id, doc_title, entry.chunk_id, "figure");
+    row.image_chunk_id = Some(figure.image_chunk_id);
+    row.alt_text = Some(figure.alt_text.as_str());
+    row.caption = figure.caption.as_deref();
+    row.placement = Some(figure.placement.as_str());
+    row.media_type = media_type.as_deref();
+    push_jsonl_row(out, &row)
 }
 
 /// Typed multimodal export parts for API adapters.
@@ -808,6 +825,11 @@ pub enum AiPart {
 }
 
 /// Export reading-order content as typed [`AiPart`]s (text + image bytes).
+///
+/// # Errors
+///
+/// Returns [`TesError::ChunkNotFound`] if a requested chunk is missing, or
+/// [`TesError::Decode`] when a text/figure/image payload cannot be decoded.
 pub fn export_ai_parts(file: &TesFile, options: &ExportOptions) -> Result<Vec<AiPart>> {
     let entries: Vec<&ChunkIndexEntry> = if let Some(id) = options.chunk_id {
         vec![file.chunk_by_id(id)?]

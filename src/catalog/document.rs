@@ -59,6 +59,11 @@ impl DocumentCatalog {
     }
 
     /// Serialize to UTF-8 JSON bytes (no BOM), enforcing the 16 KiB limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::Json`] if serialization fails, or
+    /// [`TesError::CatalogTooLarge`] if the blob exceeds [`CATALOG_MAX_BYTES`].
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let bytes = serde_json::to_vec(self)?;
         if bytes.len() > CATALOG_MAX_BYTES {
@@ -71,6 +76,10 @@ impl DocumentCatalog {
     }
 
     /// Parse a catalog JSON blob.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::Json`] if `bytes` is not valid catalog JSON.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         Ok(serde_json::from_slice(bytes)?)
     }

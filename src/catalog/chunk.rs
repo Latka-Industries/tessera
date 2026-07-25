@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::bib::BibEntry;
 use crate::error::{Result, TesError};
-use crate::wire::{LeReader, LeWriter};
+use argus::{LeReader, LeWriter};
 
 /// Maximum text-chunk semantic header size (4 KiB).
 pub const TEXT_HEADER_MAX_BYTES: usize = 4 * 1024;
@@ -140,6 +140,11 @@ pub struct CitePayload {
 
 impl CitePayload {
     /// Parse a cite payload from UTF-8 JSON bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::Json`] on malformed JSON, or validation errors from
+    /// [`Self::validate`].
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let cite: Self = serde_json::from_slice(bytes)?;
         cite.validate()?;
@@ -147,12 +152,23 @@ impl CitePayload {
     }
 
     /// Serialize to UTF-8 JSON bytes after validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation errors from [`Self::validate`], or [`TesError::Json`]
+    /// if serialization fails.
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         self.validate()?;
         Ok(serde_json::to_vec(self)?)
     }
 
     /// Reject inconsistent ranges and malformed target UUIDs.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidCite`] for inverted byte ranges or an empty
+    /// `source.cite_key`, or [`TesError::InvalidDocId`] if `target_doc_id` is
+    /// not a UUID.
     pub fn validate(&self) -> Result<()> {
         if let (Some(start), Some(end)) = (self.target_byte_start, self.target_byte_end)
             && start >= end
@@ -180,6 +196,17 @@ impl CitePayload {
 }
 
 /// Encode a text chunk payload: `u32 header_len | header JSON | UTF-8 body`.
+///
+/// # Errors
+///
+/// Returns [`TesError::Json`] if the header cannot be serialized, or
+/// [`TesError::TextHeaderTooLarge`] if it exceeds [`TEXT_HEADER_MAX_BYTES`].
+///
+/// # Panics
+///
+/// Never in practice: the header length is bounded by
+/// [`TEXT_HEADER_MAX_BYTES`] (4 KiB) above, so the `u32` conversion cannot
+/// overflow.
 pub fn encode_text_payload(header: &TextHeader, body: &str) -> Result<Vec<u8>> {
     let header_bytes = serde_json::to_vec(header)?;
     if header_bytes.len() > TEXT_HEADER_MAX_BYTES {
@@ -203,6 +230,12 @@ pub fn encode_text_payload(header: &TextHeader, body: &str) -> Result<Vec<u8>> {
 }
 
 /// Decode a text chunk payload into `(header, body)`.
+///
+/// # Errors
+///
+/// Returns [`TesError::BufferTooSmall`] if the buffer is truncated,
+/// [`TesError::Json`] for a bad header, or [`TesError::InvalidUtf8`] if the
+/// body is not UTF-8.
 pub fn decode_text_payload(bytes: &[u8]) -> Result<(TextHeader, String)> {
     let mut r = LeReader::require(bytes, "TextChunkPayload", 4)?;
     let header_len = r.take_u32() as usize;

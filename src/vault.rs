@@ -80,6 +80,12 @@ pub struct Vault {
 
 impl Vault {
     /// Recursively scan `root` for `.tes` files and build the graph index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::Io`] while scanning, open/parse errors from [`TesFile::open`],
+    /// [`TesError::InvalidDocId`] for a bad catalog UUID, or [`TesError::DuplicateDocId`]
+    /// when two files share a document id.
     pub fn open(root: impl Into<PathBuf>) -> Result<Self> {
         let root = root.into();
         let mut paths = Vec::new();
@@ -150,6 +156,11 @@ impl Vault {
     }
 
     /// Resolve a document and optional chunk.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::DocumentNotFound`] if `doc_id` is unknown, or open/decode
+    /// errors when resolving a chunk.
     pub fn resolve(&self, doc_id: Uuid, chunk_id: Option<u64>) -> Result<ResolvedTarget> {
         let document = self
             .documents
@@ -192,6 +203,15 @@ impl Vault {
     }
 
     /// Return all missing document/chunk targets.
+    ///
+    /// # Errors
+    ///
+    /// Returns open errors from [`TesFile::open`] when validating chunk targets.
+    ///
+    /// # Panics
+    ///
+    /// Never in practice: backlink `target_doc_id` values originate from
+    /// parsed link tables and are always valid UUID strings.
     pub fn check(&self) -> Result<Vec<BrokenLink>> {
         let mut broken = Vec::new();
         for link in &self.backlinks {
@@ -237,6 +257,11 @@ fn collect_tes_paths(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
 }
 
 /// Parse `UUID` or `UUID/chunk`.
+///
+/// # Errors
+///
+/// Returns [`TesError::InvalidDocId`] if the UUID is malformed, or [`TesError::Io`]
+/// if the optional chunk id is not a valid `u64`.
 pub fn parse_target(value: &str) -> Result<(Uuid, Option<u64>)> {
     let (doc, chunk) = match value.split_once('/') {
         Some((doc, chunk)) => (doc, Some(chunk)),

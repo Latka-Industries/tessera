@@ -8,13 +8,7 @@ description = "Open document format (.tes): mmap-friendly chunked binary for not
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Latka-Industries/tessera"
 readme = "README.md"
-keywords = [
-    "document-format",
-    "binary-format",
-    "notes",
-    "markdown",
-    "citation",
-]
+keywords = ["document-format", "binary-format", "notes", "markdown", "citation"]
 categories = [
     "encoding",
     "text-processing",
@@ -31,19 +25,22 @@ name = "tes"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.6.1", features = ["derive"] }
-memmap2 = "0.9.10"
+argus-chunk = "0.1.0"
+clap = { version = "4.6.4", features = ["derive"] }
+memmap2 = "0.9.11"
 pulldown-cmark = "0.13.4"
 scraper = "0.27.0"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.150"
 thiserror = "2.0.18"
 time = { version = "0.3.54", features = ["formatting"] }
-uuid = { version = "1.23.2", features = ["v4"] }
-zstd = "0.13.3"
+uuid = { version = "1.24.0", features = ["v4"] }
+
+[patch.crates-io]
+# argus-chunk = { path = "../argus-chunk" }
 
 [dev-dependencies]
-anyhow = "1.0.102"
+anyhow = "1.0.104"
 tempfile = "3.27.0"
 
 [profile.release]

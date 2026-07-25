@@ -23,6 +23,11 @@ pub struct TesFile {
 
 impl TesFile {
     /// Open `path` read-only, mmap it, and parse superblock + catalog + index.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::Io`] if the file cannot be opened or mapped, or
+    /// parse/bounds errors from [`Self::from_mmap`].
     pub fn open(path: impl Into<PathBuf>) -> Result<Self> {
         let path = path.into();
         let mmap = layout::open_mmap(&path)?;
@@ -30,6 +35,12 @@ impl TesFile {
     }
 
     /// Parse an already-mapped buffer (tests / advanced callers).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::BufferTooSmall`] if the map is shorter than the
+    /// superblock, decode errors from the superblock/catalog/index/link table,
+    /// or [`TesError::OutOfBounds`] if a chunk payload extends past EOF.
     pub fn from_mmap(path: PathBuf, mmap: Mmap) -> Result<Self> {
         if mmap.len() < SUPERBLOCK_LEN {
             return Err(TesError::BufferTooSmall {
@@ -127,6 +138,11 @@ impl TesFile {
     }
 
     /// Stored payload bytes for an index entry (no codec decode).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::OutOfBounds`] if the entry's payload region extends
+    /// past the mapped file length.
     pub fn payload_bytes(&self, entry: &ChunkIndexEntry) -> Result<&[u8]> {
         let file_len = self.file_len();
         let end = entry
@@ -150,43 +166,28 @@ impl TesFile {
     }
 
     /// Decode a payload to its raw (uncompressed) bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::OutOfBounds`] from [`Self::payload_bytes`], or
+    /// [`TesError::Decode`] if codec decompression fails.
     pub fn decode_payload<'a>(&'a self, entry: &ChunkIndexEntry) -> Result<Cow<'a, [u8]>> {
         let stored = self.payload_bytes(entry)?;
-        match entry.codec {
-            Codec::Raw => {
-                if stored.len() as u64 != entry.raw_byte_len {
-                    return Err(TesError::Decode {
-                        chunk_id: entry.chunk_id,
-                        message: format!(
-                            "raw codec: stored_byte_len {} != raw_byte_len {}",
-                            stored.len(),
-                            entry.raw_byte_len
-                        ),
-                    });
-                }
-                Ok(Cow::Borrowed(stored))
-            }
-            Codec::Zstd => {
-                let raw = zstd::decode_all(stored).map_err(|e| TesError::Decode {
-                    chunk_id: entry.chunk_id,
-                    message: format!("zstd: {e}"),
-                })?;
-                if raw.len() as u64 != entry.raw_byte_len {
-                    return Err(TesError::Decode {
-                        chunk_id: entry.chunk_id,
-                        message: format!(
-                            "zstd decoded to {} bytes, index says {}",
-                            raw.len(),
-                            entry.raw_byte_len
-                        ),
-                    });
-                }
-                Ok(Cow::Owned(raw))
-            }
-        }
+        let codec = match entry.codec {
+            Codec::Raw => argus::PayloadCodec::Raw,
+            Codec::Zstd => argus::PayloadCodec::Zstd,
+        };
+        argus::decode(codec, stored, entry.raw_byte_len).map_err(|err| TesError::Decode {
+            chunk_id: entry.chunk_id,
+            message: err.to_string(),
+        })
     }
 
     /// Look up a chunk by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::ChunkNotFound`] if no index row has `chunk_id`.
     pub fn chunk_by_id(&self, chunk_id: u64) -> Result<&ChunkIndexEntry> {
         self.chunks
             .iter()

@@ -197,7 +197,7 @@ pub enum TesError {
         template_id: String,
     },
 
-    /// InvalidServeHost refused a non-loopback bind address.
+    /// `InvalidServeHost` refused a non-loopback bind address.
     #[error("tes serve refuses non-loopback host '{host}' (use 127.0.0.1, localhost, or ::1)")]
     InvalidServeHost {
         /// Rejected host string.
@@ -238,4 +238,14 @@ pub enum TesError {
         /// Human-readable reason.
         message: String,
     },
+}
+
+impl From<argus::BufferTooShort> for TesError {
+    fn from(err: argus::BufferTooShort) -> Self {
+        Self::BufferTooSmall {
+            structure: err.structure,
+            need: err.need,
+            got: err.got,
+        }
+    }
 }

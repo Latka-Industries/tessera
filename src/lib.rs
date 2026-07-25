@@ -9,13 +9,15 @@
 //! - [`catalog::file`] — [`TesFile`] mmap reader + catalog/index parse.
 //! - [`verify`] — layout health findings for `tes verify`.
 //! - [`export`] — decoded views (`--raw`, `--ai-text`, …).
-//! - [`import`] — CommonMark and semantic HTML compilation into chunks.
+//! - [`import`] — `CommonMark` and semantic HTML compilation into chunks.
 //! - [`vault`] — stable link resolution and backlinks.
 //! - [`template`] — external theme/template packs.
 //! - [`preview`] — loopback `tes serve` HTML preview.
 //! - [`pdf`] — print-theme HTML → headless PDF.
 //! - [`bib`] — BibTeX / CSL-JSON bibliography interchange.
-//! - [`wire`] — little-endian primitives and `align8`.
+//!
+//! Wire helpers (`LeReader` / `align8` / codecs) come from
+//! [`argus`](https://crates.io/crates/argus-chunk).
 
 pub mod bib;
 pub mod catalog;
@@ -28,7 +30,6 @@ pub mod preview;
 pub mod template;
 pub mod vault;
 pub mod verify;
-pub mod wire;
 
 #[cfg(test)]
 mod tests;

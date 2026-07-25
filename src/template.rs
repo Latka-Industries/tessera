@@ -69,6 +69,12 @@ pub struct TemplatePack {
 
 impl TemplatePack {
     /// Load `root/manifest.json` and validate basic invariants.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::TemplateNotFound`] if `manifest.json` is missing,
+    /// [`TesError::Json`] / [`TesError::InvalidTemplate`] if the manifest is invalid,
+    /// or [`TesError::Io`] on other filesystem errors.
     pub fn load(root: impl AsRef<Path>) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
         let manifest_path = root.join(MANIFEST_NAME);
@@ -112,6 +118,10 @@ impl TemplatePack {
     }
 
     /// Resolve a pack by id under `template_root/{id}`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidTemplate`] for a bad pack id, or errors from [`Self::load`].
     pub fn resolve(template_root: impl AsRef<Path>, id: &str) -> Result<Self> {
         let id = id.trim();
         if id.is_empty() || id.contains(['/', '\\']) || id == "." || id == ".." {
@@ -123,6 +133,11 @@ impl TemplatePack {
     }
 
     /// Read CSS for `theme_id` (`draft`, `print`, or a pack-defined id).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::ThemeNotFound`] if `theme_id` is undeclared, or [`TesError::Io`]
+    /// if the CSS file cannot be read.
     pub fn theme_css(&self, theme_id: &str) -> Result<String> {
         let rel = self
             .manifest
@@ -137,6 +152,10 @@ impl TemplatePack {
     }
 
     /// Relative CSS path for a theme, for `/theme.css` serving.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::ThemeNotFound`] if `theme_id` is not declared by the pack.
     pub fn theme_relative_path(&self, theme_id: &str) -> Result<&str> {
         self.manifest
             .themes
@@ -158,8 +177,7 @@ pub fn default_theme_id(pack: &TemplatePack) -> &str {
             .themes
             .keys()
             .next()
-            .map(String::as_str)
-            .unwrap_or(THEME_DRAFT)
+            .map_or(THEME_DRAFT, String::as_str)
     }
 }
 

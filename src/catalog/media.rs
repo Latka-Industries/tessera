@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, TesError};
-use crate::wire::{LeReader, LeWriter};
+use argus::{LeReader, LeWriter};
 
 /// Soft upper bound on a single image payload (32 MiB).
 pub const IMAGE_MAX_BYTES: usize = 32 * 1024 * 1024;
@@ -36,6 +36,11 @@ pub struct ImagePayload {
 
 impl ImagePayload {
     /// Validate resource limits without encoding.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidImage`] if MIME, dimensions, or data violate
+    /// the soft resource limits.
     pub fn validate(&self) -> Result<()> {
         if self.media_type.is_empty() || self.media_type.len() > IMAGE_STRING_MAX {
             return Err(TesError::InvalidImage {
@@ -89,6 +94,11 @@ impl ImagePayload {
     }
 
     /// Encode: `u32 mime_len | mime | u32 w | u32 h | u64 data_len | data`.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation errors from [`Self::validate`], or
+    /// [`TesError::InvalidImage`] if the MIME length does not fit in `u32`.
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         self.validate()?;
         let mime = self.media_type.as_bytes();
@@ -117,6 +127,12 @@ impl ImagePayload {
     }
 
     /// Decode an image payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::BufferTooSmall`] / [`TesError::InvalidUtf8`] for a
+    /// truncated or non-UTF-8 MIME, [`TesError::InvalidImage`] for trailing
+    /// bytes or failed validation.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let mut r = LeReader::require(bytes, "ImagePayload", 4)?;
         let mime_len = r.take_u32() as usize;
@@ -190,7 +206,7 @@ pub enum ImagePlacement {
 }
 
 impl ImagePlacement {
-    /// Stable snake_case name for HTML `data-placement`.
+    /// Stable `snake_case` name for HTML `data-placement`.
     #[must_use]
     pub fn as_str(&self) -> &str {
         match self {
@@ -222,6 +238,11 @@ pub struct FigureRef {
 
 impl FigureRef {
     /// Validate alt text and string bounds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidFigure`] if `image_chunk_id`, alt text,
+    /// caption, or region name fails validation.
     pub fn validate(&self) -> Result<()> {
         if self.image_chunk_id == 0 {
             return Err(TesError::InvalidFigure {
@@ -257,12 +278,22 @@ impl FigureRef {
     }
 
     /// Serialize as UTF-8 JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation errors from [`Self::validate`], or [`TesError::Json`]
+    /// if serialization fails.
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         self.validate()?;
         Ok(serde_json::to_vec(self)?)
     }
 
     /// Parse a figure payload from UTF-8 JSON.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::Json`] on malformed JSON, or validation errors from
+    /// [`Self::validate`].
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let figure: Self = serde_json::from_slice(bytes)?;
         figure.validate()?;
@@ -276,8 +307,8 @@ pub fn base64_encode(data: &[u8]) -> String {
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
         let b0 = u32::from(chunk[0]);
-        let b1 = chunk.get(1).copied().map(u32::from).unwrap_or(0);
-        let b2 = chunk.get(2).copied().map(u32::from).unwrap_or(0);
+        let b1 = chunk.get(1).copied().map_or(0, u32::from);
+        let b2 = chunk.get(2).copied().map_or(0, u32::from);
         let n = (b0 << 16) | (b1 << 8) | b2;
         out.push(TABLE[((n >> 18) & 0x3F) as usize] as char);
         out.push(TABLE[((n >> 12) & 0x3F) as usize] as char);

@@ -8,7 +8,7 @@ use std::path::Path;
 use memmap2::Mmap;
 
 use crate::error::{Result, TesError};
-use crate::wire::{LeReader, LeWriter};
+use argus::{LeReader, LeWriter};
 
 /// Magic tag at bytes `0..4` of every `.tes` file.
 pub const MAGIC: [u8; 4] = *b"TESS";
@@ -49,6 +49,10 @@ pub enum DocKind {
 
 impl DocKind {
     /// Decode a `doc_kind` discriminant from the superblock.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidEnum`] if `value` is not a known document kind.
     pub fn from_u32(value: u32) -> Result<Self> {
         Ok(match value {
             0 => Self::Note,
@@ -127,6 +131,10 @@ impl Region {
     }
 
     /// Slice `bytes` for this region, checking bounds against `file_len`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::OutOfBounds`] if the region extends past `bytes`.
     pub fn slice<'a>(self, bytes: &'a [u8], structure: &'static str) -> Result<&'a [u8]> {
         let file_len = bytes.len() as u64;
         if !self.is_present() {
@@ -147,6 +155,10 @@ impl Region {
 }
 
 /// Memory-map an existing `.tes` file for read-only access.
+///
+/// # Errors
+///
+/// Returns [`TesError::Io`] if the file cannot be opened or mapped.
 pub fn open_mmap(path: &Path) -> Result<Mmap> {
     let file = File::open(path)?;
     Ok(unsafe { Mmap::map(&file)? })
@@ -208,6 +220,12 @@ impl SuperblockV0 {
     /// Decode a superblock from the start of `buf`.
     ///
     /// Validates magic and layout version, and rejects unknown `doc_kind`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::BufferTooSmall`] if `buf` is shorter than
+    /// [`SUPERBLOCK_LEN`], [`TesError::BadMagic`] / [`TesError::UnsupportedVersion`]
+    /// for a bad header, or [`TesError::InvalidEnum`] for an unknown `doc_kind`.
     pub fn from_bytes(buf: &[u8]) -> Result<Self> {
         let mut r = LeReader::require(buf, "SuperblockV0", SUPERBLOCK_LEN)?;
 

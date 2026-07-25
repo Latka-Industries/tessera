@@ -4,6 +4,7 @@
 //! same HTML render. PDF generation shells out to a Chromium-family browser in
 //! headless print mode. PDF is never an editable canonical source.
 
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -41,6 +42,11 @@ impl Default for PdfExportOptions {
 /// Render standalone HTML with the selected template theme CSS embedded.
 ///
 /// Images are inlined as data URIs so the document is self-contained for print.
+///
+/// # Errors
+///
+/// Returns open/parse errors from [`TesFile::open`], template resolution errors
+/// from [`TemplatePack::resolve`], or HTML export errors from [`export_file`].
 pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) -> Result<String> {
     let path = path.as_ref();
     let file = TesFile::open(path)?;
@@ -86,6 +92,12 @@ pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) ->
 }
 
 /// Export `path` to a PDF file at `output` using headless Chromium print.
+///
+/// # Errors
+///
+/// Returns errors from [`render_themed_html`] / [`find_chrome`], [`TesError::Io`]
+/// for temp-file and output writes, or [`TesError::PdfEngine`] if Chromium fails
+/// to launch, print, or produce a valid PDF.
 pub fn export_pdf(
     path: impl AsRef<Path>,
     output: impl AsRef<Path>,
@@ -99,8 +111,7 @@ pub fn export_pdf(
 
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_nanos());
     let tmp_dir = std::env::temp_dir().join(format!("tessera-pdf-{stamp}"));
     fs::create_dir_all(&tmp_dir)?;
     let html_path = tmp_dir.join("document.html");
@@ -173,6 +184,11 @@ fn chrome_needs_relaxed_sandbox() -> bool {
 }
 
 /// Locate a Chromium-family browser suitable for headless print.
+///
+/// # Errors
+///
+/// Returns [`TesError::PdfEngine`] if `TES_CHROME` points to a missing binary,
+/// or if no Chromium/Chrome candidate is found on `PATH` / common install paths.
 pub fn find_chrome() -> Result<PathBuf> {
     if let Ok(explicit) = std::env::var("TES_CHROME") {
         let path = PathBuf::from(explicit);
@@ -232,9 +248,11 @@ fn path_to_file_url(path: &Path) -> String {
     for byte in raw.as_bytes() {
         match *byte {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b'-' | b'_' | b'.' | b'~' | b':' => {
-                url.push(*byte as char)
+                url.push(*byte as char);
             }
-            b => url.push_str(&format!("%{b:02X}")),
+            b => {
+                let _ = write!(url, "%{b:02X}");
+            }
         }
     }
     url

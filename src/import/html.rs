@@ -49,6 +49,12 @@ pub struct HtmlImportReport {
 }
 
 /// Import semantic HTML and seal a `.tes` document.
+///
+/// # Errors
+///
+/// Returns [`TesError::Io`] if the source cannot be read or the `.tes` cannot be written,
+/// [`TesError::InvalidDocId`] if `options.doc_id` is not a UUID, or catalog/session
+/// errors from [`TesWriterSession`].
 pub fn import_html_v0(
     input: impl AsRef<Path>,
     output: impl AsRef<Path>,

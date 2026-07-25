@@ -153,6 +153,10 @@ pub fn info_report(file: &TesFile) -> TesInfoReport {
 }
 
 /// Open `path` and return an info report.
+///
+/// # Errors
+///
+/// Returns errors from [`TesFile::open`].
 pub fn read_summary_v0(path: impl AsRef<Path>) -> Result<TesInfoReport> {
     let file = TesFile::open(path.as_ref())?;
     Ok(info_report(&file))
@@ -164,13 +168,8 @@ pub fn format_info_human(report: &TesInfoReport) -> String {
     let title = report
         .catalog
         .as_ref()
-        .map(|c| c.title.as_str())
-        .unwrap_or("(no catalog)");
-    let modified = report
-        .catalog
-        .as_ref()
-        .map(|c| c.modified.as_str())
-        .unwrap_or("-");
+        .map_or("(no catalog)", |c| c.title.as_str());
+    let modified = report.catalog.as_ref().map_or("-", |c| c.modified.as_str());
     let counts = chunk_type_counts(&report.chunks);
     let counts_str = format_counts(&counts);
 
@@ -190,8 +189,7 @@ pub fn format_info_quiet(report: &TesInfoReport) -> String {
     let title = report
         .catalog
         .as_ref()
-        .map(|c| c.title.as_str())
-        .unwrap_or("(no catalog)");
+        .map_or("(no catalog)", |c| c.title.as_str());
     format!(
         "{title}\tchunks={}\tbytes={}",
         report.chunks.len(),
@@ -219,6 +217,10 @@ fn format_counts(counts: &BTreeMap<&'static str, usize>) -> String {
 }
 
 /// JSON string for `tes info --json`.
+///
+/// # Errors
+///
+/// Returns [`TesError::Json`] if serialization fails.
 pub fn format_info_json(report: &TesInfoReport) -> Result<String> {
     Ok(serde_json::to_string_pretty(report)?)
 }

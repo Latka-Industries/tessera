@@ -3,7 +3,7 @@
 //! Wire spec: `docs/layout_v0.md` — *Chunk index region*.
 
 use crate::error::{Result, TesError};
-use crate::wire::{LeReader, LeWriter};
+use argus::{LeReader, LeWriter};
 
 /// Magic tag at the start of the chunk index region.
 pub const MAGIC: [u8; 4] = *b"TIDX";
@@ -35,6 +35,10 @@ pub enum Codec {
 
 impl Codec {
     /// Decode a codec discriminant.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidEnum`] if `value` is not a known codec.
     pub fn from_u32(value: u32) -> Result<Self> {
         match value {
             0 => Ok(Self::Raw),
@@ -75,6 +79,10 @@ pub enum ChunkType {
 
 impl ChunkType {
     /// Decode a chunk-type discriminant.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidEnum`] if `value` is not a known chunk type.
     pub fn from_u32(value: u32) -> Result<Self> {
         Ok(match value {
             1 => Self::Text,
@@ -158,6 +166,11 @@ impl ChunkIndexEntry {
     }
 
     /// Decode an entry from the start of `buf`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::BufferTooSmall`] if `buf` is shorter than
+    /// [`ENTRY_LEN`], or [`TesError::InvalidEnum`] for a bad type/codec.
     pub fn from_bytes(buf: &[u8]) -> Result<Self> {
         let mut r = LeReader::require(buf, "ChunkIndexEntry", ENTRY_LEN)?;
         let chunk_id = r.take_u64();
@@ -216,6 +229,12 @@ impl ChunkIndexHeader {
     /// Decode the header from the start of `buf`.
     ///
     /// Validates magic and index version.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::BufferTooSmall`] if `buf` is too short,
+    /// [`TesError::BadMagic`] if the tag is not `TIDX`, or
+    /// [`TesError::UnsupportedVersion`] for an unknown index version.
     pub fn from_bytes(buf: &[u8]) -> Result<Self> {
         let mut r = LeReader::require(buf, "ChunkIndexHeader", HEADER_LEN)?;
         let magic = r.take_4();
@@ -243,6 +262,11 @@ impl ChunkIndexHeader {
 /// Parse a full chunk-index region (`TIDX` header + fixed entries).
 ///
 /// Requires `bytes.len()` to equal `32 + entry_count × 48`.
+///
+/// # Errors
+///
+/// Returns header/entry decode errors, or [`TesError::IndexLengthMismatch`]
+/// if the region length does not match the header's `entry_count`.
 pub fn read_chunk_index(bytes: &[u8]) -> Result<Vec<ChunkIndexEntry>> {
     if bytes.is_empty() {
         return Ok(Vec::new());

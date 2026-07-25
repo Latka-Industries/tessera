@@ -5,7 +5,7 @@
 //! report. `tes verify` exits `1` when any finding is an error.
 
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::Serialize;
 
@@ -89,44 +89,24 @@ impl TesVerifyReport {
 /// Verify the `.tes` file at `path`.
 ///
 /// `deep` additionally decodes every payload (codec + UTF-8 validation for text).
+///
+/// # Errors
+///
+/// Returns [`crate::error::TesError::Io`] if the file cannot be opened or memory-mapped.
 pub fn verify_tes_file(path: impl AsRef<Path>, deep: bool) -> Result<TesVerifyReport> {
-    let path = path.as_ref().to_path_buf();
-    let mmap = layout::open_mmap(&path)?;
+    let path = path.as_ref();
+    let mmap = layout::open_mmap(path)?;
     Ok(verify_bytes(path, &mmap, deep))
 }
 
 /// Verify an in-memory image of a `.tes` file.
 #[must_use]
-pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport {
+pub fn verify_bytes(path: &Path, bytes: &[u8], deep: bool) -> TesVerifyReport {
     let file_len = bytes.len() as u64;
     let mut findings = Vec::new();
-    let mut chunk_count = 0u64;
 
-    // 1. Superblock: size, magic, version, region bounds.
-    if bytes.len() < SUPERBLOCK_LEN {
-        findings.push(Finding::error(
-            "superblock.size",
-            format!(
-                "file is {} bytes; superblock needs {SUPERBLOCK_LEN}",
-                bytes.len()
-            ),
-        ));
-        return finish(path, file_len, chunk_count, deep, findings);
-    }
-    if bytes[0..4] != TESS_MAGIC {
-        findings.push(Finding::error(
-            "superblock.magic",
-            format!("expected {TESS_MAGIC:?}, found {:?}", &bytes[0..4]),
-        ));
-        return finish(path, file_len, chunk_count, deep, findings);
-    }
-
-    let superblock = match crate::layout::SuperblockV0::from_bytes(bytes) {
-        Ok(sb) => sb,
-        Err(err) => {
-            findings.push(Finding::error("superblock.parse", err.to_string()));
-            return finish(path, file_len, chunk_count, deep, findings);
-        }
+    let Some(superblock) = parse_superblock(bytes, &mut findings) else {
+        return finish(path, file_len, 0, deep, findings);
     };
 
     check_region_bounds(&mut findings, "catalog", superblock.catalog, file_len);
@@ -145,105 +125,169 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
         ));
     }
 
-    // 2. Catalog JSON parse + required keys.
-    if superblock.catalog.is_present() {
-        match superblock.catalog.slice(bytes, "catalog") {
-            Ok(slice) => match DocumentCatalog::from_bytes(slice) {
-                Ok(cat) => {
-                    if cat.doc_id.is_empty() {
-                        findings.push(Finding::error("catalog.doc_id", "doc_id is empty"));
-                    }
-                    if cat.doc_kind != superblock.doc_kind.as_str() {
-                        findings.push(Finding::warning(
-                            "catalog.doc_kind",
-                            format!(
-                                "catalog doc_kind '{}' differs from superblock '{}'",
-                                cat.doc_kind,
-                                superblock.doc_kind.as_str()
-                            ),
-                        ));
-                    }
-                }
-                Err(err) => {
-                    findings.push(Finding::error("catalog.json", err.to_string()));
-                }
-            },
-            Err(err) => findings.push(Finding::error("catalog.bounds", err.to_string())),
+    verify_catalog_region(&mut findings, &superblock, bytes);
+    verify_link_table_region(&mut findings, &superblock, bytes);
+    let (chunk_count, entries) = verify_chunk_index_region(&mut findings, &superblock, bytes);
+    verify_payload_bounds(&mut findings, &entries, bytes, file_len, deep);
+    verify_figure_targets(&mut findings, &entries, bytes);
+    verify_cite_mirrors(&mut findings, &entries, &superblock, bytes);
+    verify_history_footer(&mut findings, &superblock, bytes, file_len);
+
+    finish(path, file_len, chunk_count, deep, findings)
+}
+
+fn parse_superblock(
+    bytes: &[u8],
+    findings: &mut Vec<Finding>,
+) -> Option<crate::layout::SuperblockV0> {
+    if bytes.len() < SUPERBLOCK_LEN {
+        findings.push(Finding::error(
+            "superblock.size",
+            format!(
+                "file is {} bytes; superblock needs {SUPERBLOCK_LEN}",
+                bytes.len()
+            ),
+        ));
+        return None;
+    }
+    if bytes[0..4] != TESS_MAGIC {
+        findings.push(Finding::error(
+            "superblock.magic",
+            format!("expected {TESS_MAGIC:?}, found {:?}", &bytes[0..4]),
+        ));
+        return None;
+    }
+    match crate::layout::SuperblockV0::from_bytes(bytes) {
+        Ok(sb) => Some(sb),
+        Err(err) => {
+            findings.push(Finding::error("superblock.parse", err.to_string()));
+            None
         }
     }
+}
 
-    // 3. Link table magic, version, and fixed-row bounds.
-    if superblock.link_table.is_present() {
-        match superblock.link_table.slice(bytes, "link_table") {
-            Ok(region) => {
-                if let Err(err) = read_link_table(region) {
-                    findings.push(Finding::error("link_table.parse", err.to_string()));
-                }
-            }
-            Err(err) => findings.push(Finding::error("link_table.bounds", err.to_string())),
-        }
+fn verify_catalog_region(
+    findings: &mut Vec<Finding>,
+    superblock: &crate::layout::SuperblockV0,
+    bytes: &[u8],
+) {
+    if !superblock.catalog.is_present() {
+        return;
     }
-
-    // 4. Chunk index magic, version, and length arithmetic.
-    let mut entries: Vec<ChunkIndexEntry> = Vec::new();
-    if superblock.chunk_index.is_present() {
-        match superblock.chunk_index.slice(bytes, "chunk_index") {
-            Ok(region) => {
-                if region.len() < HEADER_LEN {
-                    findings.push(Finding::error(
-                        "chunk_index.size",
+    match superblock.catalog.slice(bytes, "catalog") {
+        Ok(slice) => match DocumentCatalog::from_bytes(slice) {
+            Ok(cat) => {
+                if cat.doc_id.is_empty() {
+                    findings.push(Finding::error("catalog.doc_id", "doc_id is empty"));
+                }
+                if cat.doc_kind != superblock.doc_kind.as_str() {
+                    findings.push(Finding::warning(
+                        "catalog.doc_kind",
                         format!(
-                            "region is {} bytes; header needs {HEADER_LEN}",
-                            region.len()
+                            "catalog doc_kind '{}' differs from superblock '{}'",
+                            cat.doc_kind,
+                            superblock.doc_kind.as_str()
                         ),
                     ));
-                } else if region[0..4] != TIDX_MAGIC {
-                    findings.push(Finding::error(
-                        "chunk_index.magic",
-                        format!("expected {TIDX_MAGIC:?}, found {:?}", &region[0..4]),
-                    ));
-                } else {
-                    match ChunkIndexHeader::from_bytes(region) {
-                        Ok(header) => {
-                            chunk_count = header.entry_count;
-                            let expected = header.region_len();
-                            if expected != region.len() as u64 {
-                                findings.push(Finding::error(
-                                    "chunk_index.length",
-                                    format!(
-                                        "header implies {expected} bytes (32 + {}×48), region is {}",
-                                        header.entry_count,
-                                        region.len()
-                                    ),
-                                ));
-                            } else {
-                                for i in 0..header.entry_count as usize {
-                                    let start = HEADER_LEN + i * ENTRY_LEN;
-                                    match ChunkIndexEntry::from_bytes(&region[start..]) {
-                                        Ok(entry) => entries.push(entry),
-                                        Err(err) => findings.push(Finding::error(
-                                            "chunk_index.entry",
-                                            format!("row {i}: {err}"),
-                                        )),
-                                    }
+                }
+            }
+            Err(err) => findings.push(Finding::error("catalog.json", err.to_string())),
+        },
+        Err(err) => findings.push(Finding::error("catalog.bounds", err.to_string())),
+    }
+}
+
+fn verify_link_table_region(
+    findings: &mut Vec<Finding>,
+    superblock: &crate::layout::SuperblockV0,
+    bytes: &[u8],
+) {
+    if !superblock.link_table.is_present() {
+        return;
+    }
+    match superblock.link_table.slice(bytes, "link_table") {
+        Ok(region) => {
+            if let Err(err) = read_link_table(region) {
+                findings.push(Finding::error("link_table.parse", err.to_string()));
+            }
+        }
+        Err(err) => findings.push(Finding::error("link_table.bounds", err.to_string())),
+    }
+}
+
+fn verify_chunk_index_region(
+    findings: &mut Vec<Finding>,
+    superblock: &crate::layout::SuperblockV0,
+    bytes: &[u8],
+) -> (u64, Vec<ChunkIndexEntry>) {
+    let mut chunk_count = 0u64;
+    let mut entries = Vec::new();
+    if !superblock.chunk_index.is_present() {
+        return (chunk_count, entries);
+    }
+    match superblock.chunk_index.slice(bytes, "chunk_index") {
+        Ok(region) => {
+            if region.len() < HEADER_LEN {
+                findings.push(Finding::error(
+                    "chunk_index.size",
+                    format!(
+                        "region is {} bytes; header needs {HEADER_LEN}",
+                        region.len()
+                    ),
+                ));
+            } else if region[0..4] != TIDX_MAGIC {
+                findings.push(Finding::error(
+                    "chunk_index.magic",
+                    format!("expected {TIDX_MAGIC:?}, found {:?}", &region[0..4]),
+                ));
+            } else {
+                match ChunkIndexHeader::from_bytes(region) {
+                    Ok(header) => {
+                        chunk_count = header.entry_count;
+                        let expected = header.region_len();
+                        if expected == region.len() as u64 {
+                            for i in 0..header.entry_count as usize {
+                                let start = HEADER_LEN + i * ENTRY_LEN;
+                                match ChunkIndexEntry::from_bytes(&region[start..]) {
+                                    Ok(entry) => entries.push(entry),
+                                    Err(err) => findings.push(Finding::error(
+                                        "chunk_index.entry",
+                                        format!("row {i}: {err}"),
+                                    )),
                                 }
                             }
+                        } else {
+                            findings.push(Finding::error(
+                                "chunk_index.length",
+                                format!(
+                                    "header implies {expected} bytes (32 + {}×48), region is {}",
+                                    header.entry_count,
+                                    region.len()
+                                ),
+                            ));
                         }
-                        Err(err) => {
-                            findings.push(Finding::error("chunk_index.header", err.to_string()));
-                        }
+                    }
+                    Err(err) => {
+                        findings.push(Finding::error("chunk_index.header", err.to_string()));
                     }
                 }
             }
-            Err(err) => findings.push(Finding::error("chunk_index.bounds", err.to_string())),
         }
-    } else if superblock.chunk_index.length == 0 {
-        // Valid empty skeleton; nothing to check.
+        Err(err) => findings.push(Finding::error("chunk_index.bounds", err.to_string())),
     }
+    (chunk_count, entries)
+}
 
-    // 5. Payload bounds (+ optional decode).
-    let usable_len = file_len; // THST footer handling lands with history support.
-    for entry in &entries {
+fn verify_payload_bounds(
+    findings: &mut Vec<Finding>,
+    entries: &[ChunkIndexEntry],
+    bytes: &[u8],
+    file_len: u64,
+    deep: bool,
+) {
+    // THST footer handling lands with history support.
+    let usable_len = file_len;
+    for entry in entries {
         let check_id = "chunk.payload_bounds";
         match entry.payload_offset.checked_add(entry.stored_byte_len) {
             None => findings.push(Finding::error(
@@ -272,7 +316,7 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
                 }
                 if deep {
                     verify_payload_decode(
-                        &mut findings,
+                        findings,
                         entry,
                         &bytes[entry.payload_offset as usize..end as usize],
                     );
@@ -280,11 +324,14 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
             }
         }
     }
+}
 
-    verify_figure_targets(&mut findings, &entries, bytes);
-    verify_cite_mirrors(&mut findings, &entries, &superblock, bytes);
-
-    // 6. History footer flag.
+fn verify_history_footer(
+    findings: &mut Vec<Finding>,
+    superblock: &crate::layout::SuperblockV0,
+    bytes: &[u8],
+    file_len: u64,
+) {
     if superblock.has_history_footer()
         && (file_len < 16 || &bytes[file_len as usize - 4..] != b"THST")
     {
@@ -293,8 +340,6 @@ pub fn verify_bytes(path: PathBuf, bytes: &[u8], deep: bool) -> TesVerifyReport 
             "flags set HISTORY_FOOTER but THST magic missing at EOF",
         ));
     }
-
-    finish(path, file_len, chunk_count, deep, findings)
 }
 
 fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, payload: &[u8]) {
@@ -305,20 +350,12 @@ fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, p
     match entry.codec {
         Codec::Raw => {}
         Codec::Zstd => {
-            match zstd::decode_all(payload) {
-                Ok(raw) if raw.len() as u64 != entry.raw_byte_len => findings.push(Finding::error(
-                    "chunk.decode",
-                    format!(
-                        "chunk {} zstd decoded to {} bytes, index says {}",
-                        entry.chunk_id,
-                        raw.len(),
-                        entry.raw_byte_len
-                    ),
-                )),
+            let codec = argus::PayloadCodec::Zstd;
+            match argus::decode(codec, payload, entry.raw_byte_len) {
                 Ok(_) => {}
                 Err(err) => findings.push(Finding::error(
                     "chunk.decode",
-                    format!("chunk {} zstd decode failed: {err}", entry.chunk_id),
+                    format!("chunk {} decode failed: {err}", entry.chunk_id),
                 )),
             }
             return;
@@ -505,7 +542,7 @@ fn check_region_bounds(
 }
 
 fn finish(
-    path: PathBuf,
+    path: &Path,
     file_len: u64,
     chunk_count: u64,
     deep: bool,
@@ -558,6 +595,10 @@ pub fn format_verify_quiet(report: &TesVerifyReport) -> String {
 }
 
 /// JSON report for `tes verify --json`.
+///
+/// # Errors
+///
+/// Returns [`crate::error::TesError::Json`] if serialization fails.
 pub fn format_verify_json(report: &TesVerifyReport) -> Result<String> {
     Ok(serde_json::to_string_pretty(report)?)
 }
@@ -583,8 +624,8 @@ mod tests {
         s.encode_file().unwrap()
     }
 
-    fn p() -> PathBuf {
-        PathBuf::from("mem.tes")
+    fn p() -> &'static Path {
+        Path::new("mem.tes")
     }
 
     #[test]

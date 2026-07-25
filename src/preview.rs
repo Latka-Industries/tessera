@@ -66,6 +66,12 @@ pub struct PreviewContext {
 }
 
 /// Resolve pack/theme for a document without starting the server.
+///
+/// # Errors
+///
+/// Returns open errors from [`TesFile::open`], template/theme errors from
+/// [`TemplatePack`], or [`TesError::ThemeJsNotAllowed`] when the pack requires JS
+/// and `allow_theme_js` is false.
 pub fn resolve_preview_context(options: &ServeOptions) -> Result<PreviewContext> {
     let file = TesFile::open(&options.path)?;
     let catalog_template = file
@@ -102,6 +108,11 @@ pub fn resolve_preview_context(options: &ServeOptions) -> Result<PreviewContext>
 }
 
 /// Render standalone HTML for the current file + pack theme.
+///
+/// # Errors
+///
+/// Returns open errors from [`TesFile::open`], theme CSS errors from
+/// [`TemplatePack::theme_css`], or HTML export errors.
 pub fn render_preview_html(options: &ServeOptions, ctx: &PreviewContext) -> Result<String> {
     let file = TesFile::open(&options.path)?;
     // Confirm the theme still resolves (pack may have changed on disk).
@@ -134,9 +145,14 @@ pub fn render_preview_html(options: &ServeOptions, ctx: &PreviewContext) -> Resu
 }
 
 /// Bind loopback and serve until `shutdown` is set (or forever if `None`).
-pub fn serve_preview(options: ServeOptions, shutdown: Option<Arc<AtomicBool>>) -> Result<()> {
+///
+/// # Errors
+///
+/// Returns [`TesError::InvalidServeHost`] for a non-loopback host, context errors from
+/// [`resolve_preview_context`], or [`TesError::Io`] if bind/accept fails.
+pub fn serve_preview(options: &ServeOptions, shutdown: Option<&Arc<AtomicBool>>) -> Result<()> {
     validate_loopback_host(&options.host)?;
-    let ctx = resolve_preview_context(&options)?;
+    let ctx = resolve_preview_context(options)?;
     let listener = TcpListener::bind((options.host.as_str(), options.port))?;
     listener.set_nonblocking(false)?;
     let addr = listener.local_addr()?;
@@ -158,15 +174,12 @@ pub fn serve_preview(options: ServeOptions, shutdown: Option<Arc<AtomicBool>>) -
     // Accept loop.
     listener.set_nonblocking(true)?;
     loop {
-        if shutdown
-            .as_ref()
-            .is_some_and(|flag| flag.load(Ordering::Relaxed))
-        {
+        if shutdown.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
             break;
         }
         match listener.accept() {
             Ok((stream, peer)) => {
-                if let Err(err) = handle_client(stream, &options, &ctx) {
+                if let Err(err) = handle_client(stream, options, &ctx) {
                     eprintln!("preview error from {peer}: {err}");
                 }
             }
@@ -347,6 +360,11 @@ fn validate_loopback_host(host: &str) -> Result<()> {
 }
 
 /// Convenience: local address after a successful bind (for tests).
+///
+/// # Errors
+///
+/// Returns [`TesError::InvalidServeHost`] for a non-loopback host, context errors from
+/// [`resolve_preview_context`], or [`TesError::Io`] if bind fails.
 pub fn bind_preview_listener(
     options: &ServeOptions,
 ) -> Result<(TcpListener, SocketAddr, PreviewContext)> {
@@ -358,6 +376,10 @@ pub fn bind_preview_listener(
 }
 
 /// Shared export path helper for callers that want HTML without serving.
+///
+/// # Errors
+///
+/// Returns errors from [`resolve_preview_context`] or [`render_preview_html`].
 pub fn preview_html_for_path(
     path: impl AsRef<Path>,
     template_root: impl AsRef<Path>,

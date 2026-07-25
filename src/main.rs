@@ -10,7 +10,7 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{ArgGroup, Parser, Subcommand};
+use clap::{ArgGroup, Args, Parser, Subcommand};
 use tessera_doc::bib::{BibFormat, BibImportOptions, export_bibliography, import_bibliography};
 use tessera_doc::catalog::{
     format_info_human, format_info_json, format_info_quiet, read_summary_v0,
@@ -71,125 +71,10 @@ enum Commands {
     },
 
     /// Write a decoded view to stdout or -o PATH
-    #[command(group(
-        ArgGroup::new("view")
-            .required(true)
-            .args([
-                "raw",
-                "linear",
-                "ai_text",
-                "chunks_jsonl",
-                "markdown",
-                "html",
-                "pdf",
-                "bibliography",
-            ])
-    ))]
-    Export {
-        /// Path to a .tes file
-        path: PathBuf,
-        /// Concatenate text chunk bodies
-        #[arg(long)]
-        raw: bool,
-        /// Reading-order prose with light structure markers
-        #[arg(long)]
-        linear: bool,
-        /// LLM-oriented plain text (no exporter markup)
-        #[arg(long = "ai-text")]
-        ai_text: bool,
-        /// One JSON object per reading-order chunk
-        #[arg(long = "chunks-jsonl")]
-        chunks_jsonl: bool,
-        /// Lossy GFM-ish Markdown
-        #[arg(long)]
-        markdown: bool,
-        /// Semantic HTML5 fragment or standalone page
-        #[arg(long)]
-        html: bool,
-        /// Print-theme PDF via headless Chromium (requires -o)
-        #[arg(long)]
-        pdf: bool,
-        /// BibTeX or CSL-JSON bibliography from cite chunks
-        #[arg(long)]
-        bibliography: bool,
-        /// Bibliography format: bibtex | csl-json (default: bibtex)
-        #[arg(
-            long = "bib-format",
-            default_value = "bibtex",
-            requires = "bibliography"
-        )]
-        bib_format: String,
-        /// Restrict to a single chunk id
-        #[arg(long = "chunk")]
-        chunk: Option<u64>,
-        /// Prefix each --raw chunk with a debug header
-        #[arg(long = "include-headers")]
-        include_headers: bool,
-        /// Prefix each --ai-text chunk with <!-- chunk:N -->
-        #[arg(long)]
-        annotate: bool,
-        /// Include non-text rows in --chunks-jsonl
-        #[arg(long = "all-types")]
-        all_types: bool,
-        /// Omit cite expansion from --ai-text
-        #[arg(long = "no-cites")]
-        no_cites: bool,
-        /// Write to PATH instead of stdout (required for --pdf)
-        #[arg(short = 'o', long = "output")]
-        output: Option<PathBuf>,
-        /// Stylesheet path/href for --html
-        #[arg(long)]
-        theme: Option<PathBuf>,
-        /// Emit a complete HTML document
-        #[arg(long)]
-        standalone: bool,
-        /// Read --theme and embed its CSS
-        #[arg(long, requires = "theme")]
-        embed_css: bool,
-        /// Template pack id for --pdf (default: catalog or minimal)
-        #[arg(long, requires = "pdf")]
-        template: Option<String>,
-        /// Template pack root for --pdf (env: TES_TEMPLATE_ROOT)
-        #[arg(long = "template-root", requires = "pdf")]
-        template_root: Option<PathBuf>,
-        /// Pack theme id for --pdf (default: print)
-        #[arg(long = "theme-id", requires = "pdf")]
-        theme_id: Option<String>,
-    },
+    Export(ExportArgs),
 
     /// Import a foreign document into a sealed .tes file
-    #[command(group(
-        ArgGroup::new("import_format")
-            .required(true)
-            .args(["markdown", "html", "bibtex", "csl_json"])
-    ))]
-    Import {
-        /// Parse input as the supported CommonMark subset
-        #[arg(long)]
-        markdown: bool,
-        /// Parse semantic HTML
-        #[arg(long)]
-        html: bool,
-        /// Import BibTeX into research cite chunks
-        #[arg(long)]
-        bibtex: bool,
-        /// Import CSL-JSON into research cite chunks
-        #[arg(long = "csl-json")]
-        csl_json: bool,
-        /// Source document
-        input: PathBuf,
-        /// Destination .tes (must not already exist)
-        output: PathBuf,
-        /// note|document|manuscript|research|deck|wiki_page|hub|index
-        #[arg(long, default_value = "document")]
-        doc_kind: String,
-        /// Override catalog title
-        #[arg(long)]
-        title: Option<String>,
-        /// Stable UUID (generated when omitted)
-        #[arg(long)]
-        doc_id: Option<String>,
-    },
+    Import(ImportArgs),
 
     /// Resolve and inspect links across a vault directory
     Link {
@@ -201,34 +86,161 @@ enum Commands {
     },
 
     /// Live browser preview on loopback (semantic HTML + template theme)
-    Serve {
-        /// Path to a .tes file
-        path: PathBuf,
-        /// Template pack id under --template-root (default: catalog or minimal)
-        #[arg(long)]
-        template: Option<String>,
-        /// Directory containing template packs (env: TES_TEMPLATE_ROOT)
-        #[arg(long = "template-root")]
-        template_root: Option<PathBuf>,
-        /// Theme id from the pack: draft or print (default: catalog or draft)
-        #[arg(long)]
-        theme: Option<String>,
-        /// Loopback host (127.0.0.1, localhost, or ::1)
-        #[arg(long, default_value = "127.0.0.1")]
-        host: String,
-        /// Port (0 = ephemeral)
-        #[arg(long, default_value_t = 7878)]
-        port: u16,
-        /// Inject meta-refresh so the browser reloads while editing
-        #[arg(long)]
-        watch: bool,
-        /// Meta-refresh interval in seconds
-        #[arg(long = "watch-secs", default_value_t = 2)]
-        watch_secs: u64,
-        /// Allow packs that declare requires_theme_js (still CSS-only serving)
-        #[arg(long = "allow-theme-js")]
-        allow_theme_js: bool,
-    },
+    Serve(ServeArgs),
+}
+
+/// Flags for `tes export`.
+#[derive(Debug, Args)]
+#[command(group(
+    ArgGroup::new("view")
+        .required(true)
+        .args([
+            "raw",
+            "linear",
+            "ai_text",
+            "chunks_jsonl",
+            "markdown",
+            "html",
+            "pdf",
+            "bibliography",
+        ])
+))]
+struct ExportArgs {
+    /// Path to a .tes file
+    path: PathBuf,
+    /// Concatenate text chunk bodies
+    #[arg(long)]
+    raw: bool,
+    /// Reading-order prose with light structure markers
+    #[arg(long)]
+    linear: bool,
+    /// LLM-oriented plain text (no exporter markup)
+    #[arg(long = "ai-text")]
+    ai_text: bool,
+    /// One JSON object per reading-order chunk
+    #[arg(long = "chunks-jsonl")]
+    chunks_jsonl: bool,
+    /// Lossy GFM-ish Markdown
+    #[arg(long)]
+    markdown: bool,
+    /// Semantic HTML5 fragment or standalone page
+    #[arg(long)]
+    html: bool,
+    /// Print-theme PDF via headless Chromium (requires -o)
+    #[arg(long)]
+    pdf: bool,
+    /// BibTeX or CSL-JSON bibliography from cite chunks
+    #[arg(long)]
+    bibliography: bool,
+    /// Bibliography format: bibtex | csl-json (default: bibtex)
+    #[arg(
+        long = "bib-format",
+        default_value = "bibtex",
+        requires = "bibliography"
+    )]
+    bib_format: String,
+    /// Restrict to a single chunk id
+    #[arg(long = "chunk")]
+    chunk: Option<u64>,
+    /// Prefix each --raw chunk with a debug header
+    #[arg(long = "include-headers")]
+    include_headers: bool,
+    /// Prefix each --ai-text chunk with <!-- chunk:N -->
+    #[arg(long)]
+    annotate: bool,
+    /// Include non-text rows in --chunks-jsonl
+    #[arg(long = "all-types")]
+    all_types: bool,
+    /// Omit cite expansion from --ai-text
+    #[arg(long = "no-cites")]
+    no_cites: bool,
+    /// Write to PATH instead of stdout (required for --pdf)
+    #[arg(short = 'o', long = "output")]
+    output: Option<PathBuf>,
+    /// Stylesheet path/href for --html
+    #[arg(long)]
+    theme: Option<PathBuf>,
+    /// Emit a complete HTML document
+    #[arg(long)]
+    standalone: bool,
+    /// Read --theme and embed its CSS
+    #[arg(long, requires = "theme")]
+    embed_css: bool,
+    /// Template pack id for --pdf (default: catalog or minimal)
+    #[arg(long, requires = "pdf")]
+    template: Option<String>,
+    /// Template pack root for --pdf (env: `TES_TEMPLATE_ROOT`)
+    #[arg(long = "template-root", requires = "pdf")]
+    template_root: Option<PathBuf>,
+    /// Pack theme id for --pdf (default: print)
+    #[arg(long = "theme-id", requires = "pdf")]
+    theme_id: Option<String>,
+}
+
+/// Flags for `tes import`.
+#[derive(Debug, Args)]
+#[command(group(
+    ArgGroup::new("import_format")
+        .required(true)
+        .args(["markdown", "html", "bibtex", "csl_json"])
+))]
+struct ImportArgs {
+    /// Parse input as the supported `CommonMark` subset
+    #[arg(long)]
+    markdown: bool,
+    /// Parse semantic HTML
+    #[arg(long)]
+    html: bool,
+    /// Import BibTeX into research cite chunks
+    #[arg(long)]
+    bibtex: bool,
+    /// Import CSL-JSON into research cite chunks
+    #[arg(long = "csl-json")]
+    csl_json: bool,
+    /// Source document
+    input: PathBuf,
+    /// Destination .tes (must not already exist)
+    output: PathBuf,
+    /// `note|document|manuscript|research|deck|wiki_page|hub|index`
+    #[arg(long, default_value = "document")]
+    doc_kind: String,
+    /// Override catalog title
+    #[arg(long)]
+    title: Option<String>,
+    /// Stable UUID (generated when omitted)
+    #[arg(long)]
+    doc_id: Option<String>,
+}
+
+/// Flags for `tes serve`.
+#[derive(Debug, Args)]
+struct ServeArgs {
+    /// Path to a .tes file
+    path: PathBuf,
+    /// Template pack id under --template-root (default: catalog or minimal)
+    #[arg(long)]
+    template: Option<String>,
+    /// Directory containing template packs (env: `TES_TEMPLATE_ROOT`)
+    #[arg(long = "template-root")]
+    template_root: Option<PathBuf>,
+    /// Theme id from the pack: draft or print (default: catalog or draft)
+    #[arg(long)]
+    theme: Option<String>,
+    /// Loopback host (127.0.0.1, localhost, or `::1`)
+    #[arg(long, default_value = "127.0.0.1")]
+    host: String,
+    /// Port (0 = ephemeral)
+    #[arg(long, default_value_t = 7878)]
+    port: u16,
+    /// Inject meta-refresh so the browser reloads while editing
+    #[arg(long)]
+    watch: bool,
+    /// Meta-refresh interval in seconds
+    #[arg(long = "watch-secs", default_value_t = 2)]
+    watch_secs: u64,
+    /// Allow packs that declare `requires_theme_js` (still CSS-only serving)
+    #[arg(long = "allow-theme-js")]
+    allow_theme_js: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -258,121 +270,28 @@ enum LinkCommands {
 }
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Info { path, json, quiet } => match run_info(&path, json, quiet) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(err) => {
-                eprintln!("error: {err}");
-                exit_for(&err)
-            }
-        },
+    match Cli::parse().command {
+        Commands::Info { path, json, quiet } => result_exit(run_info(&path, json, quiet)),
         Commands::Verify {
             paths,
             deep,
             json,
             quiet,
         } => run_verify(&paths, deep, json, quiet),
-        Commands::Export {
-            path,
-            raw,
-            linear,
-            ai_text,
-            chunks_jsonl,
-            markdown,
-            html,
-            pdf,
-            bibliography,
-            bib_format,
-            chunk,
-            include_headers,
-            annotate,
-            all_types,
-            no_cites,
-            output,
-            theme,
-            standalone,
-            embed_css,
-            template,
-            template_root,
-            theme_id,
-        } => match run_export(
-            &path,
-            raw,
-            linear,
-            ai_text,
-            chunks_jsonl,
-            markdown,
-            html,
-            pdf,
-            bibliography,
-            &bib_format,
-            chunk,
-            include_headers,
-            annotate,
-            all_types,
-            no_cites,
-            output.as_ref(),
-            theme.as_ref(),
-            standalone,
-            embed_css,
-            template,
-            template_root,
-            theme_id,
-        ) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(err) => {
-                eprintln!("error: {err}");
-                exit_for(&err)
-            }
-        },
-        Commands::Import {
-            markdown,
-            html,
-            bibtex,
-            csl_json,
-            input,
-            output,
-            doc_kind,
-            title,
-            doc_id,
-        } => match run_import(
-            markdown, html, bibtex, csl_json, &input, &output, &doc_kind, title, doc_id,
-        ) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(err) => {
-                eprintln!("error: {err}");
-                exit_for(&err)
-            }
-        },
+        Commands::Export(args) => result_exit(run_export(args)),
+        Commands::Import(args) => result_exit(run_import(args)),
         Commands::Link { vault, command } => run_link(&vault, command),
-        Commands::Serve {
-            path,
-            template,
-            template_root,
-            theme,
-            host,
-            port,
-            watch,
-            watch_secs,
-            allow_theme_js,
-        } => match run_serve(
-            path,
-            template,
-            template_root,
-            theme,
-            host,
-            port,
-            watch,
-            watch_secs,
-            allow_theme_js,
-        ) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(err) => {
-                eprintln!("error: {err}");
-                exit_for(&err)
-            }
-        },
+        Commands::Serve(args) => result_exit(run_serve(args)),
+    }
+}
+
+fn result_exit(result: Result<(), TesError>) -> ExitCode {
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("error: {err}");
+            exit_for(&err)
+        }
     }
 }
 
@@ -425,35 +344,11 @@ fn run_verify(paths: &[PathBuf], deep: bool, json: bool, quiet: bool) -> ExitCod
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn run_export(
-    path: &PathBuf,
-    raw: bool,
-    linear: bool,
-    ai_text: bool,
-    chunks_jsonl: bool,
-    markdown: bool,
-    html: bool,
-    pdf: bool,
-    bibliography: bool,
-    bib_format: &str,
-    chunk: Option<u64>,
-    include_headers: bool,
-    annotate: bool,
-    all_types: bool,
-    no_cites: bool,
-    output: Option<&PathBuf>,
-    theme: Option<&PathBuf>,
-    standalone: bool,
-    embed_css: bool,
-    template: Option<String>,
-    template_root: Option<PathBuf>,
-    theme_id: Option<String>,
-) -> Result<(), TesError> {
-    if bibliography {
-        let format = BibFormat::parse(bib_format)?;
-        let out = export_bibliography(path, format)?;
-        if let Some(path) = output {
+fn run_export(args: ExportArgs) -> Result<(), TesError> {
+    if args.bibliography {
+        let format = BibFormat::parse(&args.bib_format)?;
+        let out = export_bibliography(&args.path, format)?;
+        if let Some(path) = args.output.as_ref() {
             fs::write(path, out.as_bytes())?;
         } else {
             print_out(&out)?;
@@ -461,66 +356,67 @@ fn run_export(
         return Ok(());
     }
 
-    if pdf {
-        let Some(out_path) = output else {
+    if args.pdf {
+        let Some(out_path) = args.output.as_ref() else {
             return Err(TesError::Io(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "--pdf requires -o/--output PATH",
             )));
         };
-        let template_root = template_root
+        let template_root = args
+            .template_root
             .or_else(|| env::var_os("TES_TEMPLATE_ROOT").map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("templates"));
         return export_pdf(
-            path,
+            &args.path,
             out_path,
             &PdfExportOptions {
                 template_root,
-                template_id: template,
-                theme_id: theme_id.or_else(|| Some("print".into())),
+                template_id: args.template,
+                theme_id: args.theme_id.or_else(|| Some("print".into())),
                 chrome_path: env::var_os("TES_CHROME").map(PathBuf::from),
             },
         );
     }
 
-    let view = if raw {
+    let view = if args.raw {
         ExportView::Raw
-    } else if linear {
+    } else if args.linear {
         ExportView::Linear
-    } else if ai_text {
+    } else if args.ai_text {
         ExportView::AiText
-    } else if chunks_jsonl {
+    } else if args.chunks_jsonl {
         ExportView::ChunksJsonl
-    } else if markdown {
+    } else if args.markdown {
         ExportView::Markdown
-    } else if html {
+    } else if args.html {
         ExportView::Html
     } else {
         return Err(TesError::ExportViewRequired);
     };
 
-    let embedded_css = if embed_css {
-        theme.map(fs::read_to_string).transpose()?
+    let embedded_css = if args.embed_css {
+        args.theme.as_ref().map(fs::read_to_string).transpose()?
     } else {
         None
     };
     let options = ExportOptions {
-        chunk_id: chunk,
-        include_headers,
-        annotate,
-        all_types,
-        no_cites,
-        theme_href: if embed_css {
+        chunk_id: args.chunk,
+        include_headers: args.include_headers,
+        annotate: args.annotate,
+        all_types: args.all_types,
+        no_cites: args.no_cites,
+        theme_href: if args.embed_css {
             None
         } else {
-            theme.map(|path| path.display().to_string())
+            args.theme.as_ref().map(|path| path.display().to_string())
         },
-        standalone,
+        standalone: args.standalone,
         embedded_css,
         media_url_prefix: None,
     };
-    let out = export_view(path, view, &options)?;
-    if let Some(path) = output {
+    let out = export_view(&args.path, view, &options)?;
+    if let Some(path) = args.output.as_ref() {
         fs::write(path, out.as_bytes())?;
     } else {
         print_out(&out)?;
@@ -537,76 +433,61 @@ fn print_out(out: &str) -> Result<(), TesError> {
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn run_import(
-    markdown: bool,
-    html: bool,
-    bibtex: bool,
-    csl_json: bool,
-    input: &PathBuf,
-    output: &PathBuf,
-    doc_kind: &str,
-    title: Option<String>,
-    doc_id: Option<String>,
-) -> Result<(), TesError> {
-    if bibtex || csl_json {
-        let format = if bibtex {
+fn run_import(args: ImportArgs) -> Result<(), TesError> {
+    if args.bibtex || args.csl_json {
+        let format = if args.bibtex {
             BibFormat::Bibtex
         } else {
             BibFormat::CslJson
         };
         // Clap default is `document`; bibliography imports prefer research.
-        let kind = if doc_kind == "document" {
+        let kind = if args.doc_kind == "document" {
             DocKind::Research
         } else {
-            parse_doc_kind(doc_kind)?
+            parse_doc_kind(&args.doc_kind)?
         };
         import_bibliography(
-            input,
-            output,
+            &args.input,
+            &args.output,
             format,
             &BibImportOptions {
                 doc_kind: kind,
-                title,
-                doc_id,
+                title: args.title,
+                doc_id: args.doc_id,
                 cite_style_id: Some("numeric".into()),
             },
         )?;
-        let summary = read_summary_v0(output)?;
-        let doc_id = summary
-            .catalog
-            .as_ref()
-            .map(|c| c.doc_id.as_str())
-            .unwrap_or("");
+        let summary = read_summary_v0(&args.output)?;
+        let doc_id = summary.catalog.as_ref().map_or("", |c| c.doc_id.as_str());
         println!(
             "imported {}\tchunks={}\tdoc_id={}",
-            output.display(),
+            args.output.display(),
             summary.chunks.len(),
             doc_id
         );
         return Ok(());
     }
 
-    let doc_kind = parse_doc_kind(doc_kind)?;
-    let (chunk_count, report_doc_id) = if markdown {
+    let doc_kind = parse_doc_kind(&args.doc_kind)?;
+    let (chunk_count, report_doc_id) = if args.markdown {
         let report = import_markdown_v0(
-            input,
-            output,
+            &args.input,
+            &args.output,
             &MarkdownImportOptions {
                 doc_kind,
-                title,
-                doc_id,
+                title: args.title,
+                doc_id: args.doc_id,
             },
         )?;
         (report.chunk_count, report.doc_id)
-    } else if html {
+    } else if args.html {
         let report = import_html_v0(
-            input,
-            output,
+            &args.input,
+            &args.output,
             &HtmlImportOptions {
                 doc_kind,
-                title,
-                doc_id,
+                title: args.title,
+                doc_id: args.doc_id,
             },
         )?;
         (report.chunk_count, report.doc_id)
@@ -618,40 +499,30 @@ fn run_import(
     };
     println!(
         "imported {}\tchunks={}\tdoc_id={}",
-        output.display(),
+        args.output.display(),
         chunk_count,
         report_doc_id
     );
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn run_serve(
-    path: PathBuf,
-    template: Option<String>,
-    template_root: Option<PathBuf>,
-    theme: Option<String>,
-    host: String,
-    port: u16,
-    watch: bool,
-    watch_secs: u64,
-    allow_theme_js: bool,
-) -> Result<(), TesError> {
-    let template_root = template_root
+fn run_serve(args: ServeArgs) -> Result<(), TesError> {
+    let template_root = args
+        .template_root
         .or_else(|| env::var_os("TES_TEMPLATE_ROOT").map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("templates"));
     let options = ServeOptions {
-        path,
+        path: args.path,
         template_root,
-        template_id: template,
-        theme_id: theme,
-        host,
-        port,
-        watch,
-        watch_secs,
-        allow_theme_js,
+        template_id: args.template,
+        theme_id: args.theme,
+        host: args.host,
+        port: args.port,
+        watch: args.watch,
+        watch_secs: args.watch_secs,
+        allow_theme_js: args.allow_theme_js,
     };
-    serve_preview(options, None)
+    serve_preview(&options, None)
 }
 
 fn parse_doc_kind(value: &str) -> Result<DocKind, TesError> {

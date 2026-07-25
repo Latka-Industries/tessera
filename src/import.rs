@@ -1,6 +1,6 @@
 //! Foreign-format importers.
 //!
-//! v0 implements the CommonMark subset from `docs/decisions.md`: ATX headings,
+//! v0 implements the `CommonMark` subset from `docs/decisions.md`: ATX headings,
 //! paragraphs, lists, fenced code, and blockquotes. Inline presentation is
 //! parsed once and flattened into clean canonical text.
 
@@ -65,6 +65,12 @@ pub struct MarkdownBlock {
 }
 
 /// Import a Markdown file and seal a `.tes` document.
+///
+/// # Errors
+///
+/// Returns [`TesError::Io`] if the source cannot be read or the `.tes` cannot be written,
+/// [`TesError::InvalidDocId`] if `options.doc_id` is not a UUID, or catalog/session
+/// errors from [`TesWriterSession`].
 pub fn import_markdown_v0(
     input: impl AsRef<Path>,
     output: impl AsRef<Path>,
@@ -122,7 +128,7 @@ pub fn import_markdown_v0(
     })
 }
 
-/// Parse the supported CommonMark subset into semantic text blocks.
+/// Parse the supported `CommonMark` subset into semantic text blocks.
 #[must_use]
 pub fn parse_markdown_blocks(markdown: &str) -> Vec<MarkdownBlock> {
     let parser = Parser::new_ext(markdown, Options::empty());
@@ -130,7 +136,7 @@ pub fn parse_markdown_blocks(markdown: &str) -> Vec<MarkdownBlock> {
 
     for event in parser {
         match event {
-            Event::Start(tag) => state.start(tag),
+            Event::Start(tag) => state.start(&tag),
             Event::End(tag) => state.end(tag),
             Event::Text(text)
             | Event::Code(text)
@@ -163,10 +169,10 @@ struct ActiveBlock {
 }
 
 impl ParseState {
-    fn start(&mut self, tag: Tag<'_>) {
+    fn start(&mut self, tag: &Tag<'_>) {
         match tag {
             Tag::Heading { level, .. } => {
-                self.begin(TextHeader::heading(heading_level(level)));
+                self.begin(TextHeader::heading(heading_level(*level)));
             }
             Tag::Paragraph if self.active.is_none() => {
                 let header = if self.blockquote_depth > 0 {
@@ -259,12 +265,12 @@ impl ParseState {
     }
 
     fn finish_active(&mut self) {
-        if let Some(mut active) = self.active.take() {
-            active.body = active.body.trim().to_owned();
-            if !active.body.is_empty() {
+        if let Some(active) = self.active.take() {
+            let body = active.body.trim().to_owned();
+            if !body.is_empty() {
                 self.blocks.push(MarkdownBlock {
                     header: active.header,
-                    body: active.body,
+                    body,
                 });
             }
         }

@@ -60,7 +60,7 @@ The CLI (`tes`) is a thin wrapper around library entry points.
                                 │
 ┌───────────────────────────────▼─────────────────────────────┐
 │  Container layer (sealed chunked file)                      │
-│  layout/ · verify/ · repair? · utils/wire                   │
+│  layout/ · verify/ · repair? · argus-chunk (LE + codecs)    │
 │  superblock, TIDX, THST, bounds, codecs                     │
 └───────────────────────────────┬─────────────────────────────┘
                                 │
@@ -77,7 +77,7 @@ The CLI (`tes`) is a thin wrapper around library entry points.
 | Module | Responsibility | Spec / doc |
 | --- | --- | --- |
 | `layout` | `SuperblockV0`, mmap open, region bounds, magic/version checks | [layout_v0.md](layout_v0.md) |
-| `utils::wire` | Little-endian primitives, `align8` | Tetration pattern reuse |
+| [argus-chunk](https://crates.io/crates/argus-chunk) | Little-endian primitives, `align8`, raw/zstd codecs | external crate |
 | `catalog::index` | `TIDX` header + 48-byte entries | [layout_v0 — chunk index](layout_v0.md#chunk-index-region) |
 | `catalog::catalog` | Document catalog JSON parse/serialize | [layout_v0 — catalog](layout_v0.md#document-catalog) |
 | `catalog::link` | `TLNK` table read/write | [layout_v0 — link table](layout_v0.md#link-table-optional) |
@@ -190,9 +190,9 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 | `convert/` (HDF5, NetCDF, Zarr) | **Absent** — replaced by `import/` (MD, HTML, PDF) |
 | `export/zarr` | **Absent** — `export` text/HTML/JSONL |
 | `verify/`, `repair/` | **Similar structure**, document-specific checks |
-| `THST`, `TIDX` header, codec 0/1 | **Reuse ideas**; copy code selectively in v0 |
+| `THST`, `TIDX` header, codec 0/1 | **Reuse ideas**; LE wire + codecs via [argus-chunk](https://crates.io/crates/argus-chunk) |
 
-**No `tetration` dependency.** After v0 ships, compare duplicated footer/wire/index code; extract a thin shared crate only if duplication hurts ([decisions D7](decisions.md#tetration-wire-reuse)).
+**No `tetration` dependency.** Shared wire lives in `argus-chunk`; domain layouts stay in each format crate ([decisions D7](decisions.md#tetration-wire-reuse)).
 
 ---
 
