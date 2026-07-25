@@ -1,7 +1,7 @@
 //! `tes` — command-line interface for the Tessera document format.
 //!
 //! See `docs/cli.md` for the full command surface. This binary ships `info`,
-//! `verify`, `export`, and the v0 CommonMark subset of `import`.
+//! `verify`, `export`, CommonMark/HTML `import`, and vault-aware `link`.
 
 use std::fs;
 use std::io::{self, Write};
@@ -12,7 +12,9 @@ use clap::{ArgGroup, Parser, Subcommand};
 use tessera::catalog::{format_info_human, format_info_json, format_info_quiet, read_summary_v0};
 use tessera::error::TesError;
 use tessera::export::{ExportOptions, ExportView, export_view};
-use tessera::import::{MarkdownImportOptions, import_markdown_v0};
+use tessera::import::{
+    HtmlImportOptions, MarkdownImportOptions, import_html_v0, import_markdown_v0,
+};
 use tessera::layout::DocKind;
 use tessera::vault::{Vault, parse_target};
 use tessera::verify::{
@@ -65,7 +67,14 @@ enum Commands {
     #[command(group(
         ArgGroup::new("view")
             .required(true)
-            .args(["raw", "linear", "ai_text", "chunks_jsonl", "markdown"])
+            .args([
+                "raw",
+                "linear",
+                "ai_text",
+                "chunks_jsonl",
+                "markdown",
+                "html",
+            ])
     ))]
     Export {
         /// Path to a .tes file
@@ -85,6 +94,9 @@ enum Commands {
         /// Lossy GFM-ish Markdown
         #[arg(long)]
         markdown: bool,
+        /// Semantic HTML5 fragment or standalone page
+        #[arg(long)]
+        html: bool,
         /// Restrict to a single chunk id
         #[arg(long = "chunk")]
         chunk: Option<u64>,
@@ -103,13 +115,30 @@ enum Commands {
         /// Write to PATH instead of stdout
         #[arg(short = 'o', long = "output")]
         output: Option<PathBuf>,
+        /// Stylesheet path/href for --html
+        #[arg(long)]
+        theme: Option<PathBuf>,
+        /// Emit a complete HTML document
+        #[arg(long)]
+        standalone: bool,
+        /// Read --theme and embed its CSS
+        #[arg(long, requires = "theme")]
+        embed_css: bool,
     },
 
     /// Import a foreign document into a sealed .tes file
+    #[command(group(
+        ArgGroup::new("import_format")
+            .required(true)
+            .args(["markdown", "html"])
+    ))]
     Import {
         /// Parse input as the supported CommonMark subset
-        #[arg(long, required = true)]
+        #[arg(long)]
         markdown: bool,
+        /// Parse semantic HTML
+        #[arg(long)]
+        html: bool,
         /// Source document
         input: PathBuf,
         /// Destination .tes (must not already exist)
@@ -184,12 +213,16 @@ fn main() -> ExitCode {
             ai_text,
             chunks_jsonl,
             markdown,
+            html,
             chunk,
             include_headers,
             annotate,
             all_types,
             no_cites,
             output,
+            theme,
+            standalone,
+            embed_css,
         } => match run_export(
             &path,
             raw,
@@ -197,12 +230,16 @@ fn main() -> ExitCode {
             ai_text,
             chunks_jsonl,
             markdown,
+            html,
             chunk,
             include_headers,
             annotate,
             all_types,
             no_cites,
             output.as_ref(),
+            theme.as_ref(),
+            standalone,
+            embed_css,
         ) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
@@ -212,12 +249,13 @@ fn main() -> ExitCode {
         },
         Commands::Import {
             markdown,
+            html,
             input,
             output,
             doc_kind,
             title,
             doc_id,
-        } => match run_import(markdown, &input, &output, &doc_kind, title, doc_id) {
+        } => match run_import(markdown, html, &input, &output, &doc_kind, title, doc_id) {
             Ok(()) => ExitCode::SUCCESS,
             Err(err) => {
                 eprintln!("error: {err}");
@@ -285,12 +323,16 @@ fn run_export(
     ai_text: bool,
     chunks_jsonl: bool,
     markdown: bool,
+    html: bool,
     chunk: Option<u64>,
     include_headers: bool,
     annotate: bool,
     all_types: bool,
     no_cites: bool,
     output: Option<&PathBuf>,
+    theme: Option<&PathBuf>,
+    standalone: bool,
+    embed_css: bool,
 ) -> Result<(), TesError> {
     let view = if raw {
         ExportView::Raw
@@ -302,16 +344,30 @@ fn run_export(
         ExportView::ChunksJsonl
     } else if markdown {
         ExportView::Markdown
+    } else if html {
+        ExportView::Html
     } else {
         return Err(TesError::ExportViewRequired);
     };
 
+    let embedded_css = if embed_css {
+        theme.map(fs::read_to_string).transpose()?
+    } else {
+        None
+    };
     let options = ExportOptions {
         chunk_id: chunk,
         include_headers,
         annotate,
         all_types,
         no_cites,
+        theme_href: if embed_css {
+            None
+        } else {
+            theme.map(|path| path.display().to_string())
+        },
+        standalone,
+        embedded_css,
     };
     let out = export_view(path, view, &options)?;
     if let Some(path) = output {
@@ -333,29 +389,47 @@ fn print_out(out: &str) -> Result<(), TesError> {
 
 fn run_import(
     markdown: bool,
+    html: bool,
     input: &PathBuf,
     output: &PathBuf,
     doc_kind: &str,
     title: Option<String>,
     doc_id: Option<String>,
 ) -> Result<(), TesError> {
-    if !markdown {
+    let doc_kind = parse_doc_kind(doc_kind)?;
+    let (chunk_count, report_doc_id) = if markdown {
+        let report = import_markdown_v0(
+            input,
+            output,
+            &MarkdownImportOptions {
+                doc_kind,
+                title,
+                doc_id,
+            },
+        )?;
+        (report.chunk_count, report.doc_id)
+    } else if html {
+        let report = import_html_v0(
+            input,
+            output,
+            &HtmlImportOptions {
+                doc_kind,
+                title,
+                doc_id,
+            },
+        )?;
+        (report.chunk_count, report.doc_id)
+    } else {
         return Err(TesError::Io(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "select an import format (currently --markdown)",
+            "select --markdown or --html",
         )));
-    }
-    let options = MarkdownImportOptions {
-        doc_kind: parse_doc_kind(doc_kind)?,
-        title,
-        doc_id,
     };
-    let report = import_markdown_v0(input, output, &options)?;
     println!(
         "imported {}\tchunks={}\tdoc_id={}",
-        report.output.display(),
-        report.chunk_count,
-        report.doc_id
+        output.display(),
+        chunk_count,
+        report_doc_id
     );
     Ok(())
 }

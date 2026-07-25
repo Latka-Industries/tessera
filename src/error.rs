@@ -128,7 +128,7 @@ pub enum TesError {
 
     /// Export was called without selecting a view.
     #[error(
-        "export requires a view flag (--raw, --linear, --ai-text, --chunks-jsonl, or --markdown)"
+        "export requires a view flag (--raw, --linear, --ai-text, --chunks-jsonl, --markdown, or --html)"
     )]
     ExportViewRequired,
 

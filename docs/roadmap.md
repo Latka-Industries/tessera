@@ -1,7 +1,7 @@
 # Roadmap and phases
 
-**Status:** M0–M5 implemented; Phase 6 (HTML import/export) is next. This is
-an implementation plan, not a release schedule.
+**Status:** M0–M6 implemented; Phase 7 (print/PDF export) is next. This is an
+implementation plan, not a release schedule.
 
 Use this doc to create **GitHub milestones and issues**. Each phase lists acceptance criteria and doc links.
 

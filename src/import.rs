@@ -4,6 +4,8 @@
 //! paragraphs, lists, fenced code, and blockquotes. Inline presentation is
 //! parsed once and flattened into clean canonical text.
 
+pub mod html;
+
 use std::path::{Path, PathBuf};
 
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
@@ -14,6 +16,8 @@ use uuid::Uuid;
 use crate::catalog::{DocumentCatalog, ListKind, TesWriterSession, TextHeader, TextRole};
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
+
+pub use html::{HtmlImportOptions, HtmlImportReport, import_html_v0, parse_html_blocks};
 
 /// Options for Markdown → `.tes` import.
 #[derive(Debug, Clone)]
@@ -275,6 +279,7 @@ fn header_for_role(role: TextRole) -> TextHeader {
         level: None,
         list_kind: None,
         emphasis: Vec::new(),
+        classes: Vec::new(),
     }
 }
 

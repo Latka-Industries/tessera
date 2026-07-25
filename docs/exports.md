@@ -195,7 +195,7 @@ Generated **DOM-like** HTML5 fragment + linked theme CSS.
 
 **Mapping:** chunk `role` → element name; `class` from header JSON → `class` attribute. Presentation from theme only — **no inline styles** from exporter.
 
-**Phase:** CLI stub v0; full HTML export Phase 5.
+**Phase:** implemented in Phase 6.
 
 ---
 

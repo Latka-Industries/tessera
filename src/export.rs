@@ -27,6 +27,8 @@ pub enum ExportView {
     ChunksJsonl,
     /// Lossy GFM-ish Markdown projection (`--markdown`).
     Markdown,
+    /// Semantic HTML5 fragment or standalone document (`--html`).
+    Html,
 }
 
 /// Options that refine an [`ExportView`].
@@ -42,6 +44,12 @@ pub struct ExportOptions {
     pub all_types: bool,
     /// Omit cite chunk expansion from `--ai-text`.
     pub no_cites: bool,
+    /// Stylesheet href for HTML export.
+    pub theme_href: Option<String>,
+    /// Wrap HTML output in a complete document.
+    pub standalone: bool,
+    /// CSS embedded in a `<style>` element.
+    pub embedded_css: Option<String>,
 }
 
 /// Export `path` as the selected view.
@@ -62,6 +70,7 @@ pub fn export_file(file: &TesFile, view: ExportView, options: &ExportOptions) ->
         ExportView::AiText => export_ai_text(file, options),
         ExportView::ChunksJsonl => export_chunks_jsonl(file, options),
         ExportView::Markdown => export_markdown(file, options),
+        ExportView::Html => export_html(file, options),
     }
 }
 
@@ -170,6 +179,122 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
         out.push('\n');
     }
     Ok(out)
+}
+
+fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
+    let entries = selected_text_entries(file, options)?;
+    let doc_id = file
+        .catalog()
+        .map(|catalog| catalog.doc_id.as_str())
+        .unwrap_or("");
+    let title = file
+        .catalog()
+        .map(|catalog| catalog.title.as_str())
+        .unwrap_or("Untitled");
+    let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
+
+    for entry in entries {
+        let (header, body) = decode_text_entry(file, entry)?;
+        let escaped = escape_html(&body);
+        let class = html_class_attr(&header.classes);
+        let rendered = match header.role {
+            TextRole::Heading => {
+                let level = header.level.unwrap_or(1).clamp(1, 6);
+                format!(
+                    "  <h{level} id=\"chunk-{}\"{class}>{escaped}</h{level}>\n",
+                    entry.chunk_id
+                )
+            }
+            TextRole::Paragraph => format!(
+                "  <p data-chunk-id=\"{}\"{class}>{escaped}</p>\n",
+                entry.chunk_id
+            ),
+            TextRole::ListItem => {
+                let (open, close) = match header.list_kind.unwrap_or(ListKind::Bullet) {
+                    ListKind::Bullet => ("ul", "ul"),
+                    ListKind::Ordered => ("ol", "ol"),
+                };
+                format!(
+                    "  <{open}><li data-chunk-id=\"{}\"{class}>{escaped}</li></{close}>\n",
+                    entry.chunk_id
+                )
+            }
+            TextRole::Blockquote => format!(
+                "  <blockquote data-chunk-id=\"{}\"{class}>{escaped}</blockquote>\n",
+                entry.chunk_id
+            ),
+            TextRole::CodeBlock => format!(
+                "  <pre data-chunk-id=\"{}\"{class}><code>{escaped}</code></pre>\n",
+                entry.chunk_id
+            ),
+            TextRole::Table => {
+                let rows = body
+                    .lines()
+                    .map(|line| {
+                        let cells = line
+                            .split('\t')
+                            .map(|cell| format!("<td>{}</td>", escape_html(cell)))
+                            .collect::<String>();
+                        format!("<tr>{cells}</tr>")
+                    })
+                    .collect::<String>();
+                format!(
+                    "  <table data-chunk-id=\"{}\"{class}><tbody>{rows}</tbody></table>\n",
+                    entry.chunk_id
+                )
+            }
+        };
+        article.push_str(&rendered);
+    }
+    article.push_str("</article>\n");
+
+    let mut styles = String::new();
+    if let Some(css) = &options.embedded_css {
+        styles.push_str("<style>\n");
+        styles.push_str(css);
+        if !css.ends_with('\n') {
+            styles.push('\n');
+        }
+        styles.push_str("</style>\n");
+    } else if let Some(href) = &options.theme_href {
+        let _ = writeln!(
+            styles,
+            "<link rel=\"stylesheet\" href=\"{}\">",
+            escape_html(href)
+        );
+    }
+
+    if options.standalone {
+        Ok(format!(
+            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{}</title>\n{styles}</head>\n<body>\n{article}</body>\n</html>\n",
+            escape_html(title)
+        ))
+    } else {
+        Ok(format!("{styles}{article}"))
+    }
+}
+
+fn escape_html(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+fn html_class_attr(classes: &[String]) -> String {
+    if classes.is_empty() {
+        String::new()
+    } else {
+        format!(" class=\"{}\"", escape_html(&classes.join(" ")))
+    }
 }
 
 fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<String> {
