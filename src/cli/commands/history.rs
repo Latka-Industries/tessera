@@ -1,15 +1,17 @@
-//! `tes save`, `log`, `diff`, `changelog`, `export-revs`, `checkout`, `textconv`.
+//! `tes save`, `log`, `diff`, `changelog`, `export-revs`, `checkout`, `blame`, `textconv`.
 
 use std::io;
 
 use crate::error::TesError;
 use crate::history::{
-    SaveOptions, checkout_revision, diff_revisions, export_revision, format_changelog, format_diff,
-    format_log, save_revision, textconv,
+    BlameOptions, SaveOptions, blame_file, checkout_revision, diff_revisions, export_revision,
+    format_blame, format_blame_json, format_changelog, format_diff, format_log, save_revision,
+    textconv,
 };
 
 use super::super::args::{
-    ChangelogArgs, CheckoutArgs, DiffArgs, ExportRevsArgs, LogArgs, SaveArgs, TextconvArgs,
+    BlameArgs, ChangelogArgs, CheckoutArgs, DiffArgs, ExportRevsArgs, LogArgs, SaveArgs,
+    TextconvArgs,
 };
 use super::super::util::print_out;
 
@@ -68,6 +70,22 @@ pub(in crate::cli) fn run_checkout(args: &CheckoutArgs) -> Result<(), TesError> 
     checkout_revision(&args.path, &args.rev)?;
     println!("checked out {}\trev={}", args.path.display(), args.rev);
     Ok(())
+}
+
+pub(in crate::cli) fn run_blame(args: &BlameArgs) -> Result<(), TesError> {
+    let report = blame_file(
+        &args.path,
+        &BlameOptions {
+            chunk: args.chunk,
+            rev: args.rev.clone(),
+        },
+    )?;
+    let out = if args.json {
+        format_blame_json(&report)?
+    } else {
+        format_blame(&report)
+    };
+    print_out(&out)
 }
 
 pub(in crate::cli) fn run_textconv(args: &TextconvArgs) -> Result<(), TesError> {

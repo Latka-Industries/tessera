@@ -21,7 +21,7 @@ Related: [layout_v0.md](layout_v0.md),
 | `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
 | [`tes edit-read`](#mutation-protocol) / `edit-write` | — | Tessera Markdown virtual editor protocol |
 | [`tes apply`](#mutation-protocol) | — | Verified Tessera Markdown / typed-op mutation |
-| `tes log\|diff\|changelog\|export-revs\|checkout\|textconv` | — | M10 revision/history tools |
+| `tes log\|diff\|changelog\|blame\|export-revs\|checkout\|textconv` | — | M10 revision/history tools |
 
 v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**, **`serve`**,
 **mutation**, and **history** commands.
@@ -243,6 +243,8 @@ tes save paper.tes --draft outline -m "first cut"
 tes log paper.tes
 tes diff paper.tes rev-a rev-b
 tes changelog paper.tes --between rev-a rev-b
+tes blame paper.tes
+tes blame paper.tes --chunk 2 --json
 tes export-revs paper.tes rev-a -o paper-rev-a.tes
 tes export-revs paper.tes outline -o draft.tes --keep-history
 tes checkout paper.tes rev-a
@@ -254,6 +256,11 @@ chunk manifests) into the optional `THST` footer without bumping
 `layout_version`. Drafts are named pointers into that revision list.
 Structural `tes diff` / `tes changelog` compare chunk ids and hashes, then
 show text line diffs for changed text payloads.
+
+`tes blame` walks the parent chain from history `head` (or `--rev`) and
+attributes each tip text line (or whole non-text chunk) to the revision that
+last introduced that content. Columns: `chunk[:line]`, revision id, timestamp,
+source, optional message, text.
 
 `tes export-revs` materializes a revision as a **new** self-contained `.tes`
 (body only unless `--keep-history`, which attaches the current footer).
@@ -275,7 +282,7 @@ for git. Example attributes:
 	textconv = tes textconv
 ```
 
-Blame and merge drivers remain deferred.
+Merge drivers remain deferred.
 
 ---
 
@@ -314,7 +321,7 @@ Every CLI command maps to a library entry point. The binary only calls
 | `tes export` | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
 | `tes import` | `tessera_doc::io::import::*` / `io::bib::import_bibliography` |
 | `tes link` | `tessera_doc::vault::*` |
-| `tes save` / `log` / `diff` / `changelog` / `export-revs` / `checkout` / `textconv` | `tessera_doc::history::*` |
+| `tes save` / `log` / `diff` / `changelog` / `blame` / `export-revs` / `checkout` / `textconv` | `tessera_doc::history::*` |
 | `tes serve` | `tessera_doc::render::preview::serve_preview` |
 | `tes edit-read` | `tessera_doc::edit::edit_read` |
 | `tes edit-write` | `tessera_doc::edit::edit_write` |

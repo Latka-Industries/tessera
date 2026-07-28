@@ -92,6 +92,9 @@ pub(super) enum Commands {
     /// Replace the live sealed body with a revision (keep current THST)
     Checkout(CheckoutArgs),
 
+    /// Attribute current text to the revision that last introduced it
+    Blame(BlameArgs),
+
     /// Emit Tessprek on stdout for git textconv (no source-hash banner)
     Textconv(TextconvArgs),
 }
@@ -384,6 +387,22 @@ pub(super) struct CheckoutArgs {
     pub(super) path: PathBuf,
     /// Revision id or draft name
     pub(super) rev: String,
+}
+
+/// Flags for `tes blame`.
+#[derive(Debug, Args)]
+pub(super) struct BlameArgs {
+    /// Path to a .tes file with history
+    pub(super) path: PathBuf,
+    /// Blame only this chunk id
+    #[arg(long)]
+    pub(super) chunk: Option<u64>,
+    /// Revision id or draft name (default: history head)
+    #[arg(long)]
+    pub(super) rev: Option<String>,
+    /// Emit JSON report
+    #[arg(long)]
+    pub(super) json: bool,
 }
 
 /// Flags for `tes textconv`.

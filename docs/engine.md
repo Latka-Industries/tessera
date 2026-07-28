@@ -215,7 +215,7 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 
 **Out (later):**
 
-- `repair/`, richer history (blame, merge driver, redline)
+- `repair/`, richer history (merge driver, redline)
 - Aleph, CRDT, page tensors
 
 ---

@@ -4,7 +4,7 @@
 `checkout`/`textconv`), layout-v1 **text wire** (spans/math/tables/lang),
 **inert attachments**, and **typed TLNK targets** (external URI heap v1) are
 shipped as additive wire on `layout_version = 0`. Next code is history residual
-(blame/merge/redline) and light `vault.tes` polish. This is an implementation
+(merge driver / redline) and light `vault.tes` polish. This is an implementation
 plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
@@ -21,7 +21,7 @@ links.
 | Media | image payload + `FigureRef`; inert attachments | — | — |
 | Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
-| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv | — | blame, merge driver, redline |
+| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame | — | merge driver, redline |
 
 Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
@@ -250,7 +250,7 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **history residual:** blame, verified merge driver, pending-ops redline.
+1. **history residual:** verified merge driver, pending-ops redline.
 2. **open format:** MIME/magic entries and v1 conformance cases.
 3. **benchmark:** measure the specific mmap/link/export claims in the README.
 4. **vault polish:** light `vault.tes` catalog (optional).

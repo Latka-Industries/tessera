@@ -9,7 +9,7 @@
 //! Commands cover `info`, `verify`, `export` (including `--pdf`), CommonMark/HTML
 //! `import`, vault-aware `link`, loopback `serve`, Tessera Markdown
 //! `edit-read` / `edit-write` / `apply`, and history `save` / `log` / `diff` /
-//! `changelog` / `export-revs` / `checkout` / `textconv`.
+//! `changelog` / `export-revs` / `checkout` / `blame` / `textconv`.
 
 mod args;
 mod commands;
@@ -21,9 +21,9 @@ use clap::Parser;
 
 use args::{Cli, Commands};
 use commands::{
-    run_apply, run_changelog, run_checkout, run_diff, run_edit_read, run_edit_write, run_export,
-    run_export_revs, run_import, run_info, run_link, run_log, run_save, run_serve, run_textconv,
-    run_verify,
+    run_apply, run_blame, run_changelog, run_checkout, run_diff, run_edit_read, run_edit_write,
+    run_export, run_export_revs, run_import, run_info, run_link, run_log, run_save, run_serve,
+    run_textconv, run_verify,
 };
 use util::result_exit;
 
@@ -51,6 +51,7 @@ pub fn run() -> ExitCode {
         Commands::Changelog(args) => result_exit(run_changelog(&args)),
         Commands::ExportRevs(args) => result_exit(run_export_revs(&args)),
         Commands::Checkout(args) => result_exit(run_checkout(&args)),
+        Commands::Blame(args) => result_exit(run_blame(&args)),
         Commands::Textconv(args) => result_exit(run_textconv(&args)),
     }
 }
