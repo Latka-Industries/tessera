@@ -243,6 +243,17 @@ impl TextHeader {
         Self::with_role(TextRole::Paragraph)
     }
 
+    /// Whether this header uses additive layout-v1 fields (`text_spans` feature).
+    #[must_use]
+    pub fn uses_layout_v1_features(&self) -> bool {
+        !self.spans.is_empty()
+            || self.lang.is_some()
+            || self.align.is_some()
+            || self.code_lang.is_some()
+            || self.table.is_some()
+            || matches!(self.role, TextRole::Table | TextRole::Math)
+    }
+
     /// A heading header at `level` (1–6).
     #[must_use]
     pub fn heading(level: u32) -> Self {

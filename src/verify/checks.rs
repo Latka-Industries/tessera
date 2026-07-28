@@ -120,6 +120,13 @@ fn verify_catalog_region(
                         ),
                     ));
                 }
+                for finding in cat.features.evaluate() {
+                    if finding.is_error() {
+                        findings.push(Finding::error(finding.check(), finding.message()));
+                    } else {
+                        findings.push(Finding::warning(finding.check(), finding.message()));
+                    }
+                }
             }
             Err(err) => findings.push(Finding::error("catalog.json", err.to_string())),
         },

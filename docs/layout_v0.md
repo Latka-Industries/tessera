@@ -122,13 +122,32 @@ When `catalog_length > 0`, bytes at `catalog_offset` are **UTF-8 JSON** (no BOM)
 | `doc_kind` | yes | String mirror of superblock enum |
 | `tags` | no | String array |
 | `template_id`, `theme_id` | no | Export / GUI hints |
+| `cite_style_id` | no | Citation style id (display) |
+| `language` | no | BCP-47 document language |
+| `features` | no | Optional-vs-required feature map (see below) |
 
-v0 does not spill large catalog fields; keep catalog **≤ 16 KiB** (reference writer limit).
+### Catalog `features` (forward compatibility)
 
-Layout v1 plans optional `lang`, `cite_style_id`, template/theme hashes, and
-publish metadata (`slug`, description, author, publish date, draft/published,
-navigation order, canonical URL). Catalog projections round-trip through
-JSON/YAML/TOML; the binary catalog remains canonical.
+```json
+"features": {
+  "optional": ["text_spans", "attachments", "external_uris", "citations", "slides", "figures"],
+  "required": []
+}
+```
+
+| List | Reader policy |
+| --- | --- |
+| `optional` | Unknown names → warn and continue |
+| `required` | Unknown names → fail (`tes verify` error) |
+
+This build keeps **`layout_version = 0`**. Known optional ids: `text_spans`,
+`attachments`, `external_uris`, `citations`, `slides`, `figures`. Writers stamp
+matching optional entries when those structures are present. Bump
+`layout_version` only when a true must-understand container break lands.
+
+v0 does not spill large catalog fields; keep catalog **≤ 16 KiB** (reference
+writer limit). Catalog projections may round-trip through JSON/YAML/TOML; the
+binary catalog remains canonical.
 
 ---
 

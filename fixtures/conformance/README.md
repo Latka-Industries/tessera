@@ -25,6 +25,7 @@ Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 - `slide_deck.tes` — region-based slide
 - `research_cite.tes` — cite chunk + citation link
 - `figure_sample.tes` — image + figure
+- `unknown_optional_feature.tes` — catalog declares unknown **optional** feature (warn, still ok)
 
 ## Reject set
 
@@ -48,6 +49,13 @@ Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 | `table_rowspan_zero.tes` | Structured table `rowspan: 0` |
 | `oversized_text_header.tes` | Text header JSON > 4 KiB |
 | `unsafe_attachment_filename.tes` | Attachment basename with `../` |
+| `unknown_required_feature.tes` | Catalog `features.required` names an unknown id |
+
+### Feature-flag accept (deep verify ok, may warn)
+
+| File | Note |
+| --- | --- |
+| `unknown_optional_feature.tes` | Catalog `features.optional` names an unknown id |
 
 ## Regenerate
 

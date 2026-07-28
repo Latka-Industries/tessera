@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::catalog::features::FeatureSet;
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
 
@@ -36,6 +37,9 @@ pub struct DocumentCatalog {
     /// Optional BCP-47 document language.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// Optional-vs-required layout feature declarations (D18).
+    #[serde(default, skip_serializing_if = "FeatureSet::is_empty")]
+    pub features: FeatureSet,
 }
 
 impl DocumentCatalog {
@@ -59,6 +63,7 @@ impl DocumentCatalog {
             theme_id: None,
             cite_style_id: None,
             language: None,
+            features: FeatureSet::default(),
         }
     }
 

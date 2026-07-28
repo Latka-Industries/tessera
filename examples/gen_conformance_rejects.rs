@@ -1,4 +1,5 @@
-//! Regenerate layout-v1 / attachment must-reject conformance fixtures.
+//! Regenerate layout-v1 / attachment / feature-flag must-reject (and feature
+//! must-accept) conformance fixtures.
 //!
 //! These use [`TesWriterSession::add_payload_chunk`] so invalid payloads can be
 //! sealed without writer-side validation. Structural rejects
@@ -14,12 +15,17 @@ use std::path::PathBuf;
 
 use tessera_doc::catalog::index::{ChunkType, chunk_flags};
 use tessera_doc::catalog::{
-    DocumentCatalog, TEXT_HEADER_MAX_BYTES, TesWriterSession, encode_u32_prefixed,
+    DocumentCatalog, FeatureSet, TEXT_HEADER_MAX_BYTES, TesWriterSession, TextHeader,
+    encode_u32_prefixed,
 };
 use tessera_doc::layout::DocKind;
 
 fn reject_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/conformance/reject")
+}
+
+fn accept_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/conformance/accept")
 }
 
 fn write_reject(
@@ -62,6 +68,7 @@ fn oversized_table_header_json() -> String {
 
 fn main() {
     fs::create_dir_all(reject_dir()).expect("reject dir");
+    fs::create_dir_all(accept_dir()).expect("accept dir");
 
     // Body is 5 bytes; end=99 is out of bounds.
     write_reject(
@@ -118,4 +125,50 @@ fn main() {
             b"%PDF-1.4 bad name",
         ),
     );
+
+    // Unknown must-understand feature → verify fail (layout_version stays 0).
+    {
+        let mut features = FeatureSet::default();
+        features.declare_required("encrypted_payload");
+        write_feature_note(
+            &reject_dir(),
+            "unknown_required_feature.tes",
+            "550e8400-e29b-41d4-a716-446655440081",
+            "Reject: unknown required feature",
+            features,
+        );
+    }
+
+    // Unknown optional feature → warn but accept.
+    {
+        let mut features = FeatureSet::default();
+        features.declare_optional("future_widget");
+        write_feature_note(
+            &accept_dir(),
+            "unknown_optional_feature.tes",
+            "550e8400-e29b-41d4-a716-446655440082",
+            "Accept: unknown optional feature",
+            features,
+        );
+    }
+}
+
+fn write_feature_note(dir: &PathBuf, name: &str, doc_id: &str, title: &str, features: FeatureSet) {
+    let path = dir.join(name);
+    let _ = fs::remove_file(&path);
+    let mut session = TesWriterSession::create(&path, DocKind::Note);
+    let mut cat = DocumentCatalog::new(
+        doc_id,
+        title,
+        "2026-07-28T00:00:00Z",
+        "2026-07-28T00:00:00Z",
+        DocKind::Note,
+    );
+    cat.features = features;
+    session.set_catalog(cat).expect("catalog");
+    session
+        .add_text_chunk(&TextHeader::paragraph(), "body")
+        .expect("text");
+    session.commit().expect("commit");
+    println!("wrote {}", path.display());
 }

@@ -40,6 +40,23 @@ mod tests {
         s.encode_file().unwrap()
     }
 
+    fn note_with_features(title: &str, features: crate::catalog::FeatureSet) -> Vec<u8> {
+        let mut session = TesWriterSession::create("feat.tes", DocKind::Note);
+        let mut cat = DocumentCatalog::new(
+            "550e8400-e29b-41d4-a716-446655440000",
+            title,
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Note,
+        );
+        cat.features = features;
+        session.set_catalog(cat).unwrap();
+        session
+            .add_text_chunk(&TextHeader::paragraph(), "hi")
+            .unwrap();
+        session.encode_file().unwrap()
+    }
+
     fn p() -> &'static Path {
         Path::new("mem.tes")
     }
@@ -119,6 +136,34 @@ mod tests {
         let report = verify_bytes(p(), &bytes, false);
         assert!(!report.ok);
         assert!(report.errors().iter().any(|f| f.check == "history.footer"));
+    }
+
+    #[test]
+    fn unknown_optional_feature_warns_but_passes() {
+        let mut features = crate::catalog::FeatureSet::default();
+        features.declare_optional("future_widget");
+        let report = verify_bytes(p(), &note_with_features("Optional unknown", features), true);
+        assert!(report.ok, "{:?}", report.findings);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.check == "features.optional")
+        );
+    }
+
+    #[test]
+    fn unknown_required_feature_fails() {
+        let mut features = crate::catalog::FeatureSet::default();
+        features.declare_required("encrypted_payload");
+        let report = verify_bytes(p(), &note_with_features("Required unknown", features), true);
+        assert!(!report.ok);
+        assert!(
+            report
+                .errors()
+                .iter()
+                .any(|f| f.check == "features.required")
+        );
     }
 
     #[test]
