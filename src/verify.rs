@@ -130,6 +130,7 @@ pub fn verify_bytes(path: &Path, bytes: &[u8], deep: bool) -> TesVerifyReport {
     let (chunk_count, entries) = verify_chunk_index_region(&mut findings, &superblock, bytes);
     verify_payload_bounds(&mut findings, &entries, bytes, file_len, deep);
     verify_figure_targets(&mut findings, &entries, bytes);
+    verify_slide_targets(&mut findings, &entries, bytes);
     verify_cite_mirrors(&mut findings, &entries, &superblock, bytes);
     verify_history_footer(&mut findings, &superblock, bytes, file_len);
 
@@ -346,6 +347,7 @@ fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, p
     use crate::catalog::chunk::{CitePayload, decode_text_payload};
     use crate::catalog::index::ChunkType;
     use crate::catalog::media::{FigureRef, ImagePayload};
+    use crate::catalog::slide::SlidePayload;
 
     match entry.codec {
         Codec::Raw => {}
@@ -391,6 +393,14 @@ fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, p
             if let Err(err) = CitePayload::from_bytes(payload) {
                 findings.push(Finding::error(
                     "chunk.cite_payload",
+                    format!("chunk {}: {err}", entry.chunk_id),
+                ));
+            }
+        }
+        ChunkType::Slide => {
+            if let Err(err) = SlidePayload::from_bytes(payload) {
+                findings.push(Finding::error(
+                    "chunk.slide_payload",
                     format!("chunk {}: {err}", entry.chunk_id),
                 ));
             }
@@ -453,6 +463,66 @@ fn verify_cite_mirrors(
                 format!(
                     "cite {} targets {} but has no matching TLNK citation row",
                     entry.chunk_id, doc_id
+                ),
+            ));
+        }
+    }
+}
+
+fn verify_slide_targets(findings: &mut Vec<Finding>, entries: &[ChunkIndexEntry], bytes: &[u8]) {
+    use crate::catalog::index::ChunkType;
+    use crate::catalog::slide::SlidePayload;
+    use std::collections::HashMap;
+
+    let by_id: HashMap<u64, &ChunkIndexEntry> = entries.iter().map(|e| (e.chunk_id, e)).collect();
+
+    for entry in entries {
+        if entry.chunk_type != ChunkType::Slide {
+            continue;
+        }
+        let start = entry.payload_offset as usize;
+        let end = start + entry.stored_byte_len as usize;
+        if end > bytes.len() {
+            continue;
+        }
+        let Ok(slide) = SlidePayload::from_bytes(&bytes[start..end]) else {
+            continue;
+        };
+        for region in &slide.regions {
+            match by_id.get(&region.chunk_id) {
+                None => findings.push(Finding::error(
+                    "slide.target",
+                    format!(
+                        "slide {} region '{}' references missing chunk {}",
+                        entry.chunk_id, region.name, region.chunk_id
+                    ),
+                )),
+                Some(target)
+                    if !matches!(
+                        target.chunk_type,
+                        ChunkType::Text | ChunkType::Figure | ChunkType::Cite | ChunkType::Image
+                    ) =>
+                {
+                    findings.push(Finding::error(
+                        "slide.target",
+                        format!(
+                            "slide {} region '{}' references chunk {} of type '{}'",
+                            entry.chunk_id,
+                            region.name,
+                            region.chunk_id,
+                            target.chunk_type.as_str()
+                        ),
+                    ));
+                }
+                Some(_) => {}
+            }
+        }
+        if entry.chunk_flags & crate::catalog::index::chunk_flags::READING_ORDER == 0 {
+            findings.push(Finding::warning(
+                "slide.reading_order",
+                format!(
+                    "slide {} is not marked reading-order; exports may skip it",
+                    entry.chunk_id
                 ),
             ));
         }

@@ -225,6 +225,13 @@ pub enum TesError {
         message: String,
     },
 
+    /// Slide payload failed validation or decode.
+    #[error("invalid slide: {message}")]
+    InvalidSlide {
+        /// Human-readable reason.
+        message: String,
+    },
+
     /// Bibliography interchange failed.
     #[error("invalid bibliography: {message}")]
     InvalidBib {

@@ -294,10 +294,12 @@ Defined for layout stability; the reference writer may emit
   Not reading-order. See [structure_v1 — media](structure_v1.md#media-and-attachments).
 - **Figure (`7`):** UTF-8 JSON figure ref pointing at an image chunk id with required
   `alt_text`, optional `caption`, and `placement`. Reading-order.
-- **Slide (`5`):** `layout_id` + JSON block list (`title`, `body`, `media` slots).
+- **Slide (`5`):** UTF-8 JSON `{ "layout_id", "regions": [{ "name", "chunk_id" }] }`.
+  Reading-order. Region targets are text, figure, cite, or image chunks. Theme CSS
+  maps region names to grid/flex areas — no freeform coordinates.
 - **Page (`6`):** raster bytes + source page number for PDF import.
 
-Full field layouts for slide/page remain deferred; image + figure are implemented.
+Image + figure + slide are implemented in the reference writer; page remains deferred.
 
 ---
 

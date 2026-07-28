@@ -8,6 +8,7 @@ use crate::catalog::TesFile;
 use crate::catalog::chunk::{CitePayload, ListKind, TextHeader, TextRole, decode_text_payload};
 use crate::catalog::index::ChunkType;
 use crate::catalog::media::{FigureRef, ImagePlacement};
+use crate::catalog::slide::{SlidePayload, SlideRegion};
 use crate::error::{Result, TesError};
 
 use super::ContentBlock;
@@ -56,6 +57,12 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
                 write_cite_directive(&mut out, entry.chunk_id, &cite);
                 out.push_str(cite.quote.trim_end());
                 out.push_str("\n\n");
+            }
+            ChunkType::Slide => {
+                let raw = file.decode_payload(entry)?;
+                let slide = SlidePayload::from_bytes(raw.as_ref())?;
+                write_slide_directive(&mut out, entry.chunk_id, &slide);
+                out.push('\n');
             }
             _ => {}
         }
@@ -184,6 +191,21 @@ pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
                     },
                 });
             }
+            "slide" => {
+                let layout_id = map
+                    .get("layout")
+                    .cloned()
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| parse_err(line_no, 1, "slide requires layout=…"))?;
+                let regions = parse_slide_regions(
+                    map.get("regions").map(String::as_str).unwrap_or(""),
+                    line_no,
+                )?;
+                blocks.push(ContentBlock::Slide {
+                    chunk_id: Some(chunk_id),
+                    slide: SlidePayload { layout_id, regions },
+                });
+            }
             other => {
                 return Err(parse_err(
                     line_no,
@@ -250,6 +272,48 @@ fn write_cite_directive(out: &mut String, chunk_id: u64, cite: &CitePayload) {
         let _ = write!(out, " page={page}");
     }
     let _ = writeln!(out, "{CHUNK_SUFFIX}");
+}
+
+fn write_slide_directive(out: &mut String, chunk_id: u64, slide: &SlidePayload) {
+    let regions = slide
+        .regions
+        .iter()
+        .map(|r| format!("{}:{}", r.name, r.chunk_id))
+        .collect::<Vec<_>>()
+        .join(",");
+    let _ = writeln!(
+        out,
+        "{CHUNK_PREFIX}chunk={chunk_id} type=slide layout={} regions=\"{}\"{CHUNK_SUFFIX}",
+        attr_token(&slide.layout_id),
+        escape_attr(&regions)
+    );
+}
+
+fn parse_slide_regions(raw: &str, line_no: usize) -> Result<Vec<SlideRegion>> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(parse_err(line_no, 1, "slide regions= must be non-empty"));
+    }
+    let mut regions = Vec::new();
+    for part in raw.split(',') {
+        let part = part.trim();
+        let Some((name, id)) = part.split_once(':') else {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("bad region '{part}' (expected name:chunk_id)"),
+            ));
+        };
+        let chunk_id = id
+            .trim()
+            .parse::<u64>()
+            .map_err(|_| parse_err(line_no, 1, format!("invalid region chunk id in '{part}'")))?;
+        regions.push(SlideRegion {
+            name: name.trim().to_owned(),
+            chunk_id,
+        });
+    }
+    Ok(regions)
 }
 
 fn render_text_body(header: &TextHeader, body: &str) -> String {

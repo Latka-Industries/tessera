@@ -44,8 +44,8 @@ pub mod prelude {
     };
     pub use crate::catalog::{
         ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog, FigureRef,
-        ImagePayload, ImagePlacement, TesFile, TesInfoReport, TesWriterSession, TextHeader,
-        TextRole, read_summary_v0,
+        ImagePayload, ImagePlacement, SlidePayload, SlideRegion, TesFile, TesInfoReport,
+        TesWriterSession, TextHeader, TextRole, read_summary_v0,
     };
     pub use crate::edit::{
         EditReadReport, EditWriteOptions, EditWriteReport, TesOp, apply_ops, apply_patch,

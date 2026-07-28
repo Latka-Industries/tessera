@@ -8,6 +8,7 @@ pub mod info;
 pub mod link;
 pub mod media;
 pub mod session;
+pub mod slide;
 
 pub use chunk::{
     CitePayload, ListKind, TextHeader, TextRole, decode_text_payload, encode_text_payload,
@@ -21,3 +22,4 @@ pub use info::{
 pub use link::{LinkEntry, LinkKind};
 pub use media::{FigureRef, ImagePayload, ImagePlacement, base64_encode};
 pub use session::TesWriterSession;
+pub use slide::{SlidePayload, SlideRegion};

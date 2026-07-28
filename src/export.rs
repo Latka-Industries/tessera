@@ -187,6 +187,14 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
                 }
                 bib_items.push((n, bib));
             }
+            ChunkType::Slide => {
+                let raw = file.decode_payload(entry)?;
+                let slide = crate::catalog::SlidePayload::from_bytes(raw.as_ref())?;
+                let _ = writeln!(out, "[slide layout={}]", slide.layout_id);
+                for region in &slide.regions {
+                    let _ = writeln!(out, "  {}: chunk-{}", region.name, region.chunk_id);
+                }
+            }
             _ => {}
         }
         if i + 1 < entries.len() {
@@ -268,6 +276,15 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
                 parts.push(block);
                 bib_items.push((n, bib));
             }
+            ChunkType::Slide => {
+                let raw = file.decode_payload(entry)?;
+                let slide = crate::catalog::SlidePayload::from_bytes(raw.as_ref())?;
+                let mut block = format!("<!-- slide layout={} -->", slide.layout_id);
+                for region in &slide.regions {
+                    let _ = write!(block, "\n[{}]: chunk-{}", region.name, region.chunk_id);
+                }
+                parts.push(block);
+            }
             _ => {}
         }
     }
@@ -287,12 +304,13 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
 }
 
 fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
+    if options.chunk_id.is_none() && file_has_slides(file) {
+        return export_deck_html(file, options);
+    }
+
     let entries = selected_content_entries(file, options)?;
     let cite_numbers = cite_number_map(file, &entries)?;
     let doc_id = file.catalog().map_or("", |catalog| catalog.doc_id.as_str());
-    let title = file
-        .catalog()
-        .map_or("Untitled", |catalog| catalog.title.as_str());
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
 
@@ -308,20 +326,123 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
             ChunkType::Cite if !options.no_cites => {
                 append_cite_html(file, entry, &cite_numbers, &mut article, &mut bib_items)?;
             }
+            ChunkType::Slide => {
+                article.push_str(&render_slide_html(file, entry, options)?);
+            }
             _ => {}
         }
     }
     append_html_bibliography(&mut article, &mut bib_items);
     article.push_str("</article>\n");
 
+    wrap_html_document(file, options, &article)
+}
+
+fn export_deck_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
+    let doc_id = file.catalog().map_or("", |catalog| catalog.doc_id.as_str());
+    let mut deck = format!(
+        "<main class=\"deck\" data-doc-id=\"{}\">\n",
+        escape_html(doc_id)
+    );
+    for entry in file.reading_order_chunks() {
+        if entry.chunk_type != ChunkType::Slide {
+            continue;
+        }
+        deck.push_str(&render_slide_html(file, entry, options)?);
+    }
+    deck.push_str("</main>\n");
+    wrap_html_document(file, options, &deck)
+}
+
+fn wrap_html_document(file: &TesFile, options: &ExportOptions, body: &str) -> Result<String> {
+    let title = file
+        .catalog()
+        .map_or("Untitled", |catalog| catalog.title.as_str());
     let styles = html_theme_styles(options);
     if options.standalone {
         Ok(format!(
-            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{}</title>\n{styles}</head>\n<body>\n{article}</body>\n</html>\n",
+            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{}</title>\n{styles}</head>\n<body>\n{body}</body>\n</html>\n",
             escape_html(title)
         ))
     } else {
-        Ok(format!("{styles}{article}"))
+        Ok(format!("{styles}{body}"))
+    }
+}
+
+fn file_has_slides(file: &TesFile) -> bool {
+    file.chunks()
+        .iter()
+        .any(|c| c.chunk_type == ChunkType::Slide)
+}
+
+fn render_slide_html(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    options: &ExportOptions,
+) -> Result<String> {
+    let raw = file.decode_payload(entry)?;
+    let slide = crate::catalog::SlidePayload::from_bytes(raw.as_ref())?;
+    let layout = escape_html(&slide.layout_id);
+    let mut out = format!(
+        "  <section class=\"slide\" data-chunk-id=\"{}\" data-layout=\"{layout}\">\n",
+        entry.chunk_id
+    );
+    for region in &slide.regions {
+        let name = escape_html(&region.name);
+        out.push_str(&format!(
+            "    <div class=\"region region-{name}\" data-region=\"{name}\">\n"
+        ));
+        out.push_str(&render_region_chunk_html(file, region.chunk_id, options)?);
+        out.push_str("    </div>\n");
+    }
+    out.push_str("  </section>\n");
+    Ok(out)
+}
+
+fn render_region_chunk_html(
+    file: &TesFile,
+    chunk_id: u64,
+    options: &ExportOptions,
+) -> Result<String> {
+    let entry = file.chunk_by_id(chunk_id)?;
+    match entry.chunk_type {
+        ChunkType::Text => {
+            let (header, body) = decode_text_entry(file, entry)?;
+            Ok(render_text_chunk_html(entry.chunk_id, &header, &body))
+        }
+        ChunkType::Figure => render_figure_html(file, entry, options),
+        ChunkType::Cite => {
+            let mut buf = String::new();
+            let mut bib = Vec::new();
+            let cite_numbers = cite_number_map(file, &[entry])?;
+            append_cite_html(file, entry, &cite_numbers, &mut buf, &mut bib)?;
+            Ok(buf)
+        }
+        ChunkType::Image => {
+            let raw = file.decode_payload(entry)?;
+            let image = crate::catalog::ImagePayload::from_bytes(raw.as_ref())?;
+            let src = if let Some(prefix) = options.media_url_prefix.as_deref() {
+                format!("{prefix}{}", entry.chunk_id)
+            } else {
+                format!(
+                    "data:{};base64,{}",
+                    image.media_type,
+                    crate::catalog::base64_encode(&image.data)
+                )
+            };
+            Ok(format!(
+                "      <img data-chunk-id=\"{}\" src=\"{}\" alt=\"\">\n",
+                entry.chunk_id,
+                escape_html(&src)
+            ))
+        }
+        other => Err(TesError::Decode {
+            chunk_id,
+            message: format!(
+                "slide region target type '{}' is not renderable",
+                other.as_str()
+            ),
+        }),
     }
 }
 
@@ -637,6 +758,8 @@ struct ChunkJsonlRow<'a> {
     placement: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     media_type: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    layout_id: Option<&'a str>,
 }
 
 fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -655,6 +778,9 @@ fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String
             }
             ChunkType::Figure => {
                 append_jsonl_figure(&mut out, file, entry, doc_id, doc_title)?;
+            }
+            ChunkType::Slide => {
+                append_jsonl_slide(&mut out, file, entry, doc_id, doc_title)?;
             }
             other if options.all_types => {
                 push_jsonl_row(
@@ -685,6 +811,7 @@ fn jsonl_entries<'a>(
             c.chunk_type == ChunkType::Text
                 || c.chunk_type == ChunkType::Cite
                 || c.chunk_type == ChunkType::Figure
+                || c.chunk_type == ChunkType::Slide
         })
         .collect())
 }
@@ -711,6 +838,7 @@ impl<'a> ChunkJsonlRow<'a> {
             caption: None,
             placement: None,
             media_type: None,
+            layout_id: None,
         }
     }
 }
@@ -795,6 +923,28 @@ fn append_jsonl_figure(
     row.caption = figure.caption.as_deref();
     row.placement = Some(figure.placement.as_str());
     row.media_type = media_type.as_deref();
+    push_jsonl_row(out, &row)
+}
+
+fn append_jsonl_slide(
+    out: &mut String,
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    doc_id: &str,
+    doc_title: &str,
+) -> Result<()> {
+    let raw = file.decode_payload(entry)?;
+    let slide = crate::catalog::SlidePayload::from_bytes(raw.as_ref())?;
+    let summary = slide
+        .regions
+        .iter()
+        .map(|r| format!("{}={}", r.name, r.chunk_id))
+        .collect::<Vec<_>>()
+        .join(",");
+    let owned = summary; // keep alive for row
+    let mut row = ChunkJsonlRow::bare(doc_id, doc_title, entry.chunk_id, "slide");
+    row.layout_id = Some(slide.layout_id.as_str());
+    row.text = Some(owned.as_str());
     push_jsonl_row(out, &row)
 }
 
@@ -920,12 +1070,12 @@ fn selected_content_entries<'a>(
         let entry = file.chunk_by_id(id)?;
         if !matches!(
             entry.chunk_type,
-            ChunkType::Text | ChunkType::Figure | ChunkType::Cite
+            ChunkType::Text | ChunkType::Figure | ChunkType::Cite | ChunkType::Slide
         ) {
             return Err(TesError::Decode {
                 chunk_id: id,
                 message: format!(
-                    "chunk type is '{}'; content exports require text, figure, or cite",
+                    "chunk type is '{}'; content exports require text, figure, cite, or slide",
                     entry.chunk_type.as_str()
                 ),
             });
@@ -938,7 +1088,7 @@ fn selected_content_entries<'a>(
         .filter(|c| {
             matches!(
                 c.chunk_type,
-                ChunkType::Text | ChunkType::Figure | ChunkType::Cite
+                ChunkType::Text | ChunkType::Figure | ChunkType::Cite | ChunkType::Slide
             )
         })
         .collect())
@@ -1320,5 +1470,60 @@ mod tests {
             "{:?}",
             report.findings
         );
+    }
+
+    #[test]
+    fn deck_slides_export_html_regions() {
+        use crate::catalog::{SlidePayload, SlideRegion};
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("deck.tes");
+        let mut s = TesWriterSession::create(&path, DocKind::Deck);
+        s.set_catalog(DocumentCatalog::new(
+            "880e8400-e29b-41d4-a716-446655440003",
+            "Demo deck",
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Deck,
+        ))
+        .unwrap();
+        s.add_text_chunk(&TextHeader::heading(1), "Hello slides")
+            .unwrap();
+        s.add_text_chunk(&TextHeader::paragraph(), "Region body copy.")
+            .unwrap();
+        s.add_slide(&SlidePayload {
+            layout_id: "title_body".into(),
+            regions: vec![
+                SlideRegion {
+                    name: "title".into(),
+                    chunk_id: 1,
+                },
+                SlideRegion {
+                    name: "body".into(),
+                    chunk_id: 2,
+                },
+            ],
+        })
+        .unwrap();
+        s.commit().unwrap();
+
+        let report = crate::verify::verify_tes_file(&path, true).unwrap();
+        assert!(report.ok, "{:?}", report.findings);
+
+        let html = export_view(
+            &path,
+            ExportView::Html,
+            &ExportOptions {
+                standalone: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(html.contains("class=\"deck\""));
+        assert!(html.contains("data-layout=\"title_body\""));
+        assert!(html.contains("data-region=\"title\""));
+        assert!(html.contains("Hello slides"));
+        assert!(html.contains("Region body copy."));
+        assert!(!html.contains("<article"));
     }
 }

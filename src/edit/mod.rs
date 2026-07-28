@@ -19,6 +19,7 @@ use crate::catalog::chunk::{CitePayload, TextHeader};
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::ChunkType;
 use crate::catalog::media::{FigureRef, ImagePayload};
+use crate::catalog::slide::SlidePayload;
 use crate::catalog::{TesFile, TesWriterSession};
 use crate::error::{Result, TesError};
 use crate::verify::{TesVerifyReport, verify_bytes, verify_tes_file};
@@ -53,6 +54,13 @@ pub enum ContentBlock {
         /// Cite payload.
         cite: CitePayload,
     },
+    /// Slide chunk with named region refs.
+    Slide {
+        /// Optional stable id from the source projection.
+        chunk_id: Option<u64>,
+        /// Slide payload.
+        slide: SlidePayload,
+    },
 }
 
 impl ContentBlock {
@@ -62,7 +70,8 @@ impl ContentBlock {
         match self {
             Self::Text { chunk_id, .. }
             | Self::Figure { chunk_id, .. }
-            | Self::Cite { chunk_id, .. } => *chunk_id,
+            | Self::Cite { chunk_id, .. }
+            | Self::Slide { chunk_id, .. } => *chunk_id,
         }
     }
 }
@@ -444,6 +453,9 @@ fn compile_blocks_to_bytes(
                     continue;
                 }
                 session.add_cite_chunk(cite)?;
+            }
+            ContentBlock::Slide { slide, .. } => {
+                session.add_slide(slide)?;
             }
         }
     }

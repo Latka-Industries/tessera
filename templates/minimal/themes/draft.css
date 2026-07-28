@@ -113,3 +113,62 @@ th {
   background: var(--tes-code-bg);
   font-weight: 600;
 }
+
+/* Deck / slide layouts (named regions → CSS grid) */
+.deck {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.slide {
+  display: grid;
+  gap: 1rem 1.25rem;
+  min-height: 18rem;
+  padding: 1.5rem 1.75rem;
+  border: 1px solid var(--tes-rule);
+  border-radius: 0.4rem;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
+
+.slide[data-layout="title_body"] {
+  grid-template-areas:
+    "title"
+    "body";
+  grid-template-rows: auto 1fr;
+}
+
+.slide[data-layout="title_body_media"] {
+  grid-template-areas:
+    "title title"
+    "body media";
+  grid-template-columns: 1.4fr 1fr;
+  grid-template-rows: auto 1fr;
+}
+
+.region-title {
+  grid-area: title;
+}
+
+.region-body {
+  grid-area: body;
+}
+
+.region-media {
+  grid-area: media;
+}
+
+.region img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.region h1,
+.region h2 {
+  margin-top: 0;
+}
