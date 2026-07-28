@@ -1,8 +1,10 @@
-//! Foreign-format importers.
+//! Foreign-format importers under [`crate::io`].
 //!
 //! v0 implements the `CommonMark` subset from `docs/decisions.md`: ATX headings,
 //! paragraphs, lists, fenced code, and blockquotes. Inline presentation is
 //! parsed once and flattened into clean canonical text.
+//!
+//! HTML import lives in [`html`].
 
 pub mod html;
 
@@ -324,7 +326,7 @@ fn strip_front_matter(source: &str) -> (Option<String>, &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::export::{ExportOptions, ExportView, export_view};
+    use crate::io::export::{ExportOptions, ExportView, export_view};
     use tempfile::tempdir;
 
     #[test]

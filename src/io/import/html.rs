@@ -229,7 +229,7 @@ fn document_title(document: &Html) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::export::{ExportOptions, ExportView, export_view};
+    use crate::io::export::{ExportOptions, ExportView, export_view};
     use tempfile::tempdir;
 
     #[test]

@@ -1,4 +1,4 @@
-//! External template / theme packs (`docs/structure_v1.md`).
+//! External template / theme packs under [`crate::render`] (`docs/structure_v1.md`).
 //!
 //! Pack bytes stay outside `.tes`. The document catalog may reference a pack
 //! by `template_id` / `theme_id`; this module loads the folder + manifest.

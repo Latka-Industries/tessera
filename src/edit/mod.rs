@@ -177,14 +177,13 @@ pub fn edit_write(
             .findings
             .iter()
             .find(|f| matches!(f.severity, crate::verify::Severity::Error))
-            .map(|f| f.message.clone())
-            .unwrap_or_else(|| "deep verify failed".into());
+            .map_or_else(|| "deep verify failed".into(), |f| f.message.clone());
         return Err(TesError::EditVerifyFailed { message: first });
     }
 
     let after_tessprek = {
         // Encode from compiled bytes via a temp file for the diff projection.
-        let tmp_for_diff = sibling_temp_path(path, "diff")?;
+        let tmp_for_diff = sibling_temp_path(path, "diff");
         fs::write(&tmp_for_diff, &compiled)?;
         let report = edit_read(&tmp_for_diff);
         let _ = fs::remove_file(&tmp_for_diff);
@@ -206,7 +205,7 @@ pub fn edit_write(
         });
     }
 
-    let tmp = sibling_temp_path(path, "tmp")?;
+    let tmp = sibling_temp_path(path, "tmp");
     {
         let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
         file.write_all(&compiled)?;
@@ -280,8 +279,7 @@ pub fn apply_ops(
     let mut blocks = decode_tessprek(&before.tessprek)?;
     let mut title = source
         .catalog()
-        .map(|c| c.title.clone())
-        .unwrap_or_else(|| "Untitled".into());
+        .map_or_else(|| "Untitled".into(), |c| c.title.clone());
     apply_ops_to_blocks(&mut blocks, &mut title, ops)?;
     let compiled = seal_with_history(
         &source,
@@ -294,13 +292,12 @@ pub fn apply_ops(
             .findings
             .iter()
             .find(|f| matches!(f.severity, crate::verify::Severity::Error))
-            .map(|f| f.message.clone())
-            .unwrap_or_else(|| "deep verify failed".into());
+            .map_or_else(|| "deep verify failed".into(), |f| f.message.clone());
         return Err(TesError::EditVerifyFailed { message: first });
     }
 
     let after_tessprek = {
-        let tmp_for_diff = sibling_temp_path(path, "diff")?;
+        let tmp_for_diff = sibling_temp_path(path, "diff");
         fs::write(&tmp_for_diff, &compiled)?;
         let report = edit_read(&tmp_for_diff);
         let _ = fs::remove_file(&tmp_for_diff);
@@ -322,7 +319,7 @@ pub fn apply_ops(
         });
     }
 
-    let tmp = sibling_temp_path(path, "tmp")?;
+    let tmp = sibling_temp_path(path, "tmp");
     {
         let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
         file.write_all(&compiled)?;
@@ -383,7 +380,7 @@ fn compile_blocks_to_bytes(
         )
     });
     if let Some(title) = title_override {
-        catalog.title = title.to_owned();
+        title.clone_into(&mut catalog.title);
     }
     catalog.modified = now;
 
@@ -448,12 +445,12 @@ fn compile_blocks_to_bytes(
                 {
                     let raw = source.decode_payload(entry)?;
                     let mut full = CitePayload::from_bytes(raw.as_ref())?;
-                    full.quote = cite.quote.clone();
+                    full.quote.clone_from(&cite.quote);
                     if cite.label.is_some() {
-                        full.label = cite.label.clone();
+                        full.label.clone_from(&cite.label);
                     }
                     if cite.target_doc_id.is_some() {
-                        full.target_doc_id = cite.target_doc_id.clone();
+                        full.target_doc_id.clone_from(&cite.target_doc_id);
                     }
                     if cite.target_chunk_id.is_some() {
                         full.target_chunk_id = cite.target_chunk_id;
@@ -475,14 +472,14 @@ fn compile_blocks_to_bytes(
     session.encode_file()
 }
 
-fn sibling_temp_path(path: &Path, tag: &str) -> Result<PathBuf> {
+fn sibling_temp_path(path: &Path, tag: &str) -> PathBuf {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let stem = path
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("document.tes");
     let pid = std::process::id();
-    Ok(parent.join(format!(".{stem}.{tag}.{pid}")))
+    parent.join(format!(".{stem}.{tag}.{pid}"))
 }
 
 fn advisory_lock_path(target: &Path) -> PathBuf {

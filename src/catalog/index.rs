@@ -73,7 +73,7 @@ pub enum ChunkType {
     Slide = 5,
     /// Imported PDF page raster.
     Page = 6,
-    /// Contextual figure use referencing an [`Image`] chunk.
+    /// Contextual figure use referencing an [`Self::Image`] chunk.
     Figure = 7,
 }
 

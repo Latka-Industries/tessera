@@ -278,16 +278,18 @@ planned; blame, git textconv, and merge drivers are deferred.
 
 ## Library parity
 
-Every CLI command maps to a library entry point:
+Every CLI command maps to a library entry point. The binary only calls
+`tessera_doc::cli::run`:
 
-| CLI | Library (planned) |
+| CLI | Library |
 | --- | --- |
 | `tes info` | `tessera_doc::catalog::read_summary_v0` |
 | `tes verify` | `tessera_doc::verify::verify_tes_file` |
-| `tes export` | `tessera_doc::export::export_view` |
-| `tes import` | `tessera_doc::import::import_markdown_v0` |
+| `tes export` | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
+| `tes import` | `tessera_doc::io::import::*` / `io::bib::import_bibliography` |
+| `tes link` | `tessera_doc::vault::*` |
 | `tes save` / `log` / `diff` / `changelog` | `tessera_doc::history::*` |
-| `tes serve` | `tessera_doc::preview::serve_preview` |
+| `tes serve` | `tessera_doc::render::preview::serve_preview` |
 | `tes edit-read` | `tessera_doc::edit::edit_read` |
 | `tes edit-write` | `tessera_doc::edit::edit_write` |
 | `tes apply` | `tessera_doc::edit::apply_ops` / `apply_patch` |

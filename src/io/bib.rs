@@ -1,7 +1,7 @@
-//! Bibliography interchange (BibTeX + CSL JSON).
+//! Bibliography interchange (BibTeX + CSL JSON) under [`crate::io`].
 //!
 //! These formats are **import/export only** — never the canonical cite payload.
-//! Canonical cites live as type-`4` chunks ([`CitePayload`](crate::catalog::CitePayload)).
+//! Canonical cites live as type-`4` chunks ([`CitePayload`]).
 
 use std::fs;
 use std::path::Path;

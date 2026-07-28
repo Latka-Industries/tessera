@@ -1,49 +1,47 @@
 //! **tessera-doc** — Rust library for the Tessera open document format (`.tes`).
 //!
 //! This crate is the reference engine described in `docs/engine.md`. The v0
-//! container layer is spec'd in `docs/layout_v0.md`:
+//! container layer is spec'd in `docs/layout_v0.md`.
 //!
-//! - [`layout`] — the fixed 64-byte superblock (`TESS`) and mmap open.
-//! - [`catalog::index`] — the chunk index (`TIDX`) header and 48-byte rows.
-//! - [`catalog::session`] — [`TesWriterSession`] sealed-file writer.
-//! - [`catalog::file`] — [`TesFile`] mmap reader + catalog/index parse.
+//! ## Module map
+//!
+//! - [`layout`] — fixed 64-byte superblock (`TESS`) and mmap open.
+//! - [`catalog`] — document model: index, session writer, payloads, `THST` wire.
 //! - [`verify`] — layout health findings for `tes verify`.
-//! - [`export`] — decoded views (`--raw`, `--ai-text`, …).
-//! - [`import`] — `CommonMark` and semantic HTML compilation into chunks.
+//! - [`io`] — import / export / bibliography interchange.
 //! - [`edit`] — Tessera Markdown virtual editing (`edit-read` / `edit-write` / `apply`).
-//! - [`history`] — content-addressed drafts, `tes save` / `log` / `diff` / `changelog`.
+//! - [`history`] — content-addressed drafts (`tes save` / `log` / `diff` / `changelog`).
 //! - [`vault`] — stable link resolution and backlinks.
-//! - [`template`] — external theme/template packs.
-//! - [`preview`] — loopback `tes serve` HTML preview.
-//! - [`pdf`] — print-theme HTML → headless PDF.
-//! - [`bib`] — BibTeX / CSL-JSON bibliography interchange.
+//! - [`render`] — template packs, `tes serve` preview, and PDF print.
+//! - [`cli`] — `tes` command surface (`src/bin/tes.rs` → [`cli::run`]).
+//! - [`error`] — shared [`error::TesError`] / [`error::Result`].
+//!
+//! Crate-root aliases re-export [`io`] and [`render`] children for short paths
+//! (`tessera_doc::export`, `tessera_doc::preview`, …).
 //!
 //! Wire helpers (`LeReader` / `align8` / codecs) come from
 //! [`argus`](https://crates.io/crates/argus-chunk).
 
-pub mod bib;
 pub mod catalog;
+pub mod cli;
 pub mod edit;
 pub mod error;
-pub mod export;
 pub mod history;
-pub mod import;
+pub mod io;
 pub mod layout;
-pub mod pdf;
-pub mod preview;
-pub mod template;
+pub mod render;
 pub mod vault;
 pub mod verify;
+
+/// Crate-root aliases for [`io`] and [`render`] submodules.
+pub use io::{bib, export, import};
+pub use render::{pdf, preview, template};
 
 #[cfg(test)]
 mod tests;
 
 /// Common types for embedders: `use tessera_doc::prelude::*;`.
 pub mod prelude {
-    pub use crate::bib::{
-        BibEntry, BibFormat, BibImportOptions, export_bibliography, import_bibliography,
-        parse_bibtex,
-    };
     pub use crate::catalog::{
         ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog, FigureRef,
         ImagePayload, ImagePlacement, SlidePayload, SlideRegion, TesFile, TesInfoReport,
@@ -54,19 +52,23 @@ pub mod prelude {
         edit_read, edit_write, file_source_hash,
     };
     pub use crate::error::{Result, TesError};
-    pub use crate::export::{AiPart, ExportOptions, ExportView, export_ai_parts, export_view};
     pub use crate::history::{
         DiffEntry, DiffReport, SaveOptions, SaveReport, diff_revisions, format_changelog,
         format_diff, format_log, read_history, save_revision,
     };
-    pub use crate::import::{
+    pub use crate::io::bib::{
+        BibEntry, BibFormat, BibImportOptions, export_bibliography, import_bibliography,
+        parse_bibtex,
+    };
+    pub use crate::io::export::{AiPart, ExportOptions, ExportView, export_ai_parts, export_view};
+    pub use crate::io::import::{
         HtmlImportOptions, HtmlImportReport, MarkdownImportOptions, MarkdownImportReport,
         import_html_v0, import_markdown_v0,
     };
     pub use crate::layout::{DocKind, Region, SuperblockV0};
-    pub use crate::pdf::{PdfExportOptions, export_pdf, render_themed_html};
-    pub use crate::preview::{ServeOptions, preview_html_for_path, serve_preview};
-    pub use crate::template::{TemplateManifest, TemplatePack};
+    pub use crate::render::pdf::{PdfExportOptions, export_pdf, render_themed_html};
+    pub use crate::render::preview::{ServeOptions, preview_html_for_path, serve_preview};
+    pub use crate::render::template::{TemplateManifest, TemplatePack};
     pub use crate::vault::{Backlink, ResolvedTarget, Vault, VaultDocument};
     pub use crate::verify::{TesVerifyReport, verify_tes_file};
 }

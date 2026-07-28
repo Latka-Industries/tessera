@@ -1,7 +1,7 @@
 //! Image media payloads and contextual figure references.
 //!
-//! Image bytes live in non-reading-order [`ChunkType::Image`] chunks.
-//! Each use in reading order is a [`ChunkType::Figure`] JSON payload that
+//! Image bytes live in non-reading-order [`super::ChunkType::Image`] chunks.
+//! Each use in reading order is a [`super::ChunkType::Figure`] JSON payload that
 //! points at an image chunk with alt text, optional caption, and placement.
 
 use serde::{Deserialize, Serialize};

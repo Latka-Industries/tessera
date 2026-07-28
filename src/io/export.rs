@@ -1,4 +1,4 @@
-//! Decoded export views (`docs/exports.md`).
+//! Decoded export views under [`crate::io`] (`docs/exports.md`).
 //!
 //! Exports are **projections** of a sealed `.tes` file — never the canonical
 //! source. Models and pipelines should call these views rather than hex-dumping
@@ -9,7 +9,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
-use crate::bib::{
+use super::bib::{
     BibEntry, format_numeric_marker, format_numeric_reference, format_pandoc_cite,
     format_reference_body,
 };
@@ -314,7 +314,7 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     append_html_bibliography(&mut article, &mut bib_items);
     article.push_str("</article>\n");
 
-    wrap_html_document(file, options, &article)
+    Ok(wrap_html_document(file, options, &article))
 }
 
 fn export_deck_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -330,21 +330,21 @@ fn export_deck_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
         deck.push_str(&render_slide_html(file, entry, options)?);
     }
     deck.push_str("</main>\n");
-    wrap_html_document(file, options, &deck)
+    Ok(wrap_html_document(file, options, &deck))
 }
 
-fn wrap_html_document(file: &TesFile, options: &ExportOptions, body: &str) -> Result<String> {
+fn wrap_html_document(file: &TesFile, options: &ExportOptions, body: &str) -> String {
     let title = file
         .catalog()
         .map_or("Untitled", |catalog| catalog.title.as_str());
     let styles = html_theme_styles(options);
     if options.standalone {
-        Ok(format!(
+        format!(
             "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{}</title>\n{styles}</head>\n<body>\n{body}</body>\n</html>\n",
             escape_html(title)
-        ))
+        )
     } else {
-        Ok(format!("{styles}{body}"))
+        format!("{styles}{body}")
     }
 }
 
@@ -367,9 +367,10 @@ fn render_slide_html(
     );
     for region in &slide.regions {
         let name = escape_html(&region.name);
-        out.push_str(&format!(
-            "    <div class=\"region region-{name}\" data-region=\"{name}\">\n"
-        ));
+        let _ = writeln!(
+            out,
+            "    <div class=\"region region-{name}\" data-region=\"{name}\">"
+        );
         out.push_str(&render_region_chunk_html(file, region.chunk_id, options)?);
         out.push_str("    </div>\n");
     }
@@ -1356,9 +1357,11 @@ mod tests {
 
     #[test]
     fn research_cites_mirror_tlnk_and_export() {
-        use crate::bib::{BibEntry, BibFormat, export_bibliography, import_bibliography};
         use crate::catalog::link::LinkKind;
         use crate::catalog::{CitePayload, TesFile};
+        use crate::io::bib::{
+            BibEntry, BibFormat, BibImportOptions, export_bibliography, import_bibliography,
+        };
 
         let dir = tempdir().unwrap();
         let sample =
@@ -1368,7 +1371,7 @@ mod tests {
             &sample,
             &bib_tes,
             BibFormat::Bibtex,
-            &crate::bib::BibImportOptions::default(),
+            &BibImportOptions::default(),
         )
         .unwrap();
 

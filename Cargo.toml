@@ -22,7 +22,7 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "tes"
-path = "src/main.rs"
+path = "src/bin/tes.rs"
 
 [dependencies]
 argus-chunk = "0.1.0"

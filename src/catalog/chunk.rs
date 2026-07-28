@@ -3,8 +3,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::bib::BibEntry;
 use crate::error::{Result, TesError};
+use crate::io::bib::BibEntry;
 use argus::{LeReader, LeWriter};
 
 /// Maximum text-chunk semantic header size (4 KiB).

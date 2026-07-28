@@ -1,0 +1,9 @@
+//! Import and export surfaces for Tessera documents (`docs/exports.md`, `docs/engine.md`).
+//!
+//! - [`import`] — compile `CommonMark` / semantic HTML into `.tes` chunks.
+//! - [`export`] — decode sealed files into views (`--raw`, `--ai-text`, …).
+//! - [`bib`] — BibTeX / CSL-JSON bibliography interchange (never canonical cite wire).
+
+pub mod bib;
+pub mod export;
+pub mod import;

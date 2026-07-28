@@ -1,8 +1,8 @@
 # Tessera reference engine — architecture
 
-**Status:** architecture reference. The v0 engine through Markdown/HTML,
-vault, and verification is implemented; layout v1 additions are planned in
-[structure_v1.md](structure_v1.md).
+**Status:** architecture reference. The v0 engine through Markdown/HTML import,
+export views, vault, preview/PDF, edit, and history is implemented; layout v1
+additions are planned in [structure_v1.md](structure_v1.md).
 
 This doc sits **between** the wire spec and the user-facing CLI: how bytes become documents, how documents become exports, and what is **not** in the engine (GUI, query stack, Tetration dependency).
 
@@ -19,16 +19,16 @@ This doc sits **between** the wire spec and the user-facing CLI: how bytes becom
 
 ## What “the engine” is
 
-The **Tessera engine** is the reference library that:
+The **Tessera engine** is the reference library (`tessera_doc`) that:
 
 1. **Reads and writes** sealed `.tes` files (mmap, index lookup, payload slice).
 2. **Validates** on-disk health (`verify`).
-3. **Imports** foreign formats into chunks **once** (`import`).
-4. **Exports** decoded views for humans and models (`export`).
-5. **Resolves** cross-document links across a vault (`vault`, implemented).
-6. **Previews** semantic HTML with external templates/themes (`serve`, planned).
-7. **Applies** editor/agent changes through typed compile/verify/replace APIs
-   (planned).
+3. **Imports** foreign formats into chunks **once** (`io::import`, `io::bib`).
+4. **Exports** decoded views for humans and models (`io::export`).
+5. **Resolves** cross-document links across a vault (`vault`).
+6. **Renders** semantic HTML with external templates/themes (`render`: serve + PDF).
+7. **Applies** editor/agent changes through typed compile/verify/replace (`edit`)
+   and content-addressed history (`history`).
 
 It is **not**:
 
@@ -36,7 +36,7 @@ It is **not**:
 - The Tetration tensor query engine (`tet query`, reductions, GPU).
 - A dependency on the `tetration` crate.
 
-The CLI (`tes`) is a thin wrapper around library entry points.
+The CLI binary (`src/bin/tes.rs`) is a thin wrapper around `tessera_doc::cli::run`.
 
 ---
 
@@ -44,18 +44,18 @@ The CLI (`tes`) is a thin wrapper around library entry points.
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  tes CLI  (src/bin/tes.rs)                                  │
+│  tes CLI  (src/bin/tes.rs → tessera_doc::cli::run)          │
 └───────────────────────────────┬─────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────┐
 │  Domain layer (document semantics)                          │
-│  import/ · export/ · vault/                                 │
-│  Markdown/HTML/PDF → chunks · views · link resolution       │
+│  io/ (import · export · bib) · vault/ · edit/ · history/    │
+│  render/ (template · preview · pdf)                         │
 └───────────────────────────────┬─────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────┐
 │  Catalog layer (document model in one file)                 │
-│  catalog/ — session writer, chunk payloads, link table      │
+│  catalog/ — session writer, chunk payloads, link table, THST│
 └───────────────────────────────┬─────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────┐
@@ -72,26 +72,31 @@ The CLI (`tes`) is a thin wrapper around library entry points.
 
 ---
 
-## Planned module map
+## Module map
 
 | Module | Responsibility | Spec / doc |
 | --- | --- | --- |
 | `layout` | `SuperblockV0`, mmap open, region bounds, magic/version checks | [layout_v0.md](layout_v0.md) |
 | [argus-chunk](https://crates.io/crates/argus-chunk) | Little-endian primitives, `align8`, raw/zstd codecs | external crate |
 | `catalog::index` | `TIDX` header + 48-byte entries | [layout_v0 — chunk index](layout_v0.md#chunk-index-region) |
-| `catalog::catalog` | Document catalog JSON parse/serialize | [layout_v0 — catalog](layout_v0.md#document-catalog) |
+| `catalog::document` | Document catalog JSON parse/serialize | [layout_v0 — catalog](layout_v0.md#document-catalog) |
 | `catalog::link` | `TLNK` table read/write | [layout_v0 — link table](layout_v0.md#link-table-optional) |
 | `catalog::chunk` | Text/cite payload encode/decode | [layout_v0 — chunk types](layout_v0.md#chunk-types) |
-| `catalog::history` | Optional `THST` footer | [layout_v0 — footer](layout_v0.md#optional-history-footer-v0) |
+| `catalog::history` | Optional `THST` footer (wire) | [layout_v0 — footer](layout_v0.md#optional-history-footer-v0) |
 | `catalog::session` | `TesWriterSession` — seal one `.tes` | Phase 1 |
-| `verify` | Layout health, findings, exit code 1 | [cli — verify](cli.md#tes-verify) |
-| `export` | `--raw`, `--ai-text`, `--chunks-jsonl`, … | [exports.md](exports.md) |
-| `import` | `--markdown`, `--html`, `--pdf`, … | [decisions](decisions.md), Phase 4+ |
-| `vault` | Multi-file link resolve, backlinks, `vault.tes` | Phase 5 |
-| `template` / `preview` | Resolve packs; HTML + theme; local serve | Phase 7 |
-| `edit` / `ops` | Tessera Markdown and typed safe mutation | Layout v1 |
+| `verify` | Layout health, findings, formatters | [cli — verify](cli.md#tes-verify) |
+| `io::export` | `--raw`, `--ai-text`, `--chunks-jsonl`, … | [exports.md](exports.md) |
+| `io::import` | `--markdown`, `--html` | [decisions](decisions.md) |
+| `io::bib` | BibTeX / CSL-JSON bibliography interchange | [exports.md](exports.md#bibliography) |
+| `vault` | Multi-file link resolve, backlinks | Phase 5 |
+| `render` | Template packs, `tes serve`, print PDF | Phase 7 |
+| `edit` | Tessera Markdown + typed safe mutation | Layout v1 |
+| `history` | `save` / `log` / `diff` / `changelog` over THST | M10 |
+| `cli` | Clap surface + command runners for `tes` | [cli.md](cli.md) |
 
-`repair/` is **optional** post–v0 (Tetration parity); not in initial module tree.
+Crate-root aliases keep `tessera_doc::{export,import,bib,pdf,preview,template}` resolving to the `io` / `render` submodules.
+
+`repair/` is **optional** post–v0 (Tetration parity); not in the module tree.
 
 ---
 
@@ -104,7 +109,7 @@ flowchart LR
     S --> C["catalog: JSON + TIDX + TLNK"]
     C --> I["index row → payload_offset"]
     I --> SL["slice payload bytes"]
-    SL --> X["export view or info summary"]
+    SL --> X["io::export view or info summary"]
 ```
 
 **Steps (library):**
@@ -115,7 +120,7 @@ flowchart LR
 4. **`catalog::read_index`** — parse `TIDX` header + fixed entries.
 5. **`catalog::read_link_table`** — optional `TLNK` entries.
 6. **Payload access** — `mmap[off..off+len]`; zstd decode if `codec = 1`.
-7. **Consumers** — `tes info` summarizes; `export` decodes text headers + bodies.
+7. **Consumers** — `tes info` summarizes; `io::export` decodes text headers + bodies.
 
 Reads do **not** re-parse Markdown or HTML. Canonical text is already in chunk bodies.
 
@@ -148,7 +153,7 @@ Layout v1 mutation adds a short advisory per-file lock, source-hash recheck,
 sibling temporary output, deep verification, and atomic replacement. Existing
 mmap readers continue reading the old file until they reopen the replaced path.
 
-**Import path** builds chunks in memory then calls the same session API (`import` → `session`).
+**Import path** builds chunks in memory then calls the same session API (`io::import` → `session`).
 
 ---
 
@@ -156,8 +161,9 @@ mmap readers continue reading the old file until they reopen the replaced path.
 
 | Direction | Module | Input → output |
 | --- | --- | --- |
-| **Export** | `export` | mmap’d `.tes` → UTF-8 view (stdout or file) |
-| **Import** | `import` | foreign file → `TesWriterSession` → `.tes` |
+| **Export** | `io::export` | mmap’d `.tes` → UTF-8 view (stdout or file) |
+| **Import** | `io::import` | foreign file → `TesWriterSession` → `.tes` |
+| **Bibliography** | `io::bib` | BibTeX/CSL ↔ cite chunks |
 
 Export **never** writes back to canonical chunks except via explicit re-import. Import **parses once** at boundary; see [decisions — parse once](../README.md#design-principles).
 
@@ -167,7 +173,7 @@ View contracts: [exports.md](exports.md). CLI flags: [cli.md](cli.md).
 
 ## Verify
 
-`verify` sits in the container/catalog boundary:
+`verify` sits in the container/catalog boundary (`verify::checks` + `verify::report`):
 
 | Check | Layer |
 | --- | --- |
@@ -186,9 +192,9 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 | Tetration | Tessera engine |
 | --- | --- |
 | `layout.rs` + `catalog/` | Same **pattern**, different superblock/index/catalog |
-| `query/` (~100+ files) | **Absent** — replaced by `export/` views |
-| `convert/` (HDF5, NetCDF, Zarr) | **Absent** — replaced by `import/` (MD, HTML, PDF) |
-| `export/zarr` | **Absent** — `export` text/HTML/JSONL |
+| `query/` (~100+ files) | **Absent** — replaced by `io::export` views |
+| `convert/` (HDF5, NetCDF, Zarr) | **Absent** — replaced by `io::import` (MD, HTML) + `io::bib` |
+| `export/zarr` | **Absent** — `io::export` text/HTML/JSONL |
 | `verify/`, `repair/` | **Similar structure**, document-specific checks |
 | `THST`, `TIDX` header, codec 0/1 | **Reuse ideas**; LE wire + codecs via [argus-chunk](https://crates.io/crates/argus-chunk) |
 
@@ -196,29 +202,28 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 
 ---
 
-## v0 engine scope (Phase 1–3)
+## v0 engine scope
 
 **In:**
 
-- `layout`, `catalog` (session, index, catalog JSON, text chunks)
-- `verify` (basic)
-- `export` (`--raw`, `--linear`, `--ai-text`, `--chunks-jsonl`)
-- `tes info`, `tes verify`, `tes export`
+- `layout`, `catalog` (session, index, catalog JSON, text/media/slide chunks, THST wire)
+- `verify` (basic + deep)
+- `io::export` (`--raw`, `--linear`, `--ai-text`, `--chunks-jsonl`, Markdown/HTML, bibliography)
+- `io::import` (Markdown, HTML), `io::bib`
+- `vault`, `render` (serve + PDF), `edit`, `history` (M10 first slice)
+- `cli` + `tes` binary: info, verify, export, import, link, serve, edit-*, apply, save/log/diff/changelog
 
-**Out (later phases):**
+**Out (later):**
 
-- `import/` (Phase 4+)
-- `vault/` (Phase 5)
-- `catalog::link` write path on every save (Phase 5)
-- slide/image/page payloads (wire stub only)
-- `repair/`, `THST` on every save
+- Full layout v1 spans/tables/math
+- `repair/`, richer history (checkout, blame, merge driver)
 - Aleph, CRDT, page tensors
 
 ---
 
 ## Public API sketch (library)
 
-Embedders import `tessera_doc::prelude` (planned):
+Embedders: `use tessera_doc::prelude::*;` or module paths under `io` / `render` / `edit` / …
 
 | Type / fn | Role |
 | --- | --- |
@@ -226,9 +231,10 @@ Embedders import `tessera_doc::prelude` (planned):
 | `TesWriterSession` | create / append / commit |
 | `verify_tes_file` | health report |
 | `export_view(path, ExportView::AiText)` | decoded projection |
-| `import_markdown_v0` | Phase 4 |
+| `import_markdown_v0` / `import_html_v0` | foreign → `.tes` |
+| `cli::run` | full `tes` argv dispatch |
 
-CLI mirrors these; no duplicate logic in `src/bin/tes/`.
+CLI mirrors these; no duplicate domain logic in `src/bin/tes.rs`.
 
 ---
 
@@ -240,7 +246,7 @@ CLI mirrors these; no duplicate logic in `src/bin/tes/`.
 | Round-trip | write session → mmap read → same index/catalog |
 | Export | golden `.txt` / `.jsonl` diffs |
 | Verify | corrupt fixtures → exit 1, expected findings |
-| Import | MD → tes → export MD structure (Phase 4) |
+| Import | MD → tes → export MD structure |
 
 ---
 

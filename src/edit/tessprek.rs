@@ -78,17 +78,7 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
 pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
     let lines: Vec<&str> = input.lines().collect();
     let mut blocks = Vec::new();
-    let mut i = 0usize;
-
-    // Skip blank lines and the optional file header.
-    while i < lines.len() {
-        let trimmed = lines[i].trim();
-        if trimmed.is_empty() || trimmed.starts_with(HEADER_PREFIX) {
-            i += 1;
-            continue;
-        }
-        break;
-    }
+    let mut i = skip_header_and_blanks(&lines, 0);
 
     while i < lines.len() {
         let line_no = i + 1;
@@ -116,107 +106,154 @@ pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
             .unwrap_or("text");
 
         let body_start = i;
-        while i < lines.len() {
-            let t = lines[i].trim();
-            if t.starts_with(CHUNK_PREFIX) && t.ends_with(CHUNK_SUFFIX) {
-                break;
-            }
-            i += 1;
-        }
+        i = next_directive_index(&lines, i);
         let body = trim_block_body(&lines[body_start..i]);
-
-        match kind {
-            "text" | "paragraph" | "heading" | "list_item" | "blockquote" | "code_block"
-            | "table" => {
-                let role =
-                    parse_role(map.get("role").map(String::as_str).unwrap_or(kind), line_no)?;
-                let mut header = TextHeader {
-                    role,
-                    level: None,
-                    list_kind: None,
-                    emphasis: Vec::new(),
-                    classes: parse_classes(map.get("class").map(String::as_str)),
-                };
-                if role == TextRole::Heading {
-                    header.level = Some(required_u32(&map, "level", line_no)?.clamp(1, 6));
-                }
-                if role == TextRole::ListItem {
-                    header.list_kind = Some(parse_list_kind(
-                        map.get("list").map(String::as_str).unwrap_or("bullet"),
-                        line_no,
-                    )?);
-                }
-                let text_body = strip_markdown_wrapper(&header, &body);
-                blocks.push(ContentBlock::Text {
-                    chunk_id: Some(chunk_id),
-                    header,
-                    body: text_body,
-                });
-            }
-            "figure" => {
-                let image_chunk_id = required_u64(&map, "image", line_no)?;
-                let placement = parse_placement(
-                    map.get("placement").map(String::as_str).unwrap_or("flow"),
-                    map.get("region").map(String::as_str),
-                    line_no,
-                )?;
-                let caption = map.get("caption").cloned().filter(|s| !s.is_empty());
-                let (alt_text, img_from_md) = parse_figure_markdown(&body, line_no)?;
-                let image_chunk_id = img_from_md.unwrap_or(image_chunk_id);
-                blocks.push(ContentBlock::Figure {
-                    chunk_id: Some(chunk_id),
-                    figure: FigureRef {
-                        image_chunk_id,
-                        alt_text,
-                        caption,
-                        placement,
-                    },
-                });
-            }
-            "cite" => {
-                let label = map.get("label").cloned().filter(|s| !s.is_empty());
-                let target_doc_id = map.get("target_doc").cloned().filter(|s| !s.is_empty());
-                let target_chunk_id = optional_u64(&map, "target_chunk");
-                blocks.push(ContentBlock::Cite {
-                    chunk_id: Some(chunk_id),
-                    cite: CitePayload {
-                        quote: body,
-                        target_doc_id,
-                        target_chunk_id,
-                        target_byte_start: None,
-                        target_byte_end: None,
-                        label,
-                        page: optional_u32(&map, "page"),
-                        source: None,
-                    },
-                });
-            }
-            "slide" => {
-                let layout_id = map
-                    .get("layout")
-                    .cloned()
-                    .filter(|s| !s.is_empty())
-                    .ok_or_else(|| parse_err(line_no, 1, "slide requires layout=…"))?;
-                let regions = parse_slide_regions(
-                    map.get("regions").map(String::as_str).unwrap_or(""),
-                    line_no,
-                )?;
-                blocks.push(ContentBlock::Slide {
-                    chunk_id: Some(chunk_id),
-                    slide: SlidePayload { layout_id, regions },
-                });
-            }
-            other => {
-                return Err(parse_err(
-                    line_no,
-                    1,
-                    format!("unknown tes directive type '{other}'"),
-                ));
-            }
-        }
+        blocks.push(decode_directive_block(
+            kind, chunk_id, &map, &body, line_no,
+        )?);
     }
 
     Ok(blocks)
+}
+
+fn skip_header_and_blanks(lines: &[&str], mut i: usize) -> usize {
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
+        if trimmed.is_empty() || trimmed.starts_with(HEADER_PREFIX) {
+            i += 1;
+            continue;
+        }
+        break;
+    }
+    i
+}
+
+fn next_directive_index(lines: &[&str], mut i: usize) -> usize {
+    while i < lines.len() {
+        let t = lines[i].trim();
+        if t.starts_with(CHUNK_PREFIX) && t.ends_with(CHUNK_SUFFIX) {
+            break;
+        }
+        i += 1;
+    }
+    i
+}
+
+fn decode_directive_block(
+    kind: &str,
+    chunk_id: u64,
+    map: &std::collections::BTreeMap<String, String>,
+    body: &str,
+    line_no: usize,
+) -> Result<ContentBlock> {
+    match kind {
+        "text" | "paragraph" | "heading" | "list_item" | "blockquote" | "code_block" | "table" => {
+            decode_text_block(kind, chunk_id, map, body, line_no)
+        }
+        "figure" => decode_figure_block(chunk_id, map, body, line_no),
+        "cite" => Ok(decode_cite_block(chunk_id, map, body)),
+        "slide" => decode_slide_block(chunk_id, map, line_no),
+        other => Err(parse_err(
+            line_no,
+            1,
+            format!("unknown tes directive type '{other}'"),
+        )),
+    }
+}
+
+fn decode_text_block(
+    kind: &str,
+    chunk_id: u64,
+    map: &std::collections::BTreeMap<String, String>,
+    body: &str,
+    line_no: usize,
+) -> Result<ContentBlock> {
+    let role = parse_role(map.get("role").map_or(kind, String::as_str), line_no)?;
+    let mut header = TextHeader {
+        role,
+        level: None,
+        list_kind: None,
+        emphasis: Vec::new(),
+        classes: parse_classes(map.get("class").map(String::as_str)),
+    };
+    if role == TextRole::Heading {
+        header.level = Some(required_u32(map, "level", line_no)?.clamp(1, 6));
+    }
+    if role == TextRole::ListItem {
+        header.list_kind = Some(parse_list_kind(
+            map.get("list").map_or("bullet", String::as_str),
+            line_no,
+        )?);
+    }
+    let text_body = strip_markdown_wrapper(&header, body);
+    Ok(ContentBlock::Text {
+        chunk_id: Some(chunk_id),
+        header,
+        body: text_body,
+    })
+}
+
+fn decode_figure_block(
+    chunk_id: u64,
+    map: &std::collections::BTreeMap<String, String>,
+    body: &str,
+    line_no: usize,
+) -> Result<ContentBlock> {
+    let image_chunk_id = required_u64(map, "image", line_no)?;
+    let placement = parse_placement(
+        map.get("placement").map_or("flow", String::as_str),
+        map.get("region").map(String::as_str),
+        line_no,
+    )?;
+    let caption = map.get("caption").cloned().filter(|s| !s.is_empty());
+    let (alt_text, img_from_md) = parse_figure_markdown(body, line_no)?;
+    let image_chunk_id = img_from_md.unwrap_or(image_chunk_id);
+    Ok(ContentBlock::Figure {
+        chunk_id: Some(chunk_id),
+        figure: FigureRef {
+            image_chunk_id,
+            alt_text,
+            caption,
+            placement,
+        },
+    })
+}
+
+fn decode_cite_block(
+    chunk_id: u64,
+    map: &std::collections::BTreeMap<String, String>,
+    body: &str,
+) -> ContentBlock {
+    ContentBlock::Cite {
+        chunk_id: Some(chunk_id),
+        cite: CitePayload {
+            quote: body.to_owned(),
+            target_doc_id: map.get("target_doc").cloned().filter(|s| !s.is_empty()),
+            target_chunk_id: optional_u64(map, "target_chunk"),
+            target_byte_start: None,
+            target_byte_end: None,
+            label: map.get("label").cloned().filter(|s| !s.is_empty()),
+            page: optional_u32(map, "page"),
+            source: None,
+        },
+    }
+}
+
+fn decode_slide_block(
+    chunk_id: u64,
+    map: &std::collections::BTreeMap<String, String>,
+    line_no: usize,
+) -> Result<ContentBlock> {
+    let layout_id = map
+        .get("layout")
+        .cloned()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| parse_err(line_no, 1, "slide requires layout=…"))?;
+    let regions = parse_slide_regions(map.get("regions").map_or("", String::as_str), line_no)?;
+    Ok(ContentBlock::Slide {
+        chunk_id: Some(chunk_id),
+        slide: SlidePayload { layout_id, regions },
+    })
 }
 
 fn write_text_directive(out: &mut String, chunk_id: u64, header: &TextHeader) {
@@ -331,7 +368,7 @@ fn strip_markdown_wrapper(header: &TextHeader, body: &str) -> String {
                 rest.to_owned()
             } else {
                 // Ordered: "N. rest"
-                let digits = t.chars().take_while(|c| c.is_ascii_digit()).count();
+                let digits = t.chars().take_while(char::is_ascii_digit).count();
                 if digits > 0 {
                     let after = &t[digits..];
                     if let Some(rest) = after.strip_prefix(". ") {

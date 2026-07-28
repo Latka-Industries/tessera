@@ -1,4 +1,4 @@
-//! Local browser preview (`tes serve`).
+//! Local browser preview (`tes serve`) under [`crate::render`].
 //!
 //! Projects a `.tes` file through the same semantic HTML export used by
 //! `tes export --html`, then applies an external template/theme pack. Themes
@@ -12,10 +12,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use super::template::{TemplatePack, ThemeFallback, resolve_pack_and_theme};
 use crate::catalog::file::TesFile;
 use crate::error::{Result, TesError};
-use crate::export::{ExportOptions, ExportView, export_file};
-use crate::template::{TemplatePack, ThemeFallback, resolve_pack_and_theme};
+use crate::io::export::{ExportOptions, ExportView, export_file};
 
 /// Options for [`serve_preview`].
 #[derive(Debug, Clone)]
@@ -24,7 +24,7 @@ pub struct ServeOptions {
     pub path: PathBuf,
     /// Directory containing template pack folders.
     pub template_root: PathBuf,
-    /// Pack id; falls back to catalog `template_id`, then [`DEFAULT_TEMPLATE_ID`].
+    /// Pack id; falls back to catalog `template_id`, then [`super::template::DEFAULT_TEMPLATE_ID`].
     pub template_id: Option<String>,
     /// Theme id (`draft`, `print`, …); falls back to catalog `theme_id`, then draft.
     pub theme_id: Option<String>,
@@ -378,7 +378,7 @@ pub fn preview_html_for_path(
         template_root: template_root.as_ref().to_path_buf(),
         theme_id: theme_id
             .map(str::to_string)
-            .or_else(|| Some(crate::template::THEME_DRAFT.into())),
+            .or_else(|| Some(super::template::THEME_DRAFT.into())),
         ..ServeOptions::default()
     };
     let ctx = resolve_preview_context(&options)?;

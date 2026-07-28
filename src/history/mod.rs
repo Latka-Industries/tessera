@@ -222,7 +222,7 @@ pub fn format_log(path: impl AsRef<Path>, json: bool) -> Result<String> {
 ///
 /// # Errors
 ///
-/// Returns [`TesError::RevisionNotFound`] or history decode errors.
+/// Returns [`crate::error::TesError::RevisionNotFound`] or history decode errors.
 pub fn diff_revisions(path: impl AsRef<Path>, left: &str, right: &str) -> Result<DiffReport> {
     let history = read_history(path.as_ref())?;
     let left_rev = history.resolve(left)?;
@@ -387,12 +387,14 @@ fn text_diff_for_changes(
         }
         let left_bytes = history.get_payload(from_hash)?;
         let right_bytes = history.get_payload(to_hash)?;
-        let left_body = decode_text_payload(&left_bytes)
-            .map(|(_, body)| body)
-            .unwrap_or_else(|_| String::from_utf8_lossy(&left_bytes).into_owned());
-        let right_body = decode_text_payload(&right_bytes)
-            .map(|(_, body)| body)
-            .unwrap_or_else(|_| String::from_utf8_lossy(&right_bytes).into_owned());
+        let left_body = decode_text_payload(&left_bytes).map_or_else(
+            |_| String::from_utf8_lossy(&left_bytes).into_owned(),
+            |(_, body)| body,
+        );
+        let right_body = decode_text_payload(&right_bytes).map_or_else(
+            |_| String::from_utf8_lossy(&right_bytes).into_owned(),
+            |(_, body)| body,
+        );
         let _ = writeln!(
             out,
             "@@ chunk {chunk_id} ({} → {}) @@\n{}",
@@ -451,8 +453,7 @@ fn chrono_like_now() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_secs());
     // Keep deterministic enough for tests; not a full chrono dependency.
     format!("unix:{secs}")
 }

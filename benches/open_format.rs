@@ -11,8 +11,8 @@ use tempfile::tempdir;
 use tessera_doc::catalog::{
     DocumentCatalog, LinkEntry, LinkKind, TesFile, TesWriterSession, TextHeader,
 };
-use tessera_doc::export::{ExportOptions, ExportView, export_view};
-use tessera_doc::import::{MarkdownImportOptions, import_markdown_v0};
+use tessera_doc::io::export::{ExportOptions, ExportView, export_view};
+use tessera_doc::io::import::{MarkdownImportOptions, import_markdown_v0};
 use tessera_doc::layout::DocKind;
 use tessera_doc::vault::Vault;
 use uuid::Uuid;

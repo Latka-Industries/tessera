@@ -220,7 +220,7 @@ fn format_counts(counts: &BTreeMap<&'static str, usize>) -> String {
 ///
 /// # Errors
 ///
-/// Returns [`TesError::Json`] if serialization fails.
+/// Returns [`crate::error::TesError::Json`] if serialization fails.
 pub fn format_info_json(report: &TesInfoReport) -> Result<String> {
     Ok(serde_json::to_string_pretty(report)?)
 }

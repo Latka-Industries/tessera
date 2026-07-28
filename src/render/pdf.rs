@@ -1,4 +1,4 @@
-//! Print/PDF export via the semantic HTML + print-theme pipeline.
+//! Print/PDF export under [`crate::render`] via the semantic HTML + print-theme pipeline.
 //!
 //! Browser preview (`tes serve --theme print`) and `tes export --pdf` share the
 //! same HTML render. PDF generation shells out to a Chromium-family browser in
@@ -10,17 +10,17 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use super::template::{THEME_PRINT, ThemeFallback, resolve_pack_and_theme};
 use crate::catalog::file::TesFile;
 use crate::error::{Result, TesError};
-use crate::export::{ExportOptions, ExportView, export_file};
-use crate::template::{THEME_PRINT, ThemeFallback, resolve_pack_and_theme};
+use crate::io::export::{ExportOptions, ExportView, export_file};
 
 /// Options for themed HTML and PDF export.
 #[derive(Debug, Clone)]
 pub struct PdfExportOptions {
     /// Directory containing template pack folders.
     pub template_root: PathBuf,
-    /// Pack id; falls back to catalog `template_id`, then [`DEFAULT_TEMPLATE_ID`].
+    /// Pack id; falls back to catalog `template_id`, then [`super::template::DEFAULT_TEMPLATE_ID`].
     pub template_id: Option<String>,
     /// Theme id; defaults to [`THEME_PRINT`].
     pub theme_id: Option<String>,
@@ -46,7 +46,8 @@ impl Default for PdfExportOptions {
 /// # Errors
 ///
 /// Returns open/parse errors from [`TesFile::open`], template resolution errors
-/// from [`TemplatePack::resolve`], or HTML export errors from [`export_file`].
+/// from [`super::template::TemplatePack::resolve`], or HTML export errors from
+/// [`crate::io::export::export_file`].
 pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) -> Result<String> {
     let path = path.as_ref();
     let file = TesFile::open(path)?;

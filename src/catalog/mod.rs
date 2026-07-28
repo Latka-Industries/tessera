@@ -1,4 +1,7 @@
 //! Catalog layer: the document model stored inside a single `.tes` file.
+//!
+//! Session writer, mmap reader, chunk payloads, link table, media/slides, and
+//! optional `THST` history wire ([`history`]).
 
 pub mod chunk;
 pub mod document;

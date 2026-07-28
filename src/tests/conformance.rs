@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::export::{ExportOptions, ExportView, export_view};
+use crate::io::export::{ExportOptions, ExportView, export_view};
 use crate::verify::verify_tes_file;
 
 fn conformance_root() -> PathBuf {

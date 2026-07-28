@@ -10,6 +10,7 @@
 //! Layout version stays **0**.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -233,7 +234,7 @@ pub fn revision_id(parent: Option<&str>, catalog_hash: &str, chunks: &[ChunkMani
     material.push_str(catalog_hash);
     material.push('\n');
     for c in chunks {
-        material.push_str(&format!("{}:{}:{}\n", c.id, c.chunk_type, c.hash));
+        let _ = writeln!(material, "{}:{}:{}", c.id, c.chunk_type, c.hash);
     }
     let digest = content_hash(material.as_bytes());
     format!("rev_{}", &digest[..16])
@@ -323,6 +324,7 @@ pub fn decode_footer(bytes: &[u8]) -> Result<HistoryV1> {
 /// Byte length of the THST suffix at EOF, if present and well-formed.
 ///
 /// Returns `None` when magic is absent (caller decides based on the flag).
+#[must_use]
 pub fn footer_suffix_len(bytes: &[u8]) -> Option<usize> {
     if bytes.len() < TRAILER_FIXED_LEN || bytes[bytes.len() - 4..] != THST_MAGIC {
         return None;

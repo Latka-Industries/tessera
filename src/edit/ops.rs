@@ -60,7 +60,7 @@ pub fn apply_ops_to_blocks(
     for op in ops {
         match op {
             TesOp::SetTitle { title: next } => {
-                *title = next.clone();
+                title.clone_from(next);
             }
             TesOp::SetText {
                 chunk_id,
@@ -86,9 +86,9 @@ pub fn apply_ops_to_blocks(
                             header.level = Some(level.clamp(1, 6));
                         }
                         if let Some(class) = class {
-                            header.classes = class.clone();
+                            header.classes.clone_from(class);
                         }
-                        *b = body.clone();
+                        b.clone_from(body);
                     }
                     _ => {
                         return Err(TesError::EditOp {
@@ -100,7 +100,7 @@ pub fn apply_ops_to_blocks(
             TesOp::AppendParagraph { body, class } => {
                 let mut header = TextHeader::paragraph();
                 if let Some(class) = class {
-                    header.classes = class.clone();
+                    header.classes.clone_from(class);
                 }
                 blocks.push(ContentBlock::Text {
                     chunk_id: None,
