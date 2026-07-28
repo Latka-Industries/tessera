@@ -13,6 +13,7 @@ Byte-exact containers for layout / writer / verify tests.
 | `slide_deck.tes` | Deck with `title_body` slide regions |
 | `research_cite.tes` | Research doc with cite chunk + citation `TLNK` |
 | `figure_sample.tes` | 1×1 PNG image + figure ref |
+| `attachment_sample.tes` | Inert PDF attachment (`notes.pdf`) |
 
 Regenerate after writer changes:
 

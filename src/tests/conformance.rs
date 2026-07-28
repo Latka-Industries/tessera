@@ -43,7 +43,7 @@ fn must_accept_deep_verify() {
 }
 
 #[test]
-fn must_reject_verify() {
+fn must_reject_deep_verify() {
     let reject = conformance_root().join("reject");
     let paths = list_tes(&reject);
     assert!(
@@ -52,10 +52,10 @@ fn must_reject_verify() {
         reject.display()
     );
     for path in paths {
-        if let Ok(report) = verify_tes_file(&path, false) {
+        if let Ok(report) = verify_tes_file(&path, true) {
             assert!(
                 !report.ok,
-                "{} should reject, but verify reported ok",
+                "{} should reject under deep verify, but verify reported ok",
                 path.display()
             );
         }
@@ -67,4 +67,26 @@ fn note_one_chunk_raw_export_stable() {
     let path = conformance_root().join("accept/note_one_chunk.tes");
     let out = export_view(&path, ExportView::Raw, &ExportOptions::default()).unwrap();
     assert_eq!(out.trim_end(), "Hello from Tessera.");
+}
+
+#[test]
+fn layout_v1_text_markdown_export_snapshot() {
+    let path = conformance_root().join("accept/layout_v1_text.tes");
+    let out = export_view(&path, ExportView::Markdown, &ExportOptions::default()).unwrap();
+    assert!(
+        out.contains("**Strong**") || out.contains("*emphasis*") || out.contains("Strong"),
+        "expected spanned prose, got:\n{out}"
+    );
+    assert!(
+        out.contains("E = mc^2") || out.contains("$$"),
+        "expected math projection, got:\n{out}"
+    );
+    assert!(
+        out.contains("rust") || out.contains("fn main"),
+        "expected code block, got:\n{out}"
+    );
+    assert!(
+        out.contains('|') || out.contains("A"),
+        "expected table projection, got:\n{out}"
+    );
 }

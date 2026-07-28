@@ -4,9 +4,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::catalog::{
-    CitePayload, DocumentCatalog, FigureRef, ImagePayload, ImagePlacement, InlineKind, InlineSpan,
-    LinkEntry, LinkKind, ListKind, SlidePayload, SlideRegion, TableCell, TableData, TableRow,
-    TesWriterSession, TextAlign, TextHeader,
+    AttachmentPayload, CitePayload, DocumentCatalog, FigureRef, ImagePayload, ImagePlacement,
+    InlineKind, InlineSpan, LinkEntry, LinkKind, ListKind, SlidePayload, SlideRegion, TableCell,
+    TableData, TableRow, TesWriterSession, TextAlign, TextHeader,
 };
 use crate::layout::{DocKind, SUPERBLOCK_LEN, SuperblockV0};
 use crate::verify::verify_tes_file;
@@ -298,6 +298,34 @@ fn expected_figure_sample() -> Vec<u8> {
     session.encode_file().unwrap()
 }
 
+fn expected_attachment_sample() -> Vec<u8> {
+    let mut session = TesWriterSession::create("attachment_sample.tes", DocKind::Note);
+    session
+        .set_catalog(DocumentCatalog::new(
+            "550e8400-e29b-41d4-a716-446655440070",
+            "Attachment specimen",
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Note,
+        ))
+        .unwrap();
+    session
+        .add_text_chunk(&TextHeader::heading(1), "Attachments")
+        .unwrap();
+    session
+        .add_attachment_chunk(
+            &AttachmentPayload::new(
+                "application/pdf",
+                "notes.pdf",
+                b"%PDF-1.4 fixture".to_vec(),
+                Some("Sample notes".into()),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    session.encode_file().unwrap()
+}
+
 fn expected_external_links() -> Vec<u8> {
     let mut session = TesWriterSession::create("external_links.tes", DocKind::Note);
     session
@@ -401,6 +429,11 @@ fn research_cite_tes_matches_encoder() {
 #[test]
 fn figure_sample_tes_matches_encoder() {
     assert_matches_encoder("figure_sample.tes", expected_figure_sample());
+}
+
+#[test]
+fn attachment_sample_tes_matches_encoder() {
+    assert_matches_encoder("attachment_sample.tes", expected_attachment_sample());
 }
 
 #[test]

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke the layout-v1 / shipped golden fixtures (no heredoc traps).
+# Smoke goldens + conformance kit after fixture regen (no heredoc traps).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,6 +16,22 @@ echo "TES=$TES"
 echo "=== deep verify fixtures/v0 ==="
 "$TES" verify --deep fixtures/v0/*.tes --quiet
 
+echo "=== deep verify conformance accept ==="
+"$TES" verify --deep fixtures/conformance/accept/*.tes --quiet
+
+echo "=== deep verify conformance reject (must fail) ==="
+shopt -s nullglob
+failed=0
+for f in fixtures/conformance/reject/*.tes; do
+  if "$TES" verify --deep "$f" --quiet; then
+    echo "expected reject, but deep verify succeeded: $f" >&2
+    failed=1
+  else
+    echo "ok reject: $(basename "$f")"
+  fi
+done
+[[ "$failed" -eq 0 ]]
+
 echo "=== layout_v1_text textconv (expect math + rust + table) ==="
 "$TES" textconv fixtures/v0/layout_v1_text.tes
 
@@ -25,9 +41,10 @@ WORKDIR="$(mktemp -d /tmp/tessera-layout-XXXXXX)"
 "$TES" info "$WORKDIR/imported.tes"
 "$TES" textconv "$WORKDIR/imported.tes"
 
-echo "=== slide / cite / figure info ==="
+echo "=== slide / cite / figure / attachment info ==="
 "$TES" info fixtures/v0/slide_deck.tes --quiet
 "$TES" info fixtures/v0/research_cite.tes --quiet
 "$TES" info fixtures/v0/figure_sample.tes --quiet
+"$TES" info fixtures/v0/attachment_sample.tes --quiet
 
 echo "OK (workdir=$WORKDIR)"

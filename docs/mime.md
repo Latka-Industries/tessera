@@ -56,7 +56,10 @@ Must-accept / must-reject fixtures live under
 compatibility must:
 
 1. **Accept** every file in `accept/` (`tes verify --deep` exits 0).
-2. **Reject** every file in `reject/` (`tes verify` exits 1 with at least one
-   error finding).
+2. **Reject** every file in `reject/` (`tes verify --deep` exits 1 with at
+   least one error finding).
 
-See also [structure_v1.md — Forward compatibility and conformance](structure_v1.md#forward-compatibility-and-conformance).
+Structural rejects fail even shallow verify; layout-v1 / attachment rejects
+require deep payload decode. See
+[`fixtures/conformance/README.md`](../fixtures/conformance/README.md) for the
+file list and regenerate commands.

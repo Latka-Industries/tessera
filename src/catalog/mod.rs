@@ -15,8 +15,9 @@ pub mod session;
 pub mod slide;
 
 pub use chunk::{
-    CitePayload, InlineKind, InlineSpan, ListKind, TableCell, TableData, TableRow, TextAlign,
-    TextHeader, TextRole, decode_text_payload, encode_text_payload,
+    CitePayload, InlineKind, InlineSpan, ListKind, TEXT_HEADER_MAX_BYTES, TableCell, TableData,
+    TableRow, TextAlign, TextHeader, TextRole, decode_text_payload, encode_text_payload,
+    encode_u32_prefixed, split_u32_prefixed,
 };
 pub use document::DocumentCatalog;
 pub use file::TesFile;
