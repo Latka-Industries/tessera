@@ -233,18 +233,23 @@ Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
 
 ---
 
-## Planned history commands (M10)
+## History commands (M10)
 
 ```bash
-tes save paper.tes --draft outline
+tes save paper.tes --draft outline -m "first cut"
 tes log paper.tes
-tes diff paper.tes rev-a rev-b --format tessprek
+tes diff paper.tes rev-a rev-b
 tes changelog paper.tes --between rev-a rev-b
-tes export-revs paper.tes --all-drafts -o drafts/
 ```
 
-Every exported revision is self-contained. Logical full drafts share
-content-addressed payloads only while stored inside the history-bearing source.
+`tes save` appends a content-addressed revision (exact-hash payload store +
+chunk manifests) into the optional `THST` footer without bumping
+`layout_version`. Drafts are named pointers into that revision list.
+Structural `tes diff` / `tes changelog` compare chunk ids and hashes, then
+show text line diffs for changed text payloads.
+
+Every exported revision materialization (`export-revs` / checkout) remains
+planned; blame, git textconv, and merge drivers are deferred.
 
 ---
 
@@ -281,6 +286,7 @@ Every CLI command maps to a library entry point:
 | `tes verify` | `tessera_doc::verify::verify_tes_file` |
 | `tes export` | `tessera_doc::export::export_view` |
 | `tes import` | `tessera_doc::import::import_markdown_v0` |
+| `tes save` / `log` / `diff` / `changelog` | `tessera_doc::history::*` |
 | `tes serve` | `tessera_doc::preview::serve_preview` |
 | `tes edit-read` | `tessera_doc::edit::edit_read` |
 | `tes edit-write` | `tessera_doc::edit::edit_write` |

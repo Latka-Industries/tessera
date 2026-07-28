@@ -326,6 +326,47 @@ pub fn base64_encode(data: &[u8]) -> String {
     out
 }
 
+/// Decode standard Base64 (RFC 4648), ignoring whitespace.
+///
+/// # Errors
+///
+/// Returns an error string when the input is truncated or contains invalid chars.
+pub fn base64_decode(input: &str) -> std::result::Result<Vec<u8>, String> {
+    fn val(c: u8) -> std::result::Result<u8, String> {
+        match c {
+            b'A'..=b'Z' => Ok(c - b'A'),
+            b'a'..=b'z' => Ok(c - b'a' + 26),
+            b'0'..=b'9' => Ok(c - b'0' + 52),
+            b'+' => Ok(62),
+            b'/' => Ok(63),
+            other => Err(format!("invalid base64 byte {other}")),
+        }
+    }
+
+    let filtered: Vec<u8> = input.bytes().filter(|b| !b.is_ascii_whitespace()).collect();
+    if !filtered.len().is_multiple_of(4) {
+        return Err("base64 length not a multiple of 4".into());
+    }
+    let mut out = Vec::with_capacity(filtered.len() / 4 * 3);
+    for chunk in filtered.chunks_exact(4) {
+        let pad = usize::from(chunk[2] == b'=') + usize::from(chunk[3] == b'=');
+        let n0 = val(chunk[0])?;
+        let n1 = val(chunk[1])?;
+        let n2 = if chunk[2] == b'=' { 0 } else { val(chunk[2])? };
+        let n3 = if chunk[3] == b'=' { 0 } else { val(chunk[3])? };
+        let n =
+            (u32::from(n0) << 18) | (u32::from(n1) << 12) | (u32::from(n2) << 6) | u32::from(n3);
+        out.push(((n >> 16) & 0xff) as u8);
+        if pad < 2 {
+            out.push(((n >> 8) & 0xff) as u8);
+        }
+        if pad < 1 {
+            out.push((n & 0xff) as u8);
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

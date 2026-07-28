@@ -286,6 +286,20 @@ pub enum TesError {
         /// First verify error message.
         message: String,
     },
+
+    /// History footer / revision store is invalid.
+    #[error("invalid history: {message}")]
+    InvalidHistory {
+        /// Human-readable reason.
+        message: String,
+    },
+
+    /// Requested revision or draft was not found.
+    #[error("revision '{id}' not found")]
+    RevisionNotFound {
+        /// Missing revision id or draft name.
+        id: String,
+    },
 }
 
 impl From<argus::BufferTooShort> for TesError {

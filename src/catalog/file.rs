@@ -64,7 +64,8 @@ impl TesFile {
         let links = read_link_table(link_bytes)?;
 
         // Light payload-bound check (full verify lands in THI-6).
-        let file_len = mmap.len() as u64;
+        let usable_len =
+            crate::catalog::history::usable_file_len(&mmap, superblock.has_history_footer());
         for entry in &chunks {
             let end = entry
                 .payload_offset
@@ -73,14 +74,14 @@ impl TesFile {
                     structure: "chunk_payload",
                     offset: entry.payload_offset,
                     length: entry.stored_byte_len,
-                    file_len,
+                    file_len: usable_len,
                 })?;
-            if end > file_len {
+            if end > usable_len {
                 return Err(TesError::OutOfBounds {
                     structure: "chunk_payload",
                     offset: entry.payload_offset,
                     length: entry.stored_byte_len,
-                    file_len,
+                    file_len: usable_len,
                 });
             }
         }
@@ -119,6 +120,27 @@ impl TesFile {
         self.catalog.as_ref()
     }
 
+    /// Decode the optional THST history footer (M10).
+    ///
+    /// # Errors
+    ///
+    /// Returns history decode errors when the history flag is set but the
+    /// trailer is malformed. Returns `Ok(None)` when the flag is clear.
+    pub fn history(&self) -> Result<Option<crate::catalog::history::HistoryV1>> {
+        if !self.superblock.has_history_footer() {
+            return Ok(None);
+        }
+        let suffix = crate::catalog::history::footer_suffix_len(&self.mmap).ok_or_else(|| {
+            TesError::InvalidHistory {
+                message: "HISTORY_FOOTER flag set but THST trailer missing".into(),
+            }
+        })?;
+        let start = self.mmap.len() - suffix;
+        Ok(Some(crate::catalog::history::decode_footer(
+            &self.mmap[start..],
+        )?))
+    }
+
     /// Chunk index rows (no payload bodies).
     #[must_use]
     pub fn chunks(&self) -> &[ChunkIndexEntry] {
@@ -144,7 +166,10 @@ impl TesFile {
     /// Returns [`TesError::OutOfBounds`] if the entry's payload region extends
     /// past the mapped file length.
     pub fn payload_bytes(&self, entry: &ChunkIndexEntry) -> Result<&[u8]> {
-        let file_len = self.file_len();
+        let usable_len = crate::catalog::history::usable_file_len(
+            &self.mmap,
+            self.superblock.has_history_footer(),
+        );
         let end = entry
             .payload_offset
             .checked_add(entry.stored_byte_len)
@@ -152,14 +177,14 @@ impl TesFile {
                 structure: "chunk_payload",
                 offset: entry.payload_offset,
                 length: entry.stored_byte_len,
-                file_len,
+                file_len: usable_len,
             })?;
-        if end > file_len {
+        if end > usable_len {
             return Err(TesError::OutOfBounds {
                 structure: "chunk_payload",
                 offset: entry.payload_offset,
                 length: entry.stored_byte_len,
-                file_len,
+                file_len: usable_len,
             });
         }
         Ok(&self.mmap[entry.payload_offset as usize..end as usize])

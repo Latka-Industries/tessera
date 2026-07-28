@@ -17,6 +17,7 @@ use time::format_description::well_known::Rfc3339;
 
 use crate::catalog::chunk::{CitePayload, TextHeader};
 use crate::catalog::document::DocumentCatalog;
+use crate::catalog::history::attach_footer;
 use crate::catalog::index::ChunkType;
 use crate::catalog::media::{FigureRef, ImagePayload};
 use crate::catalog::slide::SlidePayload;
@@ -168,7 +169,7 @@ pub fn edit_write(
     let before = edit_read(path)?;
     let source = TesFile::open(path)?;
     let blocks = decode_tessprek(tessprek)?;
-    let compiled = compile_blocks_to_bytes(&source, &blocks, None)?;
+    let compiled = seal_with_history(&source, compile_blocks_to_bytes(&source, &blocks, None)?)?;
 
     let verify = verify_bytes(path, &compiled, true);
     if !verify.ok {
@@ -282,7 +283,10 @@ pub fn apply_ops(
         .map(|c| c.title.clone())
         .unwrap_or_else(|| "Untitled".into());
     apply_ops_to_blocks(&mut blocks, &mut title, ops)?;
-    let compiled = compile_blocks_to_bytes(&source, &blocks, Some(title.as_str()))?;
+    let compiled = seal_with_history(
+        &source,
+        compile_blocks_to_bytes(&source, &blocks, Some(title.as_str()))?,
+    )?;
 
     let verify = verify_bytes(path, &compiled, true);
     if !verify.ok {
@@ -349,6 +353,14 @@ pub fn apply_ops(
         diff,
         replaced: true,
     })
+}
+
+/// Re-attach an existing THST footer so edits do not drop revision history.
+fn seal_with_history(source: &TesFile, body: Vec<u8>) -> Result<Vec<u8>> {
+    match source.history()? {
+        Some(history) => attach_footer(body, &history),
+        None => Ok(body),
+    }
 }
 
 fn compile_blocks_to_bytes(

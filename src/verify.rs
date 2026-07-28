@@ -286,8 +286,12 @@ fn verify_payload_bounds(
     file_len: u64,
     deep: bool,
 ) {
-    // THST footer handling lands with history support.
-    let usable_len = file_len;
+    let has_history = file_len >= 64
+        && (u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]])
+            & crate::layout::flags::HISTORY_FOOTER
+            != 0);
+    let usable_len = crate::catalog::history::usable_file_len(bytes, has_history);
+    let _ = file_len;
     for entry in entries {
         let check_id = "chunk.payload_bounds";
         match entry.payload_offset.checked_add(entry.stored_byte_len) {
@@ -301,7 +305,7 @@ fn verify_payload_bounds(
             Some(end) if end > usable_len => findings.push(Finding::error(
                 check_id,
                 format!(
-                    "chunk {} spans {}..{} beyond file_len {usable_len}",
+                    "chunk {} spans {}..{} beyond usable_len {usable_len}",
                     entry.chunk_id, entry.payload_offset, end
                 ),
             )),
@@ -333,13 +337,27 @@ fn verify_history_footer(
     bytes: &[u8],
     file_len: u64,
 ) {
-    if superblock.has_history_footer()
-        && (file_len < 16 || &bytes[file_len as usize - 4..] != b"THST")
-    {
+    if !superblock.has_history_footer() {
+        return;
+    }
+    if file_len < 16 || &bytes[file_len as usize - 4..] != b"THST" {
         findings.push(Finding::error(
             "history.footer",
             "flags set HISTORY_FOOTER but THST magic missing at EOF",
         ));
+        return;
+    }
+    match crate::catalog::history::footer_suffix_len(bytes) {
+        None => findings.push(Finding::error(
+            "history.footer",
+            "THST magic present but trailer length is invalid",
+        )),
+        Some(suffix) => {
+            if let Err(err) = crate::catalog::history::decode_footer(&bytes[bytes.len() - suffix..])
+            {
+                findings.push(Finding::error("history.decode", err.to_string()));
+            }
+        }
     }
 }
 

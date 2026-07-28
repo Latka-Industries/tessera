@@ -4,10 +4,11 @@
 //! on [`TesWriterSession::commit`]. File map (v0 reference writer):
 //!
 //! ```text
-//! Superblock (64) | Catalog? | TIDX? | Payloads…
+//! Superblock (64) | Catalog? | TIDX? | Payloads… | THST?
 //! ```
 //!
-//! Link table and `THST` footer are not emitted in this first merge.
+//! The optional `THST` footer is attached by [`crate::history::save_revision`]
+//! (and preserved across edit writes), not by this session.
 
 use std::fs::OpenOptions;
 use std::io::Write;

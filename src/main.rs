@@ -2,8 +2,9 @@
 //!
 //! See `docs/cli.md` for the full command surface. This binary ships `info`,
 //! `verify`, `export` (including `--pdf`), CommonMark/HTML `import`,
-//! vault-aware `link`, loopback `serve` preview, and Tessera Markdown
-//! `edit-read` / `edit-write` / `apply` mutation.
+//! vault-aware `link`, loopback `serve` preview, Tessera Markdown
+//! `edit-read` / `edit-write` / `apply`, and M10 history
+//! `save` / `log` / `diff` / `changelog`.
 
 use std::env;
 use std::fs;
@@ -21,6 +22,9 @@ use tessera_doc::edit::{
 };
 use tessera_doc::error::TesError;
 use tessera_doc::export::{ExportOptions, ExportView, export_view};
+use tessera_doc::history::{
+    SaveOptions, diff_revisions, format_changelog, format_diff, format_log, save_revision,
+};
 use tessera_doc::import::{
     HtmlImportOptions, MarkdownImportOptions, import_html_v0, import_markdown_v0,
 };
@@ -100,6 +104,18 @@ enum Commands {
 
     /// Apply Tessera Markdown patch or typed JSON ops through the mutation gate
     Apply(ApplyArgs),
+
+    /// Snapshot the sealed body into a content-addressed history revision
+    Save(SaveArgs),
+
+    /// List revisions / drafts from the THST footer
+    Log(LogArgs),
+
+    /// Structural diff between two revisions or draft names
+    Diff(DiffArgs),
+
+    /// Changelog summary between two revisions or draft names
+    Changelog(ChangelogArgs),
 }
 
 /// Flags for `tes export`.
@@ -309,7 +325,7 @@ struct ApplyArgs {
     /// Expected SHA-256 of the current on-disk file
     #[arg(long = "source-hash", required = true)]
     source_hash: String,
-    /// JSON array of typed TesOp mutations
+    /// JSON array of typed `TesOp` mutations
     #[arg(long)]
     ops: Option<PathBuf>,
     /// Full Tessera Markdown replacement patch
@@ -318,6 +334,50 @@ struct ApplyArgs {
     /// Compile and verify without replacing; print a line diff
     #[arg(long)]
     dry_run: bool,
+}
+
+/// Flags for `tes save`.
+#[derive(Debug, Args)]
+struct SaveArgs {
+    /// Path to a .tes file
+    path: PathBuf,
+    /// Named draft to update
+    #[arg(long)]
+    draft: Option<String>,
+    /// Optional message stored on the revision
+    #[arg(short = 'm', long)]
+    message: Option<String>,
+}
+
+/// Flags for `tes log`.
+#[derive(Debug, Args)]
+struct LogArgs {
+    /// Path to a .tes file
+    path: PathBuf,
+    /// Emit full history JSON
+    #[arg(long)]
+    json: bool,
+}
+
+/// Flags for `tes diff`.
+#[derive(Debug, Args)]
+struct DiffArgs {
+    /// Path to a .tes file
+    path: PathBuf,
+    /// Left revision id or draft name
+    left: String,
+    /// Right revision id or draft name
+    right: String,
+}
+
+/// Flags for `tes changelog`.
+#[derive(Debug, Args)]
+struct ChangelogArgs {
+    /// Path to a .tes file
+    path: PathBuf,
+    /// Left revision id or draft name
+    #[arg(long = "between", num_args = 2, value_names = ["LEFT", "RIGHT"])]
+    between: Vec<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -362,6 +422,10 @@ fn main() -> ExitCode {
         Commands::EditRead(args) => result_exit(run_edit_read(args)),
         Commands::EditWrite(args) => result_exit(run_edit_write(args)),
         Commands::Apply(args) => result_exit(run_apply(args)),
+        Commands::Save(args) => result_exit(run_save(args)),
+        Commands::Log(args) => result_exit(run_log(args)),
+        Commands::Diff(args) => result_exit(run_diff(args)),
+        Commands::Changelog(args) => result_exit(run_changelog(args)),
     }
 }
 
@@ -651,6 +715,46 @@ fn run_apply(args: ApplyArgs) -> Result<(), TesError> {
     };
     print_edit_write_report(&report);
     Ok(())
+}
+
+fn run_save(args: SaveArgs) -> Result<(), TesError> {
+    let report = save_revision(
+        &args.path,
+        &SaveOptions {
+            draft: args.draft,
+            message: args.message,
+            ..SaveOptions::default()
+        },
+    )?;
+    println!(
+        "saved {}\trev={}\tdraft={}\trevisions={}",
+        report.path.display(),
+        report.revision_id,
+        report.draft.as_deref().unwrap_or("-"),
+        report.revision_count
+    );
+    Ok(())
+}
+
+fn run_log(args: LogArgs) -> Result<(), TesError> {
+    let out = format_log(&args.path, args.json)?;
+    print_out(&out)
+}
+
+fn run_diff(args: DiffArgs) -> Result<(), TesError> {
+    let report = diff_revisions(&args.path, &args.left, &args.right)?;
+    print_out(&format_diff(&report))
+}
+
+fn run_changelog(args: ChangelogArgs) -> Result<(), TesError> {
+    if args.between.len() != 2 {
+        return Err(TesError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "--between requires LEFT RIGHT",
+        )));
+    }
+    let out = format_changelog(&args.path, &args.between[0], &args.between[1])?;
+    print_out(&out)
 }
 
 fn require_tessprek(format: &str) -> Result<(), TesError> {

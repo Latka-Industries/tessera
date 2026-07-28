@@ -314,20 +314,27 @@ Decode: zstd frame → exactly `raw_byte_len` bytes.
 
 ---
 
-## Optional history footer (v0)
+## Optional history footer (v0 / M10)
 
 When superblock **`flags & 1`**, suffix at EOF (same pattern as Tetration **`THST`**):
 
 | Region | Notes |
 | --- | --- |
-| `history_json` | UTF-8 JSON: `{ "history": [...], "metadata": {...} }` |
+| `history_json` | UTF-8 JSON history document |
 | `history_json_len` | `u64` LE |
-| `history_version` | `u32` LE = **0** |
+| `history_version` | `u32` LE — **0** legacy stub rows, **1** M10 schema |
 | magic | ASCII **`THST`** |
 
-**`history` row:** `{ "op", "source", "at", "parents"? }` — e.g. `import`, `gui_save`, `tes import`.
+**`history_version = 1`** JSON (`format: "tessera-history"`) stores:
 
-Chunk payload bounds use **`file_len − footer_suffix`** when flag set.
+- `revisions[]` — logical full manifests (`chunk id → payload sha256`);
+- `store` — exact-hash content-addressed payloads (sha256 → base64);
+- `drafts` — named pointers into revision ids;
+- `head` — tip revision;
+- `pending` — reserved for authored `TesOp` suggestions (redline later).
+
+Chunk payload bounds use **`file_len − footer_suffix`** when the flag is set.
+Layout version stays **0**; only the trailer `history_version` advances.
 
 ---
 

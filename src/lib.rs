@@ -11,6 +11,7 @@
 //! - [`export`] — decoded views (`--raw`, `--ai-text`, …).
 //! - [`import`] — `CommonMark` and semantic HTML compilation into chunks.
 //! - [`edit`] — Tessera Markdown virtual editing (`edit-read` / `edit-write` / `apply`).
+//! - [`history`] — content-addressed drafts, `tes save` / `log` / `diff` / `changelog`.
 //! - [`vault`] — stable link resolution and backlinks.
 //! - [`template`] — external theme/template packs.
 //! - [`preview`] — loopback `tes serve` HTML preview.
@@ -25,6 +26,7 @@ pub mod catalog;
 pub mod edit;
 pub mod error;
 pub mod export;
+pub mod history;
 pub mod import;
 pub mod layout;
 pub mod pdf;
@@ -53,6 +55,10 @@ pub mod prelude {
     };
     pub use crate::error::{Result, TesError};
     pub use crate::export::{AiPart, ExportOptions, ExportView, export_ai_parts, export_view};
+    pub use crate::history::{
+        DiffEntry, DiffReport, SaveOptions, SaveReport, diff_revisions, format_changelog,
+        format_diff, format_log, read_history, save_revision,
+    };
     pub use crate::import::{
         HtmlImportOptions, HtmlImportReport, MarkdownImportOptions, MarkdownImportReport,
         import_html_v0, import_markdown_v0,
