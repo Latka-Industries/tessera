@@ -487,7 +487,13 @@ fn write_compiled_block(
             caption,
             sha256,
         } => write_attachment_block(
-            session, source, *chunk_id, filename, media_type, caption, sha256,
+            session,
+            source,
+            *chunk_id,
+            filename,
+            media_type,
+            caption.as_deref(),
+            sha256,
         )?,
     }
     Ok(())
@@ -558,7 +564,7 @@ fn write_attachment_block(
     chunk_id: Option<u64>,
     filename: &str,
     media_type: &str,
-    caption: &Option<String>,
+    caption: Option<&str>,
     sha256: &str,
 ) -> Result<()> {
     let Some(id) = chunk_id else {
@@ -585,7 +591,7 @@ fn write_attachment_block(
     }
     filename.clone_into(&mut payload.filename);
     media_type.clone_into(&mut payload.media_type);
-    payload.caption.clone_from(caption);
+    payload.caption = caption.map(str::to_owned);
     payload.validate()?;
     session.add_attachment_chunk(&payload)?;
     Ok(())

@@ -1,4 +1,5 @@
-//! `tes save`, `log`, `diff`, `changelog`, `export-revs`, `checkout`, `blame`, `textconv`.
+//! `tes save`, `log`, `diff`, `changelog`, `export-revs`, `checkout`, `blame`,
+//! `pending`, `textconv`, `merge-file`.
 
 use std::io;
 
@@ -6,13 +7,13 @@ use crate::error::TesError;
 use crate::history::{
     BlameOptions, PendingActionOptions, SaveOptions, SuggestOptions, accept_pending, blame_file,
     checkout_revision, diff_revisions, export_revision, format_blame, format_blame_json,
-    format_changelog, format_diff, format_log, format_pending, list_pending, pending_redline,
-    reject_pending, save_revision, suggest_pending, textconv,
+    format_changelog, format_diff, format_log, format_pending, list_pending, merge_files,
+    pending_redline, reject_pending, save_revision, suggest_pending, textconv,
 };
 
 use super::super::args::{
-    BlameArgs, ChangelogArgs, CheckoutArgs, DiffArgs, ExportRevsArgs, LogArgs, PendingCommands,
-    SaveArgs, TextconvArgs,
+    BlameArgs, ChangelogArgs, CheckoutArgs, DiffArgs, ExportRevsArgs, LogArgs, MergeFileArgs,
+    PendingCommands, SaveArgs, TextconvArgs,
 };
 use super::super::util::print_out;
 
@@ -164,4 +165,16 @@ pub(in crate::cli) fn run_pending(
 pub(in crate::cli) fn run_textconv(args: &TextconvArgs) -> Result<(), TesError> {
     let out = textconv(&args.path)?;
     print_out(&out)
+}
+
+pub(in crate::cli) fn run_merge_file(args: &MergeFileArgs) -> Result<(), TesError> {
+    let report = merge_files(&args.base, &args.ours, &args.theirs)?;
+    println!(
+        "merged\t{}\tours={}\ttheirs={}\tunchanged={}",
+        report.path.display(),
+        report.from_ours.len(),
+        report.from_theirs.len(),
+        report.unchanged.len()
+    );
+    Ok(())
 }

@@ -46,8 +46,8 @@ pagination, computed figure numbers, or pixel coordinates.
 | PDF | `tes export --pdf` | HTML + print theme pipeline | shipped (M7) |
 | Slides | Region-based slide chunks | Named regions, no freeform coordinates | shipped (M9) |
 | History (first slice) | `save` / `log` / `diff` / `changelog` | Content-addressed revisions + drafts | shipped (M10) |
-| History (checkout / textconv) | Materialize revisions; git Tessprek | `export-revs` / `checkout` / `textconv` | shipped (M10) |
-| History (redline) | Footer `pending` reserved | Authored ops + accept/reject | deferred |
+| History (checkout / textconv / merge) | Materialize revisions; git Tessprek + verified merge | `export-revs` / `checkout` / `textconv` / `merge-file` | shipped (M10) |
+| History (redline) | Footer `pending` reserved | Authored ops + accept/reject | shipped (M10) |
 | Vault graph | Implemented | Light `vault.tes` catalog | shipped / later |
 | Full-text search | Scan only | External index or projected-text search | later |
 | Embeddings | Missing | External to `.tes` | out of wire |
@@ -277,8 +277,8 @@ M10 first slice ships `THST` v1 with:
 Follow-on materializes any revision as a self-contained `.tes` (`export-revs`)
 or replaces the live sealed body while preserving the current footer
 (`checkout`). Git interoperability uses Tessera Markdown `textconv`
-(`tes textconv`), `tes blame`, and pending-ops redline (`tes pending`). Merge
-driver remains deferred.
+(`tes textconv`), `tes blame`, pending-ops redline (`tes pending`), and a
+verified git merge driver (`tes merge-file`).
 
 **Limitation:** revision manifests store catalog + chunk payloads only — not
 `TLNK` rows — so materialization does not rewrite the link table yet.
@@ -312,8 +312,7 @@ Markdown vault operations.
 Post-checkout/textconv (THI-194), layout-v1 text wire (THI-195), attachments
 (THI-196), and typed TLNK targets / external URI heap (THI-197):
 
-1. Remaining M10: merge driver.
-2. Optional: bump `layout_version` when must-understand feature flags land.
+1. Optional: bump `layout_version` when must-understand feature flags land.
 
 MIME/magic/conformance work may proceed in parallel. Aleph GUI, native
 full-text search, in-file embeddings, freeform slide geometry, and CRDTs are

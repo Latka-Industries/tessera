@@ -57,8 +57,8 @@ pub mod prelude {
         PendingSuggestion, SaveOptions, SaveReport, SuggestOptions, accept_pending, blame_file,
         checkout_revision, diff_revisions, export_revision, format_blame, format_blame_json,
         format_changelog, format_diff, format_log, format_pending, list_pending,
-        materialize_revision, pending_redline, read_history, reject_pending, save_revision,
-        suggest_pending, textconv,
+        materialize_revision, merge_files, pending_redline, read_history, reject_pending,
+        save_revision, suggest_pending, textconv,
     };
     pub use crate::io::bib::{
         BibEntry, BibFormat, BibImportOptions, export_bibliography, import_bibliography,

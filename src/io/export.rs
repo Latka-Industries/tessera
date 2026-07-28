@@ -38,6 +38,7 @@ pub enum ExportView {
 
 /// Options that refine an [`ExportView`].
 #[derive(Debug, Clone, Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ExportOptions {
     /// Restrict output to a single chunk id (where applicable).
     pub chunk_id: Option<u64>,

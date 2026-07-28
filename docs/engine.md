@@ -91,7 +91,7 @@ The CLI binary (`src/bin/tes.rs`) is a thin wrapper around `tessera_doc::cli::ru
 | `vault` | Multi-file link resolve, backlinks | Phase 5 |
 | `render` | Template packs, `tes serve`, print PDF | Phase 7 |
 | `edit` | Tessera Markdown + typed safe mutation | Layout v1 |
-| `history` | `save` / `log` / `diff` / `changelog` over THST | M10 |
+| `history` | save/log/diff/blame/pending/`merge-file` over THST | M10 |
 | `cli` | Clap surface + command runners for `tes` | [cli.md](cli.md) |
 
 Crate-root aliases keep `tessera_doc::{export,import,bib,pdf,preview,template}` resolving to the `io` / `render` submodules.
@@ -210,12 +210,12 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 - `verify` (basic + deep)
 - `io::export` (`--raw`, `--linear`, `--ai-text`, `--chunks-jsonl`, Markdown/HTML, bibliography, `--attachment`)
 - `io::import` (Markdown, HTML), `io::bib`
-- `vault`, `render` (serve + PDF; `/media/` images, `/attachment/` downloads), `edit`, `history` (M10 first slice)
+- `vault`, `render` (serve + PDF; `/media/` images, `/attachment/` downloads), `edit`, `history` (M10: save/log/diff/blame/pending/merge-file)
 - `cli` + `tes` binary: info, verify, export, import, link, serve, edit-*, apply, save/log/diff/changelog
 
 **Out (later):**
 
-- `repair/`, richer history (merge driver, redline)
+- `repair/`
 - Aleph, CRDT, page tensors
 
 ---

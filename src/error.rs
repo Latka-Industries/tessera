@@ -321,6 +321,13 @@ pub enum TesError {
         /// Missing revision id or draft name.
         id: String,
     },
+
+    /// Structural 3-way merge could not auto-merge safely.
+    #[error("merge conflict: {message}")]
+    MergeConflict {
+        /// Human-readable conflict summary.
+        message: String,
+    },
 }
 
 impl From<argus::BufferTooShort> for TesError {

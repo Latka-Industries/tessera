@@ -1,11 +1,11 @@
 # Roadmap and phases
 
 **Status:** M0–M9 plus M10 (`save`/`log`/`diff`/`changelog`/`export-revs`/
-`checkout`/`textconv`), layout-v1 **text wire** (spans/math/tables/lang),
-**inert attachments**, and **typed TLNK targets** (external URI heap v1) are
-shipped as additive wire on `layout_version = 0`. Next code is history residual
-(merge driver / redline) and light `vault.tes` polish. This is an implementation
-plan, not a release schedule.
+`checkout`/`textconv`/`blame`/`pending`/`merge-file`), layout-v1 **text wire**
+(spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
+(external URI heap v1) are shipped as additive wire on `layout_version = 0`.
+Next code is light `vault.tes` polish and optional layout feature flags. This
+is an implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -21,7 +21,7 @@ links.
 | Media | image payload + `FigureRef`; inert attachments | — | — |
 | Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
-| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame | — | merge driver, redline |
+| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file | — | — |
 
 Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
@@ -213,7 +213,7 @@ asynchronous track changes.
 | Drafts | Save/checkout/export named full revisions |
 | Diff | Tessera Markdown textconv; structural `tes diff` / changelog |
 | Review | Authored pending ops; redline; accept/reject; comments |
-| Git interop | `.gitattributes` textconv; optional verified merge driver |
+| Git interop | `.gitattributes` textconv + verified `tes merge-file` driver |
 
 **Depends on:** chunk hashes and stable ids specified during the structure
 freeze. CRDT/live cursors are not part of M10.
@@ -250,10 +250,10 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **history residual:** verified merge driver, pending-ops redline.
-2. **open format:** MIME/magic entries and v1 conformance cases.
-3. **benchmark:** measure the specific mmap/link/export claims in the README.
-4. **vault polish:** light `vault.tes` catalog (optional).
+1. **open format:** MIME/magic entries and v1 conformance cases.
+2. **benchmark:** measure the specific mmap/link/export claims in the README.
+3. **vault polish:** light `vault.tes` catalog (optional).
+4. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 
 ---
 

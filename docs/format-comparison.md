@@ -117,7 +117,7 @@ Markdown is Tessera’s most loved competitor for **notes and git-backed wikis**
 | Markdown strength | Tessera stance |
 | --- | --- |
 | Plain text, any editor | **Raw preview** = slice of text chunk; `export --raw` → `.txt` |
-| Git diff and merge | Export Markdown for diff; canonical stays binary |
+| Git diff and merge | Local `tes textconv` / `tes merge-file`; GitHub needs a projection (see THI-212) |
 | Huge tooling ecosystem | Markdown remains an **export**; pandoc compatibility is a goal, not storage |
 
 | Markdown weakness | Tessera attack (in scope) |

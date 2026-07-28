@@ -1,11 +1,13 @@
 //! History operations: save drafts, log, structural diff, changelog,
-//! revision materialization, blame, and pending-ops redline (M10).
+//! revision materialization, blame, pending-ops redline, and verified merge (M10).
 //!
 //! Wire format lives in [`crate::catalog::history`]. This module snaps the live
 //! sealed body into THST v1 revisions with an exact-hash payload store.
 
+mod merge;
 mod pending;
 
+pub use merge::{MergeReport, merge_files};
 pub use pending::{
     PendingActionOptions, PendingActionReport, PendingSuggestion, SuggestOptions, SuggestReport,
     accept_pending, format_pending, list_pending, pending_redline, reject_pending, suggest_pending,
@@ -857,8 +859,9 @@ pub(crate) fn chrono_like_now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::{DocumentCatalog, TesWriterSession, TextHeader};
+    use crate::catalog::{DocumentCatalog, TesFile, TesWriterSession, TextHeader};
     use crate::edit::{TesOp, apply_ops, file_source_hash};
+    use crate::error::TesError;
     use crate::layout::DocKind;
     use crate::verify::verify_tes_file;
     use tempfile::tempdir;
@@ -1210,5 +1213,136 @@ mod tests {
         let (_, body) = crate::catalog::chunk::decode_text_payload(decoded.as_ref()).unwrap();
         assert_eq!(body, "Accepted body");
         assert!(list_pending(&path).unwrap().is_empty());
+    }
+
+    fn two_chunk_sample(dir: &Path) -> PathBuf {
+        let path = dir.join("two.tes");
+        let mut s = TesWriterSession::create(&path, DocKind::Note);
+        s.set_catalog(DocumentCatalog::new(
+            "550e8400-e29b-41d4-a716-446655440099",
+            "Merge note",
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Note,
+        ))
+        .unwrap();
+        s.add_text_chunk(&TextHeader::paragraph(), "Alpha").unwrap();
+        s.add_text_chunk(&TextHeader::paragraph(), "Beta").unwrap();
+        s.commit().unwrap();
+        path
+    }
+
+    #[test]
+    fn merge_non_overlapping_chunk_edits() {
+        use crate::history::merge_files;
+
+        let dir = tempdir().unwrap();
+        let base = two_chunk_sample(dir.path());
+        let ours = dir.path().join("ours.tes");
+        let theirs = dir.path().join("theirs.tes");
+        fs::copy(&base, &ours).unwrap();
+        fs::copy(&base, &theirs).unwrap();
+
+        let hash = file_source_hash(&ours).unwrap();
+        apply_ops(
+            &ours,
+            &[TesOp::SetText {
+                chunk_id: 1,
+                body: "Alpha ours".into(),
+                role: None,
+                level: None,
+                class: None,
+            }],
+            &crate::edit::EditWriteOptions {
+                source_hash: hash,
+                dry_run: false,
+            },
+        )
+        .unwrap();
+
+        let hash = file_source_hash(&theirs).unwrap();
+        apply_ops(
+            &theirs,
+            &[TesOp::SetText {
+                chunk_id: 2,
+                body: "Beta theirs".into(),
+                role: None,
+                level: None,
+                class: None,
+            }],
+            &crate::edit::EditWriteOptions {
+                source_hash: hash,
+                dry_run: false,
+            },
+        )
+        .unwrap();
+
+        let report = merge_files(&base, &ours, &theirs).unwrap();
+        assert_eq!(report.from_ours, vec![1]);
+        assert_eq!(report.from_theirs, vec![2]);
+        assert!(verify_tes_file(&ours, true).unwrap().ok);
+
+        let file = TesFile::open(&ours).unwrap();
+        let e1 = file.chunk_by_id(1).unwrap();
+        let e2 = file.chunk_by_id(2).unwrap();
+        let (_, b1) =
+            crate::catalog::chunk::decode_text_payload(file.decode_payload(e1).unwrap().as_ref())
+                .unwrap();
+        let (_, b2) =
+            crate::catalog::chunk::decode_text_payload(file.decode_payload(e2).unwrap().as_ref())
+                .unwrap();
+        assert_eq!(b1, "Alpha ours");
+        assert_eq!(b2, "Beta theirs");
+    }
+
+    #[test]
+    fn merge_overlapping_chunk_edits_conflict() {
+        use crate::history::merge_files;
+
+        let dir = tempdir().unwrap();
+        let base = two_chunk_sample(dir.path());
+        let ours = dir.path().join("ours.tes");
+        let theirs = dir.path().join("theirs.tes");
+        fs::copy(&base, &ours).unwrap();
+        fs::copy(&base, &theirs).unwrap();
+
+        let hash = file_source_hash(&ours).unwrap();
+        apply_ops(
+            &ours,
+            &[TesOp::SetText {
+                chunk_id: 1,
+                body: "Alpha ours".into(),
+                role: None,
+                level: None,
+                class: None,
+            }],
+            &crate::edit::EditWriteOptions {
+                source_hash: hash,
+                dry_run: false,
+            },
+        )
+        .unwrap();
+
+        let hash = file_source_hash(&theirs).unwrap();
+        apply_ops(
+            &theirs,
+            &[TesOp::SetText {
+                chunk_id: 1,
+                body: "Alpha theirs".into(),
+                role: None,
+                level: None,
+                class: None,
+            }],
+            &crate::edit::EditWriteOptions {
+                source_hash: hash,
+                dry_run: false,
+            },
+        )
+        .unwrap();
+
+        let before = fs::read(&ours).unwrap();
+        let err = merge_files(&base, &ours, &theirs).unwrap_err();
+        assert!(matches!(err, TesError::MergeConflict { .. }), "{err}");
+        assert_eq!(fs::read(&ours).unwrap(), before, "ours must be untouched");
     }
 }

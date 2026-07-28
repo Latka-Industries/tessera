@@ -21,7 +21,7 @@ Related: [layout_v0.md](layout_v0.md),
 | `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
 | [`tes edit-read`](#mutation-protocol) / `edit-write` | — | Tessera Markdown virtual editor protocol |
 | [`tes apply`](#mutation-protocol) | — | Verified Tessera Markdown / typed-op mutation |
-| `tes log\|diff\|changelog\|blame\|pending\|export-revs\|checkout\|textconv` | — | M10 revision/history tools |
+| `tes log\|diff\|changelog\|blame\|pending\|export-revs\|checkout\|textconv\|merge-file` | — | M10 revision/history tools |
 
 v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**, **`serve`**,
 **mutation**, and **history** commands.
@@ -274,15 +274,25 @@ source, optional message, text.
 for git. Example attributes:
 
 ```gitattributes
-*.tes diff=tessera
+*.tes diff=tessera merge=tessera
 ```
 
 ```gitconfig
 [diff "tessera"]
 	textconv = tes textconv
+[merge "tessera"]
+	name = Tessera verified structural merge
+	driver = tes merge-file %O %A %B
 ```
 
-Merge drivers remain deferred.
+`tes merge-file BASE OURS THEIRS` performs a chunk-hash 3-way merge (git
+`%O %A %B`): non-overlapping chunk edits auto-merge into `OURS` after deep
+verify; overlapping edits exit nonzero and leave `OURS` untouched. `TLNK` is
+omitted on rebuild (same limitation as revision materialization). Smoke:
+
+```bash
+mise run merge-smoke   # scripts/merge-file-smoke.sh (CLI + temp git driver)
+```
 
 ## Pending ops (redline)
 
@@ -336,7 +346,7 @@ Every CLI command maps to a library entry point. The binary only calls
 | `tes export` | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
 | `tes import` | `tessera_doc::io::import::*` / `io::bib::import_bibliography` |
 | `tes link` | `tessera_doc::vault::*` |
-| `tes save` / `log` / `diff` / `changelog` / `blame` / `export-revs` / `checkout` / `textconv` | `tessera_doc::history::*` |
+| `tes save` / `log` / `diff` / `changelog` / `blame` / `export-revs` / `checkout` / `textconv` / `merge-file` | `tessera_doc::history::*` |
 | `tes serve` | `tessera_doc::render::preview::serve_preview` |
 | `tes edit-read` | `tessera_doc::edit::edit_read` |
 | `tes edit-write` | `tessera_doc::edit::edit_write` |

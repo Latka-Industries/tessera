@@ -105,6 +105,9 @@ pub(super) enum Commands {
 
     /// Emit Tessprek on stdout for git textconv (no source-hash banner)
     Textconv(TextconvArgs),
+
+    /// Verified 3-way merge for git merge drivers (`%O %A %B`)
+    MergeFile(MergeFileArgs),
 }
 
 /// Flags for `tes export`.
@@ -124,6 +127,7 @@ pub(super) enum Commands {
             "attachment",
         ])
 ))]
+#[allow(clippy::struct_excessive_bools)]
 pub(super) struct ExportArgs {
     /// Path to a .tes file
     pub(super) path: PathBuf,
@@ -206,6 +210,7 @@ pub(super) struct ExportArgs {
         .required(true)
         .args(["markdown", "html", "bibtex", "csl_json"])
 ))]
+#[allow(clippy::struct_excessive_bools)]
 pub(super) struct ImportArgs {
     /// Parse input as the supported `CommonMark` subset
     #[arg(long)]
@@ -462,6 +467,17 @@ pub(super) enum PendingCommands {
 pub(super) struct TextconvArgs {
     /// Path to a .tes file
     pub(super) path: PathBuf,
+}
+
+/// Positional paths for `tes merge-file` (git: `%O %A %B`).
+#[derive(Debug, Args)]
+pub(super) struct MergeFileArgs {
+    /// Common ancestor (`%O`)
+    pub(super) base: PathBuf,
+    /// Ours / current branch — also the output path (`%A`)
+    pub(super) ours: PathBuf,
+    /// Theirs / incoming branch (`%B`)
+    pub(super) theirs: PathBuf,
 }
 
 #[derive(Debug, Subcommand)]
