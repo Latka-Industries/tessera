@@ -1,0 +1,58 @@
+# Tessera PR preview — readable `.tes` diffs on GitHub
+#
+# GitHub cannot run local `textconv` / merge drivers, so `.tes` files stay
+# opaque on the Files tab. This workflow builds `tes`, projects changed `.tes`
+# blobs to Tessprek via `tes textconv`, and posts (or updates) one sticky PR
+# comment with unified diffs.
+#
+# Triggers only when a PR touches `*.tes`. Vaults: copy from `contrib/github/`.
+# Docs: `docs/cli.md` (Local vs GitHub).
+
+name: Tessera PR preview
+
+on:
+  pull_request:
+    paths:
+      - "**/*.tes"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    name: Post Tessprek .tes diffs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: tes-pr-preview
+
+      - name: Build tes
+        run: cargo build -q --bin tes
+
+      - name: Generate Tessprek preview
+        env:
+          TES: ./target/debug/tes
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          OUT: tes-pr-preview.md
+        run: bash scripts/tes-pr-textconv-diff.sh
+
+      - name: Upsert sticky PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BODY_FILE: tes-pr-preview.md
+        run: bash scripts/tes-pr-upsert-comment.sh

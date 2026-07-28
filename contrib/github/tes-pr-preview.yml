@@ -1,0 +1,57 @@
+# Template for vault repos that depend on the published `tes` CLI.
+# Copy to `.github/workflows/tes-pr-preview.yml` and copy these scripts next to it:
+#   scripts/tes-pr-textconv-diff.sh
+#   scripts/tes-pr-upsert-comment.sh
+# (from the Tessera repo `scripts/` directory — see README.md).
+#
+# Prefer pinning a release (`cargo install tessera-doc --version …`) once you
+# standardize on a Tessera version.
+
+name: Tessera PR preview
+
+on:
+  pull_request:
+    paths:
+      - "**/*.tes"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    name: Post Tessprek .tes diffs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: tes-pr-preview-install
+
+      - name: Install tes (tessera-doc)
+        run: cargo install tessera-doc --locked
+
+      - name: Generate Tessprek preview
+        env:
+          TES: tes
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          OUT: tes-pr-preview.md
+        run: bash scripts/tes-pr-textconv-diff.sh
+
+      - name: Upsert sticky PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BODY_FILE: tes-pr-preview.md
+        run: bash scripts/tes-pr-upsert-comment.sh
