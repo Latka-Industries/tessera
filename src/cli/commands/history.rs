@@ -4,14 +4,15 @@ use std::io;
 
 use crate::error::TesError;
 use crate::history::{
-    BlameOptions, SaveOptions, blame_file, checkout_revision, diff_revisions, export_revision,
-    format_blame, format_blame_json, format_changelog, format_diff, format_log, save_revision,
-    textconv,
+    BlameOptions, PendingActionOptions, SaveOptions, SuggestOptions, accept_pending, blame_file,
+    checkout_revision, diff_revisions, export_revision, format_blame, format_blame_json,
+    format_changelog, format_diff, format_log, format_pending, list_pending, pending_redline,
+    reject_pending, save_revision, suggest_pending, textconv,
 };
 
 use super::super::args::{
-    BlameArgs, ChangelogArgs, CheckoutArgs, DiffArgs, ExportRevsArgs, LogArgs, SaveArgs,
-    TextconvArgs,
+    BlameArgs, ChangelogArgs, CheckoutArgs, DiffArgs, ExportRevsArgs, LogArgs, PendingCommands,
+    SaveArgs, TextconvArgs,
 };
 use super::super::util::print_out;
 
@@ -86,6 +87,78 @@ pub(in crate::cli) fn run_blame(args: &BlameArgs) -> Result<(), TesError> {
         format_blame(&report)
     };
     print_out(&out)
+}
+
+pub(in crate::cli) fn run_pending(
+    path: &std::path::Path,
+    command: PendingCommands,
+) -> Result<(), TesError> {
+    match command {
+        PendingCommands::List { json } => {
+            let pending = list_pending(path)?;
+            if json {
+                print_out(&serde_json::to_string_pretty(&pending)?)
+            } else {
+                print_out(&format_pending(&pending))
+            }
+        }
+        PendingCommands::Suggest {
+            ops,
+            source_hash,
+            message,
+        } => {
+            let ops_json = std::fs::read_to_string(&ops)?;
+            let report = suggest_pending(
+                path,
+                &ops_json,
+                &SuggestOptions {
+                    source_hash,
+                    message,
+                    ..SuggestOptions::default()
+                },
+            )?;
+            println!(
+                "suggested\tpending={}\tids={}",
+                report.pending_count,
+                report.ids.join(",")
+            );
+            Ok(())
+        }
+        PendingCommands::Redline { source_hash } => {
+            print_out(&pending_redline(path, &source_hash)?)
+        }
+        PendingCommands::Accept(args) => {
+            let report = accept_pending(
+                path,
+                &PendingActionOptions {
+                    source_hash: args.source_hash,
+                    ids: args.ids,
+                },
+            )?;
+            println!(
+                "accepted\tids={}\tremaining={}\tnew-source-hash={}",
+                report.ids.join(","),
+                report.pending_count,
+                report.new_source_hash.as_deref().unwrap_or("-")
+            );
+            Ok(())
+        }
+        PendingCommands::Reject(args) => {
+            let report = reject_pending(
+                path,
+                &PendingActionOptions {
+                    source_hash: args.source_hash,
+                    ids: args.ids,
+                },
+            )?;
+            println!(
+                "rejected\tids={}\tremaining={}",
+                report.ids.join(","),
+                report.pending_count
+            );
+            Ok(())
+        }
+    }
 }
 
 pub(in crate::cli) fn run_textconv(args: &TextconvArgs) -> Result<(), TesError> {

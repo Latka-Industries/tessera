@@ -21,7 +21,7 @@ Related: [layout_v0.md](layout_v0.md),
 | `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
 | [`tes edit-read`](#mutation-protocol) / `edit-write` | — | Tessera Markdown virtual editor protocol |
 | [`tes apply`](#mutation-protocol) | — | Verified Tessera Markdown / typed-op mutation |
-| `tes log\|diff\|changelog\|blame\|export-revs\|checkout\|textconv` | — | M10 revision/history tools |
+| `tes log\|diff\|changelog\|blame\|pending\|export-revs\|checkout\|textconv` | — | M10 revision/history tools |
 
 v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**, **`serve`**,
 **mutation**, and **history** commands.
@@ -283,6 +283,21 @@ for git. Example attributes:
 ```
 
 Merge drivers remain deferred.
+
+## Pending ops (redline)
+
+```bash
+tes pending note.tes list
+tes pending note.tes suggest --ops edit.json --source-hash "$HASH" -m "try this"
+tes pending note.tes redline --source-hash "$HASH"
+tes pending note.tes accept --source-hash "$HASH"          # all
+tes pending note.tes accept --id pend_… --source-hash "$HASH"
+tes pending note.tes reject --id pend_… --source-hash "$HASH"
+```
+
+Suggestions land in the THST `pending` slot and do **not** change the sealed
+body until `accept`. `redline` is a dry-run Tessprek diff. `reject` drops the
+suggestion only. Deep verify runs on accept (and on footer rewrites).
 
 ---
 

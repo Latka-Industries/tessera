@@ -544,7 +544,7 @@ pub fn normalize_attachment_filename(name: &str) -> Result<String> {
             message: format!("filename exceeds {ATTACHMENT_FILENAME_MAX} bytes"),
         });
     }
-    if trimmed.contains('\0') || trimmed.chars().any(|c| c.is_control()) {
+    if trimmed.contains('\0') || trimmed.chars().any(char::is_control) {
         return Err(TesError::InvalidAttachment {
             message: "filename must not contain control characters".into(),
         });

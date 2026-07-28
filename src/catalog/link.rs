@@ -297,8 +297,9 @@ impl LinkEntry {
     #[must_use]
     pub fn target_chunk_id(&self) -> Option<u64> {
         match self.target {
-            LinkTarget::Internal { chunk_id, .. } => Some(chunk_id),
-            LinkTarget::Attachment { chunk_id } => Some(chunk_id),
+            LinkTarget::Internal { chunk_id, .. } | LinkTarget::Attachment { chunk_id } => {
+                Some(chunk_id)
+            }
             LinkTarget::External { .. } => None,
         }
     }
@@ -363,7 +364,7 @@ pub fn validate_external_uri(uri: &str) -> Result<()> {
             message: format!("external URI exceeds {URI_MAX_BYTES} bytes"),
         });
     }
-    if trimmed.contains('\0') || trimmed.chars().any(|c| c.is_control()) {
+    if trimmed.contains('\0') || trimmed.chars().any(char::is_control) {
         return Err(TesError::InvalidLink {
             message: "external URI must not contain control characters".into(),
         });

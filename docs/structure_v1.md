@@ -277,7 +277,8 @@ M10 first slice ships `THST` v1 with:
 Follow-on materializes any revision as a self-contained `.tes` (`export-revs`)
 or replaces the live sealed body while preserving the current footer
 (`checkout`). Git interoperability uses Tessera Markdown `textconv`
-(`tes textconv`) and `tes blame`. Merge driver and pending-ops redline remain deferred.
+(`tes textconv`), `tes blame`, and pending-ops redline (`tes pending`). Merge
+driver remains deferred.
 
 **Limitation:** revision manifests store catalog + chunk payloads only — not
 `TLNK` rows — so materialization does not rewrite the link table yet.
@@ -311,7 +312,7 @@ Markdown vault operations.
 Post-checkout/textconv (THI-194), layout-v1 text wire (THI-195), attachments
 (THI-196), and typed TLNK targets / external URI heap (THI-197):
 
-1. Remaining M10: merge driver, pending-ops redline UI.
+1. Remaining M10: merge driver.
 2. Optional: bump `layout_version` when must-understand feature flags land.
 
 MIME/magic/conformance work may proceed in parallel. Aleph GUI, native

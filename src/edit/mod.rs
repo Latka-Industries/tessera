@@ -381,11 +381,31 @@ fn compile_blocks_to_bytes(
     blocks: &[ContentBlock],
     title_override: Option<&str>,
 ) -> Result<Vec<u8>> {
+    let catalog = catalog_for_compile(source, title_override);
+    let image_payloads = load_referenced_images(source, blocks)?;
+
+    // Build into an ephemeral session path (encode_file only; no commit).
+    let phantom = PathBuf::from("__tessera_edit_encode__.tes");
+    let mut session = TesWriterSession::create(&phantom, source.superblock().doc_kind);
+    session.set_catalog(catalog)?;
+
+    let mut image_id_map = std::collections::HashMap::new();
+    for (old_id, payload) in &image_payloads {
+        let new_id = session.add_image_chunk(payload)?;
+        image_id_map.insert(*old_id, new_id);
+    }
+
+    for block in blocks {
+        write_compiled_block(&mut session, source, block, &image_id_map)?;
+    }
+    session.encode_file()
+}
+
+fn catalog_for_compile(source: &TesFile, title_override: Option<&str>) -> DocumentCatalog {
     let doc_kind = source.superblock().doc_kind;
     let now = OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into());
-
     let mut catalog = source.catalog().cloned().unwrap_or_else(|| {
         DocumentCatalog::new(
             uuid::Uuid::new_v4().to_string(),
@@ -399,8 +419,13 @@ fn compile_blocks_to_bytes(
         title.clone_into(&mut catalog.title);
     }
     catalog.modified = now;
+    catalog
+}
 
-    // Collect image payloads referenced by figures, preserving source bytes.
+fn load_referenced_images(
+    source: &TesFile,
+    blocks: &[ContentBlock],
+) -> Result<Vec<(u64, ImagePayload)>> {
     let mut needed_images: Vec<u64> = blocks
         .iter()
         .filter_map(|b| match b {
@@ -411,7 +436,7 @@ fn compile_blocks_to_bytes(
     needed_images.sort_unstable();
     needed_images.dedup();
 
-    let mut image_payloads: Vec<(u64, ImagePayload)> = Vec::new();
+    let mut image_payloads = Vec::with_capacity(needed_images.len());
     for old_id in needed_images {
         let entry = source.chunk_by_id(old_id)?;
         if entry.chunk_type != ChunkType::Image {
@@ -420,133 +445,150 @@ fn compile_blocks_to_bytes(
             });
         }
         let raw = source.decode_payload(entry)?;
-        let payload = ImagePayload::from_bytes(raw.as_ref())?;
-        image_payloads.push((old_id, payload));
+        image_payloads.push((old_id, ImagePayload::from_bytes(raw.as_ref())?));
     }
+    Ok(image_payloads)
+}
 
-    // Build into an ephemeral session path (encode_file only; no commit).
-    let phantom = PathBuf::from("__tessera_edit_encode__.tes");
-    let mut session = TesWriterSession::create(&phantom, doc_kind);
-    session.set_catalog(catalog)?;
-
-    let mut image_id_map = std::collections::HashMap::new();
-    for (old_id, payload) in &image_payloads {
-        let new_id = session.add_image_chunk(payload)?;
-        image_id_map.insert(*old_id, new_id);
-    }
-
-    for block in blocks {
-        match block {
-            ContentBlock::Text {
-                header,
-                body,
-                pending_links,
-                ..
-            } => {
-                let outbound = if !pending_links.is_empty() {
-                    pending_links.clone()
-                } else {
-                    // Remap existing Link spans from the source TLNK.
-                    header
-                        .spans
-                        .iter()
-                        .filter_map(|span| {
-                            let crate::catalog::InlineKind::Link { link_id } = &span.kind else {
-                                return None;
-                            };
-                            let entry = source.links().get(*link_id as usize)?;
-                            Some(crate::catalog::OutboundLink {
-                                start: span.start,
-                                end: span.end,
-                                dest: entry.target.markdown_destination(),
-                            })
-                        })
-                        .collect()
-                };
-                session.add_text_with_outbound_links(header.clone(), body, &outbound)?;
-            }
-            ContentBlock::Figure { figure, .. } => {
-                let mut figure = figure.clone();
-                let Some(&new_id) = image_id_map.get(&figure.image_chunk_id) else {
-                    return Err(TesError::EditOp {
-                        message: format!(
-                            "missing image payload for chunk {}",
-                            figure.image_chunk_id
-                        ),
-                    });
-                };
-                figure.image_chunk_id = new_id;
-                session.add_figure(&figure)?;
-            }
-            ContentBlock::Cite { cite, .. } => {
-                // Prefer full cite payload from source when id matches (keeps `source` bib).
-                if let Some(id) = block.chunk_id()
-                    && let Ok(entry) = source.chunk_by_id(id)
-                    && entry.chunk_type == ChunkType::Cite
-                {
-                    let raw = source.decode_payload(entry)?;
-                    let mut full = CitePayload::from_bytes(raw.as_ref())?;
-                    full.quote.clone_from(&cite.quote);
-                    if cite.label.is_some() {
-                        full.label.clone_from(&cite.label);
-                    }
-                    if cite.target_doc_id.is_some() {
-                        full.target_doc_id.clone_from(&cite.target_doc_id);
-                    }
-                    if cite.target_chunk_id.is_some() {
-                        full.target_chunk_id = cite.target_chunk_id;
-                    }
-                    if cite.page.is_some() {
-                        full.page = cite.page;
-                    }
-                    session.add_cite_chunk(&full)?;
-                    continue;
-                }
-                session.add_cite_chunk(cite)?;
-            }
-            ContentBlock::Slide { slide, .. } => {
-                session.add_slide(slide)?;
-            }
-            ContentBlock::Attachment {
-                chunk_id,
-                filename,
-                media_type,
-                caption,
-                sha256,
-            } => {
-                let Some(id) = chunk_id else {
-                    return Err(TesError::EditOp {
-                        message: "attachment directives require a source chunk id to retain bytes"
-                            .into(),
-                    });
-                };
-                let entry = source.chunk_by_id(*id)?;
-                if entry.chunk_type != ChunkType::Attachment {
-                    return Err(TesError::EditOp {
-                        message: format!("chunk {id} is not an attachment"),
-                    });
-                }
-                let raw = source.decode_payload(entry)?;
-                let mut payload = AttachmentPayload::from_bytes(raw.as_ref())?;
-                // Allow Tessprek metadata edits that keep the same bytes.
-                if payload.sha256 != *sha256 {
-                    return Err(TesError::EditOp {
-                        message: format!(
-                            "attachment chunk {id} sha256 mismatch: tessprek={sha256}, source={}",
-                            payload.sha256
-                        ),
-                    });
-                }
-                payload.filename = filename.clone();
-                payload.media_type = media_type.clone();
-                payload.caption = caption.clone();
-                payload.validate()?;
-                session.add_attachment_chunk(&payload)?;
-            }
+fn write_compiled_block(
+    session: &mut TesWriterSession,
+    source: &TesFile,
+    block: &ContentBlock,
+    image_id_map: &std::collections::HashMap<u64, u64>,
+) -> Result<()> {
+    match block {
+        ContentBlock::Text {
+            header,
+            body,
+            pending_links,
+            ..
+        } => {
+            let outbound = text_outbound_links(source, header, pending_links);
+            session.add_text_with_outbound_links(header.clone(), body, &outbound)?;
         }
+        ContentBlock::Figure { figure, .. } => {
+            let mut figure = figure.clone();
+            let Some(&new_id) = image_id_map.get(&figure.image_chunk_id) else {
+                return Err(TesError::EditOp {
+                    message: format!("missing image payload for chunk {}", figure.image_chunk_id),
+                });
+            };
+            figure.image_chunk_id = new_id;
+            session.add_figure(&figure)?;
+        }
+        ContentBlock::Cite { cite, .. } => write_cite_block(session, source, block, cite)?,
+        ContentBlock::Slide { slide, .. } => {
+            session.add_slide(slide)?;
+        }
+        ContentBlock::Attachment {
+            chunk_id,
+            filename,
+            media_type,
+            caption,
+            sha256,
+        } => write_attachment_block(
+            session, source, *chunk_id, filename, media_type, caption, sha256,
+        )?,
     }
+    Ok(())
+}
 
-    session.encode_file()
+fn text_outbound_links(
+    source: &TesFile,
+    header: &TextHeader,
+    pending_links: &[crate::catalog::OutboundLink],
+) -> Vec<crate::catalog::OutboundLink> {
+    if !pending_links.is_empty() {
+        return pending_links.to_vec();
+    }
+    // Remap existing Link spans from the source TLNK.
+    header
+        .spans
+        .iter()
+        .filter_map(|span| {
+            let crate::catalog::InlineKind::Link { link_id } = &span.kind else {
+                return None;
+            };
+            let entry = source.links().get(*link_id as usize)?;
+            Some(crate::catalog::OutboundLink {
+                start: span.start,
+                end: span.end,
+                dest: entry.target.markdown_destination(),
+            })
+        })
+        .collect()
+}
+
+fn write_cite_block(
+    session: &mut TesWriterSession,
+    source: &TesFile,
+    block: &ContentBlock,
+    cite: &CitePayload,
+) -> Result<()> {
+    // Prefer full cite payload from source when id matches (keeps `source` bib).
+    if let Some(id) = block.chunk_id()
+        && let Ok(entry) = source.chunk_by_id(id)
+        && entry.chunk_type == ChunkType::Cite
+    {
+        let raw = source.decode_payload(entry)?;
+        let mut full = CitePayload::from_bytes(raw.as_ref())?;
+        full.quote.clone_from(&cite.quote);
+        if cite.label.is_some() {
+            full.label.clone_from(&cite.label);
+        }
+        if cite.target_doc_id.is_some() {
+            full.target_doc_id.clone_from(&cite.target_doc_id);
+        }
+        if cite.target_chunk_id.is_some() {
+            full.target_chunk_id = cite.target_chunk_id;
+        }
+        if cite.page.is_some() {
+            full.page = cite.page;
+        }
+        session.add_cite_chunk(&full)?;
+        return Ok(());
+    }
+    session.add_cite_chunk(cite)?;
+    Ok(())
+}
+
+fn write_attachment_block(
+    session: &mut TesWriterSession,
+    source: &TesFile,
+    chunk_id: Option<u64>,
+    filename: &str,
+    media_type: &str,
+    caption: &Option<String>,
+    sha256: &str,
+) -> Result<()> {
+    let Some(id) = chunk_id else {
+        return Err(TesError::EditOp {
+            message: "attachment directives require a source chunk id to retain bytes".into(),
+        });
+    };
+    let entry = source.chunk_by_id(id)?;
+    if entry.chunk_type != ChunkType::Attachment {
+        return Err(TesError::EditOp {
+            message: format!("chunk {id} is not an attachment"),
+        });
+    }
+    let raw = source.decode_payload(entry)?;
+    let mut payload = AttachmentPayload::from_bytes(raw.as_ref())?;
+    // Allow Tessprek metadata edits that keep the same bytes.
+    if payload.sha256 != sha256 {
+        return Err(TesError::EditOp {
+            message: format!(
+                "attachment chunk {id} sha256 mismatch: tessprek={sha256}, source={}",
+                payload.sha256
+            ),
+        });
+    }
+    filename.clone_into(&mut payload.filename);
+    media_type.clone_into(&mut payload.media_type);
+    payload.caption.clone_from(caption);
+    payload.validate()?;
+    session.add_attachment_chunk(&payload)?;
+    Ok(())
 }
 
 fn sibling_temp_path(path: &Path, tag: &str) -> PathBuf {

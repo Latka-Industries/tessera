@@ -53,10 +53,12 @@ pub mod prelude {
     };
     pub use crate::error::{Result, TesError};
     pub use crate::history::{
-        BlameOptions, BlameRegion, BlameReport, DiffEntry, DiffReport, SaveOptions, SaveReport,
-        blame_file, checkout_revision, diff_revisions, export_revision, format_blame,
-        format_blame_json, format_changelog, format_diff, format_log, materialize_revision,
-        read_history, save_revision, textconv,
+        BlameOptions, BlameRegion, BlameReport, DiffEntry, DiffReport, PendingActionOptions,
+        PendingSuggestion, SaveOptions, SaveReport, SuggestOptions, accept_pending, blame_file,
+        checkout_revision, diff_revisions, export_revision, format_blame, format_blame_json,
+        format_changelog, format_diff, format_log, format_pending, list_pending,
+        materialize_revision, pending_redline, read_history, reject_pending, save_revision,
+        suggest_pending, textconv,
     };
     pub use crate::io::bib::{
         BibEntry, BibFormat, BibImportOptions, export_bibliography, import_bibliography,

@@ -1,8 +1,15 @@
 //! History operations: save drafts, log, structural diff, changelog,
-//! revision materialization, and blame (M10).
+//! revision materialization, blame, and pending-ops redline (M10).
 //!
 //! Wire format lives in [`crate::catalog::history`]. This module snaps the live
 //! sealed body into THST v1 revisions with an exact-hash payload store.
+
+mod pending;
+
+pub use pending::{
+    PendingActionOptions, PendingActionReport, PendingSuggestion, SuggestOptions, SuggestReport,
+    accept_pending, format_pending, list_pending, pending_redline, reject_pending, suggest_pending,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -593,21 +600,20 @@ pub fn blame_file(path: impl AsRef<Path>, options: &BlameOptions) -> Result<Blam
             message: "no revisions to blame (run `tes save` first)".into(),
         });
     }
-    let tip = match &options.rev {
-        Some(name) => history.resolve(name)?,
-        None => {
-            let head = history
-                .head
-                .as_deref()
-                .ok_or_else(|| TesError::InvalidHistory {
-                    message: "history has revisions but no head".into(),
-                })?;
-            history
-                .revision(head)
-                .ok_or_else(|| TesError::RevisionNotFound {
-                    id: head.to_owned(),
-                })?
-        }
+    let tip = if let Some(name) = &options.rev {
+        history.resolve(name)?
+    } else {
+        let head = history
+            .head
+            .as_deref()
+            .ok_or_else(|| TesError::InvalidHistory {
+                message: "history has revisions but no head".into(),
+            })?;
+        history
+            .revision(head)
+            .ok_or_else(|| TesError::RevisionNotFound {
+                id: head.to_owned(),
+            })?
     };
     let chain = ancestry(&history, tip)?;
     let mut regions = Vec::new();
@@ -762,12 +768,11 @@ fn blame_text_lines(
             let Some(child_i) = *slot else {
                 continue;
             };
-            match matching.get(child_i).copied().flatten() {
-                Some(parent_i) => *slot = Some(parent_i),
-                None => {
-                    owners[tip_i] = Some(*child_rev);
-                    *slot = None;
-                }
+            if let Some(parent_i) = matching.get(child_i).copied().flatten() {
+                *slot = Some(parent_i);
+            } else {
+                owners[tip_i] = Some(*child_rev);
+                *slot = None;
             }
         }
     }
@@ -826,7 +831,7 @@ fn lcs_child_to_parent(parent: &[String], child: &[String]) -> Vec<Option<usize>
     matching
 }
 
-fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<()> {
+pub(crate) fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<()> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     let tmp = dir.join(format!(
         ".{}.history-{}.tmp",
@@ -840,7 +845,7 @@ fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn chrono_like_now() -> String {
+pub(crate) fn chrono_like_now() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1118,5 +1123,92 @@ mod tests {
         assert!(text.contains(&r3.revision_id));
         assert!(text.contains("Alpha edited"));
         assert!(text.contains("Beta edited"));
+    }
+
+    #[test]
+    fn pending_suggest_redline_accept_reject() {
+        use crate::history::{
+            PendingActionOptions, SuggestOptions, accept_pending, format_pending, list_pending,
+            pending_redline, reject_pending, suggest_pending,
+        };
+        use crate::verify::verify_tes_file;
+
+        let dir = tempdir().unwrap();
+        let path = sample(dir.path());
+        let hash = file_source_hash(&path).unwrap();
+
+        let report = suggest_pending(
+            &path,
+            r#"[{"op":"set_text","chunk_id":1,"body":"Pending body"}]"#,
+            &SuggestOptions {
+                source_hash: hash.clone(),
+                message: Some("try this".into()),
+                ..SuggestOptions::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(report.ids.len(), 1);
+        assert!(verify_tes_file(&path, true).unwrap().ok);
+
+        // Body unchanged until accept.
+        let raw = crate::catalog::TesFile::open(&path).unwrap();
+        let entry = raw.chunk_by_id(1).unwrap();
+        let decoded = raw.decode_payload(entry).unwrap();
+        let (_, body) = crate::catalog::chunk::decode_text_payload(decoded.as_ref()).unwrap();
+        assert_eq!(body, "First body");
+
+        let pending = list_pending(&path).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert!(
+            format_pending(&pending).contains("Pending body")
+                || format_pending(&pending).contains("set_text")
+        );
+
+        // Footer rewrite changes the on-disk source hash.
+        let hash = file_source_hash(&path).unwrap();
+        let redline = pending_redline(&path, &hash).unwrap();
+        assert!(redline.contains("Pending body") || redline.contains('+') || redline.contains('-'));
+
+        // Reject restores empty pending; body still original.
+        let rejected = reject_pending(
+            &path,
+            &PendingActionOptions {
+                source_hash: hash,
+                ids: report.ids.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(rejected.pending_count, 0);
+        assert!(list_pending(&path).unwrap().is_empty());
+
+        let hash = file_source_hash(&path).unwrap();
+        let again = suggest_pending(
+            &path,
+            r#"[{"op":"set_text","chunk_id":1,"body":"Accepted body"}]"#,
+            &SuggestOptions {
+                source_hash: hash,
+                message: Some("ship it".into()),
+                ..SuggestOptions::default()
+            },
+        )
+        .unwrap();
+        let hash = file_source_hash(&path).unwrap();
+        let accepted = accept_pending(
+            &path,
+            &PendingActionOptions {
+                source_hash: hash,
+                ids: again.ids.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(accepted.pending_count, 0);
+        assert!(verify_tes_file(&path, true).unwrap().ok);
+
+        let raw = crate::catalog::TesFile::open(&path).unwrap();
+        let entry = raw.chunk_by_id(1).unwrap();
+        let decoded = raw.decode_payload(entry).unwrap();
+        let (_, body) = crate::catalog::chunk::decode_text_payload(decoded.as_ref()).unwrap();
+        assert_eq!(body, "Accepted body");
+        assert!(list_pending(&path).unwrap().is_empty());
     }
 }

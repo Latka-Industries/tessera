@@ -1,6 +1,6 @@
 //! Typed mutation operations for `tes apply --ops`.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::catalog::chunk::{TextHeader, TextRole};
 use crate::error::{Result, TesError};
@@ -8,7 +8,7 @@ use crate::error::{Result, TesError};
 use super::ContentBlock;
 
 /// Closed set of agent-safe document mutations.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum TesOp {
     /// Replace catalog title.

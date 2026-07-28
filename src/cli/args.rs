@@ -95,6 +95,14 @@ pub(super) enum Commands {
     /// Attribute current text to the revision that last introduced it
     Blame(BlameArgs),
 
+    /// Pending-ops redline: suggest / list / redline / accept / reject
+    Pending {
+        /// Path to a .tes file
+        path: PathBuf,
+        #[command(subcommand)]
+        command: PendingCommands,
+    },
+
     /// Emit Tessprek on stdout for git textconv (no source-hash banner)
     Textconv(TextconvArgs),
 }
@@ -403,6 +411,50 @@ pub(super) struct BlameArgs {
     /// Emit JSON report
     #[arg(long)]
     pub(super) json: bool,
+}
+
+/// Shared `--source-hash` / `--id` flags for pending accept & reject.
+#[derive(Debug, Args)]
+pub(super) struct PendingActionArgs {
+    /// Pending id(s); omit to act on all
+    #[arg(long = "id")]
+    pub(super) ids: Vec<String>,
+    /// Expected source hash
+    #[arg(long = "source-hash", required = true)]
+    pub(super) source_hash: String,
+}
+
+/// Subcommands for `tes pending`.
+#[derive(Debug, Subcommand)]
+pub(super) enum PendingCommands {
+    /// List pending suggestions
+    List {
+        /// Emit JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Queue typed ops into the THST pending slot (body unchanged)
+    Suggest {
+        /// JSON array of `TesOp` (file path)
+        #[arg(long)]
+        ops: PathBuf,
+        /// Expected source hash
+        #[arg(long = "source-hash", required = true)]
+        source_hash: String,
+        /// Optional message
+        #[arg(short = 'm', long)]
+        message: Option<String>,
+    },
+    /// Dry-run Tessprek redline of sealed body + all pending ops
+    Redline {
+        /// Expected source hash
+        #[arg(long = "source-hash", required = true)]
+        source_hash: String,
+    },
+    /// Apply selected (or all) pending ops to the sealed body, then drop them
+    Accept(PendingActionArgs),
+    /// Drop selected (or all) pending ops without changing the body
+    Reject(PendingActionArgs),
 }
 
 /// Flags for `tes textconv`.
