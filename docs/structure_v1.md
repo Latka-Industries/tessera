@@ -291,8 +291,20 @@ Real-time CRDT collaboration is not part of v1.
 ## Forward compatibility and conformance
 
 Readers skip unknown optional features with a warning and fail on unknown
-must-understand features. Layout/feature flags distinguish the two; silently
-dropping required structure is forbidden.
+must-understand features. Catalog `features.optional` / `features.required`
+distinguish the two ([layout_v0.md](layout_v0.md#catalog-features-forward-compatibility));
+silently dropping required structure is forbidden.
+
+Known optional feature ids in this build (all on `layout_version = 0`):
+
+| Id | Meaning |
+| --- | --- |
+| `text_spans` | Layout-v1 text header fields (spans, table, math, lang, align, code_lang) |
+| `attachments` | Inert `ChunkType::Attachment` payloads |
+| `external_uris` | TLNK v1 external URI heap |
+
+Bump `layout_version` only when introducing a must-understand feature that
+older readers must fail closed on.
 
 The open-format deliverables are:
 

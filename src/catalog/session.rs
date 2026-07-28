@@ -16,12 +16,15 @@ use std::path::{Path, PathBuf};
 
 use uuid::Uuid;
 
-use crate::catalog::chunk::{CitePayload, InlineKind, InlineSpan, TextHeader, encode_text_payload};
+use crate::catalog::chunk::{
+    CitePayload, InlineKind, InlineSpan, TextHeader, decode_text_payload, encode_text_payload,
+};
 use crate::catalog::document::DocumentCatalog;
+use crate::catalog::features::{FeatureSet, ids as feature_ids};
 use crate::catalog::index::{
     ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, ENTRY_LEN, HEADER_LEN, chunk_flags,
 };
-use crate::catalog::link::{LinkEntry, LinkKind, OutboundLink, encode_link_table};
+use crate::catalog::link::{LinkEntry, LinkKind, LinkTarget, OutboundLink, encode_link_table};
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload};
 use crate::catalog::slide::SlidePayload;
 use crate::error::{Result, TesError};
@@ -320,7 +323,11 @@ impl TesWriterSession {
         self.ensure_open()?;
 
         let catalog_bytes = match &self.catalog {
-            Some(cat) => Some(cat.to_bytes()?),
+            Some(cat) => {
+                let mut cat = cat.clone();
+                cat.features.merge(&self.inferred_features());
+                Some(cat.to_bytes()?)
+            }
             None => None,
         };
 
@@ -423,6 +430,30 @@ impl TesWriterSession {
         } else {
             Ok(())
         }
+    }
+
+    /// Optional features implied by pending chunks / links (layout_version stays 0).
+    fn inferred_features(&self) -> FeatureSet {
+        let mut features = FeatureSet::default();
+        for chunk in &self.chunks {
+            match chunk.chunk_type {
+                ChunkType::Attachment => features.declare_optional(feature_ids::ATTACHMENTS),
+                ChunkType::Text => {
+                    if let Ok((header, _)) = decode_text_payload(&chunk.payload)
+                        && header.uses_layout_v1_features()
+                    {
+                        features.declare_optional(feature_ids::TEXT_SPANS);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for link in &self.links {
+            if matches!(link.target, LinkTarget::External { .. }) {
+                features.declare_optional(feature_ids::EXTERNAL_URIS);
+            }
+        }
+        features
     }
 }
 

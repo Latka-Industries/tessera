@@ -4,9 +4,9 @@
 `checkout`/`textconv`/`blame`/`pending`/`merge-file`), layout-v1 **text wire**
 (spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
 (external URI heap v1) are shipped as additive wire on `layout_version = 0`.
-Vault TOC (`tes vault` / `vault.tes`) is in. Next code is optional layout
-feature flags (THI-202) and GitHub-readable PR diffs (THI-212). This is an
-implementation plan, not a release schedule.
+Vault TOC (`tes vault` / `vault.tes`) is in. Next polish is feature-flag
+policy (THI-202, still `layout_version = 0`) and GitHub-readable PR diffs
+(THI-212). This is an implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.

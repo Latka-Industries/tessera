@@ -5,6 +5,7 @@
 
 pub mod chunk;
 pub mod document;
+pub mod features;
 pub mod file;
 pub mod history;
 pub mod index;
@@ -20,6 +21,9 @@ pub use chunk::{
     encode_u32_prefixed, split_u32_prefixed,
 };
 pub use document::DocumentCatalog;
+pub use features::{
+    FeaturePolicyFinding, FeatureSet, KNOWN_FEATURES, ids as feature_ids, is_known_feature,
+};
 pub use file::TesFile;
 pub use history::{
     ChunkManifest, HISTORY_VERSION, HistoryV1, Revision, THST_MAGIC, attach_footer, content_hash,

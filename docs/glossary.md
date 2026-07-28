@@ -75,6 +75,7 @@ Terms used consistently across Tessera docs, issues, and code.
 | **mmap** | Memory-map file for zero-copy payload slices. |
 | **Sealed file** | Single writer finished file; safe for concurrent readers. |
 | **Must-understand feature** | Feature an older reader must reject if unknown; unknown optional features may be skipped with a warning. |
+| **Feature flags** | Catalog `features.optional` / `features.required` lists; see [layout_v0](layout_v0.md#catalog-features-forward-compatibility). |
 
 ---
 
