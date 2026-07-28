@@ -8,9 +8,9 @@
 //!
 //! Commands cover `info`, `verify`, `export` (including `--pdf`), CommonMark/HTML
 //! `import`, vault-aware `link`, loopback `serve`, Tessera Markdown
-//! `edit-read` / `edit-write` / `apply`, and history `save` / `log` / `diff` /
+//! `edit-read` / `edit-write` / `apply`, history `save` / `log` / `diff` /
 //! `changelog` / `export-revs` / `checkout` / `blame` / `pending` / `textconv` /
-//! `merge-file`.
+//! `merge-file`, and vault catalog `vault rebuild` / `vault list`.
 
 mod args;
 mod commands;
@@ -24,7 +24,7 @@ use args::{Cli, Commands};
 use commands::{
     run_apply, run_blame, run_changelog, run_checkout, run_diff, run_edit_read, run_edit_write,
     run_export, run_export_revs, run_import, run_info, run_link, run_log, run_merge_file,
-    run_pending, run_save, run_serve, run_textconv, run_verify,
+    run_pending, run_save, run_serve, run_textconv, run_vault, run_verify,
 };
 use util::result_exit;
 
@@ -42,6 +42,7 @@ pub fn run() -> ExitCode {
         Commands::Export(args) => result_exit(run_export(args)),
         Commands::Import(args) => result_exit(run_import(args)),
         Commands::Link { vault, command } => run_link(&vault, command),
+        Commands::Vault { vault, command } => result_exit(run_vault(&vault, command)),
         Commands::Serve(args) => result_exit(run_serve(args)),
         Commands::EditRead(args) => result_exit(run_edit_read(&args)),
         Commands::EditWrite(args) => result_exit(run_edit_write(args)),

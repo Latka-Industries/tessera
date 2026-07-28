@@ -48,7 +48,7 @@ pagination, computed figure numbers, or pixel coordinates.
 | History (first slice) | `save` / `log` / `diff` / `changelog` | Content-addressed revisions + drafts | shipped (M10) |
 | History (checkout / textconv / merge) | Materialize revisions; git Tessprek + verified merge | `export-revs` / `checkout` / `textconv` / `merge-file` | shipped (M10) |
 | History (redline) | Footer `pending` reserved | Authored ops + accept/reject | shipped (M10) |
-| Vault graph | Implemented | Light `vault.tes` catalog | shipped / later |
+| Vault graph | Implemented | Light `vault.tes` catalog (`tes vault`) | shipped / later |
 | Full-text search | Scan only | External index or projected-text search | later |
 | Embeddings | Missing | External to `.tes` | out of wire |
 

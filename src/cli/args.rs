@@ -61,6 +61,15 @@ pub(super) enum Commands {
         command: LinkCommands,
     },
 
+    /// Vault catalog (`vault.tes` TOC) rebuild / list
+    Vault {
+        /// Vault root containing .tes files
+        #[arg(long)]
+        vault: PathBuf,
+        #[command(subcommand)]
+        command: VaultCommands,
+    },
+
     /// Live browser preview on loopback (semantic HTML + template theme)
     Serve(ServeArgs),
 
@@ -500,6 +509,24 @@ pub(super) enum LinkCommands {
     },
     /// Check that every graph target exists
     Check {
+        /// Emit JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub(super) enum VaultCommands {
+    /// Rebuild the optional `vault.tes` catalog index
+    Rebuild,
+    /// List documents (uses `vault.tes` when fresh)
+    List {
+        /// Filter by catalog tag
+        #[arg(long)]
+        tag: Option<String>,
+        /// Ignore `vault.tes` and scan catalogs
+        #[arg(long)]
+        force_scan: bool,
         /// Emit JSON
         #[arg(long)]
         json: bool,
