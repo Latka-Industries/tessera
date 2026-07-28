@@ -51,6 +51,7 @@ Spec, decisions, and engine notes live under [`docs/`](docs/) (this README stays
 | **[CLI](docs/cli.md)** | `tes` command surface |
 | **[Exports](docs/exports.md)** | Decoded views (AI text, Markdown, HTML, PDF, bibliography) |
 | **[Engine](docs/engine.md)** | Reader/writer paths and module map |
+| **[MIME + magic](docs/mime.md)** | `.tes` MIME, `file(1)` magic, conformance kit |
 | **[Roadmap](docs/roadmap.md)** | Milestones (M0–M10) |
 | **[Decisions](docs/decisions.md)** | Accepted design calls |
 | **[Security](docs/security.md)** | Threat model for serve / themes |
@@ -60,3 +61,5 @@ Spec, decisions, and engine notes live under [`docs/`](docs/) (this README stays
 ## License
 
 Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).
+
+Specification prose under [`docs/`](docs/) is [CC BY 4.0](docs/LICENSE).

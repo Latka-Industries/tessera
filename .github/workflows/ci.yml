@@ -9,6 +9,8 @@ on:
     paths:
       - "src/**"
       - "examples/**"
+      - "benches/**"
+      - "contrib/**"
       - "fixtures/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -19,12 +21,13 @@ on:
     paths:
       - "src/**"
       - "examples/**"
+      - "benches/**"
+      - "contrib/**"
       - "fixtures/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".github/workflows/ci.yml"
       - "!**/*.md"
-
 jobs:
   test:
     name: Test Suite
@@ -73,9 +76,33 @@ jobs:
         run: cargo build --bin tes
 
       # Exits 1 on any corrupt fixture; --deep also decodes every payload.
-      - name: tes verify fixtures
+      - name: tes verify golden fixtures
         run: ./target/debug/tes verify --deep fixtures/v0/*.tes
 
+      - name: tes verify conformance accept
+        run: ./target/debug/tes verify --deep fixtures/conformance/accept/*.tes
+
+      - name: tes verify conformance reject (must fail)
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          failed=0
+          for f in fixtures/conformance/reject/*.tes; do
+            if ./target/debug/tes verify "$f"; then
+              echo "expected reject, but verify succeeded: $f" >&2
+              failed=1
+            else
+              echo "ok reject: $f"
+            fi
+          done
+          exit "$failed"
+
+      - name: Identify .tes via file(1) magic
+        run: |
+          out=$(file -m contrib/magic/tessera fixtures/v0/note_one_chunk.tes)
+          echo "$out"
+          echo "$out" | grep -qi 'Tessera'
   msrv:
     name: MSRV Check
     runs-on: ubuntu-latest

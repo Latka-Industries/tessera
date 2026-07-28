@@ -42,7 +42,12 @@ uuid = { version = "1.24.0", features = ["v4"] }
 
 [dev-dependencies]
 anyhow = "1.0.104"
+criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.27.0"
+
+[[bench]]
+name = "open_format"
+harness = false
 
 [profile.release]
 codegen-units = 1

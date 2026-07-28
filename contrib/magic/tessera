@@ -1,0 +1,6 @@
+# Magic data for Tessera (.tes) documents
+# Install: file -m contrib/magic/tessera PATH
+# Or copy into a magic.d directory and recompile the system magic DB.
+
+0	string	TESS	Tessera document
+!:mime	application/vnd.tessera
