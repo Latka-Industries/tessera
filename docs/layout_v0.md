@@ -416,6 +416,7 @@ Exit code **1** on failure (CI-friendly). See [cli.md](cli.md).
 | `fixtures/v0/slide_deck.tes` | Region-based slide |
 | `fixtures/v0/research_cite.tes` | Cite chunk + citation link |
 | `fixtures/v0/figure_sample.tes` | Image + figure |
+| `fixtures/v0/attachment_sample.tes` | Inert attachment |
 
 Regenerate via `cargo run --example gen_v0_fixtures` (issue-tracked).
 

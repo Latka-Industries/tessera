@@ -11,9 +11,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use tessera_doc::catalog::{
-    CitePayload, DocumentCatalog, FigureRef, ImagePayload, ImagePlacement, InlineKind, InlineSpan,
-    LinkEntry, LinkKind, ListKind, SlidePayload, SlideRegion, TableCell, TableData, TableRow,
-    TesWriterSession, TextAlign, TextHeader,
+    AttachmentPayload, CitePayload, DocumentCatalog, FigureRef, ImagePayload, ImagePlacement,
+    InlineKind, InlineSpan, LinkEntry, LinkKind, ListKind, SlidePayload, SlideRegion, TableCell,
+    TableData, TableRow, TesWriterSession, TextAlign, TextHeader,
 };
 use tessera_doc::layout::DocKind;
 use uuid::Uuid;
@@ -320,6 +320,37 @@ fn write_figure_sample(dir: &std::path::Path) {
     println!("wrote {}", path.display());
 }
 
+fn write_attachment_sample(dir: &std::path::Path) {
+    let path = dir.join("attachment_sample.tes");
+    let _ = fs::remove_file(&path);
+    let mut session = TesWriterSession::create(&path, DocKind::Note);
+    session
+        .set_catalog(DocumentCatalog::new(
+            "550e8400-e29b-41d4-a716-446655440070",
+            "Attachment specimen",
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Note,
+        ))
+        .expect("catalog");
+    session
+        .add_text_chunk(&TextHeader::heading(1), "Attachments")
+        .expect("heading");
+    session
+        .add_attachment_chunk(
+            &AttachmentPayload::new(
+                "application/pdf",
+                "notes.pdf",
+                b"%PDF-1.4 fixture".to_vec(),
+                Some("Sample notes".into()),
+            )
+            .expect("attachment"),
+        )
+        .expect("add attachment");
+    session.commit().expect("write attachment_sample.tes");
+    println!("wrote {}", path.display());
+}
+
 fn write_external_links(dir: &std::path::Path) {
     let path = dir.join("external_links.tes");
     let _ = fs::remove_file(&path);
@@ -393,5 +424,6 @@ fn main() {
     write_slide_deck(&dir);
     write_research_cite(&dir);
     write_figure_sample(&dir);
+    write_attachment_sample(&dir);
     write_external_links(&dir);
 }

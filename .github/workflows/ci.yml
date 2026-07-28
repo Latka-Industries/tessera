@@ -89,8 +89,8 @@ jobs:
           shopt -s nullglob
           failed=0
           for f in fixtures/conformance/reject/*.tes; do
-            if ./target/debug/tes verify "$f"; then
-              echo "expected reject, but verify succeeded: $f" >&2
+            if ./target/debug/tes verify --deep "$f"; then
+              echo "expected reject, but deep verify succeeded: $f" >&2
               failed=1
             else
               echo "ok reject: $f"

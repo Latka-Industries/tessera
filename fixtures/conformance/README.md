@@ -6,7 +6,10 @@ Must-accept and must-reject `.tes` files for open-format readers
 | Tree | Expectation |
 | --- | --- |
 | `accept/` | `tes verify --deep` exits 0 |
-| `reject/` | `tes verify` exits 1 |
+| `reject/` | `tes verify --deep` exits 1 |
+
+Third-party readers that claim Tessera compatibility should run the same gate
+(or an equivalent deep decode + validate path).
 
 ## Accept set
 
@@ -17,14 +20,15 @@ Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 - `note_three_chunks.tes` — heading + paragraph + list
 - `hub_links.tes` — hub with `TLNK` edges
 - `external_links.tes` — `TLNK` v1 external URI heap (+ mixed internal)
-- `layout_v1_text.tes` — spans / math / code lang / structured table
+- `layout_v1_text.tes` — spans / math / code lang / structured table / lang / align
+- `attachment_sample.tes` — inert attachment (safe basename + PDF bytes)
 - `slide_deck.tes` — region-based slide
 - `research_cite.tes` — cite chunk + citation link
 - `figure_sample.tes` — image + figure
 
 ## Reject set
 
-Derived from `note_one_chunk.tes` (except `too_short.tes`):
+### Structural (from `note_one_chunk.tes`, except `too_short.tes`)
 
 | File | Fault |
 | --- | --- |
@@ -35,9 +39,27 @@ Derived from `note_one_chunk.tes` (except `too_short.tes`):
 | `history_flag_no_thst.tes` | History flag set without `THST` footer |
 | `too_short.tes` | 10 zero bytes (shorter than superblock) |
 
-Regenerate rejects after changing the note golden:
+### Layout-v1 / attachment semantic (deep verify)
+
+| File | Fault |
+| --- | --- |
+| `span_oob.tes` | Inline span end past body length |
+| `span_partial_overlap.tes` | Nested span escapes outer span |
+| `table_rowspan_zero.tes` | Structured table `rowspan: 0` |
+| `oversized_text_header.tes` | Text header JSON > 4 KiB |
+| `unsafe_attachment_filename.tes` | Attachment basename with `../` |
+
+## Regenerate
 
 ```bash
+# Goldens + accept sync
+cargo run --example gen_v0_fixtures
+cp fixtures/v0/*.tes fixtures/conformance/accept/
+
+# Layout-v1 / attachment rejects
+cargo run --example gen_conformance_rejects
+
+# Structural rejects (after note_one_chunk changes)
 python3 - <<'PY'
 from pathlib import Path
 src = Path('fixtures/v0/note_one_chunk.tes').read_bytes()
@@ -49,5 +71,7 @@ idx = src.find(b'TIDX'); b = bytearray(src); b[idx] = ord('Z'); (out/'bad_tidx_m
 b = bytearray(src); b[64] = ord('?'); (out/'bad_catalog.tes').write_bytes(b)
 b = bytearray(src); b[8:12] = (1).to_bytes(4, 'little'); (out/'history_flag_no_thst.tes').write_bytes(b)
 PY
-cp fixtures/v0/*.tes fixtures/conformance/accept/
 ```
+
+Or: `mise run fixtures` (goldens + accept + layout smoke), then
+`cargo run --example gen_conformance_rejects`.

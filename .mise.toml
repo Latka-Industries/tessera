@@ -2,10 +2,11 @@
 rust = "1.95"
 
 [tasks.fixtures]
-description = "Regenerate v0 goldens, sync conformance accept, smoke layout fixtures"
+description = "Regenerate v0 goldens, sync conformance accept/rejects, smoke kit"
 run = """
 cargo run --example gen_v0_fixtures
 cp fixtures/v0/*.tes fixtures/conformance/accept/
+cargo run --example gen_conformance_rejects
 bash scripts/manual-layout-v1-smoke.sh
 """
 

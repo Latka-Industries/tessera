@@ -481,20 +481,15 @@ impl AttachmentPayload {
             sha256: self.sha256.to_ascii_lowercase(),
         };
         let meta_bytes = serde_json::to_vec(&meta)?;
-        let meta_len =
-            u32::try_from(meta_bytes.len()).map_err(|_| TesError::InvalidAttachment {
+        if u32::try_from(meta_bytes.len()).is_err() {
+            return Err(TesError::InvalidAttachment {
                 message: "attachment metadata too long for u32".into(),
-            })?;
-        let mut out = Vec::with_capacity(4 + meta_bytes.len() + self.data.len());
-        let mut len_buf = [0u8; 4];
-        {
-            let mut w = LeWriter::new(&mut len_buf);
-            w.put_u32(meta_len);
+            });
         }
-        out.extend_from_slice(&len_buf);
-        out.extend_from_slice(&meta_bytes);
-        out.extend_from_slice(&self.data);
-        Ok(out)
+        Ok(crate::catalog::chunk::encode_u32_prefixed(
+            &meta_bytes,
+            &self.data,
+        ))
     }
 
     /// Decode an attachment payload.
@@ -503,24 +498,15 @@ impl AttachmentPayload {
     ///
     /// Returns buffer / JSON / validation errors.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let mut r = LeReader::require(bytes, "AttachmentPayload", 4)?;
-        let meta_len = r.take_u32() as usize;
-        let rest = &bytes[4..];
-        if rest.len() < meta_len {
-            return Err(TesError::BufferTooSmall {
-                structure: "AttachmentPayload.meta",
-                need: meta_len,
-                got: rest.len(),
-            });
-        }
-        let meta: AttachmentMeta = serde_json::from_slice(&rest[..meta_len])?;
-        let data = rest[meta_len..].to_vec();
+        let (meta_bytes, data) =
+            crate::catalog::chunk::split_u32_prefixed(bytes, "AttachmentPayload")?;
+        let meta: AttachmentMeta = serde_json::from_slice(meta_bytes)?;
         let payload = Self {
             media_type: meta.media_type,
             filename: meta.filename,
             caption: meta.caption,
             sha256: meta.sha256,
-            data,
+            data: data.to_vec(),
         };
         payload.validate()?;
         Ok(payload)
