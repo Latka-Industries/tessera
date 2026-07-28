@@ -141,7 +141,7 @@ Outbound and internal links for **backlink resolution** without scanning text pa
 | Offset | Size | Field | Notes |
 | --- | --- | --- | --- |
 | 0 | 4 | magic | ASCII **`TLNK`** |
-| 4 | 4 | `table_version` | `u32` = **0** |
+| 4 | 4 | `table_version` | `u32` = **0** (all-internal) or **1** (external/attachment + URI heap) |
 | 8 | 8 | `entry_count` | Number of fixed entries following |
 | 16 | 8 | reserved | Write **0** |
 
@@ -152,12 +152,18 @@ Outbound and internal links for **backlink resolution** without scanning text pa
 | `source_chunk_id` | `u64` | Chunk containing the link anchor |
 | `source_byte_start` | `u32` | UTF-8 byte offset in text chunk (optional anchor) |
 | `source_byte_end` | `u32` | Exclusive end |
-| `target_doc_id` | `[u8;16]` | UUID bytes (RFC 4122 binary) |
-| `target_chunk_id` | `u64` | **`0`** = whole document |
+| `target_doc_id` | `[u8;16]` | UUID bytes (RFC 4122 binary) for **internal** targets. For **external** (v1), first 8 bytes hold `uri_offset` / `uri_len` (little-endian `u32`s) into the trailing URI heap; remaining 8 bytes zero. |
+| `target_chunk_id` | `u64` | **`0`** = whole document (internal); attachment chunk id when `target_kind = 2`; **0** for external |
 | `link_kind` | `u32` | `0` = wiki, `1` = footnote, `2` = citation stub |
-| `reserved` | `u32` | **0** |
+| `reserved` / `target_kind` | `u32` | v0: **0**. v1: `0` = internal, `1` = external, `2` = attachment |
 
-Total table size: `24 + entry_count × 48`.
+Total table size (v0): `24 + entry_count × 48`.
+
+**v1** appends a UTF-8 **URI heap** after the fixed rows. Heap bytes are only
+referenced by external rows. Soft limits: 8 KiB per URI, 256 KiB heap.
+Allowed schemes: `http`, `https`, `mailto`. Inline text spans use
+`InlineKind::Link { link_id }` where `link_id` is the 0-based index into this
+table.
 
 **Hub docs** may have many entries with `source_chunk_id` pointing at hub list chunks; see [decisions — hub format](decisions.md#hub-documents).
 
@@ -405,6 +411,7 @@ Exit code **1** on failure (CI-friendly). See [cli.md](cli.md).
 | `fixtures/v0/note_one_chunk.tes` | Single paragraph note |
 | `fixtures/v0/note_three_chunks.tes` | Heading + paragraph + list item |
 | `fixtures/v0/hub_links.tes` | Hub doc + link table |
+| `fixtures/v0/external_links.tes` | `TLNK` v1 https/mailto heap + mixed internal |
 | `fixtures/v0/layout_v1_text.tes` | Spans, math, code lang, structured table |
 | `fixtures/v0/slide_deck.tes` | Region-based slide |
 | `fixtures/v0/research_cite.tes` | Cite chunk + citation link |

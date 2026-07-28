@@ -102,9 +102,7 @@ pub fn import_html_v0(
         &now,
         options.doc_kind,
     ))?;
-    for block in &blocks {
-        session.add_text_chunk(&block.header, &block.body)?;
-    }
+    super::seal_text_blocks(&mut session, &blocks)?;
     session.commit()?;
 
     Ok(HtmlImportReport {
@@ -185,7 +183,11 @@ fn parse_document_blocks(document: &Html) -> Vec<MarkdownBlock> {
             clean_text(&element)
         };
         if !body.is_empty() {
-            blocks.push(MarkdownBlock { header, body });
+            blocks.push(MarkdownBlock {
+                header,
+                body,
+                pending_links: Vec::new(),
+            });
         }
     }
     blocks

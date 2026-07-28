@@ -39,7 +39,7 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
                 let raw = file.decode_payload(entry)?;
                 let (header, body) = decode_text_payload(raw.as_ref())?;
                 write_text_directive(&mut out, entry.chunk_id, &header);
-                out.push_str(&header.render_markdown(&body));
+                out.push_str(&header.render_markdown_with_links(&body, file.links()));
                 out.push_str("\n\n");
             }
             ChunkType::Figure => {
@@ -215,10 +215,35 @@ fn decode_text_block(
         header.table = Some(table);
     }
     let clear_body = header.table.is_some();
+    let (body, pending_links) =
+        if clear_body || role == TextRole::CodeBlock || role == TextRole::Math {
+            (
+                if clear_body { String::new() } else { text_body },
+                Vec::new(),
+            )
+        } else {
+            // Re-parse inline markdown so `[text](https://…)` becomes TLNK on write.
+            let parsed = crate::io::import::parse_markdown_blocks(&text_body);
+            if parsed.len() == 1 {
+                let block = &parsed[0];
+                // Preserve role/header fields; take body + links + math spans from parse.
+                let mut merged = header;
+                for span in &block.header.spans {
+                    if !merged.spans.iter().any(|s| s == span) {
+                        merged.spans.push(span.clone());
+                    }
+                }
+                header = merged;
+                (block.body.clone(), block.pending_links.clone())
+            } else {
+                (text_body, Vec::new())
+            }
+        };
     Ok(ContentBlock::Text {
         chunk_id: Some(chunk_id),
         header,
-        body: if clear_body { String::new() } else { text_body },
+        body,
+        pending_links,
     })
 }
 

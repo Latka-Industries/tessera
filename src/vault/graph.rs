@@ -57,13 +57,17 @@ impl Vault {
             }
 
             for link in file.links() {
+                let Some(target_uuid) = link.target_uuid() else {
+                    // External / attachment edges are not vault graph nodes.
+                    continue;
+                };
                 backlinks.push(Backlink {
                     source_doc_id: id.to_string(),
                     source_title: catalog.title.clone(),
                     source_path: path.clone(),
                     source_chunk_id: link.source_chunk_id,
-                    target_doc_id: link.target_uuid().to_string(),
-                    target_chunk_id: link.target_chunk_id,
+                    target_doc_id: target_uuid.to_string(),
+                    target_chunk_id: link.target_chunk_id().unwrap_or(0),
                     link_kind: link.link_kind.as_str(),
                 });
             }

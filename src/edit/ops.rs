@@ -106,6 +106,7 @@ pub fn apply_ops_to_blocks(
                     chunk_id: None,
                     header,
                     body: body.clone(),
+                    pending_links: Vec::new(),
                 });
             }
             TesOp::DeleteChunk { chunk_id } => {

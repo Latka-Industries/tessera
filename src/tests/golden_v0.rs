@@ -298,6 +298,59 @@ fn expected_figure_sample() -> Vec<u8> {
     session.encode_file().unwrap()
 }
 
+fn expected_external_links() -> Vec<u8> {
+    let mut session = TesWriterSession::create("external_links.tes", DocKind::Note);
+    session
+        .set_catalog(DocumentCatalog::new(
+            "550e8400-e29b-41d4-a716-446655440060",
+            "External link specimen",
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Note,
+        ))
+        .unwrap();
+    session
+        .add_text_chunk(&TextHeader::heading(1), "External links")
+        .unwrap();
+    let mut para = TextHeader::paragraph();
+    para.spans = vec![
+        InlineSpan {
+            start: 4,
+            end: 12,
+            kind: InlineKind::Link { link_id: 0 },
+        },
+        InlineSpan {
+            start: 16,
+            end: 24,
+            kind: InlineKind::Link { link_id: 1 },
+        },
+    ];
+    session
+        .add_text_chunk(&para, "See the docs or email us.")
+        .unwrap();
+    session
+        .add_link(
+            LinkEntry::external(2, 4, 12, "https://example.com/docs", LinkKind::Wiki).unwrap(),
+        )
+        .unwrap();
+    session
+        .add_link(
+            LinkEntry::external(2, 16, 24, "mailto:docs@example.com", LinkKind::Wiki).unwrap(),
+        )
+        .unwrap();
+    session
+        .add_link(LinkEntry::new(
+            2,
+            0,
+            3,
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            1,
+            LinkKind::Wiki,
+        ))
+        .unwrap();
+    session.encode_file().unwrap()
+}
+
 #[test]
 fn empty_tes_matches_encoder() {
     let path = fixtures_dir().join("empty.tes");
@@ -348,4 +401,16 @@ fn research_cite_tes_matches_encoder() {
 #[test]
 fn figure_sample_tes_matches_encoder() {
     assert_matches_encoder("figure_sample.tes", expected_figure_sample());
+}
+
+#[test]
+fn external_links_tes_matches_encoder() {
+    assert_matches_encoder("external_links.tes", expected_external_links());
+    let on_disk = fs::read(fixtures_dir().join("external_links.tes")).unwrap();
+    let sb = SuperblockV0::from_bytes(&on_disk).unwrap();
+    assert!(sb.link_table.is_present());
+    // TLNK v1: version byte after magic.
+    let region = sb.link_table.slice(&on_disk, "link_table").unwrap();
+    assert_eq!(&region[..4], b"TLNK");
+    assert_eq!(region[4], 1);
 }

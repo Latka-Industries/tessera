@@ -262,7 +262,7 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
-                parts.push(header.render_markdown(&body));
+                parts.push(header.render_markdown_with_links(&body, file.links()));
             }
             ChunkType::Figure => {
                 let figure = decode_figure_entry(file, entry)?;
@@ -350,7 +350,12 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
-                article.push_str(&render_text_chunk_html(entry.chunk_id, &header, &body));
+                article.push_str(&render_text_chunk_html(
+                    entry.chunk_id,
+                    &header,
+                    &body,
+                    file.links(),
+                ));
             }
             ChunkType::Figure => {
                 article.push_str(&render_figure_html(file, entry, options)?);
@@ -443,7 +448,12 @@ fn render_region_chunk_html(
     match entry.chunk_type {
         ChunkType::Text => {
             let (header, body) = decode_text_entry(file, entry)?;
-            Ok(render_text_chunk_html(entry.chunk_id, &header, &body))
+            Ok(render_text_chunk_html(
+                entry.chunk_id,
+                &header,
+                &body,
+                file.links(),
+            ))
         }
         ChunkType::Figure => render_figure_html(file, entry, options),
         ChunkType::Cite => {
@@ -473,28 +483,34 @@ fn render_region_chunk_html(
     }
 }
 
-fn render_text_chunk_html(chunk_id: u64, header: &TextHeader, body: &str) -> String {
-    let escaped = escape_html(body);
+fn render_text_chunk_html(
+    chunk_id: u64,
+    header: &TextHeader,
+    body: &str,
+    links: &[crate::catalog::LinkEntry],
+) -> String {
+    let inner = apply_spans_html(body, &header.spans, links);
     let class = html_class_attr(&header.classes);
     match header.role {
         TextRole::Heading => {
             let level = header.level.unwrap_or(1).clamp(1, 6);
-            format!("  <h{level} id=\"chunk-{chunk_id}\"{class}>{escaped}</h{level}>\n")
+            format!("  <h{level} id=\"chunk-{chunk_id}\"{class}>{inner}</h{level}>\n")
         }
         TextRole::Paragraph => {
-            format!("  <p data-chunk-id=\"{chunk_id}\"{class}>{escaped}</p>\n")
+            format!("  <p data-chunk-id=\"{chunk_id}\"{class}>{inner}</p>\n")
         }
         TextRole::ListItem => {
             let (open, close) = match header.list_kind.unwrap_or(ListKind::Bullet) {
                 ListKind::Bullet => ("ul", "ul"),
                 ListKind::Ordered => ("ol", "ol"),
             };
-            format!("  <{open}><li data-chunk-id=\"{chunk_id}\"{class}>{escaped}</li></{close}>\n")
+            format!("  <{open}><li data-chunk-id=\"{chunk_id}\"{class}>{inner}</li></{close}>\n")
         }
         TextRole::Blockquote => {
-            format!("  <blockquote data-chunk-id=\"{chunk_id}\"{class}>{escaped}</blockquote>\n")
+            format!("  <blockquote data-chunk-id=\"{chunk_id}\"{class}>{inner}</blockquote>\n")
         }
         TextRole::CodeBlock => {
+            let escaped = escape_html(body);
             let lang = header
                 .code_lang
                 .as_deref()
@@ -539,6 +555,62 @@ fn render_text_chunk_html(chunk_id: u64, header: &TextHeader, body: &str) -> Str
             )
         }
     }
+}
+
+fn apply_spans_html(
+    body: &str,
+    spans: &[crate::catalog::InlineSpan],
+    links: &[crate::catalog::LinkEntry],
+) -> String {
+    use crate::catalog::InlineKind;
+    if spans.is_empty() {
+        return escape_html(body);
+    }
+
+    // Replace from the end so earlier byte offsets stay valid (non-overlapping spans).
+    let mut ordered: Vec<&crate::catalog::InlineSpan> = spans.iter().collect();
+    ordered.sort_by_key(|s| std::cmp::Reverse(s.start));
+    let mut work = body.to_owned();
+    let mut replacements: Vec<(String, String)> = Vec::new();
+    for (i, span) in ordered.iter().enumerate() {
+        let start = span.start as usize;
+        let end = span.end as usize;
+        if end > work.len() || start >= end {
+            continue;
+        }
+        if !work.is_char_boundary(start) || !work.is_char_boundary(end) {
+            continue;
+        }
+        let inner = work[start..end].to_owned();
+        let token = format!("\u{0001}S{i}\u{0001}");
+        let html = match &span.kind {
+            InlineKind::Emphasis | InlineKind::Term => {
+                format!("<em>{}</em>", escape_html(&inner))
+            }
+            InlineKind::Strong => format!("<strong>{}</strong>", escape_html(&inner)),
+            InlineKind::Code => format!("<code>{}</code>", escape_html(&inner)),
+            InlineKind::Quote => format!("<q>{}</q>", escape_html(&inner)),
+            InlineKind::Math { tex } => {
+                format!("<code class=\"math-inline\">{}</code>", escape_html(tex))
+            }
+            InlineKind::Link { link_id } => match links.get(*link_id as usize) {
+                Some(entry) => format!(
+                    "<a href=\"{}\">{}</a>",
+                    escape_html(&entry.target.html_href()),
+                    escape_html(&inner)
+                ),
+                None => escape_html(&inner),
+            },
+            InlineKind::Citation { .. } => escape_html(&inner),
+        };
+        replacements.push((token.clone(), html));
+        work.replace_range(start..end, &token);
+    }
+    let mut out = escape_html(&work);
+    for (token, html) in replacements {
+        out = out.replace(&token, &html);
+    }
+    out
 }
 
 fn append_cite_html(

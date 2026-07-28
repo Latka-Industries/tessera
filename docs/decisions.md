@@ -120,13 +120,15 @@ remain rejected for v1.
 
 | Imported | Discarded |
 | --- | --- |
-| `h1`–`h6`, `p`, `ul/ol/li`, `blockquote`, `pre/code`, `table`, `a` display text | `script`, `style`, inline `style=""` (v0) |
-| Internal document edges → `TLNK` | External `href` persistence in v0 |
+| `h1`–`h6`, `p`, `ul/ol/li`, `blockquote`, `pre/code`, `table`, `a` display text | `script`, `style`, inline `style=""` |
+| Internal document edges → `TLNK` | — |
 
 **Export:** HTML is generated from chunks + theme CSS — not round-tripped from imported HTML source.
 
-Layout v1 adds typed internal, external-URI, and attachment link targets; URI
-bytes live outside the fixed v0 row.
+Typed internal, external-URI (`http`/`https`/`mailto`), and attachment link
+targets ship in `TLNK` (v0 all-internal; v1 + URI heap when needed). Markdown
+import persists allowed external `href`s; HTML import still flattens anchors to
+display text until wired the same way.
 
 See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousin-and-the-main-antagonist).
 
@@ -139,7 +141,7 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 | Supported | Deferred |
 | --- | --- |
 | ATX headings, paragraphs, lists, fenced code, blockquotes | Footnotes and raw HTML blocks |
-| Link display text; wikilinks compile to `TLNK` when a vault resolver is provided | External URL persistence in v0 |
+| Link display text; `[text](https://…)` / UUID destinations → `TLNK` + `InlineKind::Link` | Footnote link kinds; vault wikilink resolver |
 
 **Export:** `tes export --markdown` generates GFM-ish Markdown from chunks; **lossy** for cite/slide richness.
 

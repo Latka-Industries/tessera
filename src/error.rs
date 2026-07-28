@@ -218,6 +218,13 @@ pub enum TesError {
         message: String,
     },
 
+    /// Link table entry / external URI failed validation.
+    #[error("invalid link: {message}")]
+    InvalidLink {
+        /// Human-readable reason.
+        message: String,
+    },
+
     /// Attachment payload failed validation or decode.
     #[error("invalid attachment: {message}")]
     InvalidAttachment {

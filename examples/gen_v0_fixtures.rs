@@ -320,6 +320,68 @@ fn write_figure_sample(dir: &std::path::Path) {
     println!("wrote {}", path.display());
 }
 
+fn write_external_links(dir: &std::path::Path) {
+    let path = dir.join("external_links.tes");
+    let _ = fs::remove_file(&path);
+    let mut session = TesWriterSession::create(&path, DocKind::Note);
+    session
+        .set_catalog(DocumentCatalog::new(
+            "550e8400-e29b-41d4-a716-446655440060",
+            "External link specimen",
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Note,
+        ))
+        .expect("catalog");
+    session
+        .add_text_chunk(&TextHeader::heading(1), "External links")
+        .expect("heading");
+
+    let mut para = TextHeader::paragraph();
+    // Body: "See the docs or email us."
+    para.spans = vec![
+        InlineSpan {
+            start: 4,
+            end: 12,
+            kind: InlineKind::Link { link_id: 0 },
+        },
+        InlineSpan {
+            start: 16,
+            end: 24,
+            kind: InlineKind::Link { link_id: 1 },
+        },
+    ];
+    session
+        .add_text_chunk(&para, "See the docs or email us.")
+        .expect("para");
+    session
+        .add_link(
+            LinkEntry::external(2, 4, 12, "https://example.com/docs", LinkKind::Wiki)
+                .expect("https"),
+        )
+        .expect("https link");
+    session
+        .add_link(
+            LinkEntry::external(2, 16, 24, "mailto:docs@example.com", LinkKind::Wiki)
+                .expect("mailto"),
+        )
+        .expect("mailto link");
+    // Mixed table: keep an internal edge so v1 rows coexist with UUID targets.
+    session
+        .add_link(LinkEntry::new(
+            2,
+            0,
+            3,
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("uuid"),
+            1,
+            LinkKind::Wiki,
+        ))
+        .expect("internal link");
+
+    session.commit().expect("write external_links.tes");
+    println!("wrote {}", path.display());
+}
+
 fn main() {
     let dir = fixtures_dir();
     fs::create_dir_all(&dir).expect("fixtures/v0");
@@ -331,4 +393,5 @@ fn main() {
     write_slide_deck(&dir);
     write_research_cite(&dir);
     write_figure_sample(&dir);
+    write_external_links(&dir);
 }

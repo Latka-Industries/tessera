@@ -331,8 +331,18 @@ impl TextHeader {
     /// Lossy Markdown projection of a text-chunk body (export + Tessprek).
     #[must_use]
     pub fn render_markdown(&self, body: &str) -> String {
+        self.render_markdown_with_links(body, &[])
+    }
+
+    /// Markdown projection resolving [`InlineKind::Link`] via the document link table.
+    #[must_use]
+    pub fn render_markdown_with_links(
+        &self,
+        body: &str,
+        links: &[crate::catalog::LinkEntry],
+    ) -> String {
         let body = body.trim_end();
-        let spanned = apply_spans_markdown(body, &self.spans);
+        let spanned = apply_spans_markdown(body, &self.spans, links);
         match self.role {
             TextRole::Heading => {
                 let level = self.level.unwrap_or(1).clamp(1, 6) as usize;
@@ -419,7 +429,11 @@ fn validate_spans(body: &str, spans: &[InlineSpan]) -> Result<()> {
     Ok(())
 }
 
-fn apply_spans_markdown(body: &str, spans: &[InlineSpan]) -> String {
+fn apply_spans_markdown(
+    body: &str,
+    spans: &[InlineSpan],
+    links: &[crate::catalog::LinkEntry],
+) -> String {
     if spans.is_empty() {
         return body.to_owned();
     }
@@ -439,7 +453,14 @@ fn apply_spans_markdown(body: &str, spans: &[InlineSpan]) -> String {
             InlineKind::Code => format!("`{inner}`"),
             InlineKind::Quote => format!("\u{201c}{inner}\u{201d}"),
             InlineKind::Math { tex } => format!("${tex}$"),
-            InlineKind::Link { .. } | InlineKind::Citation { .. } => inner,
+            InlineKind::Link { link_id } => match links.get(*link_id as usize) {
+                Some(entry) => {
+                    let dest = entry.target.markdown_destination();
+                    format!("[{inner}]({dest})")
+                }
+                None => inner,
+            },
+            InlineKind::Citation { .. } => inner,
         };
         out.replace_range(start..end, &wrapped);
     }

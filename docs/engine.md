@@ -215,7 +215,6 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 
 **Out (later):**
 
-- Typed external URI / attachment link targets in `TLNK`
 - `repair/`, richer history (blame, merge driver, redline)
 - Aleph, CRDT, page tensors
 

@@ -1,11 +1,11 @@
 # Roadmap and phases
 
 **Status:** M0–M9 plus M10 (`save`/`log`/`diff`/`changelog`/`export-revs`/
-`checkout`/`textconv`), layout-v1 **text wire** (spans/math/tables/lang), and
-**inert attachments** are shipped as additive JSON / chunk type 8 on
-`layout_version = 0`. Next code is typed external URI links, then history
-residual (blame/merge/redline). This is an implementation plan, not a release
-schedule.
+`checkout`/`textconv`), layout-v1 **text wire** (spans/math/tables/lang),
+**inert attachments**, and **typed TLNK targets** (external URI heap v1) are
+shipped as additive wire on `layout_version = 0`. Next code is history residual
+(blame/merge/redline) and light `vault.tes` polish. This is an implementation
+plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -17,7 +17,7 @@ links.
 | Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify | optional/required feature policy | conformance kit grows continuously |
 | Prose | typed text roles, Markdown/HTML import/export, Tessprek edit, ranged spans, math, code/block lang, align | — | further editor adapters |
 | Tables | structured header table + TSV fallback | — | rich import/export |
-| Links | internal UUID/chunk graph | typed internal/external/attachment targets | light `vault.tes` catalog |
+| Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1) | — | light `vault.tes` catalog |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
 | Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
@@ -250,11 +250,10 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **layout residual:** variable-length external URI / typed TLNK link targets
-   (still deferred from structure freeze).
-2. **history residual:** blame, verified merge driver, pending-ops redline.
-3. **open format:** MIME/magic entries and v1 conformance cases.
-4. **benchmark:** measure the specific mmap/link/export claims in the README.
+1. **history residual:** blame, verified merge driver, pending-ops redline.
+2. **open format:** MIME/magic entries and v1 conformance cases.
+3. **benchmark:** measure the specific mmap/link/export claims in the README.
+4. **vault polish:** light `vault.tes` catalog (optional).
 
 ---
 

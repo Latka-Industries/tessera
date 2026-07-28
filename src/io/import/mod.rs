@@ -16,7 +16,8 @@ use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::catalog::{
-    DocumentCatalog, InlineKind, InlineSpan, ListKind, TesWriterSession, TextHeader, TextRole,
+    DocumentCatalog, InlineKind, InlineSpan, ListKind, OutboundLink, TesWriterSession, TextHeader,
+    TextRole,
 };
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
@@ -66,6 +67,8 @@ pub struct MarkdownBlock {
     pub header: TextHeader,
     /// Clean body text.
     pub body: String,
+    /// Outbound links over [`Self::body`] (written to `TLNK` on seal).
+    pub pending_links: Vec<OutboundLink>,
 }
 
 /// Import a Markdown file and seal a `.tes` document.
@@ -118,9 +121,7 @@ pub fn import_markdown_v0(
         &now,
         options.doc_kind,
     ))?;
-    for block in &blocks {
-        session.add_text_chunk(&block.header, &block.body)?;
-    }
+    seal_text_blocks(&mut session, &blocks)?;
     session.commit()?;
 
     Ok(MarkdownImportReport {
@@ -130,6 +131,22 @@ pub fn import_markdown_v0(
         title,
         chunk_count: blocks.len(),
     })
+}
+
+/// Append text blocks and materialize pending outbound links into `TLNK`.
+///
+/// # Errors
+///
+/// Returns session / link validation errors.
+pub fn seal_text_blocks(session: &mut TesWriterSession, blocks: &[MarkdownBlock]) -> Result<()> {
+    for block in blocks {
+        session.add_text_with_outbound_links(
+            block.header.clone(),
+            &block.body,
+            &block.pending_links,
+        )?;
+    }
+    Ok(())
 }
 
 /// Parse the supported `CommonMark` subset into semantic text blocks.
@@ -171,6 +188,8 @@ struct ParseState {
 struct ActiveBlock {
     header: TextHeader,
     body: String,
+    pending_links: Vec<OutboundLink>,
+    link_stack: Vec<(u32, String)>,
 }
 
 impl ParseState {
@@ -214,8 +233,17 @@ impl ParseState {
                 };
                 self.begin(TextHeader::code_block(lang));
             }
-            // Inline tags are intentionally flattened; unsupported block tags
-            // contribute text to their enclosing supported block when present.
+            Tag::Link { dest_url, .. } => {
+                if self.active.is_none() {
+                    self.begin(TextHeader::paragraph());
+                }
+                if let Some(active) = &mut self.active {
+                    let start = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
+                    active.link_stack.push((start, dest_url.to_string()));
+                }
+            }
+            // Other inline tags are intentionally flattened; unsupported block
+            // tags contribute text to their enclosing supported block when present.
             _ => {}
         }
     }
@@ -251,6 +279,19 @@ impl ParseState {
                     self.finish_active();
                 }
             }
+            TagEnd::Link => {
+                if let Some(active) = &mut self.active
+                    && let Some((start, dest)) = active.link_stack.pop()
+                {
+                    let end = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
+                    let keep = end > start
+                        && (crate::catalog::validate_external_uri(&dest).is_ok()
+                            || Uuid::parse_str(dest.trim()).is_ok());
+                    if keep {
+                        active.pending_links.push(OutboundLink { start, end, dest });
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -260,6 +301,8 @@ impl ParseState {
         self.active = Some(ActiveBlock {
             header,
             body: String::new(),
+            pending_links: Vec::new(),
+            link_stack: Vec::new(),
         });
     }
 
@@ -305,13 +348,57 @@ impl ParseState {
 
     fn finish_active(&mut self) {
         if let Some(active) = self.active.take() {
-            let body = active.body.trim().to_owned();
-            if !body.is_empty() {
-                self.blocks.push(MarkdownBlock {
-                    header: active.header,
-                    body,
+            let raw = active.body;
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                return;
+            }
+            let lead = raw.len() - raw.trim_start().len();
+            let keep_end = lead + trimmed.len();
+            let shift = |offset: u32| -> Option<u32> {
+                let o = offset as usize;
+                if o < lead || o > keep_end {
+                    return None;
+                }
+                u32::try_from(o - lead).ok()
+            };
+            let mut header = active.header;
+            header.spans.retain_mut(|span| {
+                let Some(start) = shift(span.start) else {
+                    return false;
+                };
+                let Some(end) = shift(span.end) else {
+                    return false;
+                };
+                if start >= end {
+                    return false;
+                }
+                span.start = start;
+                span.end = end;
+                true
+            });
+            let mut pending_links = Vec::new();
+            for link in active.pending_links {
+                let Some(start) = shift(link.start) else {
+                    continue;
+                };
+                let Some(end) = shift(link.end) else {
+                    continue;
+                };
+                if start >= end {
+                    continue;
+                }
+                pending_links.push(OutboundLink {
+                    start,
+                    end,
+                    dest: link.dest,
                 });
             }
+            self.blocks.push(MarkdownBlock {
+                header,
+                body: trimmed.to_owned(),
+                pending_links,
+            });
         }
     }
 }
@@ -375,6 +462,13 @@ mod tests {
         assert_eq!(blocks[0].header, TextHeader::heading(1));
         assert_eq!(blocks[0].body, "Methods");
         assert_eq!(blocks[1].body, "A bold paragraph with a link.");
+        assert_eq!(blocks[1].pending_links.len(), 1);
+        assert_eq!(blocks[1].pending_links[0].dest, "https://example.com");
+        assert_eq!(
+            &blocks[1].body[blocks[1].pending_links[0].start as usize
+                ..blocks[1].pending_links[0].end as usize],
+            "a link"
+        );
         assert_eq!(blocks[2].header.role, TextRole::Blockquote);
         assert_eq!(blocks[3].header.list_kind, Some(ListKind::Ordered));
         assert_eq!(blocks[5].header.role, TextRole::CodeBlock);
@@ -402,6 +496,35 @@ mod tests {
             ai,
             "Minimal note\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit.\n"
         );
+    }
+
+    #[test]
+    fn external_https_link_round_trips_through_tes() {
+        let dir = tempdir().unwrap();
+        let input = dir.path().join("linked.md");
+        let output = dir.path().join("linked.tes");
+        std::fs::write(
+            &input,
+            "# Linked\n\nSee [the docs](https://example.com/path) for more.\n",
+        )
+        .unwrap();
+        import_markdown_v0(&input, &output, &MarkdownImportOptions::default()).unwrap();
+
+        let file = crate::catalog::TesFile::open(&output).unwrap();
+        assert_eq!(file.links().len(), 1);
+        assert_eq!(
+            file.links()[0].external_uri(),
+            Some("https://example.com/path")
+        );
+
+        let md = export_view(&output, ExportView::Markdown, &ExportOptions::default()).unwrap();
+        assert!(md.contains("[the docs](https://example.com/path)"));
+
+        let html = export_view(&output, ExportView::Html, &ExportOptions::default()).unwrap();
+        assert!(html.contains("href=\"https://example.com/path\""));
+
+        let tessprek = crate::edit::encode_tessprek(&file, "deadbeef").unwrap();
+        assert!(tessprek.contains("[the docs](https://example.com/path)"));
     }
 
     #[test]

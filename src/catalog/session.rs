@@ -16,12 +16,12 @@ use std::path::{Path, PathBuf};
 
 use uuid::Uuid;
 
-use crate::catalog::chunk::{CitePayload, TextHeader, encode_text_payload};
+use crate::catalog::chunk::{CitePayload, InlineKind, InlineSpan, TextHeader, encode_text_payload};
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::{
     ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, ENTRY_LEN, HEADER_LEN, chunk_flags,
 };
-use crate::catalog::link::{LinkEntry, LinkKind, encode_link_table};
+use crate::catalog::link::{LinkEntry, LinkKind, OutboundLink, encode_link_table};
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload};
 use crate::catalog::slide::SlidePayload;
 use crate::error::{Result, TesError};
@@ -80,11 +80,13 @@ impl TesWriterSession {
 
     /// Append a reading-order text chunk with the given semantic header and body.
     ///
+    /// Returns the 1-based `chunk_id` assigned on commit.
+    ///
     /// # Errors
     ///
     /// Returns [`TesError::SessionSealed`] if sealed, or payload encode errors
     /// from [`encode_text_payload`].
-    pub fn add_text_chunk(&mut self, header: &TextHeader, body: &str) -> Result<()> {
+    pub fn add_text_chunk(&mut self, header: &TextHeader, body: &str) -> Result<u64> {
         self.ensure_open()?;
         let payload = encode_text_payload(header, body)?;
         self.chunks.push(PendingChunk {
@@ -92,7 +94,43 @@ impl TesWriterSession {
             chunk_flags: chunk_flags::READING_ORDER,
             payload,
         });
-        Ok(())
+        Ok(self.chunks.len() as u64)
+    }
+
+    /// Append a text chunk and materialize outbound links into `TLNK` + Link spans.
+    ///
+    /// Drops any existing Link spans on `header`, assigns contiguous `link_id`s
+    /// starting at the current table length, then adds one [`LinkEntry`] per
+    /// outbound edge via [`OutboundLink::into_entry`].
+    ///
+    /// # Errors
+    ///
+    /// Returns session / encode / link validation errors.
+    pub fn add_text_with_outbound_links(
+        &mut self,
+        mut header: TextHeader,
+        body: &str,
+        outbound: &[OutboundLink],
+    ) -> Result<u64> {
+        header
+            .spans
+            .retain(|s| !matches!(s.kind, InlineKind::Link { .. }));
+        let base = self.link_count() as u64;
+        for (i, pending) in outbound.iter().enumerate() {
+            header.spans.push(InlineSpan {
+                start: pending.start,
+                end: pending.end,
+                kind: InlineKind::Link {
+                    link_id: base + i as u64,
+                },
+            });
+        }
+        let chunk_id = self.add_text_chunk(&header, body)?;
+        for pending in outbound {
+            let entry = pending.clone().into_entry(chunk_id, LinkKind::Wiki)?;
+            self.add_link(entry)?;
+        }
+        Ok(chunk_id)
     }
 
     /// Append a raw store payload without re-encoding (history materialization).
@@ -230,15 +268,24 @@ impl TesWriterSession {
         Ok(self.chunks.len() as u64)
     }
 
-    /// Add an outbound/internal link-table edge.
+    /// Number of link-table rows queued so far (next `link_id`).
+    #[must_use]
+    pub fn link_count(&self) -> usize {
+        self.links.len()
+    }
+
+    /// Add an outbound/internal/external link-table edge.
+    ///
+    /// Returns the 0-based link-table index (`link_id` for [`crate::catalog::InlineKind::Link`]).
     ///
     /// # Errors
     ///
     /// Returns [`TesError::SessionSealed`] if the session was already committed.
-    pub fn add_link(&mut self, link: LinkEntry) -> Result<()> {
+    pub fn add_link(&mut self, link: LinkEntry) -> Result<u64> {
         self.ensure_open()?;
+        let id = self.links.len() as u64;
         self.links.push(link);
-        Ok(())
+        Ok(id)
     }
 
     /// Write a sealed `.tes` and consume the session.

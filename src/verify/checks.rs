@@ -409,8 +409,8 @@ fn verify_cite_mirrors(
         let mirrored = links.iter().any(|link| {
             link.link_kind == LinkKind::Citation
                 && link.source_chunk_id == entry.chunk_id
-                && link.target_uuid() == uuid
-                && link.target_chunk_id == target_chunk
+                && link.target_uuid() == Some(uuid)
+                && link.target_chunk_id() == Some(target_chunk)
         });
         if !mirrored {
             findings.push(Finding::warning(

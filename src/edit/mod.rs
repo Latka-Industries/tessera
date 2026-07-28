@@ -40,6 +40,8 @@ pub enum ContentBlock {
         header: TextHeader,
         /// UTF-8 body.
         body: String,
+        /// Outbound links over [`Self::Text::body`] (Tessprek / markdown).
+        pending_links: Vec<crate::catalog::OutboundLink>,
     },
     /// Figure chunk referencing an image payload.
     Figure {
@@ -435,8 +437,33 @@ fn compile_blocks_to_bytes(
 
     for block in blocks {
         match block {
-            ContentBlock::Text { header, body, .. } => {
-                session.add_text_chunk(header, body)?;
+            ContentBlock::Text {
+                header,
+                body,
+                pending_links,
+                ..
+            } => {
+                let outbound = if !pending_links.is_empty() {
+                    pending_links.clone()
+                } else {
+                    // Remap existing Link spans from the source TLNK.
+                    header
+                        .spans
+                        .iter()
+                        .filter_map(|span| {
+                            let crate::catalog::InlineKind::Link { link_id } = &span.kind else {
+                                return None;
+                            };
+                            let entry = source.links().get(*link_id as usize)?;
+                            Some(crate::catalog::OutboundLink {
+                                start: span.start,
+                                end: span.end,
+                                dest: entry.target.markdown_destination(),
+                            })
+                        })
+                        .collect()
+                };
+                session.add_text_with_outbound_links(header.clone(), body, &outbound)?;
             }
             ContentBlock::Figure { figure, .. } => {
                 let mut figure = figure.clone();

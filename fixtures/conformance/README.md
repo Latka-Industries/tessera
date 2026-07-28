@@ -16,6 +16,7 @@ Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 - `note_one_chunk.tes` — catalog + one text chunk
 - `note_three_chunks.tes` — heading + paragraph + list
 - `hub_links.tes` — hub with `TLNK` edges
+- `external_links.tes` — `TLNK` v1 external URI heap (+ mixed internal)
 - `layout_v1_text.tes` — spans / math / code lang / structured table
 - `slide_deck.tes` — region-based slide
 - `research_cite.tes` — cite chunk + citation link

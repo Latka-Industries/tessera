@@ -112,10 +112,17 @@ pub struct LinkInfo {
     pub source_byte_start: u32,
     /// Exclusive anchor end.
     pub source_byte_end: u32,
-    /// Target document UUID.
-    pub target_doc_id: String,
-    /// Target chunk (`0` = whole document).
-    pub target_chunk_id: u64,
+    /// Target kind: `internal`, `external`, or `attachment`.
+    pub target_kind: &'static str,
+    /// Target document UUID (internal only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_doc_id: Option<String>,
+    /// Target chunk (`0` = whole document) for internal / attachment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_chunk_id: Option<u64>,
+    /// External URI when `target_kind` is external.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_uri: Option<String>,
     /// Link kind.
     pub link_kind: &'static str,
 }
@@ -140,13 +147,29 @@ pub fn info_report(file: &TesFile) -> TesInfoReport {
         links: file
             .links()
             .iter()
-            .map(|link| LinkInfo {
-                source_chunk_id: link.source_chunk_id,
-                source_byte_start: link.source_byte_start,
-                source_byte_end: link.source_byte_end,
-                target_doc_id: link.target_uuid().to_string(),
-                target_chunk_id: link.target_chunk_id,
-                link_kind: link.link_kind.as_str(),
+            .map(|link| {
+                let (target_kind, target_doc_id, target_chunk_id, external_uri) = match &link.target
+                {
+                    crate::catalog::LinkTarget::Internal { doc_id, chunk_id } => {
+                        ("internal", Some(doc_id.to_string()), Some(*chunk_id), None)
+                    }
+                    crate::catalog::LinkTarget::External { uri } => {
+                        ("external", None, None, Some(uri.clone()))
+                    }
+                    crate::catalog::LinkTarget::Attachment { chunk_id } => {
+                        ("attachment", None, Some(*chunk_id), None)
+                    }
+                };
+                LinkInfo {
+                    source_chunk_id: link.source_chunk_id,
+                    source_byte_start: link.source_byte_start,
+                    source_byte_end: link.source_byte_end,
+                    target_kind,
+                    target_doc_id,
+                    target_chunk_id,
+                    external_uri,
+                    link_kind: link.link_kind.as_str(),
+                }
             })
             .collect(),
     }
