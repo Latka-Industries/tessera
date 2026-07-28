@@ -231,14 +231,19 @@ Wire layout:
 | 4 | `header_byte_len` | UTF-8 JSON header |
 | 4+header | rest | UTF-8 **body** (reading-order prose) |
 
-### Text header JSON (v0)
+### Text header JSON (v0 + additive layout-v1 fields)
 
 ```json
 {
   "role": "paragraph",
   "level": 2,
   "list_kind": null,
-  "emphasis": []
+  "emphasis": [],
+  "spans": [{ "start": 0, "end": 5, "kind": "emphasis" }],
+  "lang": "en",
+  "align": "start",
+  "code_lang": "rust",
+  "table": { "rows": [{ "cells": [{ "text": "A", "is_header": true }] }] }
 }
 ```
 
@@ -248,8 +253,14 @@ Wire layout:
 | `heading` | `level` 1–6 |
 | `list_item` | `list_kind`: `bullet` \| `ordered` |
 | `blockquote` | Pull quote / block quote |
-| `code_block` | Monospace block |
-| `table` | v0: body holds tab-separated or structured JSON in body (see [decisions](decisions.md#tables-in-v0)) |
+| `code_block` | Monospace block; optional `code_lang` |
+| `table` | Prefer structured `table` field; v0 TSV body remains accepted |
+| `math` | Display math; body is LaTeX |
+
+Additive optional fields (`spans`, `lang`, `align`, `code_lang`, `table`) are
+layout-v1 text structure on `layout_version = 0`. Readers that ignore unknown
+JSON keys remain compatible; writers that emit these fields must validate
+span bounds and nesting. Catalog may also carry optional BCP-47 `language`.
 
 **Default codec:** raw (`codec = 0`); text chunks are **uncompressed UTF-8** unless body &gt; 64 KiB (reference writer may zstd at `codec = 1`).
 
@@ -389,8 +400,12 @@ Exit code **1** on failure (CI-friendly). See [cli.md](cli.md).
 | --- | --- |
 | `fixtures/v0/empty.tes` | Superblock only |
 | `fixtures/v0/note_one_chunk.tes` | Single paragraph note |
-| `fixtures/v0/note_three_chunks.tes` | Heading + two paragraphs |
+| `fixtures/v0/note_three_chunks.tes` | Heading + paragraph + list item |
 | `fixtures/v0/hub_links.tes` | Hub doc + link table |
+| `fixtures/v0/layout_v1_text.tes` | Spans, math, code lang, structured table |
+| `fixtures/v0/slide_deck.tes` | Region-based slide |
+| `fixtures/v0/research_cite.tes` | Cite chunk + citation link |
+| `fixtures/v0/figure_sample.tes` | Image + figure |
 
 Regenerate via `cargo run --example gen_v0_fixtures` (issue-tracked).
 

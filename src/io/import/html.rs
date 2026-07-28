@@ -208,13 +208,7 @@ fn has_ancestor(element: &ElementRef<'_>, names: &[&str]) -> bool {
 }
 
 fn header_for_role(role: TextRole) -> TextHeader {
-    TextHeader {
-        role,
-        level: None,
-        list_kind: None,
-        emphasis: Vec::new(),
-        classes: Vec::new(),
-    }
+    TextHeader::with_role(role)
 }
 
 fn document_title(document: &Html) -> Option<String> {

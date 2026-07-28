@@ -10,6 +10,7 @@ Synthetic and downloaded media for exercising the import → chunk compiler (M4+
 | `markdown/lorem_long.md` | **~893 KiB** length stress test (50 sections × 40 paragraphs) |
 | `markdown/utf8_edge_cases.md` | Unicode, emoji, smart quotes, mixed scripts |
 | `markdown/minimal.md` | Single paragraph smoke test |
+| `markdown/layout_v1_sample.md` | Math + fenced rust for layout-v1 import smoke |
 | `html/rich_document.html` | Semantic HTML mirror of the Markdown specimen |
 | `text/plain_lorem.txt` | Plain text without markup |
 | `text/lorem_long.txt` | **~893 KiB** plain-text length stress test (same paragraph count as `lorem_long.md`) |

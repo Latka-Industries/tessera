@@ -15,7 +15,9 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
-use crate::catalog::{DocumentCatalog, ListKind, TesWriterSession, TextHeader, TextRole};
+use crate::catalog::{
+    DocumentCatalog, InlineKind, InlineSpan, ListKind, TesWriterSession, TextHeader, TextRole,
+};
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
 
@@ -133,17 +135,18 @@ pub fn import_markdown_v0(
 /// Parse the supported `CommonMark` subset into semantic text blocks.
 #[must_use]
 pub fn parse_markdown_blocks(markdown: &str) -> Vec<MarkdownBlock> {
-    let parser = Parser::new_ext(markdown, Options::empty());
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_MATH);
+    let parser = Parser::new_ext(markdown, options);
     let mut state = ParseState::default();
 
     for event in parser {
         match event {
             Event::Start(tag) => state.start(&tag),
             Event::End(tag) => state.end(tag),
-            Event::Text(text)
-            | Event::Code(text)
-            | Event::InlineMath(text)
-            | Event::DisplayMath(text) => state.push_text(&text),
+            Event::Text(text) | Event::Code(text) => state.push_text(&text),
+            Event::InlineMath(text) => state.push_inline_math(&text),
+            Event::DisplayMath(text) => state.push_display_math(&text),
             Event::SoftBreak => state.push_break(false),
             Event::HardBreak => state.push_break(true),
             Event::TaskListMarker(done) => {
@@ -201,7 +204,16 @@ impl ParseState {
                     self.begin(header_for_role(TextRole::Blockquote));
                 }
             }
-            Tag::CodeBlock(_) => self.begin(header_for_role(TextRole::CodeBlock)),
+            Tag::CodeBlock(kind) => {
+                let lang = match kind {
+                    pulldown_cmark::CodeBlockKind::Fenced(info) => {
+                        let first = info.split_whitespace().next().unwrap_or("");
+                        (!first.is_empty()).then_some(first.as_ref())
+                    }
+                    pulldown_cmark::CodeBlockKind::Indented => None,
+                };
+                self.begin(TextHeader::code_block(lang));
+            }
             // Inline tags are intentionally flattened; unsupported block tags
             // contribute text to their enclosing supported block when present.
             _ => {}
@@ -260,6 +272,31 @@ impl ParseState {
         }
     }
 
+    fn push_inline_math(&mut self, tex: &str) {
+        if self.active.is_none() {
+            self.begin(TextHeader::paragraph());
+        }
+        if let Some(active) = &mut self.active {
+            let start = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
+            active.body.push_str(tex);
+            let end = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
+            active.header.spans.push(InlineSpan {
+                start,
+                end,
+                kind: InlineKind::Math {
+                    tex: tex.to_owned(),
+                },
+            });
+        }
+    }
+
+    fn push_display_math(&mut self, tex: &str) {
+        self.finish_active();
+        self.begin(TextHeader::math());
+        self.push_text(tex);
+        self.finish_active();
+    }
+
     fn push_break(&mut self, hard: bool) {
         if let Some(active) = &mut self.active {
             active.body.push(if hard { '\n' } else { ' ' });
@@ -280,13 +317,7 @@ impl ParseState {
 }
 
 fn header_for_role(role: TextRole) -> TextHeader {
-    TextHeader {
-        role,
-        level: None,
-        list_kind: None,
-        emphasis: Vec::new(),
-        classes: Vec::new(),
-    }
+    TextHeader::with_role(role)
 }
 
 fn heading_level(level: HeadingLevel) -> u32 {

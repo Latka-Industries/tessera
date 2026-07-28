@@ -33,6 +33,9 @@ pub struct DocumentCatalog {
     /// Optional citation style id (e.g. `numeric`); display only, never in cite payloads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cite_style_id: Option<String>,
+    /// Optional BCP-47 document language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
 }
 
 impl DocumentCatalog {
@@ -55,6 +58,7 @@ impl DocumentCatalog {
             template_id: None,
             theme_id: None,
             cite_style_id: None,
+            language: None,
         }
     }
 

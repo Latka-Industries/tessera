@@ -129,53 +129,11 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
-                match header.role {
-                    TextRole::Heading => {
-                        let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
-                        out.push_str(&"#".repeat(level));
-                        out.push(' ');
-                        out.push_str(body.trim_end());
-                        out.push('\n');
-                    }
-                    TextRole::ListItem => {
-                        let marker = match header.list_kind.unwrap_or(ListKind::Bullet) {
-                            ListKind::Bullet => "- ".to_owned(),
-                            ListKind::Ordered => "1. ".to_owned(),
-                        };
-                        out.push_str(&marker);
-                        out.push_str(body.trim_end());
-                        out.push('\n');
-                    }
-                    TextRole::Blockquote => {
-                        for line in body.lines() {
-                            out.push_str("> ");
-                            out.push_str(line);
-                            out.push('\n');
-                        }
-                    }
-                    TextRole::CodeBlock => {
-                        out.push_str("```\n");
-                        out.push_str(body.trim_end());
-                        out.push_str("\n```\n");
-                    }
-                    TextRole::Paragraph | TextRole::Table => {
-                        out.push_str(body.trim_end());
-                        out.push('\n');
-                    }
-                }
+                append_linear_text(&mut out, &header, &body);
             }
             ChunkType::Figure => {
                 let figure = decode_figure_entry(file, entry)?;
-                let _ = writeln!(
-                    out,
-                    "[figure image={} placement={}]\n{}",
-                    figure.image_chunk_id,
-                    figure.placement.as_str(),
-                    figure.alt_text.trim_end()
-                );
-                if let Some(caption) = figure.caption.as_deref() {
-                    let _ = writeln!(out, "{caption}");
-                }
+                append_linear_figure(&mut out, &figure);
             }
             ChunkType::Cite if !options.no_cites => {
                 let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
@@ -211,6 +169,69 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
         }
     }
     Ok(out)
+}
+
+fn append_linear_text(out: &mut String, header: &TextHeader, body: &str) {
+    match header.role {
+        TextRole::Heading => {
+            let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
+            out.push_str(&"#".repeat(level));
+            out.push(' ');
+            out.push_str(body.trim_end());
+            out.push('\n');
+        }
+        TextRole::ListItem => {
+            let marker = match header.list_kind.unwrap_or(ListKind::Bullet) {
+                ListKind::Bullet => "- ",
+                ListKind::Ordered => "1. ",
+            };
+            out.push_str(marker);
+            out.push_str(body.trim_end());
+            out.push('\n');
+        }
+        TextRole::Blockquote => {
+            for line in body.lines() {
+                out.push_str("> ");
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
+        TextRole::CodeBlock => {
+            out.push_str("```");
+            if let Some(lang) = header.code_lang.as_deref() {
+                out.push_str(lang);
+            }
+            out.push('\n');
+            out.push_str(body.trim_end());
+            out.push_str("\n```\n");
+        }
+        TextRole::Math => {
+            out.push_str("$$\n");
+            out.push_str(body.trim_end());
+            out.push_str("\n$$\n");
+        }
+        TextRole::Paragraph | TextRole::Table => {
+            if header.role == TextRole::Table && header.table.is_some() {
+                out.push_str(&header.render_markdown(""));
+            } else {
+                out.push_str(body.trim_end());
+            }
+            out.push('\n');
+        }
+    }
+}
+
+fn append_linear_figure(out: &mut String, figure: &FigureRef) {
+    let _ = writeln!(
+        out,
+        "[figure image={} placement={}]\n{}",
+        figure.image_chunk_id,
+        figure.placement.as_str(),
+        figure.alt_text.trim_end()
+    );
+    if let Some(caption) = figure.caption.as_deref() {
+        let _ = writeln!(out, "{caption}");
+    }
 }
 
 fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -439,18 +460,48 @@ fn render_text_chunk_html(chunk_id: u64, header: &TextHeader, body: &str) -> Str
             format!("  <blockquote data-chunk-id=\"{chunk_id}\"{class}>{escaped}</blockquote>\n")
         }
         TextRole::CodeBlock => {
-            format!("  <pre data-chunk-id=\"{chunk_id}\"{class}><code>{escaped}</code></pre>\n")
+            let lang = header
+                .code_lang
+                .as_deref()
+                .map(|l| format!(" class=\"language-{}\"", escape_html(l)))
+                .unwrap_or_default();
+            format!(
+                "  <pre data-chunk-id=\"{chunk_id}\"{class}><code{lang}>{escaped}</code></pre>\n"
+            )
         }
         TextRole::Table => {
-            let rows = body.lines().fold(String::new(), |mut acc, line| {
-                let cells = line.split('\t').fold(String::new(), |mut acc, cell| {
-                    let _ = write!(acc, "<td>{}</td>", escape_html(cell));
+            if let Some(table) = &header.table {
+                let mut rows = String::new();
+                for (i, row) in table.rows.iter().enumerate() {
+                    let cells = row.cells.iter().fold(String::new(), |mut acc, cell| {
+                        let tag = if cell.is_header || i == 0 { "th" } else { "td" };
+                        let _ = write!(acc, "<{tag}>{}</{tag}>", escape_html(cell.text.as_str()));
+                        acc
+                    });
+                    let _ = write!(rows, "<tr>{cells}</tr>");
+                }
+                format!(
+                    "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>\n"
+                )
+            } else {
+                let rows = body.lines().fold(String::new(), |mut acc, line| {
+                    let cells = line.split('\t').fold(String::new(), |mut acc, cell| {
+                        let _ = write!(acc, "<td>{}</td>", escape_html(cell));
+                        acc
+                    });
+                    let _ = write!(acc, "<tr>{cells}</tr>");
                     acc
                 });
-                let _ = write!(acc, "<tr>{cells}</tr>");
-                acc
-            });
-            format!("  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>\n")
+                format!(
+                    "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>\n"
+                )
+            }
+        }
+        TextRole::Math => {
+            format!(
+                "  <div data-chunk-id=\"{chunk_id}\" class=\"math-display\"{class}><code>{}</code></div>\n",
+                escape_html(body)
+            )
         }
     }
 }

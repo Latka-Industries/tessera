@@ -5,7 +5,10 @@
 use std::fmt::Write as _;
 
 use crate::catalog::TesFile;
-use crate::catalog::chunk::{CitePayload, ListKind, TextHeader, TextRole, decode_text_payload};
+use crate::catalog::chunk::{
+    CitePayload, ListKind, TableCell, TableData, TableRow, TextAlign, TextHeader, TextRole,
+    decode_text_payload,
+};
 use crate::catalog::index::ChunkType;
 use crate::catalog::media::{FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
@@ -147,9 +150,8 @@ fn decode_directive_block(
     line_no: usize,
 ) -> Result<ContentBlock> {
     match kind {
-        "text" | "paragraph" | "heading" | "list_item" | "blockquote" | "code_block" | "table" => {
-            decode_text_block(kind, chunk_id, map, body, line_no)
-        }
+        "text" | "paragraph" | "heading" | "list_item" | "blockquote" | "code_block" | "table"
+        | "math" => decode_text_block(kind, chunk_id, map, body, line_no),
         "figure" => decode_figure_block(chunk_id, map, body, line_no),
         "cite" => Ok(decode_cite_block(chunk_id, map, body)),
         "slide" => decode_slide_block(chunk_id, map, line_no),
@@ -169,13 +171,15 @@ fn decode_text_block(
     line_no: usize,
 ) -> Result<ContentBlock> {
     let role = parse_role(map.get("role").map_or(kind, String::as_str), line_no)?;
-    let mut header = TextHeader {
-        role,
-        level: None,
-        list_kind: None,
-        emphasis: Vec::new(),
-        classes: parse_classes(map.get("class").map(String::as_str)),
-    };
+    let mut header = TextHeader::with_role(role);
+    header.classes = parse_classes(map.get("class").map(String::as_str));
+    if let Some(lang) = map.get("lang").filter(|s| !s.is_empty()) {
+        header.lang = Some(lang.clone());
+    }
+    if let Some(align) = map.get("align") {
+        header.align =
+            Some(TextAlign::from_name(align).map_err(|e| parse_err(line_no, 1, format!("{e}")))?);
+    }
     if role == TextRole::Heading {
         header.level = Some(required_u32(map, "level", line_no)?.clamp(1, 6));
     }
@@ -185,11 +189,29 @@ fn decode_text_block(
             line_no,
         )?);
     }
+    if role == TextRole::CodeBlock
+        && let Some(lang) = map.get("code_lang").or_else(|| map.get("fence"))
+        && !lang.is_empty()
+    {
+        header.code_lang = Some(lang.clone());
+    }
     let text_body = strip_markdown_wrapper(&header, body);
+    if role == TextRole::CodeBlock
+        && header.code_lang.is_none()
+        && let Some(lang) = fence_lang(body)
+    {
+        header.code_lang = Some(lang);
+    }
+    if role == TextRole::Table
+        && let Some(table) = parse_markdown_table(body)
+    {
+        header.table = Some(table);
+    }
+    let clear_body = header.table.is_some();
     Ok(ContentBlock::Text {
         chunk_id: Some(chunk_id),
         header,
-        body: text_body,
+        body: if clear_body { String::new() } else { text_body },
     })
 }
 
@@ -271,6 +293,15 @@ fn write_text_directive(out: &mut String, chunk_id: u64, header: &TextHeader) {
             ListKind::Ordered => "ordered",
         };
         let _ = write!(out, " list={kind}");
+    }
+    if let Some(lang) = header.lang.as_deref() {
+        let _ = write!(out, " lang={}", attr_token(lang));
+    }
+    if let Some(align) = header.align {
+        let _ = write!(out, " align={}", align.as_str());
+    }
+    if let Some(code_lang) = header.code_lang.as_deref() {
+        let _ = write!(out, " code_lang={}", attr_token(code_lang));
     }
     if !header.classes.is_empty() {
         let _ = write!(out, " class=\"{}\"", header.classes.join(" "));
@@ -392,9 +423,65 @@ fn strip_markdown_wrapper(header: &TextHeader, body: &str) -> String {
             })
             .collect::<Vec<_>>()
             .join("\n"),
-        TextRole::CodeBlock | TextRole::Table => strip_fence(body),
+        TextRole::CodeBlock => strip_fence(body),
+        TextRole::Table => {
+            if body.lines().any(|l| l.trim_start().starts_with('|')) {
+                String::new()
+            } else {
+                strip_fence(body)
+            }
+        }
+        TextRole::Math => {
+            let t = body.trim();
+            let t = t.strip_prefix("$$").unwrap_or(t);
+            let t = t.strip_suffix("$$").unwrap_or(t);
+            t.trim().to_owned()
+        }
         TextRole::Paragraph => body.to_owned(),
     }
+}
+
+fn fence_lang(body: &str) -> Option<String> {
+    let first = body.lines().next()?.trim_start();
+    let rest = first.strip_prefix("```")?;
+    let lang = rest.split_whitespace().next().unwrap_or("");
+    (!lang.is_empty()).then(|| lang.to_owned())
+}
+
+fn parse_markdown_table(body: &str) -> Option<TableData> {
+    let lines: Vec<&str> = body
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    if lines.len() < 2 || !lines[0].starts_with('|') {
+        return None;
+    }
+    let mut rows = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if i == 1 && line.chars().all(|c| matches!(c, '|' | '-' | ':' | ' ')) {
+            continue; // separator
+        }
+        if !line.starts_with('|') {
+            continue;
+        }
+        let cells: Vec<TableCell> = line
+            .trim_matches('|')
+            .split('|')
+            .map(|c| TableCell {
+                text: c.trim().replace("\\|", "|"),
+                spans: Vec::new(),
+                align: None,
+                is_header: i == 0,
+                rowspan: None,
+                colspan: None,
+            })
+            .collect();
+        if !cells.is_empty() {
+            rows.push(TableRow { cells });
+        }
+    }
+    (!rows.is_empty()).then_some(TableData { rows })
 }
 
 fn strip_fence(body: &str) -> String {
@@ -479,6 +566,7 @@ fn parse_role(raw: &str, line_no: usize) -> Result<TextRole> {
         "blockquote" => Ok(TextRole::Blockquote),
         "code_block" => Ok(TextRole::CodeBlock),
         "table" => Ok(TextRole::Table),
+        "math" => Ok(TextRole::Math),
         other => Err(parse_err(line_no, 1, format!("unknown role '{other}'"))),
     }
 }

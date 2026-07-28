@@ -8,13 +8,18 @@ Must-accept and must-reject `.tes` files for open-format readers
 | `accept/` | `tes verify --deep` exits 0 |
 | `reject/` | `tes verify` exits 1 |
 
-## Accept set (v0)
+## Accept set
 
 Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 
 - `empty.tes` — superblock-only skeleton
 - `note_one_chunk.tes` — catalog + one text chunk
+- `note_three_chunks.tes` — heading + paragraph + list
 - `hub_links.tes` — hub with `TLNK` edges
+- `layout_v1_text.tes` — spans / math / code lang / structured table
+- `slide_deck.tes` — region-based slide
+- `research_cite.tes` — cite chunk + citation link
+- `figure_sample.tes` — image + figure
 
 ## Reject set
 

@@ -1,10 +1,10 @@
 # Roadmap and phases
 
-**Status:** M0–M9 plus the M10 first slice (`save` / `log` / `diff` /
-`changelog`) are shipped on the `tessera-doc` 0.1.2 line. Next code is
-checkout / `export-revs` / git Tessprek `textconv`, then layout-v1 wire for
-spans, tables, and math. This is an implementation plan, not a release
-schedule.
+**Status:** M0–M9 plus M10 (`save`/`log`/`diff`/`changelog`/`export-revs`/
+`checkout`/`textconv`) and layout-v1 **text wire** (spans/math/tables/lang)
+are shipped as additive JSON on `layout_version = 0`. Next code is attachments
++ external URI links, then history residual (blame/merge/redline). This is an
+implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -14,13 +14,13 @@ links.
 | Area | Shipped now | Frozen next | Later |
 | --- | --- | --- | --- |
 | Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify | optional/required feature policy | conformance kit grows continuously |
-| Prose | typed text roles, Markdown/HTML import/export, Tessprek edit | ranged inline spans, math, code language, BCP-47 language | further editor adapters |
-| Tables | TSV role | structured rows/cells supersede TSV | rich import/export |
+| Prose | typed text roles, Markdown/HTML import/export, Tessprek edit, ranged spans, math, code/block lang, align | attachments | further editor adapters |
+| Tables | structured header table + TSV fallback | — | rich import/export |
 | Links | internal UUID/chunk graph | typed internal/external/attachment targets | light `vault.tes` catalog |
 | Media | image payload + `FigureRef` | generic attachments | — |
 | Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
-| History | `THST` v1, drafts, structural diff/changelog | `export-revs` / `checkout` / `textconv` | blame, merge driver, redline |
+| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv | — | blame, merge driver, redline |
 
 Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
@@ -249,13 +249,11 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **history:** `tes export-revs` / `tes checkout` / `tes textconv` (+ git
-   attributes docs); related to THI-183 follow-on.
-2. **layout wire:** implement frozen spans, math, structured tables, language,
-   and typed link targets from [structure_v1.md](structure_v1.md).
-3. **history residual:** blame, verified merge driver, pending-ops redline.
-4. **open format:** MIME/magic entries and v1 conformance cases.
-5. **benchmark:** measure the specific mmap/link/export claims in the README.
+1. **layout residual:** attachment chunk type + variable-length external URI
+   link targets (still deferred from structure freeze).
+2. **history residual:** blame, verified merge driver, pending-ops redline.
+3. **open format:** MIME/magic entries and v1 conformance cases.
+4. **benchmark:** measure the specific mmap/link/export claims in the README.
 
 ---
 

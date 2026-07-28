@@ -225,6 +225,13 @@ pub enum TesError {
         message: String,
     },
 
+    /// Text header / span / table structure failed validation.
+    #[error("invalid text header: {message}")]
+    InvalidTextHeader {
+        /// Human-readable reason.
+        message: String,
+    },
+
     /// Slide payload failed validation or decode.
     #[error("invalid slide: {message}")]
     InvalidSlide {

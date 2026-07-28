@@ -31,11 +31,11 @@ pagination, computed figure numbers, or pixel coordinates.
 | Capability | v0 engine | v1 structure decision | Status |
 | --- | --- | --- | --- |
 | Text blocks | Implemented | Typed roles remain canonical | shipped |
-| Inline formatting | Lossy chunk-level strings | Ranged `InlineSpan` + `InlineKind` | remaining wire |
-| Math | Missing | LaTeX source for math only | remaining wire |
-| Tables | TSV text body | Structured rows and cells | remaining wire |
-| Code language | Missing | Optional `lang` on code blocks | remaining wire |
-| Document language | Missing | BCP-47 catalog value + block override | remaining wire |
+| Inline formatting | Ranged `InlineSpan` + `InlineKind` | Ranged `InlineSpan` + `InlineKind` | shipped (additive header) |
+| Math | `TextRole::Math` + inline math spans | LaTeX source for math only | shipped (additive header) |
+| Tables | Structured `table` on text header (TSV fallback) | Structured rows and cells | shipped (additive header) |
+| Code language | Optional `code_lang` on code blocks | Optional `lang` on code blocks | shipped (additive header) |
+| Document language | Catalog `language` + block `lang` | BCP-47 catalog value + block override | shipped (additive header) |
 | Internal links | Implemented (`TLNK`) | Typed link targets | shipped / remaining wire |
 | External links | Discarded | Variable-length external URI target | remaining wire |
 | Images | Implemented | Reusable media + contextual figure refs | shipped |
@@ -46,7 +46,7 @@ pagination, computed figure numbers, or pixel coordinates.
 | PDF | `tes export --pdf` | HTML + print theme pipeline | shipped (M7) |
 | Slides | Region-based slide chunks | Named regions, no freeform coordinates | shipped (M9) |
 | History (first slice) | `save` / `log` / `diff` / `changelog` | Content-addressed revisions + drafts | shipped (M10) |
-| History (checkout / textconv) | Materialize revisions; git Tessprek | `export-revs` / `checkout` / `textconv` | next |
+| History (checkout / textconv) | Materialize revisions; git Tessprek | `export-revs` / `checkout` / `textconv` | shipped (M10) |
 | History (redline) | Footer `pending` reserved | Authored ops + accept/reject | deferred |
 | Vault graph | Implemented | Light `vault.tes` catalog | shipped / later |
 | Full-text search | Scan only | External index or projected-text search | later |
@@ -304,12 +304,11 @@ Markdown vault operations.
 
 ## Locked implementation order
 
-Post-0.1.2 (M0–M9 + M10 first slice shipped):
+Post-checkout/textconv (THI-194) and layout-v1 text wire (THI-195):
 
-1. Structure-freeze docs sync (this document + roadmap).
-2. M10 follow-on: `export-revs` / `checkout` / git Tessprek `textconv`.
-3. Layout-v1 wire for ranged spans, structured tables, and math.
-4. Remaining M10: blame, merge driver, pending-ops redline UI.
+1. Remaining layout wire: attachments + variable-length external URI links.
+2. Remaining M10: blame, merge driver, pending-ops redline UI.
+3. Optional: bump `layout_version` when must-understand feature flags land.
 
 MIME/magic/conformance work may proceed in parallel. Aleph GUI, native
 full-text search, in-file embeddings, freeform slide geometry, and CRDTs are
