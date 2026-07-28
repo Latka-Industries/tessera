@@ -2,11 +2,12 @@
 //!
 //! See `docs/cli.md` for the full command surface. This binary ships `info`,
 //! `verify`, `export` (including `--pdf`), CommonMark/HTML `import`,
-//! vault-aware `link`, and loopback `serve` preview.
+//! vault-aware `link`, loopback `serve` preview, and Tessera Markdown
+//! `edit-read` / `edit-write` / `apply` mutation.
 
 use std::env;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -14,6 +15,9 @@ use clap::{ArgGroup, Args, Parser, Subcommand};
 use tessera_doc::bib::{BibFormat, BibImportOptions, export_bibliography, import_bibliography};
 use tessera_doc::catalog::{
     format_info_human, format_info_json, format_info_quiet, read_summary_v0,
+};
+use tessera_doc::edit::{
+    EditWriteOptions, apply_ops, apply_patch, edit_read, edit_write, parse_ops_json,
 };
 use tessera_doc::error::TesError;
 use tessera_doc::export::{ExportOptions, ExportView, export_view};
@@ -87,6 +91,15 @@ enum Commands {
 
     /// Live browser preview on loopback (semantic HTML + template theme)
     Serve(ServeArgs),
+
+    /// Decode a .tes file to Tessera Markdown (Tessprek) for editors
+    EditRead(EditReadArgs),
+
+    /// Compile Tessera Markdown and atomically replace a .tes file
+    EditWrite(EditWriteArgs),
+
+    /// Apply Tessera Markdown patch or typed JSON ops through the mutation gate
+    Apply(ApplyArgs),
 }
 
 /// Flags for `tes export`.
@@ -243,6 +256,70 @@ struct ServeArgs {
     allow_theme_js: bool,
 }
 
+/// Flags for `tes edit-read`.
+#[derive(Debug, Args)]
+struct EditReadArgs {
+    /// Path to a .tes file
+    path: PathBuf,
+    /// Projection format (only `tessprek` today)
+    #[arg(long, default_value = "tessprek")]
+    format: String,
+    /// Write Tessera Markdown to PATH instead of stdout
+    #[arg(short = 'o', long = "output")]
+    output: Option<PathBuf>,
+}
+
+/// Flags for `tes edit-write`.
+#[derive(Debug, Args)]
+#[command(group(
+    ArgGroup::new("edit_input")
+        .required(true)
+        .args(["stdin", "input"])
+))]
+struct EditWriteArgs {
+    /// Path to the .tes file to replace
+    path: PathBuf,
+    /// Projection format (only `tessprek` today)
+    #[arg(long, default_value = "tessprek")]
+    format: String,
+    /// Expected SHA-256 of the current on-disk file
+    #[arg(long = "source-hash", required = true)]
+    source_hash: String,
+    /// Read Tessera Markdown from stdin
+    #[arg(long)]
+    stdin: bool,
+    /// Tessera Markdown input file (alternative to --stdin)
+    #[arg(short = 'i', long = "input")]
+    input: Option<PathBuf>,
+    /// Compile and verify without replacing
+    #[arg(long)]
+    dry_run: bool,
+}
+
+/// Flags for `tes apply`.
+#[derive(Debug, Args)]
+#[command(group(
+    ArgGroup::new("apply_source")
+        .required(true)
+        .args(["ops", "patch"])
+))]
+struct ApplyArgs {
+    /// Path to the .tes file to mutate
+    path: PathBuf,
+    /// Expected SHA-256 of the current on-disk file
+    #[arg(long = "source-hash", required = true)]
+    source_hash: String,
+    /// JSON array of typed TesOp mutations
+    #[arg(long)]
+    ops: Option<PathBuf>,
+    /// Full Tessera Markdown replacement patch
+    #[arg(long)]
+    patch: Option<PathBuf>,
+    /// Compile and verify without replacing; print a line diff
+    #[arg(long)]
+    dry_run: bool,
+}
+
 #[derive(Debug, Subcommand)]
 enum LinkCommands {
     /// Resolve UUID[/chunk] to a document and optional text body
@@ -282,6 +359,9 @@ fn main() -> ExitCode {
         Commands::Import(args) => result_exit(run_import(args)),
         Commands::Link { vault, command } => run_link(&vault, command),
         Commands::Serve(args) => result_exit(run_serve(args)),
+        Commands::EditRead(args) => result_exit(run_edit_read(args)),
+        Commands::EditWrite(args) => result_exit(run_edit_write(args)),
+        Commands::Apply(args) => result_exit(run_apply(args)),
     }
 }
 
@@ -523,6 +603,94 @@ fn run_serve(args: ServeArgs) -> Result<(), TesError> {
         allow_theme_js: args.allow_theme_js,
     };
     serve_preview(&options, None)
+}
+
+fn run_edit_read(args: EditReadArgs) -> Result<(), TesError> {
+    require_tessprek(&args.format)?;
+    let report = edit_read(&args.path)?;
+    eprintln!("source-hash={}", report.source_hash);
+    if let Some(path) = args.output.as_ref() {
+        fs::write(path, report.tessprek.as_bytes())?;
+    } else {
+        print_out(&report.tessprek)?;
+    }
+    Ok(())
+}
+
+fn run_edit_write(args: EditWriteArgs) -> Result<(), TesError> {
+    require_tessprek(&args.format)?;
+    let tessprek = read_edit_input(args.stdin, args.input.as_ref())?;
+    let report = edit_write(
+        &args.path,
+        &tessprek,
+        &EditWriteOptions {
+            source_hash: args.source_hash,
+            dry_run: args.dry_run,
+        },
+    )?;
+    print_edit_write_report(&report);
+    Ok(())
+}
+
+fn run_apply(args: ApplyArgs) -> Result<(), TesError> {
+    let options = EditWriteOptions {
+        source_hash: args.source_hash,
+        dry_run: args.dry_run,
+    };
+    let report = if let Some(ops_path) = args.ops.as_ref() {
+        let json = fs::read_to_string(ops_path)?;
+        let ops = parse_ops_json(&json)?;
+        apply_ops(&args.path, &ops, &options)?
+    } else if let Some(patch_path) = args.patch.as_ref() {
+        let patch = fs::read_to_string(patch_path)?;
+        apply_patch(&args.path, &patch, &options)?
+    } else {
+        return Err(TesError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "select --ops or --patch",
+        )));
+    };
+    print_edit_write_report(&report);
+    Ok(())
+}
+
+fn require_tessprek(format: &str) -> Result<(), TesError> {
+    if format == "tessprek" || format == "tessera-markdown" {
+        Ok(())
+    } else {
+        Err(TesError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("unsupported edit format '{format}' (use tessprek)"),
+        )))
+    }
+}
+
+fn read_edit_input(stdin: bool, input: Option<&PathBuf>) -> Result<String, TesError> {
+    if stdin {
+        let mut buf = String::new();
+        io::stdin().read_to_string(&mut buf)?;
+        Ok(buf)
+    } else if let Some(path) = input {
+        Ok(fs::read_to_string(path)?)
+    } else {
+        Err(TesError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "provide --stdin or -i/--input",
+        )))
+    }
+}
+
+fn print_edit_write_report(report: &tessera_doc::edit::EditWriteReport) {
+    if report.replaced {
+        if let Some(hash) = report.new_source_hash.as_ref() {
+            eprintln!("replaced\tnew-source-hash={hash}");
+        } else {
+            eprintln!("replaced");
+        }
+    } else {
+        eprintln!("dry-run\t(no replace)");
+        print!("{}", report.diff);
+    }
 }
 
 fn parse_doc_kind(value: &str) -> Result<DocKind, TesError> {

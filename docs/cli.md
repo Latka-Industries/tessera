@@ -19,11 +19,11 @@ Related: [layout_v0.md](layout_v0.md),
 | [`tes link`](#tes-link) | — | Resolve / inspect links across a vault |
 | [`tes serve`](#tes-serve) `<path.tes>` | — | Local themed browser preview |
 | `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
-| `tes edit-read` / `edit-write` | — | Virtual Tessera Markdown editor protocol (planned) |
-| `tes apply` | — | Verified Tessera Markdown/typed-op mutation (planned) |
+| [`tes edit-read`](#mutation-protocol) / `edit-write` | — | Tessera Markdown virtual editor protocol |
+| [`tes apply`](#mutation-protocol) | — | Verified Tessera Markdown / typed-op mutation |
 | `tes log\|diff\|checkout\|changelog` | — | M10 revision/history tools |
 
-v0 ships **`info`**, **`verify`**, **`export`** first.
+v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**, **`serve`**, and the **mutation** commands.
 
 ---
 
@@ -197,25 +197,39 @@ by default. See [security.md](security.md).
 
 ---
 
-## Planned mutation protocol
+## Mutation protocol
 
 ```bash
-# Catalog-only round trip.
-tes export paper.tes --meta toml > meta.toml
-tes meta set paper.tes --from meta.toml
-
 # Editor-neutral virtual buffer protocol.
 tes edit-read paper.tes --format tessprek
 tes edit-write paper.tes --format tessprek --source-hash HASH --stdin
+tes edit-write paper.tes --source-hash HASH -i buffer.tessprek --dry-run
 
 # Agent-safe structural mutation.
 tes apply paper.tes --ops ops.json --source-hash HASH --dry-run
 tes apply paper.tes --patch change.tessprek --source-hash HASH
 ```
 
+`edit-read` prints Tessera Markdown (Tessprek) to stdout and the SHA-256
+`source-hash=…` on stderr. Directives look like:
+
+```text
+<!-- tessera: format=tessprek version=1 source-hash=… -->
+
+<!-- tes chunk=1 role=heading level=1 class="lead" -->
+# Title
+
+<!-- tes chunk=2 type=figure image=3 placement=flow caption="…" -->
+![alt](media:chunk-3)
+```
+
 `edit-write` and `apply` acquire an advisory per-file lock, re-check the source
 hash, compile to a sibling temporary file, deep-verify, and atomically replace.
-Vim/Neovim integrations are thin adapters over these commands.
+`--dry-run` stops before replace and prints a line diff. Vim/Neovim integrations
+are thin adapters over these commands.
+
+Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
+`set_text`, `append_paragraph`, `delete_chunk`.
 
 ---
 
@@ -268,6 +282,8 @@ Every CLI command maps to a library entry point:
 | `tes export` | `tessera_doc::export::export_view` |
 | `tes import` | `tessera_doc::import::import_markdown_v0` |
 | `tes serve` | `tessera_doc::preview::serve_preview` |
-| `tes edit-*` / `apply` | planned typed compile/mutation API |
+| `tes edit-read` | `tessera_doc::edit::edit_read` |
+| `tes edit-write` | `tessera_doc::edit::edit_write` |
+| `tes apply` | `tessera_doc::edit::apply_ops` / `apply_patch` |
 
 Embedders use the library directly; CLI is a thin wrapper.

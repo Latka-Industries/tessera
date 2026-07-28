@@ -10,6 +10,7 @@
 //! - [`verify`] — layout health findings for `tes verify`.
 //! - [`export`] — decoded views (`--raw`, `--ai-text`, …).
 //! - [`import`] — `CommonMark` and semantic HTML compilation into chunks.
+//! - [`edit`] — Tessera Markdown virtual editing (`edit-read` / `edit-write` / `apply`).
 //! - [`vault`] — stable link resolution and backlinks.
 //! - [`template`] — external theme/template packs.
 //! - [`preview`] — loopback `tes serve` HTML preview.
@@ -21,6 +22,7 @@
 
 pub mod bib;
 pub mod catalog;
+pub mod edit;
 pub mod error;
 pub mod export;
 pub mod import;
@@ -44,6 +46,10 @@ pub mod prelude {
         ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog, FigureRef,
         ImagePayload, ImagePlacement, TesFile, TesInfoReport, TesWriterSession, TextHeader,
         TextRole, read_summary_v0,
+    };
+    pub use crate::edit::{
+        EditReadReport, EditWriteOptions, EditWriteReport, TesOp, apply_ops, apply_patch,
+        edit_read, edit_write, file_source_hash,
     };
     pub use crate::error::{Result, TesError};
     pub use crate::export::{AiPart, ExportOptions, ExportView, export_ai_parts, export_view};

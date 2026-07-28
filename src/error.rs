@@ -238,6 +238,47 @@ pub enum TesError {
         /// Human-readable reason.
         message: String,
     },
+
+    /// Tessera Markdown / edit directive parse failed.
+    #[error("edit parse error at {line}:{column}: {message}")]
+    EditParse {
+        /// 1-based line number.
+        line: usize,
+        /// 1-based column number.
+        column: usize,
+        /// Human-readable reason.
+        message: String,
+    },
+
+    /// Typed `tes apply` operation failed.
+    #[error("edit op failed: {message}")]
+    EditOp {
+        /// Human-readable reason.
+        message: String,
+    },
+
+    /// Source-hash conflict on mutation.
+    #[error("source hash mismatch: expected {expected}, found {found}")]
+    SourceHashMismatch {
+        /// Hash supplied by the caller.
+        expected: String,
+        /// Hash of the on-disk file.
+        found: String,
+    },
+
+    /// Another process holds the advisory edit lock.
+    #[error("document is locked for editing ({path})")]
+    EditLocked {
+        /// Lock file path.
+        path: String,
+    },
+
+    /// Compiled mutation failed deep verify.
+    #[error("edit verify failed: {message}")]
+    EditVerifyFailed {
+        /// First verify error message.
+        message: String,
+    },
 }
 
 impl From<argus::BufferTooShort> for TesError {
