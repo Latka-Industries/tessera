@@ -39,7 +39,7 @@ pagination, computed figure numbers, or pixel coordinates.
 | Internal links | Implemented (`TLNK`) | Typed link targets | shipped / remaining wire |
 | External links | Discarded | Variable-length external URI target | remaining wire |
 | Images | Implemented | Reusable media + contextual figure refs | shipped |
-| Attachments | Missing | Generic inert attachment chunk | layout v1 |
+| Attachments | Inert attachment chunk (type 8) | Generic inert attachment chunk | shipped |
 | Citations | Cite wire + BibTeX/CSL | Cite writer, spans, styles, interchange | shipped (M8) |
 | HTML | Import/export implemented | AI-safe and themed profiles remain distinct | shipped (M6) |
 | Browser preview | `tes serve` + theme packs | Theme packs + safe reload | shipped (M7) |
@@ -173,8 +173,10 @@ One image payload can be reused with different captions and placement without
 duplicating bytes. Every figure use has a reading-order anchor and alt text.
 Actual width, crop, margins, and responsive behavior come from the theme.
 
-A generic attachment chunk stores media type, safe filename, optional caption,
-and inert bytes. Attachments never auto-extract or execute.
+A generic attachment chunk stores media type, safe basename filename, optional
+caption, SHA-256 integrity hash, and inert bytes (`ChunkType::Attachment` = 8).
+Attachments never auto-extract or execute; preview serves them only as
+`Content-Disposition: attachment` downloads with `nosniff`.
 
 ---
 
@@ -306,7 +308,8 @@ Markdown vault operations.
 
 Post-checkout/textconv (THI-194) and layout-v1 text wire (THI-195):
 
-1. Remaining layout wire: attachments + variable-length external URI links.
+1. Remaining layout wire: variable-length external URI / typed TLNK targets
+   (attachments shipped as chunk type 8).
 2. Remaining M10: blame, merge driver, pending-ops redline UI.
 3. Optional: bump `layout_version` when must-understand feature flags land.
 

@@ -218,6 +218,13 @@ pub enum TesError {
         message: String,
     },
 
+    /// Attachment payload failed validation or decode.
+    #[error("invalid attachment: {message}")]
+    InvalidAttachment {
+        /// Human-readable reason.
+        message: String,
+    },
+
     /// Cite payload failed validation or decode.
     #[error("invalid cite: {message}")]
     InvalidCite {

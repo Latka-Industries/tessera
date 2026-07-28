@@ -5,10 +5,11 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
+use crate::catalog::TesFile;
 use crate::catalog::read_summary_v0;
 use crate::error::TesError;
 use crate::io::bib::{BibFormat, BibImportOptions, export_bibliography, import_bibliography};
-use crate::io::export::{ExportOptions, ExportView, export_view};
+use crate::io::export::{ExportOptions, ExportView, export_attachment_bytes, export_view};
 use crate::io::import::{
     HtmlImportOptions, MarkdownImportOptions, import_html_v0, import_markdown_v0,
 };
@@ -27,6 +28,25 @@ pub(in crate::cli) fn run_export(args: ExportArgs) -> Result<(), TesError> {
         } else {
             print_out(&out)?;
         }
+        return Ok(());
+    }
+
+    if args.attachment {
+        let Some(chunk_id) = args.chunk else {
+            return Err(TesError::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "--attachment requires --chunk ID",
+            )));
+        };
+        let Some(out_path) = args.output.as_ref() else {
+            return Err(TesError::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "--attachment requires -o/--output PATH",
+            )));
+        };
+        let file = TesFile::open(&args.path)?;
+        let att = export_attachment_bytes(&file, chunk_id)?;
+        fs::write(out_path, &att.data)?;
         return Ok(());
     }
 
@@ -85,6 +105,7 @@ pub(in crate::cli) fn run_export(args: ExportArgs) -> Result<(), TesError> {
         standalone: args.standalone,
         embedded_css,
         media_url_prefix: None,
+        attachment_url_prefix: None,
     };
     let out = export_view(&args.path, view, &options)?;
     if let Some(path) = args.output.as_ref() {

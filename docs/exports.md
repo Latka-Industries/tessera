@@ -30,10 +30,12 @@ Related: [layout_v0.md](layout_v0.md) (wire format), [engine.md](engine.md) (mod
 | HTML | `--html` | Browser preview, static site |
 | AI Markdown/HTML | `--ai --format markdown\|html` | LLM prompts |
 | Metadata | `--meta json\|yaml\|toml` | Agents, static-site tools |
-| Bibliography | `--bibliography` | Research mode (later) |
-| PDF | `--pdf` | Print / send (later, themed) |
+| Bibliography | `--bibliography` | Research mode |
+| Attachment bytes | `--attachment` | Explicit download of inert attachment chunk |
+| PDF | `--pdf` | Print / send (themed) |
 
-v0 implementation target: **`--raw`**, **`--linear`**, **`--ai-text`**, **`--chunks-jsonl`**.
+v0 implementation target: **`--raw`**, **`--linear`**, **`--ai-text`**, **`--chunks-jsonl`**,
+plus Markdown/HTML/PDF/bibliography/attachment as shipped.
 
 ---
 
@@ -76,6 +78,7 @@ The mean was 12.4°C.
 | `role: paragraph` | Body only |
 | `role: list_item` | `- ` or `1. ` from `list_kind` |
 | `role: table` | v0 TSV; v1 structured cells in reading order |
+| `attachment` | `[attachment filename=… media_type=… sha256=…]` (+ optional caption line); never embeds bytes |
 | Links | Inline `[display](doc:UUID/chunk)` form |
 
 **Guarantees:**
@@ -239,6 +242,22 @@ Export **BibTeX** or **CSL JSON** from cite-chunk `source` metadata (fallback:
 
 In-text rendering uses catalog/template `cite_style_id` (v0 ships `numeric`:
 `[1]`, `[2]`, …). Display style is never stored inside cite payloads.
+
+---
+
+## `--attachment`
+
+Write the **opaque bytes** of one attachment chunk. This is an explicit
+download path — text/HTML/AI views only list metadata and never embed or
+execute attachment payloads.
+
+| Flag | Behavior |
+| --- | --- |
+| `--chunk ID` | **Required** attachment chunk id |
+| `-o PATH` | **Required** output path for raw bytes |
+
+`tes serve` exposes the same bytes at `/attachment/{id}` with
+`Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`.
 
 ---
 

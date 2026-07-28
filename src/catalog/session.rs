@@ -22,7 +22,7 @@ use crate::catalog::index::{
     ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, ENTRY_LEN, HEADER_LEN, chunk_flags,
 };
 use crate::catalog::link::{LinkEntry, LinkKind, encode_link_table};
-use crate::catalog::media::{FigureRef, ImagePayload};
+use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload};
 use crate::catalog::slide::SlidePayload;
 use crate::error::{Result, TesError};
 use crate::layout::{DocKind, Region, SUPERBLOCK_LEN, SuperblockV0};
@@ -152,6 +152,25 @@ impl TesWriterSession {
         let payload = figure.to_bytes()?;
         self.chunks.push(PendingChunk {
             chunk_type: ChunkType::Figure,
+            chunk_flags: chunk_flags::READING_ORDER,
+            payload,
+        });
+        Ok(self.chunks.len() as u64)
+    }
+
+    /// Append a reading-order inert attachment chunk.
+    ///
+    /// Returns the 1-based `chunk_id` assigned on commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if sealed, or encode/validation
+    /// errors from [`AttachmentPayload::to_bytes`].
+    pub fn add_attachment_chunk(&mut self, attachment: &AttachmentPayload) -> Result<u64> {
+        self.ensure_open()?;
+        let payload = attachment.to_bytes()?;
+        self.chunks.push(PendingChunk {
+            chunk_type: ChunkType::Attachment,
             chunk_flags: chunk_flags::READING_ORDER,
             payload,
         });

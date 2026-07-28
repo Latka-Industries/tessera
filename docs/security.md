@@ -18,7 +18,8 @@ foreign `.tes` file must never execute code.
 ## Inert attachments
 
 Attachment chunks are opaque bytes until a user explicitly exports or opens
-them. Readers and preview servers do not auto-extract or execute attachments.
+them (`tes export --attachment`, or `tes serve` `/attachment/{id}`). Readers
+and preview servers do not auto-extract or execute attachments.
 
 - Normalize filenames to a basename; reject absolute paths and `..`.
 - Warn or deny executable/script media types and suffixes by default.

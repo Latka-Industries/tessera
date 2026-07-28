@@ -110,6 +110,7 @@ pub(super) enum Commands {
             "html",
             "pdf",
             "bibliography",
+            "attachment",
         ])
 ))]
 pub(super) struct ExportArgs {
@@ -139,6 +140,9 @@ pub(super) struct ExportArgs {
     /// BibTeX or CSL-JSON bibliography from cite chunks
     #[arg(long)]
     pub(super) bibliography: bool,
+    /// Write opaque attachment chunk bytes (requires --chunk and -o)
+    #[arg(long)]
+    pub(super) attachment: bool,
     /// Bibliography format: bibtex | csl-json (default: bibtex)
     #[arg(
         long = "bib-format",

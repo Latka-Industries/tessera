@@ -43,8 +43,8 @@ mod tests;
 /// Common types for embedders: `use tessera_doc::prelude::*;`.
 pub mod prelude {
     pub use crate::catalog::{
-        ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog, FigureRef,
-        ImagePayload, ImagePlacement, SlidePayload, SlideRegion, TesFile, TesInfoReport,
+        AttachmentPayload, ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, DocumentCatalog,
+        FigureRef, ImagePayload, ImagePlacement, SlidePayload, SlideRegion, TesFile, TesInfoReport,
         TesWriterSession, TextAlign, TextHeader, TextRole, read_summary_v0,
     };
     pub use crate::edit::{

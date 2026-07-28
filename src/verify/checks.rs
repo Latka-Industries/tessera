@@ -60,6 +60,7 @@ pub fn verify_bytes(path: &Path, bytes: &[u8], deep: bool) -> TesVerifyReport {
     verify_figure_targets(&mut findings, &entries, bytes);
     verify_slide_targets(&mut findings, &entries, bytes);
     verify_cite_mirrors(&mut findings, &entries, &superblock, bytes);
+    verify_attachment_limits(&mut findings, &entries, bytes, deep);
     verify_history_footer(&mut findings, &superblock, bytes, file_len);
 
     finish(path, file_len, chunk_count, deep, findings)
@@ -292,7 +293,7 @@ fn verify_history_footer(
 fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, payload: &[u8]) {
     use crate::catalog::chunk::{CitePayload, decode_text_payload};
     use crate::catalog::index::ChunkType;
-    use crate::catalog::media::{FigureRef, ImagePayload};
+    use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload};
     use crate::catalog::slide::SlidePayload;
 
     match entry.codec {
@@ -331,6 +332,14 @@ fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, p
             if let Err(err) = FigureRef::from_bytes(payload) {
                 findings.push(Finding::error(
                     "chunk.figure_payload",
+                    format!("chunk {}: {err}", entry.chunk_id),
+                ));
+            }
+        }
+        ChunkType::Attachment => {
+            if let Err(err) = AttachmentPayload::from_bytes(payload) {
+                findings.push(Finding::error(
+                    "chunk.attachment_payload",
                     format!("chunk {}: {err}", entry.chunk_id),
                 ));
             }
@@ -517,6 +526,58 @@ fn verify_figure_targets(findings: &mut Vec<Finding>, entries: &[ChunkIndexEntry
                 ),
             ));
         }
+    }
+}
+
+fn verify_attachment_limits(
+    findings: &mut Vec<Finding>,
+    entries: &[ChunkIndexEntry],
+    bytes: &[u8],
+    deep: bool,
+) {
+    use crate::catalog::index::ChunkType;
+    use crate::catalog::media::{
+        ATTACHMENT_MAX_AGGREGATE_BYTES, ATTACHMENT_MAX_COUNT, AttachmentPayload,
+    };
+
+    let attachment_entries: Vec<&ChunkIndexEntry> = entries
+        .iter()
+        .filter(|e| e.chunk_type == ChunkType::Attachment)
+        .collect();
+    if attachment_entries.len() > ATTACHMENT_MAX_COUNT {
+        findings.push(Finding::error(
+            "attachment.count",
+            format!(
+                "{} attachment chunks exceeds limit {ATTACHMENT_MAX_COUNT}",
+                attachment_entries.len()
+            ),
+        ));
+    }
+
+    let mut aggregate = 0u64;
+    for entry in attachment_entries {
+        let start = entry.payload_offset as usize;
+        let end = start.saturating_add(entry.stored_byte_len as usize);
+        if end > bytes.len() {
+            continue;
+        }
+        let data_len = if deep && entry.codec == Codec::Raw {
+            match AttachmentPayload::from_bytes(&bytes[start..end]) {
+                Ok(att) => att.data.len() as u64,
+                Err(_) => entry.raw_byte_len,
+            }
+        } else {
+            entry.raw_byte_len
+        };
+        aggregate = aggregate.saturating_add(data_len);
+    }
+    if aggregate > ATTACHMENT_MAX_AGGREGATE_BYTES {
+        findings.push(Finding::error(
+            "attachment.aggregate_bytes",
+            format!(
+                "aggregate attachment bytes {aggregate} exceeds {ATTACHMENT_MAX_AGGREGATE_BYTES}"
+            ),
+        ));
     }
 }
 

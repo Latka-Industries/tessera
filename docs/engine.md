@@ -206,17 +206,17 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 
 **In:**
 
-- `layout`, `catalog` (session, index, catalog JSON, text/media/slide chunks, THST wire)
+- `layout`, `catalog` (session, index, catalog JSON, text/media/slide/attachment chunks, THST wire)
 - `verify` (basic + deep)
-- `io::export` (`--raw`, `--linear`, `--ai-text`, `--chunks-jsonl`, Markdown/HTML, bibliography)
+- `io::export` (`--raw`, `--linear`, `--ai-text`, `--chunks-jsonl`, Markdown/HTML, bibliography, `--attachment`)
 - `io::import` (Markdown, HTML), `io::bib`
-- `vault`, `render` (serve + PDF), `edit`, `history` (M10 first slice)
+- `vault`, `render` (serve + PDF; `/media/` images, `/attachment/` downloads), `edit`, `history` (M10 first slice)
 - `cli` + `tes` binary: info, verify, export, import, link, serve, edit-*, apply, save/log/diff/changelog
 
 **Out (later):**
 
-- Full layout v1 spans/tables/math
-- `repair/`, richer history (checkout, blame, merge driver)
+- Typed external URI / attachment link targets in `TLNK`
+- `repair/`, richer history (blame, merge driver, redline)
 - Aleph, CRDT, page tensors
 
 ---

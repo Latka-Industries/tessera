@@ -19,7 +19,7 @@ use crate::catalog::chunk::{CitePayload, TextHeader};
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::history::attach_footer;
 use crate::catalog::index::ChunkType;
-use crate::catalog::media::{FigureRef, ImagePayload};
+use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload};
 use crate::catalog::slide::SlidePayload;
 use crate::catalog::{TesFile, TesWriterSession};
 use crate::error::{Result, TesError};
@@ -62,6 +62,19 @@ pub enum ContentBlock {
         /// Slide payload.
         slide: SlidePayload,
     },
+    /// Inert attachment chunk (metadata in Tessprek; bytes from source).
+    Attachment {
+        /// Optional stable id from the source projection.
+        chunk_id: Option<u64>,
+        /// Safe basename.
+        filename: String,
+        /// IANA media type.
+        media_type: String,
+        /// Optional caption.
+        caption: Option<String>,
+        /// Declared integrity hash (checked against source bytes on write).
+        sha256: String,
+    },
 }
 
 impl ContentBlock {
@@ -72,7 +85,8 @@ impl ContentBlock {
             Self::Text { chunk_id, .. }
             | Self::Figure { chunk_id, .. }
             | Self::Cite { chunk_id, .. }
-            | Self::Slide { chunk_id, .. } => *chunk_id,
+            | Self::Slide { chunk_id, .. }
+            | Self::Attachment { chunk_id, .. } => *chunk_id,
         }
     }
 }
@@ -465,6 +479,42 @@ fn compile_blocks_to_bytes(
             }
             ContentBlock::Slide { slide, .. } => {
                 session.add_slide(slide)?;
+            }
+            ContentBlock::Attachment {
+                chunk_id,
+                filename,
+                media_type,
+                caption,
+                sha256,
+            } => {
+                let Some(id) = chunk_id else {
+                    return Err(TesError::EditOp {
+                        message: "attachment directives require a source chunk id to retain bytes"
+                            .into(),
+                    });
+                };
+                let entry = source.chunk_by_id(*id)?;
+                if entry.chunk_type != ChunkType::Attachment {
+                    return Err(TesError::EditOp {
+                        message: format!("chunk {id} is not an attachment"),
+                    });
+                }
+                let raw = source.decode_payload(entry)?;
+                let mut payload = AttachmentPayload::from_bytes(raw.as_ref())?;
+                // Allow Tessprek metadata edits that keep the same bytes.
+                if payload.sha256 != *sha256 {
+                    return Err(TesError::EditOp {
+                        message: format!(
+                            "attachment chunk {id} sha256 mismatch: tessprek={sha256}, source={}",
+                            payload.sha256
+                        ),
+                    });
+                }
+                payload.filename = filename.clone();
+                payload.media_type = media_type.clone();
+                payload.caption = caption.clone();
+                payload.validate()?;
+                session.add_attachment_chunk(&payload)?;
             }
         }
     }

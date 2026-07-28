@@ -10,7 +10,7 @@ use crate::catalog::chunk::{
     decode_text_payload,
 };
 use crate::catalog::index::ChunkType;
-use crate::catalog::media::{FigureRef, ImagePlacement};
+use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
 use crate::error::{Result, TesError};
 
@@ -65,6 +65,12 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
                 let raw = file.decode_payload(entry)?;
                 let slide = SlidePayload::from_bytes(raw.as_ref())?;
                 write_slide_directive(&mut out, entry.chunk_id, &slide);
+                out.push('\n');
+            }
+            ChunkType::Attachment => {
+                let raw = file.decode_payload(entry)?;
+                let att = AttachmentPayload::from_bytes(raw.as_ref())?;
+                write_attachment_directive(&mut out, entry.chunk_id, &att);
                 out.push('\n');
             }
             _ => {}
@@ -155,6 +161,7 @@ fn decode_directive_block(
         "figure" => decode_figure_block(chunk_id, map, body, line_no),
         "cite" => Ok(decode_cite_block(chunk_id, map, body)),
         "slide" => decode_slide_block(chunk_id, map, line_no),
+        "attachment" => decode_attachment_block(chunk_id, map, line_no),
         other => Err(parse_err(
             line_no,
             1,
@@ -278,6 +285,35 @@ fn decode_slide_block(
     })
 }
 
+fn decode_attachment_block(
+    chunk_id: u64,
+    map: &std::collections::BTreeMap<String, String>,
+    line_no: usize,
+) -> Result<ContentBlock> {
+    let filename = map
+        .get("filename")
+        .cloned()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| parse_err(line_no, 1, "attachment requires filename=…"))?;
+    let media_type = map
+        .get("media_type")
+        .cloned()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| parse_err(line_no, 1, "attachment requires media_type=…"))?;
+    let sha256 = map
+        .get("sha256")
+        .cloned()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| parse_err(line_no, 1, "attachment requires sha256=…"))?;
+    Ok(ContentBlock::Attachment {
+        chunk_id: Some(chunk_id),
+        filename,
+        media_type,
+        caption: map.get("caption").cloned().filter(|s| !s.is_empty()),
+        sha256,
+    })
+}
+
 fn write_text_directive(out: &mut String, chunk_id: u64, header: &TextHeader) {
     let _ = write!(
         out,
@@ -355,6 +391,20 @@ fn write_slide_directive(out: &mut String, chunk_id: u64, slide: &SlidePayload) 
         attr_token(&slide.layout_id),
         escape_attr(&regions)
     );
+}
+
+fn write_attachment_directive(out: &mut String, chunk_id: u64, att: &AttachmentPayload) {
+    let _ = write!(
+        out,
+        "{CHUNK_PREFIX}chunk={chunk_id} type=attachment filename=\"{}\" media_type={} sha256={}",
+        escape_attr(&att.filename),
+        attr_token(&att.media_type),
+        att.sha256
+    );
+    if let Some(caption) = att.caption.as_deref() {
+        let _ = write!(out, " caption=\"{}\"", escape_attr(caption));
+    }
+    let _ = writeln!(out, "{CHUNK_SUFFIX}");
 }
 
 fn parse_slide_regions(raw: &str, line_no: usize) -> Result<Vec<SlideRegion>> {

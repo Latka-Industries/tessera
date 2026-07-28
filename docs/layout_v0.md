@@ -208,9 +208,11 @@ Total index size: **`32 + entry_count × 48`**.
 | `5` | `slide` | Layout id + ordered block list |
 | `6` | `page` | Imported PDF page raster (optional v0) |
 | `7` | `figure` | Contextual use of an image chunk (alt, caption, placement) |
+| `8` | `attachment` | Inert opaque bytes (media type, safe basename, optional caption, sha256) |
 
 v0 reference implementation **must** support **`text`**; **`image` + `figure`** are
-available for media; **`link` table + cite** recommended before slide/page.
+available for media; **`attachment`** is inert download-only; **`link` table + cite**
+recommended before slide/page.
 
 ---
 
@@ -296,21 +298,22 @@ selected by catalog/template `cite_style_id`, never stored here. When
 
 ---
 
-## Image / slide / page payloads (v0 stubs)
-
-Defined for layout stability; the reference writer may emit
-**`UnsupportedChunkType`** until the M7 image and later payload work lands.
+## Image / slide / page / attachment payloads
 
 - **Image (`2`):** `u32 mime_len | mime | u32 width | u32 height | u64 data_len | bytes`.
   Not reading-order. See [structure_v1 — media](structure_v1.md#media-and-attachments).
 - **Figure (`7`):** UTF-8 JSON figure ref pointing at an image chunk id with required
   `alt_text`, optional `caption`, and `placement`. Reading-order.
+- **Attachment (`8`):** `u32 meta_len | UTF-8 JSON meta | bytes`, where meta is
+  `{ "media_type", "filename", "caption"?, "sha256" }`. Reading-order. Filename is
+  a safe basename; preview/export never executes bytes (download-only).
 - **Slide (`5`):** UTF-8 JSON `{ "layout_id", "regions": [{ "name", "chunk_id" }] }`.
   Reading-order. Region targets are text, figure, cite, or image chunks. Theme CSS
   maps region names to grid/flex areas — no freeform coordinates.
 - **Page (`6`):** raster bytes + source page number for PDF import.
 
-Image + figure + slide are implemented in the reference writer; page remains deferred.
+Image + figure + attachment + slide are implemented in the reference writer; page
+remains deferred.
 
 ---
 

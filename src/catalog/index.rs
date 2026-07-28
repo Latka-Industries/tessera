@@ -75,6 +75,8 @@ pub enum ChunkType {
     Page = 6,
     /// Contextual figure use referencing an [`Self::Image`] chunk.
     Figure = 7,
+    /// Inert opaque attachment (media type + safe filename + bytes).
+    Attachment = 8,
 }
 
 impl ChunkType {
@@ -92,6 +94,7 @@ impl ChunkType {
             5 => Self::Slide,
             6 => Self::Page,
             7 => Self::Figure,
+            8 => Self::Attachment,
             other => {
                 return Err(TesError::InvalidEnum {
                     field: "chunk_type",
@@ -118,6 +121,7 @@ impl ChunkType {
             Self::Slide => "slide",
             Self::Page => "page",
             Self::Figure => "figure",
+            Self::Attachment => "attachment",
         }
     }
 
@@ -135,6 +139,7 @@ impl ChunkType {
             "slide" => Self::Slide,
             "page" => Self::Page,
             "figure" => Self::Figure,
+            "attachment" => Self::Attachment,
             other => {
                 return Err(TesError::InvalidHistory {
                     message: format!("unknown chunk type '{other}'"),
@@ -148,9 +153,12 @@ impl ChunkType {
     pub const fn default_flags(self) -> u32 {
         match self {
             Self::Image | Self::Page => 0,
-            Self::Text | Self::Link | Self::Cite | Self::Slide | Self::Figure => {
-                chunk_flags::READING_ORDER
-            }
+            Self::Text
+            | Self::Link
+            | Self::Cite
+            | Self::Slide
+            | Self::Figure
+            | Self::Attachment => chunk_flags::READING_ORDER,
         }
     }
 
@@ -419,6 +427,7 @@ mod tests {
             ChunkType::Slide,
             ChunkType::Page,
             ChunkType::Figure,
+            ChunkType::Attachment,
         ] {
             assert_eq!(ChunkType::from_u32(t.as_u32()).unwrap(), t);
         }
@@ -427,7 +436,7 @@ mod tests {
             Err(TesError::InvalidEnum { .. })
         ));
         assert!(matches!(
-            ChunkType::from_u32(8),
+            ChunkType::from_u32(9),
             Err(TesError::InvalidEnum { .. })
         ));
     }

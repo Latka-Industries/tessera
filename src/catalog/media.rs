@@ -1,10 +1,14 @@
-//! Image media payloads and contextual figure references.
+//! Image media payloads, figure references, and inert attachments.
 //!
 //! Image bytes live in non-reading-order [`super::ChunkType::Image`] chunks.
 //! Each use in reading order is a [`super::ChunkType::Figure`] JSON payload that
 //! points at an image chunk with alt text, optional caption, and placement.
+//!
+//! Generic [`AttachmentPayload`] chunks (`ChunkType::Attachment`) store opaque
+//! bytes with a safe basename; readers never auto-extract or execute them.
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::error::{Result, TesError};
 use argus::{LeReader, LeWriter};
@@ -42,19 +46,9 @@ impl ImagePayload {
     /// Returns [`TesError::InvalidImage`] if MIME, dimensions, or data violate
     /// the soft resource limits.
     pub fn validate(&self) -> Result<()> {
-        if self.media_type.is_empty() || self.media_type.len() > IMAGE_STRING_MAX {
-            return Err(TesError::InvalidImage {
-                message: format!(
-                    "media_type length {} out of range 1..={IMAGE_STRING_MAX}",
-                    self.media_type.len()
-                ),
-            });
-        }
-        if self.media_type.contains(['\0', '\n', '\r']) {
-            return Err(TesError::InvalidImage {
-                message: "media_type must be a single-line token".into(),
-            });
-        }
+        validate_media_type_token(&self.media_type, IMAGE_STRING_MAX, |message| {
+            TesError::InvalidImage { message }
+        })?;
         if !self.media_type.starts_with("image/") {
             return Err(TesError::InvalidImage {
                 message: format!(
@@ -301,6 +295,300 @@ impl FigureRef {
     }
 }
 
+/// Soft upper bound on a single attachment payload (64 MiB).
+pub const ATTACHMENT_MAX_BYTES: usize = 64 * 1024 * 1024;
+
+/// Soft upper bound on attachment count per file.
+pub const ATTACHMENT_MAX_COUNT: usize = 64;
+
+/// Soft upper bound on aggregate attachment bytes per file.
+pub const ATTACHMENT_MAX_AGGREGATE_BYTES: u64 = 128 * 1024 * 1024;
+
+/// Soft upper bound on media-type / caption string lengths.
+pub const ATTACHMENT_STRING_MAX: usize = 1024;
+
+/// Soft upper bound on safe basename length.
+pub const ATTACHMENT_FILENAME_MAX: usize = 255;
+
+const DENIED_SUFFIXES: &[&str] = &[
+    "exe", "bat", "cmd", "com", "msi", "scr", "ps1", "vbs", "js", "mjs", "cjs", "sh", "bash",
+    "zsh", "dll", "so", "dylib", "jar", "app", "html", "htm", "svg", "wasm",
+];
+
+const DENIED_MEDIA_TYPES: &[&str] = &[
+    "application/javascript",
+    "text/javascript",
+    "application/x-javascript",
+    "application/ecmascript",
+    "text/ecmascript",
+    "application/x-msdownload",
+    "application/x-msdos-program",
+    "application/x-executable",
+    "application/x-sharedlib",
+    "application/x-sh",
+    "application/x-shellscript",
+    "text/x-shellscript",
+    "text/html",
+    "application/xhtml+xml",
+    "application/wasm",
+    "image/svg+xml",
+];
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct AttachmentMeta {
+    media_type: String,
+    filename: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    caption: Option<String>,
+    sha256: String,
+}
+
+/// Inert attachment bytes (chunk type `8`, reading-order).
+///
+/// Integrity hash proves identity, not safety. Preview/export never executes the
+/// payload; downloads use `Content-Disposition: attachment` + `nosniff`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttachmentPayload {
+    /// IANA media type, e.g. `application/pdf`.
+    pub media_type: String,
+    /// Safe basename only (no path separators or `..`).
+    pub filename: String,
+    /// Optional caption shown with the attachment listing.
+    pub caption: Option<String>,
+    /// Lowercase hex SHA-256 of [`Self::data`].
+    pub sha256: String,
+    /// Opaque bytes; never executed by Tessera.
+    pub data: Vec<u8>,
+}
+
+impl AttachmentPayload {
+    /// Build a payload, computing `sha256` from `data`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidAttachment`] if filename, media type, or size
+    /// limits fail validation.
+    pub fn new(
+        media_type: impl Into<String>,
+        filename: impl AsRef<str>,
+        data: Vec<u8>,
+        caption: Option<String>,
+    ) -> Result<Self> {
+        let filename = normalize_attachment_filename(filename.as_ref())?;
+        let payload = Self {
+            media_type: media_type.into(),
+            filename,
+            caption,
+            sha256: sha256_hex(&data),
+            data,
+        };
+        payload.validate()?;
+        Ok(payload)
+    }
+
+    /// Validate resource limits, filename safety, and integrity hash.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidAttachment`] on limit, deny-list, or hash
+    /// mismatches.
+    pub fn validate(&self) -> Result<()> {
+        validate_media_type_token(&self.media_type, ATTACHMENT_STRING_MAX, |message| {
+            TesError::InvalidAttachment { message }
+        })?;
+        let media_lc = self.media_type.to_ascii_lowercase();
+        if DENIED_MEDIA_TYPES
+            .iter()
+            .any(|denied| media_lc == *denied || media_lc.starts_with(&format!("{denied};")))
+        {
+            return Err(TesError::InvalidAttachment {
+                message: format!(
+                    "media_type '{}' is denied for inert attachments (executable/script)",
+                    self.media_type
+                ),
+            });
+        }
+
+        let filename = normalize_attachment_filename(&self.filename)?;
+        if filename != self.filename {
+            return Err(TesError::InvalidAttachment {
+                message: format!(
+                    "filename must be a normalized basename (got '{}', expected '{filename}')",
+                    self.filename
+                ),
+            });
+        }
+        if let Some(ext) = filename
+            .rsplit_once('.')
+            .map(|(_, e)| e.to_ascii_lowercase())
+            && DENIED_SUFFIXES.iter().any(|s| *s == ext)
+        {
+            return Err(TesError::InvalidAttachment {
+                message: format!("filename suffix '.{ext}' is denied for inert attachments"),
+            });
+        }
+
+        if let Some(caption) = &self.caption
+            && caption.len() > ATTACHMENT_STRING_MAX
+        {
+            return Err(TesError::InvalidAttachment {
+                message: format!("caption exceeds {ATTACHMENT_STRING_MAX} bytes"),
+            });
+        }
+
+        if self.data.is_empty() {
+            return Err(TesError::InvalidAttachment {
+                message: "attachment data must be non-empty".into(),
+            });
+        }
+        if self.data.len() > ATTACHMENT_MAX_BYTES {
+            return Err(TesError::InvalidAttachment {
+                message: format!(
+                    "attachment data {} bytes exceeds {ATTACHMENT_MAX_BYTES}",
+                    self.data.len()
+                ),
+            });
+        }
+
+        let expected = sha256_hex(&self.data);
+        if !self.sha256.eq_ignore_ascii_case(&expected) {
+            return Err(TesError::InvalidAttachment {
+                message: format!(
+                    "sha256 mismatch: declared '{}', computed '{expected}'",
+                    self.sha256
+                ),
+            });
+        }
+        if self.sha256.len() != 64 || !self.sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(TesError::InvalidAttachment {
+                message: "sha256 must be 64 lowercase hex characters".into(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Encode: `u32 meta_len | UTF-8 JSON meta | data`.
+    ///
+    /// # Errors
+    ///
+    /// Returns validation or length errors.
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        self.validate()?;
+        let meta = AttachmentMeta {
+            media_type: self.media_type.clone(),
+            filename: self.filename.clone(),
+            caption: self.caption.clone(),
+            sha256: self.sha256.to_ascii_lowercase(),
+        };
+        let meta_bytes = serde_json::to_vec(&meta)?;
+        let meta_len =
+            u32::try_from(meta_bytes.len()).map_err(|_| TesError::InvalidAttachment {
+                message: "attachment metadata too long for u32".into(),
+            })?;
+        let mut out = Vec::with_capacity(4 + meta_bytes.len() + self.data.len());
+        let mut len_buf = [0u8; 4];
+        {
+            let mut w = LeWriter::new(&mut len_buf);
+            w.put_u32(meta_len);
+        }
+        out.extend_from_slice(&len_buf);
+        out.extend_from_slice(&meta_bytes);
+        out.extend_from_slice(&self.data);
+        Ok(out)
+    }
+
+    /// Decode an attachment payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns buffer / JSON / validation errors.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let mut r = LeReader::require(bytes, "AttachmentPayload", 4)?;
+        let meta_len = r.take_u32() as usize;
+        let rest = &bytes[4..];
+        if rest.len() < meta_len {
+            return Err(TesError::BufferTooSmall {
+                structure: "AttachmentPayload.meta",
+                need: meta_len,
+                got: rest.len(),
+            });
+        }
+        let meta: AttachmentMeta = serde_json::from_slice(&rest[..meta_len])?;
+        let data = rest[meta_len..].to_vec();
+        let payload = Self {
+            media_type: meta.media_type,
+            filename: meta.filename,
+            caption: meta.caption,
+            sha256: meta.sha256,
+            data,
+        };
+        payload.validate()?;
+        Ok(payload)
+    }
+}
+
+/// Normalize to a basename: reject absolute paths, `..`, and empty names.
+///
+/// # Errors
+///
+/// Returns [`TesError::InvalidAttachment`] when the name is unsafe.
+pub fn normalize_attachment_filename(name: &str) -> Result<String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(TesError::InvalidAttachment {
+            message: "filename must be non-empty".into(),
+        });
+    }
+    if trimmed.len() > ATTACHMENT_FILENAME_MAX {
+        return Err(TesError::InvalidAttachment {
+            message: format!("filename exceeds {ATTACHMENT_FILENAME_MAX} bytes"),
+        });
+    }
+    if trimmed.contains('\0') || trimmed.chars().any(|c| c.is_control()) {
+        return Err(TesError::InvalidAttachment {
+            message: "filename must not contain control characters".into(),
+        });
+    }
+    if trimmed.contains(['/', '\\']) || trimmed == ".." || trimmed.contains("..") {
+        return Err(TesError::InvalidAttachment {
+            message: "filename must be a basename without path separators or '..'".into(),
+        });
+    }
+    // Reject Windows drive prefixes like `C:foo`.
+    if trimmed.len() >= 2 && trimmed.as_bytes()[1] == b':' {
+        return Err(TesError::InvalidAttachment {
+            message: "filename must not include a drive prefix".into(),
+        });
+    }
+    Ok(trimmed.to_owned())
+}
+
+fn validate_media_type_token(
+    media_type: &str,
+    max_len: usize,
+    err: impl Fn(String) -> TesError,
+) -> Result<()> {
+    if media_type.is_empty() || media_type.len() > max_len {
+        return Err(err(format!(
+            "media_type length {} out of range 1..={max_len}",
+            media_type.len()
+        )));
+    }
+    if media_type.contains(['\0', '\n', '\r']) {
+        return Err(err("media_type must be a single-line token".into()));
+    }
+    Ok(())
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    let digest = Sha256::digest(data);
+    let mut out = String::with_capacity(64);
+    for byte in digest {
+        let _ = std::fmt::Write::write_fmt(&mut out, format_args!("{byte:02x}"));
+    }
+    out
+}
+
 /// Standard Base64 (RFC 4648) for data-URI HTML embeds.
 pub fn base64_encode(data: &[u8]) -> String {
     const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -405,6 +693,33 @@ mod tests {
         assert!(matches!(
             bad.to_bytes(),
             Err(TesError::InvalidFigure { .. })
+        ));
+    }
+
+    #[test]
+    fn attachment_payload_round_trip_and_denies_exe() {
+        let att = AttachmentPayload::new(
+            "application/pdf",
+            "report.pdf",
+            b"%PDF-1.4 demo".to_vec(),
+            Some("Q2 notes".into()),
+        )
+        .unwrap();
+        let bytes = att.to_bytes().unwrap();
+        let back = AttachmentPayload::from_bytes(&bytes).unwrap();
+        assert_eq!(back, att);
+
+        assert!(matches!(
+            AttachmentPayload::new("application/pdf", "../x.pdf", b"x".to_vec(), None),
+            Err(TesError::InvalidAttachment { .. })
+        ));
+        assert!(matches!(
+            AttachmentPayload::new("application/javascript", "x.js", b"alert(1)".to_vec(), None),
+            Err(TesError::InvalidAttachment { .. })
+        ));
+        assert!(matches!(
+            normalize_attachment_filename("/tmp/a.pdf"),
+            Err(TesError::InvalidAttachment { .. })
         ));
     }
 

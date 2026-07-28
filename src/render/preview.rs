@@ -112,6 +112,7 @@ pub fn render_preview_html(options: &ServeOptions, ctx: &PreviewContext) -> Resu
             standalone: true,
             theme_href: Some("/theme.css".into()),
             media_url_prefix: Some("/media/".into()),
+            attachment_url_prefix: Some("/attachment/".into()),
             ..ExportOptions::default()
         },
     )?;
@@ -221,32 +222,55 @@ fn handle_client(
         "/healthz" => {
             write_response(&mut stream, 200, "text/plain; charset=utf-8", b"ok\n", true)?;
         }
-        other if other.starts_with("/media/") => {
-            let id_str = other.trim_start_matches("/media/");
-            match id_str.parse::<u64>() {
-                Ok(chunk_id) => match load_image_media(&options.path, chunk_id) {
-                    Ok((media_type, data)) => {
-                        write_response(&mut stream, 200, &media_type, &data, true)?;
-                    }
-                    Err(_) => {
-                        write_response(
+        other if other.starts_with("/media/") => match parse_id_under_prefix(other, "/media/") {
+            Some(chunk_id) => match load_image_media(&options.path, chunk_id) {
+                Ok((media_type, data)) => {
+                    write_response(&mut stream, 200, &media_type, &data, true)?;
+                }
+                Err(_) => write_response(
+                    &mut stream,
+                    404,
+                    "text/plain; charset=utf-8",
+                    b"media not found\n",
+                    true,
+                )?,
+            },
+            None => write_response(
+                &mut stream,
+                404,
+                "text/plain; charset=utf-8",
+                b"not found\n",
+                true,
+            )?,
+        },
+        other if other.starts_with("/attachment/") => {
+            match parse_id_under_prefix(other, "/attachment/") {
+                Some(chunk_id) => {
+                    match TesFile::open(&options.path).and_then(|file| {
+                        crate::io::export::export_attachment_bytes(&file, chunk_id)
+                    }) {
+                        Ok(att) => write_attachment_download(
+                            &mut stream,
+                            &att.media_type,
+                            &att.filename,
+                            &att.data,
+                        )?,
+                        Err(_) => write_response(
                             &mut stream,
                             404,
                             "text/plain; charset=utf-8",
-                            b"media not found\n",
+                            b"attachment not found\n",
                             true,
-                        )?;
+                        )?,
                     }
-                },
-                Err(_) => {
-                    write_response(
-                        &mut stream,
-                        404,
-                        "text/plain; charset=utf-8",
-                        b"not found\n",
-                        true,
-                    )?;
                 }
+                None => write_response(
+                    &mut stream,
+                    404,
+                    "text/plain; charset=utf-8",
+                    b"not found\n",
+                    true,
+                )?,
             }
         }
         _ => {
@@ -260,6 +284,10 @@ fn handle_client(
         }
     }
     Ok(())
+}
+
+fn parse_id_under_prefix(path: &str, prefix: &str) -> Option<u64> {
+    path.trim_start_matches(prefix).parse().ok()
 }
 
 fn load_image_media(path: &Path, chunk_id: u64) -> Result<(String, Vec<u8>)> {
@@ -302,6 +330,42 @@ fn write_response(
 Content-Type: {content_type}\r\n\
 Content-Length: {}\r\n\
 {cache}{csp}\
+Connection: close\r\n\
+X-Content-Type-Options: nosniff\r\n\
+\r\n",
+        body.len()
+    );
+    stream.write_all(header.as_bytes())?;
+    stream.write_all(body)?;
+    stream.flush()?;
+    Ok(())
+}
+
+fn write_attachment_download(
+    stream: &mut TcpStream,
+    media_type: &str,
+    filename: &str,
+    body: &[u8],
+) -> Result<()> {
+    let safe_name = filename
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let disposition = format!("attachment; filename=\"{safe_name}\"");
+    let csp = "Content-Security-Policy: default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\r\n";
+    let header = format!(
+        "HTTP/1.1 200 OK\r\n\
+Content-Type: {media_type}\r\n\
+Content-Disposition: {disposition}\r\n\
+Content-Length: {}\r\n\
+Cache-Control: no-store\r\n\
+{csp}\
 Connection: close\r\n\
 X-Content-Type-Options: nosniff\r\n\
 \r\n",

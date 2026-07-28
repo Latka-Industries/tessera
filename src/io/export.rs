@@ -16,7 +16,7 @@ use super::bib::{
 use crate::catalog::chunk::{CitePayload, ListKind, TextHeader, TextRole, decode_text_payload};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
-use crate::catalog::media::{FigureRef, ImagePayload, base64_encode};
+use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload, base64_encode};
 use crate::error::{Result, TesError};
 
 /// Which decoded view to emit.
@@ -57,6 +57,10 @@ pub struct ExportOptions {
     pub embedded_css: Option<String>,
     /// When set, figure `<img src>` uses `{prefix}{image_chunk_id}` instead of data URIs.
     pub media_url_prefix: Option<String>,
+    /// When set, attachment download links use `{prefix}{attachment_chunk_id}`.
+    ///
+    /// Attachments are never inlined as data URIs.
+    pub attachment_url_prefix: Option<String>,
 }
 
 /// Export `path` as the selected view.
@@ -152,6 +156,10 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
                     let _ = writeln!(out, "  {}: chunk-{}", region.name, region.chunk_id);
                 }
             }
+            ChunkType::Attachment => {
+                let att = decode_attachment_entry(file, entry)?;
+                append_linear_attachment(&mut out, &att);
+            }
             _ => {}
         }
         if i + 1 < entries.len() {
@@ -234,6 +242,17 @@ fn append_linear_figure(out: &mut String, figure: &FigureRef) {
     }
 }
 
+fn append_linear_attachment(out: &mut String, att: &AttachmentPayload) {
+    let _ = writeln!(
+        out,
+        "[attachment filename={} media_type={} sha256={}]",
+        att.filename, att.media_type, att.sha256
+    );
+    if let Some(caption) = att.caption.as_deref() {
+        let _ = writeln!(out, "{caption}");
+    }
+}
+
 fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let entries = selected_content_entries(file, options)?;
     let cite_numbers = cite_number_map(file, &entries)?;
@@ -285,6 +304,19 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
                 }
                 parts.push(block);
             }
+            ChunkType::Attachment => {
+                let att = decode_attachment_entry(file, entry)?;
+                let mut block = format!(
+                    "*Attachment:* `{}` (`{}`)",
+                    att.filename.replace('`', "'"),
+                    att.media_type
+                );
+                if let Some(caption) = att.caption.as_deref() {
+                    block.push_str(" — ");
+                    block.push_str(caption.trim());
+                }
+                parts.push(block);
+            }
             _ => {}
         }
     }
@@ -328,6 +360,9 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
             }
             ChunkType::Slide => {
                 article.push_str(&render_slide_html(file, entry, options)?);
+            }
+            ChunkType::Attachment => {
+                article.push_str(&render_attachment_html(file, entry, options)?);
             }
             _ => {}
         }
@@ -720,6 +755,22 @@ fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<String> {
                     parts.push(text);
                 }
             }
+            ChunkType::Attachment => {
+                let att = decode_attachment_entry(file, entry)?;
+                let mut text = format!(
+                    "[attachment: {} ({}) sha256={}]",
+                    att.filename, att.media_type, att.sha256
+                );
+                if let Some(caption) = att.caption.as_deref() {
+                    text.push(' ');
+                    text.push_str(caption.trim());
+                }
+                if options.annotate {
+                    parts.push(format!("<!-- chunk:{} -->\n{text}", entry.chunk_id));
+                } else {
+                    parts.push(text);
+                }
+            }
             _ => {}
         }
     }
@@ -791,6 +842,9 @@ fn export_chunks_jsonl(file: &TesFile, options: &ExportOptions) -> Result<String
             ChunkType::Slide => {
                 append_jsonl_slide(&mut out, file, entry, doc_id, doc_title)?;
             }
+            ChunkType::Attachment => {
+                append_jsonl_attachment(&mut out, file, entry, doc_id, doc_title)?;
+            }
             other if options.all_types => {
                 push_jsonl_row(
                     &mut out,
@@ -816,12 +870,7 @@ fn jsonl_entries<'a>(
     Ok(file
         .reading_order_chunks()
         .into_iter()
-        .filter(|c| {
-            c.chunk_type == ChunkType::Text
-                || c.chunk_type == ChunkType::Cite
-                || c.chunk_type == ChunkType::Figure
-                || c.chunk_type == ChunkType::Slide
-        })
+        .filter(|c| is_content_export_type(c.chunk_type))
         .collect())
 }
 
@@ -956,6 +1005,23 @@ fn append_jsonl_slide(
     push_jsonl_row(out, &row)
 }
 
+fn append_jsonl_attachment(
+    out: &mut String,
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    doc_id: &str,
+    doc_title: &str,
+) -> Result<()> {
+    let att = decode_attachment_entry(file, entry)?;
+    let mut row = ChunkJsonlRow::bare(doc_id, doc_title, entry.chunk_id, "attachment");
+    row.text = Some(att.filename.as_str());
+    row.media_type = Some(att.media_type.as_str());
+    row.caption = att.caption.as_deref();
+    row.label = Some(att.sha256.as_str());
+    row.byte_len = Some(att.data.len());
+    push_jsonl_row(out, &row)
+}
+
 /// Typed multimodal export parts for API adapters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AiPart {
@@ -1066,14 +1132,11 @@ fn selected_content_entries<'a>(
 ) -> Result<Vec<&'a ChunkIndexEntry>> {
     if let Some(id) = options.chunk_id {
         let entry = file.chunk_by_id(id)?;
-        if !matches!(
-            entry.chunk_type,
-            ChunkType::Text | ChunkType::Figure | ChunkType::Cite | ChunkType::Slide
-        ) {
+        if !is_content_export_type(entry.chunk_type) {
             return Err(TesError::Decode {
                 chunk_id: id,
                 message: format!(
-                    "chunk type is '{}'; content exports require text, figure, cite, or slide",
+                    "chunk type is '{}'; content exports require text, figure, cite, slide, or attachment",
                     entry.chunk_type.as_str()
                 ),
             });
@@ -1083,13 +1146,19 @@ fn selected_content_entries<'a>(
     Ok(file
         .reading_order_chunks()
         .into_iter()
-        .filter(|c| {
-            matches!(
-                c.chunk_type,
-                ChunkType::Text | ChunkType::Figure | ChunkType::Cite | ChunkType::Slide
-            )
-        })
+        .filter(|c| is_content_export_type(c.chunk_type))
         .collect())
+}
+
+fn is_content_export_type(chunk_type: ChunkType) -> bool {
+    matches!(
+        chunk_type,
+        ChunkType::Text
+            | ChunkType::Figure
+            | ChunkType::Cite
+            | ChunkType::Slide
+            | ChunkType::Attachment
+    )
 }
 
 fn cite_number_map(
@@ -1160,6 +1229,70 @@ fn decode_figure_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Figure
         chunk_id: entry.chunk_id,
         message: e.to_string(),
     })
+}
+
+fn decode_attachment_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<AttachmentPayload> {
+    let raw = file.decode_payload(entry)?;
+    AttachmentPayload::from_bytes(&raw).map_err(|e| TesError::Decode {
+        chunk_id: entry.chunk_id,
+        message: e.to_string(),
+    })
+}
+
+fn render_attachment_html(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    options: &ExportOptions,
+) -> Result<String> {
+    let att = decode_attachment_entry(file, entry)?;
+    let href = options
+        .attachment_url_prefix
+        .as_ref()
+        .map(|prefix| format!("{prefix}{}", entry.chunk_id));
+    let caption = att
+        .caption
+        .as_deref()
+        .map(|c| format!("\n    <p class=\"caption\">{}</p>", escape_html(c)))
+        .unwrap_or_default();
+    let link = if let Some(href) = href {
+        format!(
+            "<a href=\"{}\" download=\"{}\">{}</a>",
+            escape_html(&href),
+            escape_html(&att.filename),
+            escape_html(&att.filename)
+        )
+    } else {
+        format!(
+            "<span class=\"filename\">{}</span>",
+            escape_html(&att.filename)
+        )
+    };
+    Ok(format!(
+        "  <aside class=\"tes-attachment\" data-chunk-id=\"{}\" data-media-type=\"{}\" data-sha256=\"{}\">\n    {link}\n    <span class=\"media-type\">{}</span>{caption}\n  </aside>\n",
+        entry.chunk_id,
+        escape_html(&att.media_type),
+        escape_html(&att.sha256),
+        escape_html(&att.media_type),
+    ))
+}
+
+/// Decode a single attachment chunk's opaque bytes for explicit download/export.
+///
+/// # Errors
+///
+/// Returns [`TesError::ChunkNotFound`], [`TesError::Decode`], or
+/// [`TesError::InvalidAttachment`] when the chunk is missing or not an attachment.
+pub fn export_attachment_bytes(file: &TesFile, chunk_id: u64) -> Result<AttachmentPayload> {
+    let entry = file.chunk_by_id(chunk_id)?;
+    if entry.chunk_type != ChunkType::Attachment {
+        return Err(TesError::InvalidAttachment {
+            message: format!(
+                "chunk {chunk_id} is type '{}', expected attachment",
+                entry.chunk_type.as_str()
+            ),
+        });
+    }
+    decode_attachment_entry(file, entry)
 }
 
 fn decode_slide_entry(
@@ -1542,5 +1675,75 @@ mod tests {
         assert!(html.contains("Hello slides"));
         assert!(html.contains("Region body copy."));
         assert!(!html.contains("<article"));
+    }
+
+    #[test]
+    fn attachment_round_trip_verify_and_inert_export() {
+        use crate::catalog::AttachmentPayload;
+        use crate::edit::{EditWriteOptions, edit_read, edit_write};
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("with_att.tes");
+        let mut s = TesWriterSession::create(&path, DocKind::Note);
+        s.set_catalog(DocumentCatalog::new(
+            "990e8400-e29b-41d4-a716-446655440099",
+            "Attachment specimen",
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Note,
+        ))
+        .unwrap();
+        s.add_text_chunk(&TextHeader::paragraph(), "See the PDF.")
+            .unwrap();
+        let att = AttachmentPayload::new(
+            "application/pdf",
+            "notes.pdf",
+            b"%PDF-1.4 tessera-fixture".to_vec(),
+            Some("Lab notes".into()),
+        )
+        .unwrap();
+        let att_id = s.add_attachment_chunk(&att).unwrap();
+        s.commit().unwrap();
+
+        let report = crate::verify::verify_tes_file(&path, true).unwrap();
+        assert!(report.ok, "{:?}", report.findings);
+
+        let file = TesFile::open(&path).unwrap();
+        let exported = export_attachment_bytes(&file, att_id).unwrap();
+        assert_eq!(exported.data, b"%PDF-1.4 tessera-fixture");
+        assert_eq!(exported.filename, "notes.pdf");
+
+        let linear = export_view(&path, ExportView::Linear, &ExportOptions::default()).unwrap();
+        assert!(linear.contains("[attachment filename=notes.pdf"));
+        assert!(!linear.contains("%PDF"));
+
+        let html = export_view(
+            &path,
+            ExportView::Html,
+            &ExportOptions {
+                attachment_url_prefix: Some("/attachment/".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(html.contains("tes-attachment"));
+        assert!(html.contains(&format!("href=\"/attachment/{att_id}\"")));
+        assert!(html.contains("download=\"notes.pdf\""));
+        assert!(!html.contains("data:application/pdf"));
+
+        let read = edit_read(&path).unwrap();
+        assert!(read.tessprek.contains("type=attachment"));
+        assert!(read.tessprek.contains("filename=\"notes.pdf\""));
+        edit_write(
+            &path,
+            &read.tessprek,
+            &EditWriteOptions {
+                source_hash: read.source_hash.clone(),
+                dry_run: false,
+            },
+        )
+        .unwrap();
+        let report2 = crate::verify::verify_tes_file(&path, true).unwrap();
+        assert!(report2.ok, "{:?}", report2.findings);
     }
 }
