@@ -1,0 +1,34 @@
+name: Bench
+
+# Manual / weekly Criterion run — not on every PR (noisy + slow).
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  open_format:
+    name: open_format benches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "bench-ubuntu"
+
+      - name: Run Criterion harness
+        run: cargo bench -p tessera-doc --bench open_format -- --warm-up-time 1 --measurement-time 3
+
+      - name: Upload Criterion HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: criterion-open-format
+          path: target/criterion
+          if-no-files-found: ignore

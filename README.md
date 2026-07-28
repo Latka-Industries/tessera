@@ -38,6 +38,10 @@ tes export refs.tes --bibliography --bib-format bibtex
 tes link --vault ./vault check
 ```
 
+Measure open-format claims (mmap / import / export / vault) with
+[`docs/benchmarks.md`](docs/benchmarks.md) — run `mise run bench` or
+`cargo bench -p tessera-doc --bench open_format`. Paste only measured numbers.
+
 See `tes --help` and [docs/cli.md](docs/cli.md).
 
 ## Documentation
@@ -52,6 +56,7 @@ Spec, decisions, and engine notes live under [`docs/`](docs/) (this README stays
 | **[Exports](docs/exports.md)** | Decoded views (AI text, Markdown, HTML, PDF, bibliography) |
 | **[Engine](docs/engine.md)** | Reader/writer paths and module map |
 | **[MIME + magic](docs/mime.md)** | `.tes` MIME, `file(1)` magic, conformance kit |
+| **[Benchmarks](docs/benchmarks.md)** | Claim-backed Criterion harness (`cargo bench`) |
 | **[Roadmap](docs/roadmap.md)** | Milestones (M0–M10) |
 | **[Decisions](docs/decisions.md)** | Accepted design calls |
 | **[Security](docs/security.md)** | Threat model for serve / themes |
