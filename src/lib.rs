@@ -53,8 +53,9 @@ pub mod prelude {
     };
     pub use crate::error::{Result, TesError};
     pub use crate::history::{
-        DiffEntry, DiffReport, SaveOptions, SaveReport, diff_revisions, format_changelog,
-        format_diff, format_log, read_history, save_revision,
+        DiffEntry, DiffReport, SaveOptions, SaveReport, checkout_revision, diff_revisions,
+        export_revision, format_changelog, format_diff, format_log, materialize_revision,
+        read_history, save_revision, textconv,
     };
     pub use crate::io::bib::{
         BibEntry, BibFormat, BibImportOptions, export_bibliography, import_bibliography,

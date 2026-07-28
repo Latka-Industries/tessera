@@ -1,4 +1,5 @@
-//! History operations: save drafts, log, structural diff, changelog (M10).
+//! History operations: save drafts, log, structural diff, changelog, and
+//! revision materialization (M10).
 //!
 //! Wire format lives in [`crate::catalog::history`]. This module snaps the live
 //! sealed body into THST v1 revisions with an exact-hash payload store.
@@ -8,13 +9,16 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::catalog::document::DocumentCatalog;
 use crate::catalog::file::TesFile;
 use crate::catalog::history::{
     ChunkManifest, HistoryV1, Revision, attach_footer, content_hash, revision_id,
     split_body_and_history,
 };
+use crate::catalog::index::ChunkType;
+use crate::catalog::session::TesWriterSession;
 use crate::error::Result;
-use crate::layout::SuperblockV0;
+use crate::layout::{DocKind, SuperblockV0};
 
 /// Options for [`save_revision`].
 #[derive(Debug, Clone, Default)]
@@ -306,6 +310,97 @@ pub fn format_changelog(path: impl AsRef<Path>, left: &str, right: &str) -> Resu
     ))
 }
 
+/// Materialize a revision as a sealed `.tes` body (no `THST` footer).
+///
+/// Rebuilds catalog + chunk payloads from the exact-hash store. Link tables
+/// (`TLNK`) are not stored in revision manifests and are omitted.
+///
+/// # Errors
+///
+/// Returns [`crate::error::TesError::RevisionNotFound`], missing store payloads,
+/// or encode errors.
+pub fn materialize_revision(history: &HistoryV1, rev: &str) -> Result<Vec<u8>> {
+    let record = history.resolve(rev)?;
+    let catalog_bytes = history.get_payload(&record.catalog_hash)?;
+
+    let mut session = TesWriterSession::create("materialize.tes", DocKind::Note);
+    if !catalog_bytes.is_empty() {
+        let catalog = DocumentCatalog::from_bytes(&catalog_bytes)?;
+        session.set_catalog(catalog)?;
+    }
+
+    for entry in &record.chunks {
+        let chunk_type = ChunkType::from_name(&entry.chunk_type)?;
+        let payload = history.get_payload(&entry.hash)?;
+        session.add_payload_chunk(chunk_type, chunk_type.default_flags(), payload)?;
+    }
+
+    session.encode_file()
+}
+
+/// Export a revision to a new `.tes` path.
+///
+/// By default writes body only. With `keep_history`, attaches the **current**
+/// history footer from `path` (not a truncated copy).
+///
+/// # Errors
+///
+/// Returns history, materialize, or I/O errors.
+pub fn export_revision(
+    path: impl AsRef<Path>,
+    rev_or_draft: &str,
+    out_path: impl AsRef<Path>,
+    keep_history: bool,
+) -> Result<()> {
+    let path = path.as_ref();
+    let out_path = out_path.as_ref();
+    let bytes = fs::read(path)?;
+    let sb = SuperblockV0::from_bytes(&bytes)?;
+    let (_body, history) = split_body_and_history(&bytes, sb.has_history_footer())?;
+    let history = history.unwrap_or_else(HistoryV1::new);
+    let body = materialize_revision(&history, rev_or_draft)?;
+    let out = if keep_history {
+        attach_footer(body, &history)?
+    } else {
+        body
+    };
+    if let Some(parent) = out_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(out_path, out)?;
+    Ok(())
+}
+
+/// Replace the live sealed body with a materialized revision; re-attach the
+/// full current `THST` footer (draft/head pointers unchanged).
+///
+/// # Errors
+///
+/// Returns history, materialize, or I/O errors.
+pub fn checkout_revision(path: impl AsRef<Path>, rev_or_draft: &str) -> Result<()> {
+    let path = path.as_ref();
+    let bytes = fs::read(path)?;
+    let sb = SuperblockV0::from_bytes(&bytes)?;
+    let (_body, history) = split_body_and_history(&bytes, sb.has_history_footer())?;
+    let history = history.unwrap_or_else(HistoryV1::new);
+    let body = materialize_revision(&history, rev_or_draft)?;
+    let out = attach_footer(body, &history)?;
+    atomic_replace(path, &out)?;
+    Ok(())
+}
+
+/// Tessprek projection for git `textconv` (stdout-only; no source-hash banner).
+///
+/// # Errors
+///
+/// Returns errors from [`crate::edit::edit_read`].
+pub fn textconv(path: impl AsRef<Path>) -> Result<String> {
+    let report = crate::edit::edit_read(path)?;
+    Ok(report.tessprek)
+}
+
 struct LiveSnapshot {
     catalog_hash: String,
     chunks: Vec<ChunkManifest>,
@@ -313,10 +408,13 @@ struct LiveSnapshot {
 
 fn snapshot_live(path: &Path, history: &mut HistoryV1) -> Result<LiveSnapshot> {
     let file = TesFile::open(path)?;
-    let catalog_hash = match file.catalog() {
-        Some(cat) => content_hash(&cat.to_bytes()?),
-        None => content_hash(b""),
+    let catalog_bytes = match file.catalog() {
+        Some(cat) => cat.to_bytes()?,
+        None => Vec::new(),
     };
+    let catalog_hash = content_hash(&catalog_bytes);
+    history.put_payload(&catalog_hash, &catalog_bytes);
+
     let mut chunks = Vec::new();
     for entry in file.chunks() {
         let payload = file.decode_payload(entry)?;
@@ -551,5 +649,77 @@ mod tests {
         .unwrap();
         assert_eq!(again.revision_id, r2.revision_id);
         assert_eq!(read_history(&path).unwrap().revisions.len(), before);
+    }
+
+    #[test]
+    fn export_checkout_textconv_round_trip() {
+        let dir = tempdir().unwrap();
+        let path = sample(dir.path());
+
+        let r1 = save_revision(
+            &path,
+            &SaveOptions {
+                draft: Some("outline".into()),
+                message: Some("initial".into()),
+                ..SaveOptions::default()
+            },
+        )
+        .unwrap();
+
+        let bytes_after_r1 = fs::read(&path).unwrap();
+        let sb = SuperblockV0::from_bytes(&bytes_after_r1).unwrap();
+        let (body_r1, _) =
+            split_body_and_history(&bytes_after_r1, sb.has_history_footer()).unwrap();
+
+        let hash = file_source_hash(&path).unwrap();
+        apply_ops(
+            &path,
+            &[TesOp::SetText {
+                chunk_id: 1,
+                body: "Second body".into(),
+                role: None,
+                level: None,
+                class: None,
+            }],
+            &crate::edit::EditWriteOptions {
+                source_hash: hash,
+                dry_run: false,
+            },
+        )
+        .unwrap();
+        let r2 = save_revision(
+            &path,
+            &SaveOptions {
+                draft: Some("outline".into()),
+                message: Some("edit".into()),
+                ..SaveOptions::default()
+            },
+        )
+        .unwrap();
+        assert_ne!(r1.revision_id, r2.revision_id);
+
+        let exported = dir.path().join("old.tes");
+        export_revision(&path, &r1.revision_id, &exported, false).unwrap();
+        assert_eq!(fs::read(&exported).unwrap(), body_r1);
+        assert!(verify_tes_file(&exported, true).unwrap().ok);
+
+        let hist_before = read_history(&path).unwrap();
+        let head_before = hist_before.head.clone();
+        let drafts_before = hist_before.drafts.clone();
+        checkout_revision(&path, &r1.revision_id).unwrap();
+        assert!(verify_tes_file(&path, true).unwrap().ok);
+        let hist_after = read_history(&path).unwrap();
+        assert_eq!(hist_after.head, head_before);
+        assert_eq!(hist_after.drafts, drafts_before);
+        assert_eq!(hist_after.revisions.len(), hist_before.revisions.len());
+
+        let bytes = fs::read(&path).unwrap();
+        let sb = SuperblockV0::from_bytes(&bytes).unwrap();
+        let (body_now, _) = split_body_and_history(&bytes, sb.has_history_footer()).unwrap();
+        assert_eq!(body_now, body_r1);
+
+        let tessprek = textconv(&path).unwrap();
+        assert!(!tessprek.trim().is_empty());
+        assert!(tessprek.contains("First body") || tessprek.contains("History note"));
     }
 }

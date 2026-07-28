@@ -28,24 +28,26 @@ pagination, computed figure numbers, or pixel coordinates.
 
 ## Capability inventory
 
-| Capability | v0 engine | v1 structure decision | Planned milestone |
+| Capability | v0 engine | v1 structure decision | Status |
 | --- | --- | --- | --- |
 | Text blocks | Implemented | Typed roles remain canonical | shipped |
-| Inline formatting | Lossy chunk-level strings | Ranged `InlineSpan` + `InlineKind` | structure freeze |
-| Math | Missing | LaTeX source for math only | structure freeze |
-| Tables | TSV text body | Structured rows and cells | structure freeze |
-| Code language | Missing | Optional `lang` on code blocks | structure freeze |
-| Document language | Missing | BCP-47 catalog value + block override | structure freeze |
-| Internal links | Implemented (`TLNK`) | Typed link targets | shipped / structure freeze |
-| External links | Discarded | Variable-length external URI target | structure freeze |
-| Images | Type reserved | Reusable media + contextual figure refs | after preview |
+| Inline formatting | Lossy chunk-level strings | Ranged `InlineSpan` + `InlineKind` | remaining wire |
+| Math | Missing | LaTeX source for math only | remaining wire |
+| Tables | TSV text body | Structured rows and cells | remaining wire |
+| Code language | Missing | Optional `lang` on code blocks | remaining wire |
+| Document language | Missing | BCP-47 catalog value + block override | remaining wire |
+| Internal links | Implemented (`TLNK`) | Typed link targets | shipped / remaining wire |
+| External links | Discarded | Variable-length external URI target | remaining wire |
+| Images | Implemented | Reusable media + contextual figure refs | shipped |
 | Attachments | Missing | Generic inert attachment chunk | layout v1 |
-| Citations | Payload parser only | Cite writer, spans, styles, BibTeX/CSL interchange | M8 |
-| HTML | Import/export implemented | AI-safe and themed profiles remain distinct | M6 |
-| Browser preview | Standalone export | Theme packs + `tes serve` | next |
-| PDF | Missing | HTML + print theme pipeline | M7 |
-| Slides | Type reserved | Named regions, no freeform coordinates | M9 |
-| History/review | Footer reserved | Content-addressed revisions + suggestions | M10 |
+| Citations | Cite wire + BibTeX/CSL | Cite writer, spans, styles, interchange | shipped (M8) |
+| HTML | Import/export implemented | AI-safe and themed profiles remain distinct | shipped (M6) |
+| Browser preview | `tes serve` + theme packs | Theme packs + safe reload | shipped (M7) |
+| PDF | `tes export --pdf` | HTML + print theme pipeline | shipped (M7) |
+| Slides | Region-based slide chunks | Named regions, no freeform coordinates | shipped (M9) |
+| History (first slice) | `save` / `log` / `diff` / `changelog` | Content-addressed revisions + drafts | shipped (M10) |
+| History (checkout / textconv) | Materialize revisions; git Tessprek | `export-revs` / `checkout` / `textconv` | next |
+| History (redline) | Footer `pending` reserved | Authored ops + accept/reject | deferred |
 | Vault graph | Implemented | Light `vault.tes` catalog | shipped / later |
 | Full-text search | Scan only | External index or projected-text search | later |
 | Embeddings | Missing | External to `.tes` | out of wire |
@@ -260,20 +262,23 @@ title/tag/id navigation and the native link graph.
 
 ## History, drafts, and review
 
-M10 will evolve `THST` from the v0 placeholder into:
+M10 first slice ships `THST` v1 with:
 
 - logical full revisions;
-- a physical content-addressed payload store keyed by chunk hash;
+- a physical content-addressed payload store keyed by chunk/catalog hash;
 - revision manifests mapping stable chunk ids to payload hashes;
-- named drafts and parent/root hashes;
-- pending authored `TesOp` suggestions for redline/accept/reject.
+- named drafts and parent hashes;
+- structural `tes diff` / `tes changelog`.
+
+Follow-on materializes any revision as a self-contained `.tes` (`export-revs`)
+or replaces the live sealed body while preserving the current footer
+(`checkout`). Git interoperability uses Tessera Markdown `textconv`
+(`tes textconv`). Blame, merge driver, and pending-ops redline remain deferred.
+
+**Limitation:** revision manifests store catalog + chunk payloads only — not
+`TLNK` rows — so materialization does not rewrite the link table yet.
 
 Exact payload deduplication is required; near-duplicate deltas are later.
-Any revision may materialize as a self-contained `.tes` or Tessera Markdown
-file. Structural `tes diff` and `tes changelog` compare ids and hashes, then
-use text diffs for changed bodies. Git interoperability uses a Tessera
-Markdown `textconv` and an optional verified merge driver.
-
 Real-time CRDT collaboration is not part of v1.
 
 ---
@@ -299,13 +304,12 @@ Markdown vault operations.
 
 ## Locked implementation order
 
-1. Structure-freeze docs and Linear sync.
-2. Theme/template pack manifest and `tes serve`.
-3. Image payload + `FigureRef`.
-4. M7 print/PDF.
-5. M8 research/citations and BibTeX/CSL interchange.
-6. M9 region-based slides.
-7. M10 history, drafts, diff, and review.
+Post-0.1.2 (M0–M9 + M10 first slice shipped):
+
+1. Structure-freeze docs sync (this document + roadmap).
+2. M10 follow-on: `export-revs` / `checkout` / git Tessprek `textconv`.
+3. Layout-v1 wire for ranged spans, structured tables, and math.
+4. Remaining M10: blame, merge driver, pending-ops redline UI.
 
 MIME/magic/conformance work may proceed in parallel. Aleph GUI, native
 full-text search, in-file embeddings, freeform slide geometry, and CRDTs are

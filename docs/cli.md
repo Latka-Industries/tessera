@@ -21,9 +21,10 @@ Related: [layout_v0.md](layout_v0.md),
 | `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
 | [`tes edit-read`](#mutation-protocol) / `edit-write` | — | Tessera Markdown virtual editor protocol |
 | [`tes apply`](#mutation-protocol) | — | Verified Tessera Markdown / typed-op mutation |
-| `tes log\|diff\|checkout\|changelog` | — | M10 revision/history tools |
+| `tes log\|diff\|changelog\|export-revs\|checkout\|textconv` | — | M10 revision/history tools |
 
-v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**, **`serve`**, and the **mutation** commands.
+v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**, **`serve`**,
+**mutation**, and **history** commands.
 
 ---
 
@@ -240,6 +241,10 @@ tes save paper.tes --draft outline -m "first cut"
 tes log paper.tes
 tes diff paper.tes rev-a rev-b
 tes changelog paper.tes --between rev-a rev-b
+tes export-revs paper.tes rev-a -o paper-rev-a.tes
+tes export-revs paper.tes outline -o draft.tes --keep-history
+tes checkout paper.tes rev-a
+tes textconv paper.tes
 ```
 
 `tes save` appends a content-addressed revision (exact-hash payload store +
@@ -248,8 +253,27 @@ chunk manifests) into the optional `THST` footer without bumping
 Structural `tes diff` / `tes changelog` compare chunk ids and hashes, then
 show text line diffs for changed text payloads.
 
-Every exported revision materialization (`export-revs` / checkout) remains
-planned; blame, git textconv, and merge drivers are deferred.
+`tes export-revs` materializes a revision as a **new** self-contained `.tes`
+(body only unless `--keep-history`, which attaches the current footer).
+`tes checkout` replaces the live sealed body with the chosen revision and
+**re-attaches the full current `THST` footer** (draft/head pointers unchanged).
+
+**Limitation:** revision manifests store catalog + chunk payloads only — not
+`TLNK` rows — so materialization does not rewrite the link table yet.
+
+`tes textconv` prints Tessprek on stdout only (no `source-hash=` stderr banner)
+for git. Example attributes:
+
+```gitattributes
+*.tes diff=tessera
+```
+
+```gitconfig
+[diff "tessera"]
+	textconv = tes textconv
+```
+
+Blame and merge drivers remain deferred.
 
 ---
 
@@ -288,7 +312,7 @@ Every CLI command maps to a library entry point. The binary only calls
 | `tes export` | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
 | `tes import` | `tessera_doc::io::import::*` / `io::bib::import_bibliography` |
 | `tes link` | `tessera_doc::vault::*` |
-| `tes save` / `log` / `diff` / `changelog` | `tessera_doc::history::*` |
+| `tes save` / `log` / `diff` / `changelog` / `export-revs` / `checkout` / `textconv` | `tessera_doc::history::*` |
 | `tes serve` | `tessera_doc::render::preview::serve_preview` |
 | `tes edit-read` | `tessera_doc::edit::edit_read` |
 | `tes edit-write` | `tessera_doc::edit::edit_write` |

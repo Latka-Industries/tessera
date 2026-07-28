@@ -121,6 +121,39 @@ impl ChunkType {
         }
     }
 
+    /// Parse a lowercase type name (history manifests, JSON).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::InvalidHistory`] if `name` is not a known chunk type.
+    pub fn from_name(name: &str) -> Result<Self> {
+        Ok(match name {
+            "text" => Self::Text,
+            "image" => Self::Image,
+            "link" => Self::Link,
+            "cite" => Self::Cite,
+            "slide" => Self::Slide,
+            "page" => Self::Page,
+            "figure" => Self::Figure,
+            other => {
+                return Err(TesError::InvalidHistory {
+                    message: format!("unknown chunk type '{other}'"),
+                });
+            }
+        })
+    }
+
+    /// Default [`chunk_flags`] for a freshly materialized chunk of this type.
+    #[must_use]
+    pub const fn default_flags(self) -> u32 {
+        match self {
+            Self::Image | Self::Page => 0,
+            Self::Text | Self::Link | Self::Cite | Self::Slide | Self::Figure => {
+                chunk_flags::READING_ORDER
+            }
+        }
+    }
+
     /// Whether this type may be referenced by a slide region slot.
     #[must_use]
     pub const fn is_slide_region_target(self) -> bool {

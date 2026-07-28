@@ -1,8 +1,9 @@
 # Roadmap and phases
 
-**Status:** M0–M5 are merged; M6 HTML is the current merge gate. The next work
-is a short [layout v1 structure freeze](structure_v1.md), then preview/themes,
-images, and Phase 7 print/PDF. This is an implementation plan, not a release
+**Status:** M0–M9 plus the M10 first slice (`save` / `log` / `diff` /
+`changelog`) are shipped on the `tessera-doc` 0.1.2 line. Next code is
+checkout / `export-revs` / git Tessprek `textconv`, then layout-v1 wire for
+spans, tables, and math. This is an implementation plan, not a release
 schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
@@ -10,16 +11,16 @@ links.
 
 ## Capability snapshot
 
-| Area | Shipped now | Frozen next | Later milestone |
+| Area | Shipped now | Frozen next | Later |
 | --- | --- | --- | --- |
 | Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify | optional/required feature policy | conformance kit grows continuously |
-| Prose | typed text roles, Markdown/HTML import/export | ranged inline spans, math, code language, BCP-47 language | Tessera Markdown editor adapters |
+| Prose | typed text roles, Markdown/HTML import/export, Tessprek edit | ranged inline spans, math, code language, BCP-47 language | further editor adapters |
 | Tables | TSV role | structured rows/cells supersede TSV | rich import/export |
 | Links | internal UUID/chunk graph | typed internal/external/attachment targets | light `vault.tes` catalog |
-| Media | chunk id reserved | reusable image payload + contextual figure refs; generic attachments | image implementation before PDF |
-| Human render | standalone HTML | template packs, `tes serve`, draft/print themes | PDF (M7), slides (M9) |
-| AI | raw/linear/AI text/JSONL | Markdown or semantic HTML profiles; typed multimodal parts | research citations (M8) |
-| History | `THST` suffix reserved | content hashes/revision manifest direction | drafts, diff, review (M10) |
+| Media | image payload + `FigureRef` | generic attachments | — |
+| Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
+| AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
+| History | `THST` v1, drafts, structural diff/changelog | `export-revs` / `checkout` / `textconv` | blame, merge driver, redline |
 
 Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
@@ -248,14 +249,13 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **spec:** freeze enum-backed spans, math, tables, language, links, figures,
-   attachments, and forward-compatibility rules.
-2. **template:** define the template/theme/cite-style manifest.
-3. **preview:** implement `tes serve` with draft/print themes and safe reload.
-4. **media:** implement image payload + `FigureRef` and multimodal export parts.
-5. **print:** add `tes export --pdf` on the shared HTML render path.
-6. **open format:** MIME/magic entries and v1 conformance cases.
-7. **benchmark:** measure the specific mmap/link/export claims in the README.
+1. **history:** `tes export-revs` / `tes checkout` / `tes textconv` (+ git
+   attributes docs); related to THI-183 follow-on.
+2. **layout wire:** implement frozen spans, math, structured tables, language,
+   and typed link targets from [structure_v1.md](structure_v1.md).
+3. **history residual:** blame, verified merge driver, pending-ops redline.
+4. **open format:** MIME/magic entries and v1 conformance cases.
+5. **benchmark:** measure the specific mmap/link/export claims in the README.
 
 ---
 

@@ -84,6 +84,16 @@ pub(super) enum Commands {
 
     /// Changelog summary between two revisions or draft names
     Changelog(ChangelogArgs),
+
+    /// Materialize a revision to a new .tes file
+    #[command(name = "export-revs")]
+    ExportRevs(ExportRevsArgs),
+
+    /// Replace the live sealed body with a revision (keep current THST)
+    Checkout(CheckoutArgs),
+
+    /// Emit Tessprek on stdout for git textconv (no source-hash banner)
+    Textconv(TextconvArgs),
 }
 
 /// Flags for `tes export`.
@@ -346,6 +356,37 @@ pub(super) struct ChangelogArgs {
     /// Left revision id or draft name
     #[arg(long = "between", num_args = 2, value_names = ["LEFT", "RIGHT"])]
     pub(super) between: Vec<String>,
+}
+
+/// Flags for `tes export-revs`.
+#[derive(Debug, Args)]
+pub(super) struct ExportRevsArgs {
+    /// Path to a .tes file with history
+    pub(super) path: PathBuf,
+    /// Revision id or draft name
+    pub(super) rev: String,
+    /// Output `.tes` path
+    #[arg(short = 'o', long = "output", required = true)]
+    pub(super) output: PathBuf,
+    /// Attach the current THST footer to the export
+    #[arg(long = "keep-history")]
+    pub(super) keep_history: bool,
+}
+
+/// Flags for `tes checkout`.
+#[derive(Debug, Args)]
+pub(super) struct CheckoutArgs {
+    /// Path to a .tes file with history
+    pub(super) path: PathBuf,
+    /// Revision id or draft name
+    pub(super) rev: String,
+}
+
+/// Flags for `tes textconv`.
+#[derive(Debug, Args)]
+pub(super) struct TextconvArgs {
+    /// Path to a .tes file
+    pub(super) path: PathBuf,
 }
 
 #[derive(Debug, Subcommand)]

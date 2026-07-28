@@ -95,6 +95,31 @@ impl TesWriterSession {
         Ok(())
     }
 
+    /// Append a raw store payload without re-encoding (history materialization).
+    ///
+    /// Chunk ids are assigned sequentially `1..n` in push order, matching the
+    /// v0 reference writer. Callers should push manifest entries in id order.
+    ///
+    /// Returns the 1-based `chunk_id` assigned on commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if the session was already committed.
+    pub fn add_payload_chunk(
+        &mut self,
+        chunk_type: ChunkType,
+        chunk_flags: u32,
+        payload: Vec<u8>,
+    ) -> Result<u64> {
+        self.ensure_open()?;
+        self.chunks.push(PendingChunk {
+            chunk_type,
+            chunk_flags,
+            payload,
+        });
+        Ok(self.chunks.len() as u64)
+    }
+
     /// Append a reusable image media chunk (not reading-order).
     ///
     /// Returns the 1-based `chunk_id` assigned on commit.
