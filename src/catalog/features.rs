@@ -2,7 +2,7 @@
 //!
 //! Documents may declare named features as **optional** (skip with warning if
 //! unknown) or **required** (fail if unknown). This build keeps
-//! `layout_version = 0`; spans / attachments / external URIs are optional.
+//! `layout_version = 0`; chunk/media/link extensions are optional.
 
 use serde::{Deserialize, Serialize};
 
@@ -14,10 +14,23 @@ pub mod ids {
     pub const ATTACHMENTS: &str = "attachments";
     /// TLNK v1 external URI heap.
     pub const EXTERNAL_URIS: &str = "external_uris";
+    /// Cite chunks and citation link edges.
+    pub const CITATIONS: &str = "citations";
+    /// Slide chunks (region-based decks).
+    pub const SLIDES: &str = "slides";
+    /// Image bytes and/or figure-ref chunks.
+    pub const FIGURES: &str = "figures";
 }
 
 /// Well-known feature ids understood by this build (all optional today).
-pub const KNOWN_FEATURES: &[&str] = &[ids::TEXT_SPANS, ids::ATTACHMENTS, ids::EXTERNAL_URIS];
+pub const KNOWN_FEATURES: &[&str] = &[
+    ids::TEXT_SPANS,
+    ids::ATTACHMENTS,
+    ids::EXTERNAL_URIS,
+    ids::CITATIONS,
+    ids::SLIDES,
+    ids::FIGURES,
+];
 
 /// Optional-vs-required feature declarations in the document catalog.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

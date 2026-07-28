@@ -130,7 +130,7 @@ When `catalog_length > 0`, bytes at `catalog_offset` are **UTF-8 JSON** (no BOM)
 
 ```json
 "features": {
-  "optional": ["text_spans", "attachments", "external_uris"],
+  "optional": ["text_spans", "attachments", "external_uris", "citations", "slides", "figures"],
   "required": []
 }
 ```
@@ -141,9 +141,9 @@ When `catalog_length > 0`, bytes at `catalog_offset` are **UTF-8 JSON** (no BOM)
 | `required` | Unknown names → fail (`tes verify` error) |
 
 This build keeps **`layout_version = 0`**. Known optional ids: `text_spans`,
-`attachments`, `external_uris`. Writers stamp matching optional entries when
-those structures are present. Bump `layout_version` only when a true
-must-understand container break lands.
+`attachments`, `external_uris`, `citations`, `slides`, `figures`. Writers stamp
+matching optional entries when those structures are present. Bump
+`layout_version` only when a true must-understand container break lands.
 
 v0 does not spill large catalog fields; keep catalog **≤ 16 KiB** (reference
 writer limit). Catalog projections may round-trip through JSON/YAML/TOML; the

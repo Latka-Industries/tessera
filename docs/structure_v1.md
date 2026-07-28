@@ -302,6 +302,9 @@ Known optional feature ids in this build (all on `layout_version = 0`):
 | `text_spans` | Layout-v1 text header fields (spans, table, math, lang, align, code_lang) |
 | `attachments` | Inert `ChunkType::Attachment` payloads |
 | `external_uris` | TLNK v1 external URI heap |
+| `citations` | Cite chunks and/or citation link edges |
+| `slides` | Slide chunks |
+| `figures` | Image and/or figure-ref chunks |
 
 Bump `layout_version` only when introducing a must-understand feature that
 older readers must fail closed on.

@@ -438,6 +438,11 @@ impl TesWriterSession {
         for chunk in &self.chunks {
             match chunk.chunk_type {
                 ChunkType::Attachment => features.declare_optional(feature_ids::ATTACHMENTS),
+                ChunkType::Cite => features.declare_optional(feature_ids::CITATIONS),
+                ChunkType::Slide => features.declare_optional(feature_ids::SLIDES),
+                ChunkType::Image | ChunkType::Figure => {
+                    features.declare_optional(feature_ids::FIGURES);
+                }
                 ChunkType::Text => {
                     if let Ok((header, _)) = decode_text_payload(&chunk.payload)
                         && header.uses_layout_v1_features()
@@ -451,6 +456,9 @@ impl TesWriterSession {
         for link in &self.links {
             if matches!(link.target, LinkTarget::External { .. }) {
                 features.declare_optional(feature_ids::EXTERNAL_URIS);
+            }
+            if link.link_kind == LinkKind::Citation {
+                features.declare_optional(feature_ids::CITATIONS);
             }
         }
         features
