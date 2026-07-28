@@ -188,8 +188,7 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
                 bib_items.push((n, bib));
             }
             ChunkType::Slide => {
-                let raw = file.decode_payload(entry)?;
-                let slide = crate::catalog::SlidePayload::from_bytes(raw.as_ref())?;
+                let slide = decode_slide_entry(file, entry)?;
                 let _ = writeln!(out, "[slide layout={}]", slide.layout_id);
                 for region in &slide.regions {
                     let _ = writeln!(out, "  {}: chunk-{}", region.name, region.chunk_id);
@@ -223,26 +222,7 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
-                let body = body.trim_end();
-                let rendered = match header.role {
-                    TextRole::Heading => {
-                        let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
-                        format!("{} {body}", "#".repeat(level))
-                    }
-                    TextRole::ListItem => match header.list_kind.unwrap_or(ListKind::Bullet) {
-                        ListKind::Bullet => format!("- {body}"),
-                        ListKind::Ordered => format!("1. {body}"),
-                    },
-                    TextRole::Blockquote => body
-                        .lines()
-                        .map(|line| format!("> {line}"))
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                    TextRole::CodeBlock => format!("```\n{body}\n```"),
-                    TextRole::Table => format!("```tsv\n{body}\n```"),
-                    TextRole::Paragraph => body.to_owned(),
-                };
-                parts.push(rendered);
+                parts.push(header.render_markdown(&body));
             }
             ChunkType::Figure => {
                 let figure = decode_figure_entry(file, entry)?;
@@ -277,8 +257,7 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
                 bib_items.push((n, bib));
             }
             ChunkType::Slide => {
-                let raw = file.decode_payload(entry)?;
-                let slide = crate::catalog::SlidePayload::from_bytes(raw.as_ref())?;
+                let slide = decode_slide_entry(file, entry)?;
                 let mut block = format!("<!-- slide layout={} -->", slide.layout_id);
                 for region in &slide.regions {
                     let _ = write!(block, "\n[{}]: chunk-{}", region.name, region.chunk_id);
@@ -380,8 +359,7 @@ fn render_slide_html(
     entry: &ChunkIndexEntry,
     options: &ExportOptions,
 ) -> Result<String> {
-    let raw = file.decode_payload(entry)?;
-    let slide = crate::catalog::SlidePayload::from_bytes(raw.as_ref())?;
+    let slide = decode_slide_entry(file, entry)?;
     let layout = escape_html(&slide.layout_id);
     let mut out = format!(
         "  <section class=\"slide\" data-chunk-id=\"{}\" data-layout=\"{layout}\">\n",
@@ -421,15 +399,7 @@ fn render_region_chunk_html(
         ChunkType::Image => {
             let raw = file.decode_payload(entry)?;
             let image = crate::catalog::ImagePayload::from_bytes(raw.as_ref())?;
-            let src = if let Some(prefix) = options.media_url_prefix.as_deref() {
-                format!("{prefix}{}", entry.chunk_id)
-            } else {
-                format!(
-                    "data:{};base64,{}",
-                    image.media_type,
-                    crate::catalog::base64_encode(&image.data)
-                )
-            };
+            let src = image_src(options, entry.chunk_id, &image.media_type, &image.data);
             Ok(format!(
                 "      <img data-chunk-id=\"{}\" src=\"{}\" alt=\"\">\n",
                 entry.chunk_id,
@@ -578,15 +548,12 @@ fn render_figure_html(
         })?
     };
 
-    let src = if let Some(prefix) = &options.media_url_prefix {
-        format!("{prefix}{}", figure.image_chunk_id)
-    } else {
-        format!(
-            "data:{};base64,{}",
-            image.media_type,
-            base64_encode(&image.data)
-        )
-    };
+    let src = image_src(
+        options,
+        figure.image_chunk_id,
+        &image.media_type,
+        &image.data,
+    );
 
     let mut dims = String::new();
     if image.width_px > 0 {
@@ -676,17 +643,7 @@ fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<String> {
                 let raw = file.decode_payload(entry)?;
                 match CitePayload::from_bytes(&raw) {
                     Ok(cite) => {
-                        let text = if cite.quote.trim().is_empty() {
-                            format!(
-                                "[citation unresolved: {}]",
-                                cite.label.as_deref().unwrap_or("unknown")
-                            )
-                        } else if let Some(label) = cite.label.as_deref() {
-                            // Plain sentence form; no markdown/HTML introduced.
-                            format!("{label} reported that {}", cite.quote.trim())
-                        } else {
-                            cite.quote.trim().to_owned()
-                        };
+                        let text = format_ai_cite_prose(&cite);
                         if options.annotate {
                             parts.push(format!("<!-- chunk:{} -->\n{text}", entry.chunk_id));
                         } else {
@@ -933,8 +890,7 @@ fn append_jsonl_slide(
     doc_id: &str,
     doc_title: &str,
 ) -> Result<()> {
-    let raw = file.decode_payload(entry)?;
-    let slide = crate::catalog::SlidePayload::from_bytes(raw.as_ref())?;
+    let slide = decode_slide_entry(file, entry)?;
     let summary = slide
         .regions
         .iter()
@@ -1019,17 +975,7 @@ pub fn export_ai_parts(file: &TesFile, options: &ExportOptions) -> Result<Vec<Ai
             ChunkType::Cite if !options.no_cites => {
                 let raw = file.decode_payload(entry)?;
                 if let Ok(cite) = CitePayload::from_bytes(&raw) {
-                    let text = if cite.quote.trim().is_empty() {
-                        format!(
-                            "[citation unresolved: {}]",
-                            cite.label.as_deref().unwrap_or("unknown")
-                        )
-                    } else if let Some(label) = cite.label.as_deref() {
-                        format!("{label} reported that {}", cite.quote.trim())
-                    } else {
-                        cite.quote.trim().to_owned()
-                    };
-                    parts.push(AiPart::Text(text));
+                    parts.push(AiPart::Text(format_ai_cite_prose(&cite)));
                 }
             }
             _ => {}
@@ -1162,6 +1108,36 @@ fn decode_figure_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Figure
         chunk_id: entry.chunk_id,
         message: e.to_string(),
     })
+}
+
+fn decode_slide_entry(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+) -> Result<crate::catalog::SlidePayload> {
+    let raw = file.decode_payload(entry)?;
+    crate::catalog::SlidePayload::from_bytes(raw.as_ref())
+}
+
+fn image_src(options: &ExportOptions, chunk_id: u64, media_type: &str, data: &[u8]) -> String {
+    if let Some(prefix) = options.media_url_prefix.as_deref() {
+        format!("{prefix}{chunk_id}")
+    } else {
+        format!("data:{media_type};base64,{}", base64_encode(data))
+    }
+}
+
+/// Plain-prose citation line for AI exports (no markdown/HTML).
+fn format_ai_cite_prose(cite: &CitePayload) -> String {
+    if cite.quote.trim().is_empty() {
+        format!(
+            "[citation unresolved: {}]",
+            cite.label.as_deref().unwrap_or("unknown")
+        )
+    } else if let Some(label) = cite.label.as_deref() {
+        format!("{label} reported that {}", cite.quote.trim())
+    } else {
+        cite.quote.trim().to_owned()
+    }
 }
 
 #[cfg(test)]
@@ -1474,7 +1450,7 @@ mod tests {
 
     #[test]
     fn deck_slides_export_html_regions() {
-        use crate::catalog::{SlidePayload, SlideRegion};
+        use crate::catalog::SlidePayload;
 
         let dir = tempdir().unwrap();
         let path = dir.path().join("deck.tes");
@@ -1491,20 +1467,7 @@ mod tests {
             .unwrap();
         s.add_text_chunk(&TextHeader::paragraph(), "Region body copy.")
             .unwrap();
-        s.add_slide(&SlidePayload {
-            layout_id: "title_body".into(),
-            regions: vec![
-                SlideRegion {
-                    name: "title".into(),
-                    chunk_id: 1,
-                },
-                SlideRegion {
-                    name: "body".into(),
-                    chunk_id: 2,
-                },
-            ],
-        })
-        .unwrap();
+        s.add_slide(&SlidePayload::title_body(1, 2)).unwrap();
         s.commit().unwrap();
 
         let report = crate::verify::verify_tes_file(&path, true).unwrap();

@@ -11,9 +11,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use tessera_doc::catalog::{
-    DocumentCatalog, SlidePayload, SlideRegion, TesWriterSession, TextHeader,
-};
+use tessera_doc::catalog::{DocumentCatalog, SlidePayload, TesWriterSession, TextHeader};
 use tessera_doc::layout::DocKind;
 
 fn main() -> ExitCode {
@@ -58,36 +56,11 @@ fn main() -> ExitCode {
         }
     }
 
-    let slides = [
-        SlidePayload {
-            layout_id: "title_body".into(),
-            regions: vec![
-                SlideRegion {
-                    name: "title".into(),
-                    chunk_id: 1,
-                },
-                SlideRegion {
-                    name: "body".into(),
-                    chunk_id: 2,
-                },
-            ],
-        },
-        SlidePayload {
-            layout_id: "title_body".into(),
-            regions: vec![
-                SlideRegion {
-                    name: "title".into(),
-                    chunk_id: 3,
-                },
-                SlideRegion {
-                    name: "body".into(),
-                    chunk_id: 4,
-                },
-            ],
-        },
-    ];
-    for slide in &slides {
-        if let Err(err) = session.add_slide(slide) {
+    for slide in [
+        SlidePayload::title_body(1, 2),
+        SlidePayload::title_body(3, 4),
+    ] {
+        if let Err(err) = session.add_slide(&slide) {
             eprintln!("error: {err}");
             return ExitCode::from(1);
         }

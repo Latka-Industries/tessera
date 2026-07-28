@@ -33,6 +33,24 @@ pub struct SlidePayload {
 }
 
 impl SlidePayload {
+    /// Convenience builder for the common `title_body` layout.
+    #[must_use]
+    pub fn title_body(title_chunk_id: u64, body_chunk_id: u64) -> Self {
+        Self {
+            layout_id: "title_body".into(),
+            regions: vec![
+                SlideRegion {
+                    name: "title".into(),
+                    chunk_id: title_chunk_id,
+                },
+                SlideRegion {
+                    name: "body".into(),
+                    chunk_id: body_chunk_id,
+                },
+            ],
+        }
+    }
+
     /// Validate layout id, region names, and bounds.
     ///
     /// # Errors
@@ -120,19 +138,7 @@ mod tests {
 
     #[test]
     fn round_trip_title_body() {
-        let slide = SlidePayload {
-            layout_id: "title_body".into(),
-            regions: vec![
-                SlideRegion {
-                    name: "title".into(),
-                    chunk_id: 1,
-                },
-                SlideRegion {
-                    name: "body".into(),
-                    chunk_id: 2,
-                },
-            ],
-        };
+        let slide = SlidePayload::title_body(1, 2);
         let bytes = slide.to_bytes().unwrap();
         assert_eq!(SlidePayload::from_bytes(&bytes).unwrap(), slide);
     }

@@ -375,6 +375,11 @@ fn result_exit(result: Result<(), TesError>) -> ExitCode {
     }
 }
 
+fn resolve_template_root(cli: Option<PathBuf>) -> PathBuf {
+    cli.or_else(|| env::var_os("TES_TEMPLATE_ROOT").map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("templates"))
+}
+
 fn run_info(path: &PathBuf, json: bool, quiet: bool) -> Result<(), TesError> {
     let report = read_summary_v0(path)?;
     let out = if json {
@@ -443,10 +448,7 @@ fn run_export(args: ExportArgs) -> Result<(), TesError> {
                 "--pdf requires -o/--output PATH",
             )));
         };
-        let template_root = args
-            .template_root
-            .or_else(|| env::var_os("TES_TEMPLATE_ROOT").map(PathBuf::from))
-            .unwrap_or_else(|| PathBuf::from("templates"));
+        let template_root = resolve_template_root(args.template_root);
         return export_pdf(
             &args.path,
             out_path,
@@ -587,10 +589,7 @@ fn run_import(args: ImportArgs) -> Result<(), TesError> {
 }
 
 fn run_serve(args: ServeArgs) -> Result<(), TesError> {
-    let template_root = args
-        .template_root
-        .or_else(|| env::var_os("TES_TEMPLATE_ROOT").map(PathBuf::from))
-        .unwrap_or_else(|| PathBuf::from("templates"));
+    let template_root = resolve_template_root(args.template_root);
     let options = ServeOptions {
         path: args.path,
         template_root,

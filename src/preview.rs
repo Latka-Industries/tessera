@@ -15,7 +15,7 @@ use std::time::Duration;
 use crate::catalog::file::TesFile;
 use crate::error::{Result, TesError};
 use crate::export::{ExportOptions, ExportView, export_file};
-use crate::template::{DEFAULT_TEMPLATE_ID, THEME_DRAFT, TemplatePack, default_theme_id};
+use crate::template::{TemplatePack, ThemeFallback, resolve_pack_and_theme};
 
 /// Options for [`serve_preview`].
 #[derive(Debug, Clone)]
@@ -74,37 +74,25 @@ pub struct PreviewContext {
 /// and `allow_theme_js` is false.
 pub fn resolve_preview_context(options: &ServeOptions) -> Result<PreviewContext> {
     let file = TesFile::open(&options.path)?;
-    let catalog_template = file
-        .catalog()
-        .and_then(|c| c.template_id.as_deref())
-        .map(str::to_string);
-    let catalog_theme = file
-        .catalog()
-        .and_then(|c| c.theme_id.as_deref())
-        .map(str::to_string);
-
-    let template_id = options
-        .template_id
-        .clone()
-        .or(catalog_template)
-        .unwrap_or_else(|| DEFAULT_TEMPLATE_ID.to_string());
-
-    let pack = TemplatePack::resolve(&options.template_root, &template_id)?;
-    if pack.manifest.requires_theme_js && !options.allow_theme_js {
+    let catalog = file.catalog();
+    let resolved = resolve_pack_and_theme(
+        catalog.and_then(|c| c.template_id.as_deref()),
+        catalog.and_then(|c| c.theme_id.as_deref()),
+        &options.template_root,
+        options.template_id.as_deref(),
+        options.theme_id.as_deref(),
+        ThemeFallback::Draft,
+    )?;
+    if resolved.pack.manifest.requires_theme_js && !options.allow_theme_js {
         return Err(TesError::ThemeJsNotAllowed {
-            template_id: pack.manifest.id.clone(),
+            template_id: resolved.pack.manifest.id.clone(),
         });
     }
 
-    let theme_id = options
-        .theme_id
-        .clone()
-        .or(catalog_theme)
-        .unwrap_or_else(|| default_theme_id(&pack).to_string());
-    // Validate theme exists up front.
-    let _ = pack.theme_css(&theme_id)?;
-
-    Ok(PreviewContext { pack, theme_id })
+    Ok(PreviewContext {
+        pack: resolved.pack,
+        theme_id: resolved.theme_id,
+    })
 }
 
 /// Render standalone HTML for the current file + pack theme.
@@ -390,7 +378,7 @@ pub fn preview_html_for_path(
         template_root: template_root.as_ref().to_path_buf(),
         theme_id: theme_id
             .map(str::to_string)
-            .or_else(|| Some(THEME_DRAFT.into())),
+            .or_else(|| Some(crate::template::THEME_DRAFT.into())),
         ..ServeOptions::default()
     };
     let ctx = resolve_preview_context(&options)?;

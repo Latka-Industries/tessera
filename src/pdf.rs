@@ -13,7 +13,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::catalog::file::TesFile;
 use crate::error::{Result, TesError};
 use crate::export::{ExportOptions, ExportView, export_file};
-use crate::template::{DEFAULT_TEMPLATE_ID, THEME_PRINT, TemplatePack, default_theme_id};
+use crate::template::{THEME_PRINT, ThemeFallback, resolve_pack_and_theme};
 
 /// Options for themed HTML and PDF export.
 #[derive(Debug, Clone)]
@@ -50,34 +50,16 @@ impl Default for PdfExportOptions {
 pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) -> Result<String> {
     let path = path.as_ref();
     let file = TesFile::open(path)?;
-    let catalog_template = file
-        .catalog()
-        .and_then(|c| c.template_id.as_deref())
-        .map(str::to_string);
-    let catalog_theme = file
-        .catalog()
-        .and_then(|c| c.theme_id.as_deref())
-        .map(str::to_string);
-
-    let template_id = options
-        .template_id
-        .clone()
-        .or(catalog_template)
-        .unwrap_or_else(|| DEFAULT_TEMPLATE_ID.to_string());
-    let pack = TemplatePack::resolve(&options.template_root, &template_id)?;
-
-    let theme_id = options
-        .theme_id
-        .clone()
-        .or(catalog_theme)
-        .unwrap_or_else(|| {
-            if pack.manifest.themes.contains_key(THEME_PRINT) {
-                THEME_PRINT.to_string()
-            } else {
-                default_theme_id(&pack).to_string()
-            }
-        });
-    let css = pack.theme_css(&theme_id)?;
+    let catalog = file.catalog();
+    let resolved = resolve_pack_and_theme(
+        catalog.and_then(|c| c.template_id.as_deref()),
+        catalog.and_then(|c| c.theme_id.as_deref()),
+        &options.template_root,
+        options.template_id.as_deref(),
+        options.theme_id.as_deref(),
+        ThemeFallback::PreferPrint,
+    )?;
+    let css = resolved.pack.theme_css(&resolved.theme_id)?;
 
     export_file(
         &file,

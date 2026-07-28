@@ -120,6 +120,12 @@ impl ChunkType {
             Self::Figure => "figure",
         }
     }
+
+    /// Whether this type may be referenced by a slide region slot.
+    #[must_use]
+    pub const fn is_slide_region_target(self) -> bool {
+        matches!(self, Self::Text | Self::Figure | Self::Cite | Self::Image)
+    }
 }
 
 /// A single 48-byte chunk index row.

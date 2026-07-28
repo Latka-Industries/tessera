@@ -108,6 +108,30 @@ impl TextHeader {
             classes: Vec::new(),
         }
     }
+
+    /// Lossy Markdown projection of a text-chunk body (export + Tessprek).
+    #[must_use]
+    pub fn render_markdown(&self, body: &str) -> String {
+        let body = body.trim_end();
+        match self.role {
+            TextRole::Heading => {
+                let level = self.level.unwrap_or(1).clamp(1, 6) as usize;
+                format!("{} {body}", "#".repeat(level))
+            }
+            TextRole::ListItem => match self.list_kind.unwrap_or(ListKind::Bullet) {
+                ListKind::Bullet => format!("- {body}"),
+                ListKind::Ordered => format!("1. {body}"),
+            },
+            TextRole::Blockquote => body
+                .lines()
+                .map(|line| format!("> {line}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            TextRole::CodeBlock => format!("```\n{body}\n```"),
+            TextRole::Table => format!("```tsv\n{body}\n```"),
+            TextRole::Paragraph => body.to_owned(),
+        }
+    }
 }
 
 /// Cite chunk JSON payload (type `4`).

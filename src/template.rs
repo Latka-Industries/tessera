@@ -181,6 +181,62 @@ pub fn default_theme_id(pack: &TemplatePack) -> &str {
     }
 }
 
+/// How to pick a theme when neither CLI nor catalog specifies one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThemeFallback {
+    /// Prefer [`THEME_DRAFT`], else the first declared theme.
+    Draft,
+    /// Prefer [`THEME_PRINT`] when present, else [`default_theme_id`].
+    PreferPrint,
+}
+
+/// Pack + theme selected for preview or print HTML.
+#[derive(Debug, Clone)]
+pub struct ResolvedPackTheme {
+    /// Loaded template pack.
+    pub pack: TemplatePack,
+    /// Selected theme id (`draft`, `print`, …).
+    pub theme_id: String,
+}
+
+/// Resolve pack/theme from CLI overrides, catalog fields, and a fallback policy.
+///
+/// Order: explicit override → catalog → fallback. Validates that the theme CSS
+/// exists on disk.
+///
+/// # Errors
+///
+/// Returns template/theme errors from [`TemplatePack::resolve`] /
+/// [`TemplatePack::theme_css`].
+pub fn resolve_pack_and_theme(
+    catalog_template_id: Option<&str>,
+    catalog_theme_id: Option<&str>,
+    template_root: impl AsRef<Path>,
+    template_id: Option<&str>,
+    theme_id: Option<&str>,
+    fallback: ThemeFallback,
+) -> Result<ResolvedPackTheme> {
+    let template_id = template_id
+        .or(catalog_template_id)
+        .unwrap_or(DEFAULT_TEMPLATE_ID);
+    let pack = TemplatePack::resolve(template_root, template_id)?;
+    let theme_id = theme_id
+        .map(str::to_string)
+        .or_else(|| catalog_theme_id.map(str::to_string))
+        .unwrap_or_else(|| match fallback {
+            ThemeFallback::Draft => default_theme_id(&pack).to_string(),
+            ThemeFallback::PreferPrint => {
+                if pack.manifest.themes.contains_key(THEME_PRINT) {
+                    THEME_PRINT.to_string()
+                } else {
+                    default_theme_id(&pack).to_string()
+                }
+            }
+        });
+    let _ = pack.theme_css(&theme_id)?;
+    Ok(ResolvedPackTheme { pack, theme_id })
+}
+
 fn validate_pack_relative(rel: &str, field: &str) -> Result<()> {
     let path = Path::new(rel);
     if path.is_absolute()

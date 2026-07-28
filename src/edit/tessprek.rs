@@ -36,7 +36,7 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
                 let raw = file.decode_payload(entry)?;
                 let (header, body) = decode_text_payload(raw.as_ref())?;
                 write_text_directive(&mut out, entry.chunk_id, &header);
-                out.push_str(&render_text_body(&header, &body));
+                out.push_str(&header.render_markdown(&body));
                 out.push_str("\n\n");
             }
             ChunkType::Figure => {
@@ -314,28 +314,6 @@ fn parse_slide_regions(raw: &str, line_no: usize) -> Result<Vec<SlideRegion>> {
         });
     }
     Ok(regions)
-}
-
-fn render_text_body(header: &TextHeader, body: &str) -> String {
-    let body = body.trim_end();
-    match header.role {
-        TextRole::Heading => {
-            let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
-            format!("{} {body}", "#".repeat(level))
-        }
-        TextRole::ListItem => match header.list_kind.unwrap_or(ListKind::Bullet) {
-            ListKind::Bullet => format!("- {body}"),
-            ListKind::Ordered => format!("1. {body}"),
-        },
-        TextRole::Blockquote => body
-            .lines()
-            .map(|line| format!("> {line}"))
-            .collect::<Vec<_>>()
-            .join("\n"),
-        TextRole::CodeBlock => format!("```\n{body}\n```"),
-        TextRole::Table => format!("```tsv\n{body}\n```"),
-        TextRole::Paragraph => body.to_owned(),
-    }
 }
 
 fn strip_markdown_wrapper(header: &TextHeader, body: &str) -> String {

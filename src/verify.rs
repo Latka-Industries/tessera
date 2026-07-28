@@ -497,12 +497,7 @@ fn verify_slide_targets(findings: &mut Vec<Finding>, entries: &[ChunkIndexEntry]
                         entry.chunk_id, region.name, region.chunk_id
                     ),
                 )),
-                Some(target)
-                    if !matches!(
-                        target.chunk_type,
-                        ChunkType::Text | ChunkType::Figure | ChunkType::Cite | ChunkType::Image
-                    ) =>
-                {
+                Some(target) if !target.chunk_type.is_slide_region_target() => {
                     findings.push(Finding::error(
                         "slide.target",
                         format!(
