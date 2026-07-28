@@ -63,3 +63,9 @@ Structural rejects fail even shallow verify; layout-v1 / attachment rejects
 require deep payload decode. See
 [`fixtures/conformance/README.md`](../fixtures/conformance/README.md) for the
 file list and regenerate commands.
+
+Claim-backed Criterion benches (mmap / import / export / vault):
+[`docs/benchmarks.md`](benchmarks.md).
+
+See also [structure_v1.md — Forward compatibility and conformance](structure_v1.md#forward-compatibility-and-conformance).
+

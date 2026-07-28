@@ -13,3 +13,7 @@ bash scripts/manual-layout-v1-smoke.sh
 [tasks.merge-smoke]
 description = "Smoke tes merge-file CLI + git merge=tessera driver"
 run = "bash scripts/merge-file-smoke.sh"
+
+[tasks.bench]
+description = "Claim-backed open_format Criterion benches (THI-200)"
+run = "cargo bench -p tessera-doc --bench open_format"

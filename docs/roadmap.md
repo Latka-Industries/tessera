@@ -251,7 +251,8 @@ freeze. CRDT/live cursors are not part of M10.
 ## Next Linear issue batch
 
 1. **open format:** MIME/magic entries and v1 conformance cases.
-2. **benchmark:** measure the specific mmap/link/export claims in the README.
+2. **benchmark:** measure the specific mmap/link/export claims — see
+   [benchmarks.md](benchmarks.md) / `mise run bench`.
 3. **vault polish:** light `vault.tes` catalog (optional).
 4. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 
