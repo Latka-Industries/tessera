@@ -73,6 +73,9 @@ pub mod prelude {
     pub use crate::render::pdf::{PdfExportOptions, export_pdf, render_themed_html};
     pub use crate::render::preview::{ServeOptions, preview_html_for_path, serve_preview};
     pub use crate::render::template::{TemplateManifest, TemplatePack};
-    pub use crate::vault::{Backlink, ResolvedTarget, Vault, VaultDocument};
+    pub use crate::vault::{
+        Backlink, ResolvedTarget, Vault, VaultDocument, VaultIndex, VaultIndexEntry,
+        list_vault_documents, rebuild_vault_index,
+    };
     pub use crate::verify::{TesVerifyReport, verify_tes_file};
 }

@@ -4,8 +4,9 @@
 `checkout`/`textconv`/`blame`/`pending`/`merge-file`), layout-v1 **text wire**
 (spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
 (external URI heap v1) are shipped as additive wire on `layout_version = 0`.
-Next code is light `vault.tes` polish and optional layout feature flags. This
-is an implementation plan, not a release schedule.
+Vault TOC (`tes vault` / `vault.tes`) is in. Next code is optional layout
+feature flags (THI-202) and GitHub-readable PR diffs (THI-212). This is an
+implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -17,7 +18,7 @@ links.
 | Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify | optional/required feature policy | conformance kit grows continuously |
 | Prose | typed text roles, Markdown/HTML import/export, Tessprek edit, ranged spans, math, code/block lang, align | — | further editor adapters |
 | Tables | structured header table + TSV fallback | — | rich import/export |
-| Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1) | — | light `vault.tes` catalog |
+| Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1) | light `vault.tes` catalog (`tes vault`) | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
 | Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
@@ -253,7 +254,7 @@ freeze. CRDT/live cursors are not part of M10.
 1. **open format:** MIME/magic entries and v1 conformance cases.
 2. **benchmark:** measure the specific mmap/link/export claims — see
    [benchmarks.md](benchmarks.md) / `mise run bench`.
-3. **vault polish:** light `vault.tes` catalog (optional).
+3. **vault polish:** light `vault.tes` catalog — see `tes vault` in [cli.md](cli.md).
 4. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 
 ---

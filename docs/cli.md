@@ -17,14 +17,15 @@ Related: [layout_v0.md](layout_v0.md),
 | [`tes export`](#tes-export) `<path.tes>` | — | Decoded views ([exports.md](exports.md)) |
 | [`tes import`](#tes-import) `<in> <out.tes>` | — | Foreign format → `.tes` (staged rollout) |
 | [`tes link`](#tes-link) | — | Resolve / inspect links across a vault |
+| [`tes vault`](#tes-vault) | — | Optional `vault.tes` TOC rebuild / list |
 | [`tes serve`](#tes-serve) `<path.tes>` | — | Local themed browser preview |
 | `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
 | [`tes edit-read`](#mutation-protocol) / `edit-write` | — | Tessera Markdown virtual editor protocol |
 | [`tes apply`](#mutation-protocol) | — | Verified Tessera Markdown / typed-op mutation |
 | `tes log\|diff\|changelog\|blame\|pending\|export-revs\|checkout\|textconv\|merge-file` | — | M10 revision/history tools |
 
-v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**, **`serve`**,
-**mutation**, and **history** commands.
+v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**,
+**`vault`**, **`serve`**, **mutation**, and **history** commands.
 
 ---
 
@@ -172,6 +173,35 @@ Vault-level link operations (requires `--vault DIR`).
 
 ---
 
+## `tes vault`
+
+Optional vault catalog index — a TOC-style `vault.tes` sidecar
+(`doc_kind = index`) listing `doc_id → title, tags, modified, path` so list/search
+does not open every note. Link-graph commands (`tes link`) still scan real files.
+
+```bash
+tes vault --vault ./notes rebuild
+tes vault --vault ./notes list
+tes vault --vault ./notes list --tag ml --json
+tes vault --vault ./notes list --force-scan
+```
+
+| Subcommand | Effect |
+| --- | --- |
+| `rebuild` | Scan catalogs and seal/replace `vault.tes` |
+| `list` | List docs from a fresh index, else catalog scan (warn if stale) |
+
+| Flag | Effect |
+| --- | --- |
+| `--tag TAG` | Keep rows whose catalog tags include `TAG` |
+| `--force-scan` | Ignore `vault.tes` and scan catalogs |
+| `--json` | Machine-readable [`VaultListReport`](../src/vault/index.rs) |
+
+**Stale detection:** entry count / relative paths / file mtimes must match the
+index; otherwise list falls back to a catalog scan.
+
+---
+
 ## `tes serve`
 
 Loopback browser preview via the same semantic HTML export used by
@@ -315,7 +345,7 @@ suggestion only. Deep verify runs on accept (and on footer rewrites).
 
 | Variable | Effect |
 | --- | --- |
-| `TES_VAULT` | Default vault directory for `tes link` |
+| `TES_VAULT` | Default vault directory for `tes link` / `tes vault` |
 | `TES_THEME` | Default CSS path for `--html` export |
 | `TES_TEMPLATE_ROOT` | Default template pack root for `tes serve` / `--pdf` |
 | `TES_CHROME` | Chromium/Chrome binary for `tes export --pdf` |
@@ -345,7 +375,7 @@ Every CLI command maps to a library entry point. The binary only calls
 | `tes verify` | `tessera_doc::verify::verify_tes_file` |
 | `tes export` | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
 | `tes import` | `tessera_doc::io::import::*` / `io::bib::import_bibliography` |
-| `tes link` | `tessera_doc::vault::*` |
+| `tes link` / `tes vault` | `tessera_doc::vault::*` |
 | `tes save` / `log` / `diff` / `changelog` / `blame` / `export-revs` / `checkout` / `textconv` / `merge-file` | `tessera_doc::history::*` |
 | `tes serve` | `tessera_doc::render::preview::serve_preview` |
 | `tes edit-read` | `tessera_doc::edit::edit_read` |

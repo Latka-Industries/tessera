@@ -186,7 +186,7 @@ impl Vault {
     }
 }
 
-fn collect_tes_paths(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
+pub(super) fn collect_tes_paths(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();

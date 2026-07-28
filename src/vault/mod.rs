@@ -2,12 +2,18 @@
 //!
 //! - [`Vault`] — scan a folder of `.tes` files and query the link graph.
 //! - [`parse_target`] — parse `UUID` or `UUID/chunk` CLI/link targets.
+//! - Optional [`vault.tes`](index) TOC index for list/search without a full graph scan.
 //! - Value types: [`VaultDocument`], [`Backlink`], [`ResolvedTarget`], [`BrokenLink`].
 
 mod graph;
+mod index;
 mod types;
 
 pub use graph::Vault;
+pub use index::{
+    VAULT_INDEX_NAME, VaultIndex, VaultIndexEntry, VaultListReport, list_vault_documents,
+    load_vault_index, rebuild_vault_index, vault_index_is_fresh, vault_index_path,
+};
 pub use types::{Backlink, BrokenLink, ResolvedTarget, VaultDocument};
 
 use uuid::Uuid;

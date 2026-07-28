@@ -17,7 +17,7 @@ Related: [layout_v0.md](layout_v0.md),
 | Choice | Rationale |
 | --- | --- |
 | One file per document | Matches note/wiki mental model; mmap one note without loading corpus |
-| Optional `vault.tes` | `doc_id → title, tags, modified` for search/graph without opening every file |
+| Optional `vault.tes` | TOC-style `doc_id → title, tags, modified, path` (`tes vault`); list/search without opening every file |
 | No multi-doc archive v0 | Simpler writer; object-store bundling deferred |
 
 **Rejected for v0:** single tarball archive containing many docs (may revisit for sync/backup).

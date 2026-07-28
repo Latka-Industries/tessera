@@ -8,6 +8,7 @@ mod inspect;
 mod io;
 mod link;
 mod serve;
+mod vault;
 
 pub(super) use edit::{run_apply, run_edit_read, run_edit_write};
 pub(super) use history::{
@@ -18,3 +19,4 @@ pub(super) use inspect::{run_info, run_verify};
 pub(super) use io::{run_export, run_import};
 pub(super) use link::run_link;
 pub(super) use serve::run_serve;
+pub(super) use vault::run_vault;
