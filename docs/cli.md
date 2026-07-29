@@ -280,8 +280,11 @@ Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
 In-repo language server for Tessprek editors. Same crate as `tes`; stdout is the
 LSP wire (log to stderr only). Stack: **tokio + tower-lsp** over stdio.
 
-**Scaffold (now):** `initialize` / `initialized` / `shutdown` only — no document
-sync, diagnostics, or write-back yet.
+**Now (THI-242):** `initialize` / `shutdown`, plus `textDocument/didOpen` /
+`didClose`. Opening a `file://…/*.tes` URI runs `edit_read` and stashes
+`{ path, source_hash, tessprek }` in a server document map. Logs open/close
+to stderr and `window/logMessage`. No `didChange`, diagnostics, or write-back
+yet.
 
 ```bash
 cargo run --bin tes-lsp
@@ -293,11 +296,13 @@ vim.lsp.start({
   name = 'tes-lsp',
   cmd = { vim.fn.getcwd() .. '/target/debug/tes-lsp' },
 })
+-- Then :e fixtures/v0/note_one_chunk.tes
+-- Expect :messages / LSP log: opened … source-hash=… tessprek-bytes=…
 ```
 
-Done when the client reports `initialized = true` and `server_info.name = tes-lsp`
-with no protocol errors. Later work opens `.tes` as Tessprek via `edit_read` /
-`edit_write`.
+Handshake done when `initialized = true`. Open sync done when opening a `.tes`
+logs a source-hash and Tessprek byte count (buffer still shows raw bytes until
+a client replaces it with Tessprek — Neovim plugin is separate).
 
 ---
 
