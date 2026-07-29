@@ -1,6 +1,6 @@
 # `tes` CLI reference
 
-**Status:** design reference for the **`tes`** binary. Flags may change until v0.1; **`tes -h`** is authoritative after implementation.
+**Status:** design reference for the **`tes`** binary. Flags may change until v0.1; **`tes -h`** is authoritative after implementation. A second binary, **`tes-lsp`**, speaks LSP over stdio for Tessprek (scaffold — see [Tessprek LSP](#tessprek-lsp-tes-lsp)).
 
 Related: [layout_v0.md](layout_v0.md),
 [structure_v1.md](structure_v1.md), [exports.md](exports.md),
@@ -270,10 +270,34 @@ tes apply paper.tes --patch change.tessprek --source-hash HASH
 `edit-write` and `apply` acquire an advisory per-file lock, re-check the source
 hash, compile to a sibling temporary file, deep-verify, and atomically replace.
 `--dry-run` stops before replace and prints a line diff. Vim/Neovim integrations
-are thin adapters over these commands.
+are thin adapters over these commands (CLI today; LSP below as it lands).
 
 Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
 `set_text`, `append_paragraph`, `delete_chunk`.
+
+### Tessprek LSP (`tes-lsp`)
+
+In-repo language server for Tessprek editors. Same crate as `tes`; stdout is the
+LSP wire (log to stderr only). Stack: **tokio + tower-lsp** over stdio.
+
+**Scaffold (now):** `initialize` / `initialized` / `shutdown` only — no document
+sync, diagnostics, or write-back yet.
+
+```bash
+cargo run --bin tes-lsp
+```
+
+```lua
+-- Neovim smoke (from repo root after cargo build --bin tes-lsp)
+vim.lsp.start({
+  name = 'tes-lsp',
+  cmd = { vim.fn.getcwd() .. '/target/debug/tes-lsp' },
+})
+```
+
+Done when the client reports `initialized = true` and `server_info.name = tes-lsp`
+with no protocol errors. Later work opens `.tes` as Tessprek via `edit_read` /
+`edit_write`.
 
 ---
 
@@ -393,8 +417,8 @@ suggestion only. Deep verify runs on accept (and on footer rewrites).
 
 ## Library parity
 
-Every CLI command maps to a library entry point. The binary only calls
-`tessera_doc::cli::run`:
+Every CLI command maps to a library entry point. The `tes` binary only calls
+`tessera_doc::cli::run`; `tes-lsp` only calls `tessera_doc::lsp::run`:
 
 | CLI | Library |
 | --- | --- |
@@ -408,5 +432,6 @@ Every CLI command maps to a library entry point. The binary only calls
 | `tes edit-read` | `tessera_doc::edit::edit_read` |
 | `tes edit-write` | `tessera_doc::edit::edit_write` |
 | `tes apply` | `tessera_doc::edit::apply_ops` / `apply_patch` |
+| `tes-lsp` | `tessera_doc::lsp::run` |
 
-Embedders use the library directly; CLI is a thin wrapper.
+Embedders use the library directly; CLI / LSP binaries are thin wrappers.

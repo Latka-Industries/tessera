@@ -17,6 +17,7 @@
 - **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering
 - **Preview** — loopback `tes serve` with external template/theme packs
 - **Vault** — resolve / backlinks / broken-link check across a directory of `.tes` files
+- **LSP (scaffold)** — `tes-lsp` handshake over stdio for Tessprek editors ([docs/cli.md](docs/cli.md#tessprek-lsp-tes-lsp))
 
 ## Quick start
 
