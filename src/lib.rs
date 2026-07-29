@@ -26,6 +26,7 @@ pub mod catalog;
 pub mod cli;
 pub mod edit;
 pub mod error;
+pub mod fixtures;
 pub mod history;
 pub mod io;
 pub mod layout;
