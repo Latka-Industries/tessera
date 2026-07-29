@@ -14,6 +14,7 @@
 //! - [`vault`] — stable link resolution and backlinks.
 //! - [`render`] — template packs, `tes serve` preview, and PDF print.
 //! - [`cli`] — `tes` command surface (`src/bin/tes.rs` → [`cli::run`]).
+//! - [`lsp`] — `tes-lsp` Tessprek language server (`src/bin/tes_lsp.rs` → [`lsp::run`]).
 //! - [`error`] — shared [`error::TesError`] / [`error::Result`].
 //!
 //! Crate-root aliases re-export [`io`] and [`render`] children for short paths
@@ -30,6 +31,7 @@ pub mod fixtures;
 pub mod history;
 pub mod io;
 pub mod layout;
+pub mod lsp;
 pub mod render;
 pub mod vault;
 pub mod verify;

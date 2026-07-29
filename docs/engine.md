@@ -37,6 +37,8 @@ It is **not**:
 - A dependency on the `tetration` crate.
 
 The CLI binary (`src/bin/tes.rs`) is a thin wrapper around `tessera_doc::cli::run`.
+The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp::run`
+(handshake scaffold today; Tessprek sync later).
 
 ---
 
@@ -45,12 +47,13 @@ The CLI binary (`src/bin/tes.rs`) is a thin wrapper around `tessera_doc::cli::ru
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │  tes CLI  (src/bin/tes.rs → tessera_doc::cli::run)          │
+│  tes-lsp  (src/bin/tes_lsp.rs → tessera_doc::lsp::run)      │
 └───────────────────────────────┬─────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────┐
 │  Domain layer (document semantics)                          │
 │  io/ (import · export · bib) · vault/ · edit/ · history/    │
-│  render/ (template · preview · pdf)                         │
+│  render/ (template · preview · pdf) · lsp/ (Tessprek LSP)   │
 └───────────────────────────────┬─────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────┐
@@ -93,6 +96,7 @@ The CLI binary (`src/bin/tes.rs`) is a thin wrapper around `tessera_doc::cli::ru
 | `edit` | Tessera Markdown + typed safe mutation | Layout v1 |
 | `history` | save/log/diff/blame/pending/`merge-file` over THST | M10 |
 | `cli` | Clap surface + command runners for `tes` | [cli.md](cli.md) |
+| `lsp` | `tes-lsp` Tessprek language server (stdio) | [cli.md — LSP](cli.md#tessprek-lsp-tes-lsp) |
 
 Crate-root aliases keep `tessera_doc::{export,import,bib,pdf,preview,template}` resolving to the `io` / `render` submodules.
 
@@ -233,7 +237,8 @@ Embedders: `use tessera_doc::prelude::*;` or module paths under `io` / `render` 
 | `import_markdown_v0` / `import_html_v0` | foreign → `.tes` |
 | `cli::run` | full `tes` argv dispatch |
 
-CLI mirrors these; no duplicate domain logic in `src/bin/tes.rs`.
+CLI / LSP binaries mirror these; no duplicate domain logic in `src/bin/tes.rs` or
+`src/bin/tes_lsp.rs`.
 
 ---
 
