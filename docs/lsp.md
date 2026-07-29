@@ -1,6 +1,7 @@
 # Tessprek language server (`tes-lsp`)
 
-**Status:** MVP complete (THI-241–247). Binary lives in this repo; Neovim packaging is [THI-222](https://linear.app/thicclatka/issue/THI-222).
+**Status:** server MVP is in-tree. Neovim packaging lives under
+[`contrib/nvim/`](../contrib/nvim/README.md).
 
 `tes-lsp` is a thin Language Server Protocol server over **stdio** (tokio + tower-lsp).
 Logs go to **stderr** only — stdout is the LSP wire.
@@ -50,8 +51,9 @@ Hovering an HTML comment marker shows parsed attrs:
 ## Launch
 
 ```bash
-mise run tes-lsp                 # cargo build --bin tes-lsp
+cargo build --bin tes-lsp        # → target/debug/tes-lsp
 cargo run --bin tes-lsp          # stdio server
+# optional wrappers: mise run tes-lsp / mise run lsp-smoke
 mise run lsp-smoke               # JSON-RPC smokes (init / open / change / write / hover)
 # mise check  → fmt + clippy + test + lsp-smoke
 ```
@@ -59,32 +61,23 @@ mise run lsp-smoke               # JSON-RPC smokes (init / open / change / write
 Point any LSP client at `target/debug/tes-lsp` (or release) with **stdio** transport.
 Open the **`.tes` path** (not a detached `.md`); the server projects Tessprek into the buffer.
 
-## Minimal Neovim snippet
+## Minimal Neovim client
 
-Full plugin work is tracked as [THI-222](https://linear.app/thicclatka/issue/THI-222).
-Until then, a hand-rolled stdio client is enough to try hover / diagnostics:
+Use the in-repo plugin under [`contrib/nvim/`](../contrib/nvim/README.md).
+Scaffold attaches `tes-lsp` for `*.tes`; Tessprek buffer projection and save
+write-back land in a follow-up.
 
 ```lua
--- ~/.config/nvim/after/plugin/tes-lsp.lua  (experimental)
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = "tes", -- or set filetype manually for *.tes
-  callback = function(args)
-    vim.lsp.start({
-      name = "tes-lsp",
-      cmd = { vim.fn.exepath("tes-lsp") ~= "" and "tes-lsp"
-        or (vim.fn.getcwd() .. "/target/debug/tes-lsp") },
-      root_dir = vim.fs.root(args.buf, { ".git" }) or vim.fn.getcwd(),
-    })
-  end,
-})
+-- lazy.nvim
+{
+  dir = vim.fn.expand("~/Code/LatkaIndustries/tessera/contrib/nvim"),
+  name = "tessera.nvim",
+  lazy = false,
+  opts = {},
+}
 ```
 
-Notes:
-
-- Build `tes-lsp` first (`mise run tes-lsp`).
-- Raw `.tes` in the buffer is still binary until a Tessprek-aware plugin
-  replaces the buffer text from `didOpen` / `edit_read` (THI-222). For smoke
-  coverage today, use `mise run lsp-smoke` rather than hand-editing binary `.tes`.
+Build the server first: `cargo build --bin tes-lsp`.
 
 ## See also
 
