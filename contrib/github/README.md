@@ -1,10 +1,10 @@
 # GitHub helpers for Tessera vaults
 
 GitHub does **not** run local `tes textconv` / merge drivers, so `.tes` blobs
-stay binary on the Files tab. Use a PR preview Action instead of dual-committing
-Markdown sidecars.
+stay binary on the Files tab. Use the Tessprek preview Action instead of
+dual-committing Markdown sidecars.
 
-## PR Tessprek preview (THI-212)
+## Tessprek preview (THI-212 / THI-219)
 
 1. Copy [`tes-pr-preview.yml`](tes-pr-preview.yml) to
    `.github/workflows/tes-pr-preview.yml`.
@@ -14,8 +14,12 @@ Markdown sidecars.
 3. Ensure a `tes` binary is available (template uses
    `cargo install tessera-doc`, or pin a release).
 
-On PRs that touch `*.tes`, the Action posts (and updates) one sticky comment
-with Tessprek unified diffs from `tes textconv`.
+When `*.tes` changes:
+
+| Event | Where readable diffs show up |
+| --- | --- |
+| Pull request | Sticky PR comment (upserted) |
+| Push (any branch, including `master` / `dev`) | Actions **job summary** + `tessprek-tes-preview` artifact |
 
 **Limitations:** github.com file pages and merge UI stay opaque. Local clones
 should still use `.gitattributes` `diff=tessera` + `tes textconv` (see

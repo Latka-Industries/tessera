@@ -322,12 +322,14 @@ for git. Example attributes:
 | Local `git diff` / `git show` | Yes, with `diff=tessera` + `tes textconv` |
 | Local merges | Yes, with `merge=tessera` + `tes merge-file` |
 | github.com Files tab / merge UI | No — blobs stay binary (no textconv hook) |
-| GitHub pull requests | Yes, via the **Tessera PR preview** Action |
+| GitHub pull requests | Yes — sticky Tessprek comment (Action) |
+| GitHub pushes (`master` / `dev` / any branch) | Yes — Actions job summary + artifact |
 
 This repo’s `.github/workflows/tes-pr-preview.yml` builds `tes`, runs
-`scripts/tes-pr-textconv-diff.sh` on changed `*.tes` files, and posts a sticky
-PR comment with Tessprek unified diffs. Vaults can copy the template under
-[`contrib/github/`](../contrib/github/README.md).
+`scripts/tes-pr-textconv-diff.sh` on changed `*.tes` files between the event’s
+base and head SHAs, then either posts a sticky PR comment or writes the report
+to the workflow summary / uploads `tessprek-tes-preview`. Vaults can copy the
+template under [`contrib/github/`](../contrib/github/README.md).
 
 `tes merge-file BASE OURS THEIRS` performs a chunk-hash 3-way merge (git
 `%O %A %B`): non-overlapping chunk edits auto-merge into `OURS` after deep

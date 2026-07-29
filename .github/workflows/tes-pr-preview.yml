@@ -1,17 +1,21 @@
-# Tessera PR preview — readable `.tes` diffs on GitHub
+# Tessera Tessprek preview — readable `.tes` diffs on GitHub
 #
 # GitHub cannot run local `textconv` / merge drivers, so `.tes` files stay
 # opaque on the Files tab. This workflow builds `tes`, projects changed `.tes`
-# blobs to Tessprek via `tes textconv`, and posts (or updates) one sticky PR
-# comment with unified diffs.
+# blobs to Tessprek via `tes textconv`, and publishes unified diffs:
+#   - pull_request → sticky PR comment
+#   - push (any branch) → Actions job summary + artifact
 #
-# Triggers only when a PR touches `*.tes`. Vaults: copy from `contrib/github/`.
+# Triggers when a PR or push touches `*.tes`. Vaults: copy from `contrib/github/`.
 # Docs: `docs/cli.md` (Local vs GitHub).
 
-name: Tessera PR preview
+name: Tessera Tessprek preview
 
 on:
   pull_request:
+    paths:
+      - "**/*.tes"
+  push:
     paths:
       - "**/*.tes"
 
@@ -21,7 +25,7 @@ permissions:
 
 jobs:
   preview:
-    name: Post Tessprek .tes diffs
+    name: Publish Tessprek .tes diffs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,30 +33,80 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve base/head SHAs
+        id: range
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >>"$GITHUB_OUTPUT"
+            echo "head=${{ github.event.pull_request.head.sha }}" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          before="${{ github.event.before }}"
+          head="${{ github.sha }}"
+          zeros='0000000000000000000000000000000000000000'
+          if [[ -z "$before" || "$before" == "$zeros" ]]; then
+            # New branch / empty before: diff the tip commit only.
+            before="$(git rev-parse "${head}^" 2>/dev/null || true)"
+            if [[ -z "$before" ]]; then
+              echo "No parent for ${head}; skipping Tessprek preview."
+              echo "skip=true" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "base=${before}" >>"$GITHUB_OUTPUT"
+          echo "head=${head}" >>"$GITHUB_OUTPUT"
+          echo "skip=false" >>"$GITHUB_OUTPUT"
+
       - name: Install Rust
+        if: steps.range.outputs.skip != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95
 
       - uses: Swatinem/rust-cache@v2
+        if: steps.range.outputs.skip != 'true'
         with:
           shared-key: tes-pr-preview
 
       - name: Build tes
+        if: steps.range.outputs.skip != 'true'
         run: cargo build -q --bin tes
 
       - name: Generate Tessprek preview
+        if: steps.range.outputs.skip != 'true'
         env:
           TES: ./target/debug/tes
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ steps.range.outputs.base }}
+          HEAD_SHA: ${{ steps.range.outputs.head }}
           OUT: tes-pr-preview.md
         run: bash scripts/tes-pr-textconv-diff.sh
 
       - name: Upsert sticky PR comment
+        if: github.event_name == 'pull_request' && steps.range.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           BODY_FILE: tes-pr-preview.md
         run: bash scripts/tes-pr-upsert-comment.sh
+
+      - name: Write job summary (push / PR)
+        if: steps.range.outputs.skip != 'true'
+        run: |
+          {
+            echo "## Tessera Tessprek preview"
+            echo
+            echo "Range \`${{ steps.range.outputs.base }}\`…\`${{ steps.range.outputs.head }}\`"
+            echo
+            # Cap summary size (GitHub ~1 MiB); full report is the artifact.
+            head -c 200000 tes-pr-preview.md || true
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Tessprek preview artifact
+        if: steps.range.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tessprek-tes-preview
+          path: tes-pr-preview.md
+          if-no-files-found: warn

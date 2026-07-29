@@ -5,8 +5,8 @@
 (spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
 (external URI heap v1) are shipped as additive wire on `layout_version = 0`.
 Vault TOC (`tes vault` / `vault.tes`) and catalog feature flags (THI-202) are
-in. Next polish is GitHub-readable PR diffs (THI-212 — PR Action +
-`contrib/github`). This is an implementation plan, not a release schedule.
+in. GitHub Tessprek PR comments shipped (THI-212); push-branch summaries are
+THI-219. This is an implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -22,7 +22,7 @@ links.
 | Media | image payload + `FigureRef`; inert attachments | — | — |
 | Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
-| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file | GitHub PR Tessprek preview (THI-212) | — |
+| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR Tessprek (THI-212) | Push-branch Tessprek summary/artifact (THI-219) | — |
 
 Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
@@ -214,7 +214,7 @@ asynchronous track changes.
 | Drafts | Save/checkout/export named full revisions |
 | Diff | Tessera Markdown textconv; structural `tes diff` / changelog |
 | Review | Authored pending ops; redline; accept/reject; comments |
-| Git interop | `.gitattributes` textconv + verified `tes merge-file`; GitHub PR preview via THI-212 Action |
+| Git interop | `.gitattributes` textconv + verified `tes merge-file`; GitHub Tessprek via THI-212/THI-219 Action |
 
 **Depends on:** chunk hashes and stable ids specified during the structure
 freeze. CRDT/live cursors are not part of M10.
