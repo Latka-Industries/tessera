@@ -280,11 +280,11 @@ Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
 In-repo language server for Tessprek editors. Same crate as `tes`; stdout is the
 LSP wire (log to stderr only). Stack: **tokio + tower-lsp** over stdio.
 
-**Now (THI-242):** `initialize` / `shutdown`, plus `textDocument/didOpen` /
-`didClose`. Opening a `file://…/*.tes` URI runs `edit_read` and stashes
-`{ path, source_hash, tessprek }` in a server document map. Logs open/close
-to stderr and `window/logMessage`. No `didChange`, diagnostics, or write-back
-yet.
+**Now (THI-243):** `didOpen` / `didClose` plus `textDocument/didChange` (full
+sync advertised; incremental applied if sent). Opening a `file://…/*.tes` runs
+`edit_read` and stashes `{ path, source_hash, tessprek }`. Edits update only the
+in-memory `tessprek` string — `source_hash` stays the last on-disk hash; nothing
+is written until later write-back work. Logs to stderr / `window/logMessage`.
 
 ```bash
 cargo run --bin tes-lsp
@@ -292,17 +292,20 @@ cargo run --bin tes-lsp
 
 ```lua
 -- Neovim smoke (from repo root after cargo build --bin tes-lsp)
+vim.lsp.handlers["window/logMessage"] = function(_, r) print("LOG:", r.message) end
 vim.lsp.start({
   name = 'tes-lsp',
   cmd = { vim.fn.getcwd() .. '/target/debug/tes-lsp' },
+  root_dir = vim.fn.getcwd(),
 })
--- Then :e fixtures/v0/note_one_chunk.tes
--- Expect :messages / LSP log: opened … source-hash=… tessprek-bytes=…
+-- :e fixtures/v0/note_one_chunk.tes  → LOG opened …
+-- Buffer is still raw .tes bytes until a client swaps in Tessprek; pipe smoke
+-- is the reliable check for didChange until the Neovim plugin exists.
 ```
 
-Handshake done when `initialized = true`. Open sync done when opening a `.tes`
-logs a source-hash and Tessprek byte count (buffer still shows raw bytes until
-a client replaces it with Tessprek — Neovim plugin is separate).
+Stdio `didChange` smoke (after initialize + didOpen): send a full-document
+`textDocument/didChange` with new `text`; expect
+`changed … tessprek-bytes=… source-hash=… (unchanged)`.
 
 ---
 

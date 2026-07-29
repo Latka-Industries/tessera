@@ -38,7 +38,7 @@ It is **not**:
 
 The CLI binary (`src/bin/tes.rs`) is a thin wrapper around `tessera_doc::cli::run`.
 The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp::run`
-(open/close Tessprek sync today; didChange / write-back later).
+(open/close + in-memory didChange today; diagnostics / write-back later).
 
 ---
 
