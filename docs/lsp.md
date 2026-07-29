@@ -64,8 +64,7 @@ Open the **`.tes` path** (not a detached `.md`); the server projects Tessprek in
 ## Minimal Neovim client
 
 Use the in-repo plugin under [`contrib/nvim/`](../contrib/nvim/README.md).
-Scaffold attaches `tes-lsp` for `*.tes`; Tessprek buffer projection and save
-write-back land in a follow-up.
+Opens `.tes` as Tessprek, attaches `tes-lsp`, and saves via `tessera.write`.
 
 ```lua
 -- lazy.nvim
