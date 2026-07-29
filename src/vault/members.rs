@@ -265,4 +265,25 @@ mod tests {
         unregister_member(vault.path(), &external).unwrap();
         assert_eq!(membership_document_paths(vault.path()).unwrap().len(), 1);
     }
+
+    #[test]
+    fn register_extra_root_includes_nested_tes() {
+        let vault = tempdir().unwrap();
+        let extra = tempdir().unwrap();
+        write_note(vault.path(), "in.tes", "Inside", &[]);
+        write_note(extra.path(), "nested.tes", "Nested", &[]);
+        std::fs::create_dir(extra.path().join("sub")).unwrap();
+        write_note(&extra.path().join("sub"), "deep.tes", "Deep", &[]);
+
+        let member = register_member(vault.path(), extra.path()).unwrap();
+        assert_eq!(member.kind, VaultMemberKind::Root);
+
+        let paths = membership_document_paths(vault.path()).unwrap();
+        assert_eq!(paths.len(), 3);
+        assert!(paths.iter().any(|p| p.file_name().unwrap() == "nested.tes"));
+        assert!(paths.iter().any(|p| p.file_name().unwrap() == "deep.tes"));
+
+        let report = crate::vault::list_vault_documents(vault.path(), None, false).unwrap();
+        assert_eq!(report.entries.len(), 3);
+    }
 }

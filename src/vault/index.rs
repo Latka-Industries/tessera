@@ -360,4 +360,52 @@ mod tests {
         let after = list_vault_documents(vault.path(), None, false).unwrap();
         assert_eq!(after.entries.len(), 1);
     }
+
+    #[test]
+    fn v1_index_loads_empty_members_and_rebuild_upgrades_to_v2() {
+        let dir = tempdir().unwrap();
+        write_note(dir.path(), "a.tes", "Alpha", &[]);
+        write_v1_index(dir.path());
+
+        let loaded = load_vault_index(dir.path()).unwrap().expect("v1 index");
+        assert_eq!(loaded.version, 1);
+        assert!(loaded.members.is_empty());
+        assert!(load_registered_members(dir.path()).unwrap().is_empty());
+        assert_eq!(list_vault_documents(dir.path(), None, false).unwrap().entries.len(), 1);
+
+        rebuild_vault_index(dir.path()).unwrap();
+        let upgraded = load_vault_index(dir.path()).unwrap().expect("v2 index");
+        assert_eq!(upgraded.version, INDEX_VERSION);
+        assert_eq!(upgraded.version, 2);
+        assert!(upgraded.members.is_empty());
+        assert_eq!(upgraded.entries.len(), 1);
+    }
+
+    fn write_v1_index(root: &Path) {
+        let entries = scan_catalog_entries(root, &[]).unwrap();
+        let body = serde_json::json!({
+            "format": INDEX_FORMAT,
+            "version": 1,
+            "entries": entries,
+        });
+        let path = vault_index_path(root);
+        let now = "2026-07-28T00:00:00Z".to_owned();
+        let mut session = TesWriterSession::create(&path, DocKind::Index);
+        let mut catalog = DocumentCatalog::new(
+            INDEX_DOC_ID,
+            "Vault index",
+            now.clone(),
+            now,
+            DocKind::Index,
+        );
+        catalog.tags = vec!["vault-index".into()];
+        session.set_catalog(catalog).unwrap();
+        session
+            .add_text_chunk(
+                &TextHeader::code_block(Some("json")),
+                &serde_json::to_string_pretty(&body).unwrap(),
+            )
+            .unwrap();
+        session.commit().unwrap();
+    }
 }
