@@ -280,19 +280,18 @@ Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
 In-repo language server for Tessprek editors. Same crate as `tes`; stdout is the
 LSP wire (log to stderr only). Stack: **tokio + tower-lsp** over stdio.
 
-**Now (THI-244):** open/close + `didChange`, plus `textDocument/publishDiagnostics`
-from `verify_tes_file` (deep) and source-hash checks. Findings are **file-level**
-for v1 (no Tessprek span mapping). Hash mismatch → error diagnostic (no silent
-overwrite). Write-back still lands later.
+**Now (THI-245):** open/close + `didChange` + diagnostics, plus write-back via
+`workspace/executeCommand` **`tessera.write`** (URI argument) and `willSave`.
+Calls `edit_write` with the stored source-hash; on success refreshes the hash;
+on conflict publishes a `source-hash` diagnostic and does not overwrite.
 
 ```bash
-cargo build --bin tes-lsp          # or: mise run tes-lsp
-uv run scripts/lsp_smoke.py        # or: mise run lsp-smoke
+mise run tes-lsp
+mise run lsp-smoke          # includes write-back round-trip + stale-hash cases
 # mise check  → fmt + clippy + test + lsp-smoke
 ```
 
-Stdio smoke covers handshake, clean open (no error diagnostics), `didChange`
-without disk mutation, `bad_magic` → `publishDiagnostics`, and clear-on-close.
+Command: `tessera.write` with argument `"file:///…/doc.tes"` (or `{"uri":"…"}`).
 
 ---
 

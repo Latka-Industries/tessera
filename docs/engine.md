@@ -38,7 +38,7 @@ It is **not**:
 
 The CLI binary (`src/bin/tes.rs`) is a thin wrapper around `tessera_doc::cli::run`.
 The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp::run`
-(open/change + verify/source-hash diagnostics today; write-back later).
+(open/change/diagnostics + `tessera.write` / willSave write-back).
 
 ---
 
