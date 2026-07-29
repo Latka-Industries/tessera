@@ -531,4 +531,20 @@ pub(super) enum VaultCommands {
         #[arg(long)]
         json: bool,
     },
+    /// Register an external `.tes` file or extra root directory
+    Add {
+        /// Path to a `.tes` file or directory (may be outside the vault root)
+        path: PathBuf,
+    },
+    /// Unregister a previously registered external path
+    Remove {
+        /// Path previously passed to `vault add`
+        path: PathBuf,
+    },
+    /// List registered external members (not the automatic in-tree scan)
+    Members {
+        /// Emit JSON
+        #[arg(long)]
+        json: bool,
+    },
 }

@@ -44,6 +44,7 @@ uuid = { version = "1.24.0", features = ["v4"] }
 anyhow = "1.0.104"
 criterion = { version = "0.8.2", features = ["html_reports"] }
 tempfile = "3.27.0"
+uuid = { version = "1.24.0", features = ["v4"] }
 
 [[bench]]
 name = "open_format"

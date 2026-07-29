@@ -27,9 +27,7 @@ impl Vault {
     /// when two files share a document id.
     pub fn open(root: impl Into<PathBuf>) -> Result<Self> {
         let root = root.into();
-        let mut paths = Vec::new();
-        collect_tes_paths(&root, &mut paths)?;
-        paths.sort();
+        let paths = super::members::membership_document_paths(&root)?;
 
         let mut documents = BTreeMap::new();
         let mut backlinks = Vec::new();
@@ -38,6 +36,9 @@ impl Vault {
             let Some(catalog) = file.catalog() else {
                 continue;
             };
+            if catalog.doc_kind == crate::layout::DocKind::Index.as_str() {
+                continue;
+            }
             let id = Uuid::parse_str(&catalog.doc_id).map_err(|_| TesError::InvalidDocId {
                 value: catalog.doc_id.clone(),
             })?;

@@ -1,9 +1,12 @@
-//! `tes vault` (rebuild / list optional `vault.tes` TOC).
+//! `tes vault` (rebuild / list / membership for optional `vault.tes` TOC).
 
 use std::path::PathBuf;
 
 use crate::error::TesError;
-use crate::vault::{list_vault_documents, rebuild_vault_index, vault_index_path};
+use crate::vault::{
+    list_vault_documents, load_registered_members, rebuild_vault_index, register_member,
+    unregister_member, vault_index_path,
+};
 
 use super::super::args::VaultCommands;
 
@@ -35,6 +38,27 @@ pub(in crate::cli) fn run_vault(root: &PathBuf, command: VaultCommands) -> Resul
                     );
                 }
                 println!("documents={}", report.entries.len());
+            }
+        }
+        VaultCommands::Add { path } => {
+            let member = register_member(root, &path)?;
+            println!("added\t{}\t{}", member.kind.as_str(), member.path);
+        }
+        VaultCommands::Remove { path } => {
+            unregister_member(root, &path)?;
+            println!("removed\t{}", path.display());
+        }
+        VaultCommands::Members { json } => {
+            let members = load_registered_members(root)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&members)?);
+            } else if members.is_empty() {
+                println!("members=0");
+            } else {
+                for member in &members {
+                    println!("{}\t{}", member.kind.as_str(), member.path);
+                }
+                println!("members={}", members.len());
             }
         }
     }

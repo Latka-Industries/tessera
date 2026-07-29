@@ -10,7 +10,8 @@
 //! `import`, vault-aware `link`, loopback `serve`, Tessera Markdown
 //! `edit-read` / `edit-write` / `apply`, history `save` / `log` / `diff` /
 //! `changelog` / `export-revs` / `checkout` / `blame` / `pending` / `textconv` /
-//! `merge-file`, and vault catalog `vault rebuild` / `vault list`.
+//! `merge-file`, and vault catalog `vault rebuild` / `vault list` /
+//! `vault add` / `vault remove` / `vault members`.
 
 mod args;
 mod commands;

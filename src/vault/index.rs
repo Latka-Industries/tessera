@@ -1,7 +1,8 @@
 //! Optional `vault.tes` catalog index (`doc_kind = index`).
 //!
 //! A sealed TOC-style sidecar listing vault documents by id/title/tags without
-//! opening every note for list/search. Link-graph commands still scan real files.
+//! opening every note for list/search. Version ≥ 2 also stores registered
+//! external members (THI-217) so rebuild/list/`tes link` share one membership set.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,13 +15,18 @@ use crate::catalog::{DocumentCatalog, TesFile, TesWriterSession, TextHeader, dec
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
 
-use super::graph::collect_tes_paths;
+use super::members::{
+    VaultMember, display_path, load_registered_members, membership_document_paths_with,
+};
 
 /// Conventional filename for the vault catalog sidecar.
 pub const VAULT_INDEX_NAME: &str = "vault.tes";
 
 const INDEX_FORMAT: &str = "tessera.vault_index";
-const INDEX_VERSION: u32 = 1;
+/// Current on-disk index payload version (members field).
+pub const INDEX_VERSION: u32 = 2;
+/// Oldest readable index version (no `members`).
+const INDEX_VERSION_MIN: u32 = 1;
 /// Stable id for every `vault.tes` (one per directory).
 const INDEX_DOC_ID: &str = "550e8400-e29b-41d4-a716-446655440099";
 
@@ -38,7 +44,7 @@ pub struct VaultIndexEntry {
     pub tags: Vec<String>,
     /// Catalog `modified` (RFC 3339).
     pub modified: String,
-    /// Path relative to the vault root (forward slashes).
+    /// Path relative to the vault root when in-tree; otherwise absolute.
     pub path: String,
     /// File mtime as Unix seconds when the index was built.
     pub mtime_secs: u64,
@@ -51,6 +57,9 @@ pub struct VaultIndex {
     pub format: String,
     /// Payload version.
     pub version: u32,
+    /// Explicit external files / extra roots (version ≥ 2).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub members: Vec<VaultMember>,
     /// Document rows (excludes the index file itself).
     pub entries: Vec<VaultIndexEntry>,
 }
@@ -67,10 +76,11 @@ pub struct VaultListReport {
 }
 
 impl VaultIndex {
-    fn new(entries: Vec<VaultIndexEntry>) -> Self {
+    fn new(members: Vec<VaultMember>, entries: Vec<VaultIndexEntry>) -> Self {
         Self {
             format: INDEX_FORMAT.into(),
             version: INDEX_VERSION,
+            members,
             entries,
         }
     }
@@ -85,7 +95,7 @@ impl VaultIndex {
                 ),
             });
         }
-        if index.version != INDEX_VERSION {
+        if index.version < INDEX_VERSION_MIN || index.version > INDEX_VERSION {
             return Err(TesError::UnsupportedVersion {
                 structure: "vault.tes index",
                 found: index.version,
@@ -102,14 +112,28 @@ pub fn vault_index_path(root: impl AsRef<Path>) -> PathBuf {
     root.as_ref().join(VAULT_INDEX_NAME)
 }
 
-/// Rebuild `vault.tes` under `root` from a fresh catalog scan.
+/// Rebuild `vault.tes` under `root`, preserving any registered members.
 ///
 /// # Errors
 ///
 /// Returns IO / open / encode errors while scanning or writing the index.
 pub fn rebuild_vault_index(root: impl AsRef<Path>) -> Result<PathBuf> {
     let root = root.as_ref();
-    let index = VaultIndex::new(scan_catalog_entries(root)?);
+    let members = load_registered_members(root)?;
+    rebuild_vault_index_with_members(root, members)
+}
+
+/// Rebuild `vault.tes` with an explicit member registry.
+///
+/// # Errors
+///
+/// Returns IO / open / encode errors while scanning or writing the index.
+pub fn rebuild_vault_index_with_members(
+    root: impl AsRef<Path>,
+    members: Vec<VaultMember>,
+) -> Result<PathBuf> {
+    let root = root.as_ref();
+    let index = VaultIndex::new(members.clone(), scan_catalog_entries(root, &members)?);
     let body = serde_json::to_string_pretty(&index)?;
     let path = vault_index_path(root);
     let _ = fs::remove_file(&path);
@@ -151,7 +175,7 @@ pub fn load_vault_index(root: impl AsRef<Path>) -> Result<Option<VaultIndex>> {
 /// Returns IO errors while listing the vault.
 pub fn vault_index_is_fresh(root: impl AsRef<Path>, index: &VaultIndex) -> Result<bool> {
     let root = root.as_ref();
-    let paths = document_tes_paths(root)?;
+    let paths = membership_document_paths_with(root, &index.members)?;
     if paths.len() != index.entries.len() {
         return Ok(false);
     }
@@ -180,12 +204,16 @@ pub fn list_vault_documents(
 ) -> Result<VaultListReport> {
     let root = root.as_ref();
     let (mut entries, used_index, index_stale) = if force_scan {
-        (scan_catalog_entries(root)?, false, false)
+        (
+            scan_catalog_entries(root, &load_registered_members(root)?)?,
+            false,
+            false,
+        )
     } else {
         match load_vault_index(root)? {
             Some(index) if vault_index_is_fresh(root, &index)? => (index.entries, true, false),
-            Some(_) => (scan_catalog_entries(root)?, false, true),
-            None => (scan_catalog_entries(root)?, false, false),
+            Some(index) => (scan_catalog_entries(root, &index.members)?, false, true),
+            None => (scan_catalog_entries(root, &[])?, false, false),
         }
     };
 
@@ -224,8 +252,8 @@ fn read_vault_index_file(path: &Path) -> Result<VaultIndex> {
     VaultIndex::from_json(body.as_bytes())
 }
 
-fn scan_catalog_entries(root: &Path) -> Result<Vec<VaultIndexEntry>> {
-    let paths = document_tes_paths(root)?;
+fn scan_catalog_entries(root: &Path, members: &[VaultMember]) -> Result<Vec<VaultIndexEntry>> {
+    let paths = membership_document_paths_with(root, members)?;
     let mut entries = Vec::with_capacity(paths.len());
     for path in paths {
         let file = TesFile::open(&path)?;
@@ -244,47 +272,20 @@ fn scan_catalog_entries(root: &Path) -> Result<Vec<VaultIndexEntry>> {
             doc_kind: catalog.doc_kind.clone(),
             tags: catalog.tags.clone(),
             modified: catalog.modified.clone(),
-            path: relative_vault_path(root, &path)?,
+            path: display_path(root, &path),
             mtime_secs: file_mtime_secs(&path)?,
         });
     }
     Ok(entries)
 }
 
-/// Sorted `.tes` paths under `root`, excluding the root `vault.tes` sidecar.
-fn document_tes_paths(root: &Path) -> Result<Vec<PathBuf>> {
-    let mut paths = Vec::new();
-    collect_tes_paths(root, &mut paths)?;
-    paths.retain(|p| !is_vault_index_path(root, p));
-    paths.sort();
-    Ok(paths)
-}
-
 fn path_signatures(root: &Path, paths: &[PathBuf]) -> Result<Vec<(String, u64)>> {
     let mut out = Vec::with_capacity(paths.len());
     for path in paths {
-        out.push((relative_vault_path(root, path)?, file_mtime_secs(path)?));
+        out.push((display_path(root, path), file_mtime_secs(path)?));
     }
+    out.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(out)
-}
-
-fn is_vault_index_path(root: &Path, path: &Path) -> bool {
-    path.file_name().and_then(|s| s.to_str()) == Some(VAULT_INDEX_NAME)
-        && path.parent().is_some_and(|p| p == root)
-}
-
-fn relative_vault_path(root: &Path, path: &Path) -> Result<String> {
-    let rel = path.strip_prefix(root).map_err(|_| {
-        TesError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            format!(
-                "path {} is outside vault root {}",
-                path.display(),
-                root.display()
-            ),
-        ))
-    })?;
-    Ok(rel.to_string_lossy().replace('\\', "/"))
 }
 
 fn file_mtime_secs(path: &Path) -> Result<u64> {
@@ -305,27 +306,9 @@ fn rfc3339_now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::{DocumentCatalog, TesWriterSession, TextHeader};
-    use crate::layout::DocKind;
+    use crate::vault::test_util::write_note;
+    use crate::vault::{register_member, unregister_member};
     use tempfile::tempdir;
-
-    fn write_note(dir: &Path, name: &str, title: &str, tags: &[&str]) {
-        let path = dir.join(name);
-        let mut session = TesWriterSession::create(&path, DocKind::Note);
-        let mut catalog = DocumentCatalog::new(
-            Uuid::new_v4().to_string(),
-            title,
-            "2026-07-28T00:00:00Z",
-            "2026-07-28T00:00:00Z",
-            DocKind::Note,
-        );
-        catalog.tags = tags.iter().map(|s| (*s).to_owned()).collect();
-        session.set_catalog(catalog).unwrap();
-        session
-            .add_text_chunk(&TextHeader::paragraph(), "body")
-            .unwrap();
-        session.commit().unwrap();
-    }
 
     #[test]
     fn rebuild_and_list_uses_index() {
@@ -358,5 +341,77 @@ mod tests {
         assert!(!report.used_index);
         assert!(report.index_stale);
         assert_eq!(report.entries.len(), 2);
+    }
+
+    #[test]
+    fn list_includes_registered_external() {
+        let vault = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        write_note(vault.path(), "a.tes", "Alpha", &[]);
+        write_note(outside.path(), "ext.tes", "External", &["x"]);
+        register_member(vault.path(), outside.path().join("ext.tes")).unwrap();
+
+        let report = list_vault_documents(vault.path(), None, false).unwrap();
+        assert!(report.used_index);
+        assert_eq!(report.entries.len(), 2);
+        assert!(report.entries.iter().any(|e| e.title == "External"));
+
+        unregister_member(vault.path(), outside.path().join("ext.tes")).unwrap();
+        let after = list_vault_documents(vault.path(), None, false).unwrap();
+        assert_eq!(after.entries.len(), 1);
+    }
+
+    #[test]
+    fn v1_index_loads_empty_members_and_rebuild_upgrades_to_v2() {
+        let dir = tempdir().unwrap();
+        write_note(dir.path(), "a.tes", "Alpha", &[]);
+        write_v1_index(dir.path());
+
+        let loaded = load_vault_index(dir.path()).unwrap().expect("v1 index");
+        assert_eq!(loaded.version, 1);
+        assert!(loaded.members.is_empty());
+        assert!(load_registered_members(dir.path()).unwrap().is_empty());
+        assert_eq!(
+            list_vault_documents(dir.path(), None, false)
+                .unwrap()
+                .entries
+                .len(),
+            1
+        );
+
+        rebuild_vault_index(dir.path()).unwrap();
+        let upgraded = load_vault_index(dir.path()).unwrap().expect("v2 index");
+        assert_eq!(upgraded.version, INDEX_VERSION);
+        assert_eq!(upgraded.version, 2);
+        assert!(upgraded.members.is_empty());
+        assert_eq!(upgraded.entries.len(), 1);
+    }
+
+    fn write_v1_index(root: &Path) {
+        let entries = scan_catalog_entries(root, &[]).unwrap();
+        let body = serde_json::json!({
+            "format": INDEX_FORMAT,
+            "version": 1,
+            "entries": entries,
+        });
+        let path = vault_index_path(root);
+        let now = "2026-07-28T00:00:00Z".to_owned();
+        let mut session = TesWriterSession::create(&path, DocKind::Index);
+        let mut catalog = DocumentCatalog::new(
+            INDEX_DOC_ID,
+            "Vault index",
+            now.clone(),
+            now,
+            DocKind::Index,
+        );
+        catalog.tags = vec!["vault-index".into()];
+        session.set_catalog(catalog).unwrap();
+        session
+            .add_text_chunk(
+                &TextHeader::code_block(Some("json")),
+                &serde_json::to_string_pretty(&body).unwrap(),
+            )
+            .unwrap();
+        session.commit().unwrap();
     }
 }

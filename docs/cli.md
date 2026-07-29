@@ -177,28 +177,39 @@ Vault-level link operations (requires `--vault DIR`).
 
 Optional vault catalog index — a TOC-style `vault.tes` sidecar
 (`doc_kind = index`) listing `doc_id → title, tags, modified, path` so list/search
-does not open every note. Link-graph commands (`tes link`) still scan real files.
+does not open every note. Index version ≥ 2 also stores **registered members**
+(external `.tes` files or extra roots). `tes link` uses the same membership set.
 
 ```bash
 tes vault --vault ./notes rebuild
 tes vault --vault ./notes list
 tes vault --vault ./notes list --tag ml --json
 tes vault --vault ./notes list --force-scan
+tes vault --vault ./notes add /other/project/note.tes
+tes vault --vault ./notes add /other/shared-notes
+tes vault --vault ./notes members
+tes vault --vault ./notes remove /other/project/note.tes
 ```
 
 | Subcommand | Effect |
 | --- | --- |
-| `rebuild` | Scan catalogs and seal/replace `vault.tes` |
+| `rebuild` | Scan membership and seal/replace `vault.tes` (preserves registered members) |
 | `list` | List docs from a fresh index, else catalog scan (warn if stale) |
+| `add PATH` | Register a `.tes` file or extra root; rebuilds `vault.tes` |
+| `remove PATH` | Unregister a previous `add`; rebuilds `vault.tes` |
+| `members` | Show registered externals only (not the automatic in-tree scan) |
 
 | Flag | Effect |
 | --- | --- |
 | `--tag TAG` | Keep rows whose catalog tags include `TAG` |
-| `--force-scan` | Ignore `vault.tes` and scan catalogs |
-| `--json` | Machine-readable [`VaultListReport`](../src/vault/index.rs) |
+| `--force-scan` | Ignore TOC freshness and rescan catalogs (still honors members) |
+| `--json` | Machine-readable [`VaultListReport`](../src/vault/index.rs) or member list |
 
-**Stale detection:** entry count / relative paths / file mtimes must match the
-index; otherwise list falls back to a catalog scan.
+**Stale detection:** entry count / display paths / file mtimes must match the
+index over the full membership set; otherwise list falls back to a catalog scan.
+
+**Paths:** under the vault root → stored relative; outside → absolute. In-tree
+files remain auto-scanned without registration.
 
 ---
 

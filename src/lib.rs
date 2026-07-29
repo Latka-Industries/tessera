@@ -75,8 +75,9 @@ pub mod prelude {
     pub use crate::render::preview::{ServeOptions, preview_html_for_path, serve_preview};
     pub use crate::render::template::{TemplateManifest, TemplatePack};
     pub use crate::vault::{
-        Backlink, ResolvedTarget, Vault, VaultDocument, VaultIndex, VaultIndexEntry,
-        list_vault_documents, rebuild_vault_index,
+        Backlink, ResolvedTarget, Vault, VaultDocument, VaultIndex, VaultIndexEntry, VaultMember,
+        VaultMemberKind, list_vault_documents, rebuild_vault_index, register_member,
+        unregister_member,
     };
     pub use crate::verify::{TesVerifyReport, verify_tes_file};
 }

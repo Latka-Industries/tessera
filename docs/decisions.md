@@ -12,15 +12,17 @@ Related: [layout_v0.md](layout_v0.md),
 
 ## Vault layout
 
-**Decision:** A vault is a **folder of `.tes` files** plus an optional **`vault.tes`** sidecar with `doc_kind = index`.
+**Decision:** A vault is a **folder of `.tes` files** plus an optional **`vault.tes`** sidecar with `doc_kind = index`. Membership is the in-tree scan **union** any registered external `.tes` files or extra roots stored in `vault.tes` (`members`, index version ≥ 2).
 
 | Choice | Rationale |
 | --- | --- |
 | One file per document | Matches note/wiki mental model; mmap one note without loading corpus |
-| Optional `vault.tes` | TOC-style `doc_id → title, tags, modified, path` (`tes vault`); list/search without opening every file |
+| Optional `vault.tes` | TOC-style `doc_id → title, tags, modified, path` (`tes vault`); list/search without opening every file; also membership manifest for out-of-tree paths |
+| External members | Absolute (or vault-relative when under root) paths so Obsidian-style sprawl can join without moving files |
+| Shared path set | `tes vault` rebuild/list and `tes link` use the same membership so TOC and graph do not diverge |
 | No multi-doc archive v0 | Simpler writer; object-store bundling deferred |
 
-**Rejected for v0:** single tarball archive containing many docs (may revisit for sync/backup).
+**Rejected for v0:** single tarball archive containing many docs (may revisit for sync/backup). Auto-discovery of arbitrary trees outside registered roots.
 
 ---
 
