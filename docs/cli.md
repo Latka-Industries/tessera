@@ -10,19 +10,19 @@ Related: [layout_v0.md](layout_v0.md),
 
 ## Command summary
 
-| Command | Alias | Role |
-| --- | --- | --- |
-| [`tes info`](#tes-info) `<path.tes>` | — | Summarize document (catalog + chunk table) |
-| [`tes verify`](#tes-verify) `<path.tes>` | — | Layout health check (exit 1 on failure) |
-| [`tes export`](#tes-export) `<path.tes>` | — | Decoded views ([exports.md](exports.md)) |
-| [`tes import`](#tes-import) `<in> <out.tes>` | — | Foreign format → `.tes` (staged rollout) |
-| [`tes link`](#tes-link) | — | Resolve / inspect links across a vault |
-| [`tes vault`](#tes-vault) | — | Optional `vault.tes` TOC rebuild / list |
-| [`tes serve`](#tes-serve) `<path.tes>` | — | Local themed browser preview |
-| `tes meta <get\|set>` | — | Catalog JSON/YAML/TOML round-trip (planned) |
-| [`tes edit-read`](#mutation-protocol) / `edit-write` | — | Tessera Markdown virtual editor protocol |
-| [`tes apply`](#mutation-protocol) | — | Verified Tessera Markdown / typed-op mutation |
-| `tes log\|diff\|changelog\|blame\|pending\|export-revs\|checkout\|textconv\|merge-file` | — | M10 revision/history tools |
+| Command                                                                                 | Alias | Role                                          |
+| --------------------------------------------------------------------------------------- | ----- | --------------------------------------------- |
+| [`tes info`](#tes-info) `<path.tes>`                                                    | —     | Summarize document (catalog + chunk table)    |
+| [`tes verify`](#tes-verify) `<path.tes>`                                                | —     | Layout health check (exit 1 on failure)       |
+| [`tes export`](#tes-export) `<path.tes>`                                                | —     | Decoded views ([exports.md](exports.md))      |
+| [`tes import`](#tes-import) `<in> <out.tes>`                                            | —     | Foreign format → `.tes` (staged rollout)      |
+| [`tes link`](#tes-link)                                                                 | —     | Resolve / inspect links across a vault        |
+| [`tes vault`](#tes-vault)                                                               | —     | Optional `vault.tes` TOC rebuild / list       |
+| [`tes serve`](#tes-serve) `<path.tes>`                                                  | —     | Local themed browser preview                  |
+| `tes meta <get\|set>`                                                                   | —     | Catalog JSON/YAML/TOML round-trip (planned)   |
+| [`tes edit-read`](#mutation-protocol) / `edit-write`                                    | —     | Tessera Markdown virtual editor protocol      |
+| [`tes apply`](#mutation-protocol)                                                       | —     | Verified Tessera Markdown / typed-op mutation |
+| `tes log\|diff\|changelog\|blame\|pending\|export-revs\|checkout\|textconv\|merge-file` | —     | M10 revision/history tools                    |
 
 v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**,
 **`vault`**, **`serve`**, **mutation**, and **history** commands.
@@ -31,10 +31,10 @@ v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**,
 
 ## Global flags
 
-| Flag | Effect |
-| --- | --- |
-| `-h`, `--help` | Command help |
-| `-V`, `--version` | Crate version |
+| Flag                          | Effect              |
+| ----------------------------- | ------------------- |
+| `-h`, `--help`                | Command help        |
+| `-V`, `--version`             | Crate version       |
 | `--color auto\|always\|never` | stderr/stdout color |
 
 **Exit codes:** `0` success, `1` user/verify error, `2` usage/IO error.
@@ -45,14 +45,14 @@ v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**,
 
 Summarize a `.tes` file without full payload decode.
 
-| Flag | Effect |
-| --- | --- |
-| _(default)_ | Human table: title, `doc_kind`, chunk counts by type, modified |
-| `--json` | Full JSON: superblock, catalog, index rows (no bodies), link table |
-| `-q`, `--quiet` | One line: `title\tchunks=N\tbytes=M` |
-| `--chunks` | Include chunk id / type / byte len table |
-| `--links` | Include link table entries |
-| `-n`, `--limit N` | Cap chunk rows (default 32; `0` = all) |
+| Flag              | Effect                                                             |
+| ----------------- | ------------------------------------------------------------------ |
+| _(default)_       | Human table: title, `doc_kind`, chunk counts by type, modified     |
+| `--json`          | Full JSON: superblock, catalog, index rows (no bodies), link table |
+| `-q`, `--quiet`   | One line: `title\tchunks=N\tbytes=M`                               |
+| `--chunks`        | Include chunk id / type / byte len table                           |
+| `--links`         | Include link table entries                                         |
+| `-n`, `--limit N` | Cap chunk rows (default 32; `0` = all)                             |
 
 **Example:**
 
@@ -67,12 +67,12 @@ tes info vault.tes --json | jq '.catalog.doc_id'
 
 Validate on-disk layout per [layout_v0.md](layout_v0.md).
 
-| Flag | Effect |
-| --- | --- |
-| _(default)_ | Human-readable checklist + summary |
-| `--deep` | Decode every payload (zstd + UTF-8 validate) |
-| `--json` | Machine-readable report |
-| `-q`, `--quiet` | One line: `status=ok` or `status=failed` |
+| Flag            | Effect                                       |
+| --------------- | -------------------------------------------- |
+| _(default)_     | Human-readable checklist + summary           |
+| `--deep`        | Decode every payload (zstd + UTF-8 validate) |
+| `--json`        | Machine-readable report                      |
+| `-q`, `--quiet` | One line: `status=ok` or `status=failed`     |
 
 Exit code **1** when verification fails (CI-friendly).
 
@@ -107,26 +107,26 @@ tes export doc.tes --meta toml
 Requires a Chromium/Chrome binary (`TES_CHROME` or auto-detect). PDF is a
 lossy print sink, not an editable source.
 
-| Flag | Effect |
-| --- | --- |
-| `--raw` | UTF-8 text bodies ([exports — raw](exports.md#--raw)) |
-| `--linear` | Reading-order text with light headings |
-| `--ai-text` | LLM-oriented plain text |
-| `--chunks-jsonl` | One JSON object per chunk line |
-| `--markdown` | Lossy Markdown |
-| `--html` | HTML fragment (+ `--theme`, `--standalone`) |
-| `--pdf` | Print-theme PDF via headless Chromium (requires `-o`) |
-| `--bibliography` | BibTeX / CSL-JSON from cite chunks (`--bib-format`) |
-| `--attachment` | Write opaque attachment chunk bytes (requires `--chunk` and `-o`) |
-| `--bib-format` | `bibtex` (default) or `csl-json` with `--bibliography` |
-| `--template ID` | Pack id for `--pdf` (default: catalog or `minimal`) |
-| `--template-root DIR` | Pack root for `--pdf` (env: `TES_TEMPLATE_ROOT`) |
-| `--theme-id ID` | Pack theme for `--pdf` (default: `print`) |
-| `--ai --format markdown\|html` | AI-safe structured profile (planned v1) |
-| `--meta json\|yaml\|toml` | Catalog metadata projection (planned v1) |
-| `--chunk ID` | Single chunk (where applicable) |
-| `-o`, `--output PATH` | Write file instead of stdout |
-| `--annotate` | Include chunk ids in `--ai-text` |
+| Flag                           | Effect                                                            |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `--raw`                        | UTF-8 text bodies ([exports — raw](exports.md#--raw))             |
+| `--linear`                     | Reading-order text with light headings                            |
+| `--ai-text`                    | LLM-oriented plain text                                           |
+| `--chunks-jsonl`               | One JSON object per chunk line                                    |
+| `--markdown`                   | Lossy Markdown                                                    |
+| `--html`                       | HTML fragment (+ `--theme`, `--standalone`)                       |
+| `--pdf`                        | Print-theme PDF via headless Chromium (requires `-o`)             |
+| `--bibliography`               | BibTeX / CSL-JSON from cite chunks (`--bib-format`)               |
+| `--attachment`                 | Write opaque attachment chunk bytes (requires `--chunk` and `-o`) |
+| `--bib-format`                 | `bibtex` (default) or `csl-json` with `--bibliography`            |
+| `--template ID`                | Pack id for `--pdf` (default: catalog or `minimal`)               |
+| `--template-root DIR`          | Pack root for `--pdf` (env: `TES_TEMPLATE_ROOT`)                  |
+| `--theme-id ID`                | Pack theme for `--pdf` (default: `print`)                         |
+| `--ai --format markdown\|html` | AI-safe structured profile (planned v1)                           |
+| `--meta json\|yaml\|toml`      | Catalog metadata projection (planned v1)                          |
+| `--chunk ID`                   | Single chunk (where applicable)                                   |
+| `-o`, `--output PATH`          | Write file instead of stdout                                      |
+| `--annotate`                   | Include chunk ids in `--ai-text`                                  |
 
 **Default when no view flag:** error — require explicit view (avoid accidental huge stdout).
 
@@ -143,15 +143,15 @@ tes import --bibtex refs.bib refs.tes
 tes import --pdf scan.pdf scan.tes --page-rasters
 ```
 
-| Flag | Effect |
-| --- | --- |
-| `--markdown` | CommonMark subset ([decisions](decisions.md#markdown-import--export)) |
-| `--html` | Semantic block import |
-| `--bibtex` / `--csl-json` | Bibliography → research cite chunks |
-| `--pdf` | Text extract + optional `--page-rasters` (not yet) |
-| `--doc-kind KIND` | Override superblock `doc_kind` |
-| `--title TEXT` | Catalog title |
-| `--doc-id UUID` | Stable id (generate if omitted) |
+| Flag                      | Effect                                                                |
+| ------------------------- | --------------------------------------------------------------------- |
+| `--markdown`              | CommonMark subset ([decisions](decisions.md#markdown-import--export)) |
+| `--html`                  | Semantic block import                                                 |
+| `--bibtex` / `--csl-json` | Bibliography → research cite chunks                                   |
+| `--pdf`                   | Text extract + optional `--page-rasters` (not yet)                    |
+| `--doc-kind KIND`         | Override superblock `doc_kind`                                        |
+| `--title TEXT`            | Catalog title                                                         |
+| `--doc-id UUID`           | Stable id (generate if omitted)                                       |
 
 v0 target: **`--markdown`** first.
 
@@ -163,11 +163,11 @@ DOCX import: **`--docx`** Phase 4+ (not v0 CLI).
 
 Vault-level link operations (requires `--vault DIR`).
 
-| Subcommand | Effect |
-| --- | --- |
-| `resolve UUID[/chunk]` | Print target title + chunk preview |
-| `backlinks UUID` | List docs linking to target |
-| `check` | Validate all link table targets exist in vault |
+| Subcommand             | Effect                                         |
+| ---------------------- | ---------------------------------------------- |
+| `resolve UUID[/chunk]` | Print target title + chunk preview             |
+| `backlinks UUID`       | List docs linking to target                    |
+| `check`                | Validate all link table targets exist in vault |
 
 **Phase:** implemented in Phase 5 ([roadmap](roadmap.md)).
 
@@ -191,19 +191,19 @@ tes vault --vault ./notes members
 tes vault --vault ./notes remove /other/project/note.tes
 ```
 
-| Subcommand | Effect |
-| --- | --- |
-| `rebuild` | Scan membership and seal/replace `vault.tes` (preserves registered members) |
-| `list` | List docs from a fresh index, else catalog scan (warn if stale) |
-| `add PATH` | Register a `.tes` file or extra root; rebuilds `vault.tes` |
-| `remove PATH` | Unregister a previous `add`; rebuilds `vault.tes` |
-| `members` | Show registered externals only (not the automatic in-tree scan) |
+| Subcommand    | Effect                                                                      |
+| ------------- | --------------------------------------------------------------------------- |
+| `rebuild`     | Scan membership and seal/replace `vault.tes` (preserves registered members) |
+| `list`        | List docs from a fresh index, else catalog scan (warn if stale)             |
+| `add PATH`    | Register a `.tes` file or extra root; rebuilds `vault.tes`                  |
+| `remove PATH` | Unregister a previous `add`; rebuilds `vault.tes`                           |
+| `members`     | Show registered externals only (not the automatic in-tree scan)             |
 
-| Flag | Effect |
-| --- | --- |
-| `--tag TAG` | Keep rows whose catalog tags include `TAG` |
-| `--force-scan` | Ignore TOC freshness and rescan catalogs (still honors members) |
-| `--json` | Machine-readable [`VaultListReport`](../src/vault/index.rs) or member list |
+| Flag           | Effect                                                                     |
+| -------------- | -------------------------------------------------------------------------- |
+| `--tag TAG`    | Keep rows whose catalog tags include `TAG`                                 |
+| `--force-scan` | Ignore TOC freshness and rescan catalogs (still honors members)            |
+| `--json`       | Machine-readable [`VaultListReport`](../src/vault/index.rs) or member list |
 
 **Stale detection:** entry count / display paths / file mtimes must match the
 index over the full membership set; otherwise list falls back to a catalog scan.
@@ -224,16 +224,16 @@ tes serve fixtures/v0/note_one_chunk.tes --theme draft
 tes serve paper.tes --theme print --watch
 ```
 
-| Flag | Effect |
-| --- | --- |
-| `--template ID` | Pack id under `--template-root` (default: catalog `template_id` or `minimal`) |
-| `--template-root DIR` | Pack search root (env: `TES_TEMPLATE_ROOT`, default `templates`) |
-| `--theme ID` | Pack theme (`draft` / `print`, or catalog `theme_id`) |
-| `--host` | Loopback only: `127.0.0.1`, `localhost`, or `::1` |
-| `--port` | Bind port (default `7878`; `0` = ephemeral) |
-| `--watch` | Inject HTML meta-refresh (no theme JavaScript) |
-| `--watch-secs N` | Refresh interval when `--watch` is set |
-| `--allow-theme-js` | Opt in for packs that declare `requires_theme_js` (still CSS-served) |
+| Flag                  | Effect                                                                        |
+| --------------------- | ----------------------------------------------------------------------------- |
+| `--template ID`       | Pack id under `--template-root` (default: catalog `template_id` or `minimal`) |
+| `--template-root DIR` | Pack search root (env: `TES_TEMPLATE_ROOT`, default `templates`)              |
+| `--theme ID`          | Pack theme (`draft` / `print`, or catalog `theme_id`)                         |
+| `--host`              | Loopback only: `127.0.0.1`, `localhost`, or `::1`                             |
+| `--port`              | Bind port (default `7878`; `0` = ephemeral)                                   |
+| `--watch`             | Inject HTML meta-refresh (no theme JavaScript)                                |
+| `--watch-secs N`      | Refresh interval when `--watch` is set                                        |
+| `--allow-theme-js`    | Opt in for packs that declare `requires_theme_js` (still CSS-served)          |
 
 Routes: `/` (standalone HTML), `/theme.css` (selected theme), `/media/{chunk_id}`
 (image bytes), `/healthz`. Each request re-opens the `.tes` file. CSP is CSS-only
@@ -280,14 +280,12 @@ Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
 In-repo language server for Tessprek editors. Same crate as `tes`; stdout is the
 LSP wire (log to stderr only). Stack: **tokio + tower-lsp** over stdio.
 
-**Now (THI-245):** open/close + `didChange` + diagnostics, plus write-back via
-`workspace/executeCommand` **`tessera.write`** (URI argument) and `willSave`.
-Calls `edit_write` with the stored source-hash; on success refreshes the hash;
-on conflict publishes a `source-hash` diagnostic and does not overwrite.
+**Full reference:** [docs/lsp.md](lsp.md) (capabilities, document model, Neovim
+snippet, smoke). Hover covers Tessprek header / chunk markers (THI-246).
 
 ```bash
 mise run tes-lsp
-mise run lsp-smoke          # includes write-back round-trip + stale-hash cases
+mise run lsp-smoke          # init / open / change / write / hover
 # mise check  → fmt + clippy + test + lsp-smoke
 ```
 
@@ -338,21 +336,21 @@ for git. Example attributes:
 
 ```gitconfig
 [diff "tessera"]
-	textconv = tes textconv
+    textconv = tes textconv
 [merge "tessera"]
-	name = Tessera verified structural merge
-	driver = tes merge-file %O %A %B
+    name = Tessera verified structural merge
+    driver = tes merge-file %O %A %B
 ```
 
 ### Local vs GitHub
 
-| Context | Readable `.tes` diffs? |
-| --- | --- |
-| Local `git diff` / `git show` | Yes, with `diff=tessera` + `tes textconv` |
-| Local merges | Yes, with `merge=tessera` + `tes merge-file` |
-| github.com Files tab / merge UI | No — blobs stay binary (no textconv hook) |
-| GitHub pull requests | Yes — sticky Tessprek comment (Action) |
-| GitHub pushes (`master` / `dev` / any branch) | Yes — Actions job summary + artifact |
+| Context                                       | Readable `.tes` diffs?                       |
+| --------------------------------------------- | -------------------------------------------- |
+| Local `git diff` / `git show`                 | Yes, with `diff=tessera` + `tes textconv`    |
+| Local merges                                  | Yes, with `merge=tessera` + `tes merge-file` |
+| github.com Files tab / merge UI               | No — blobs stay binary (no textconv hook)    |
+| GitHub pull requests                          | Yes — sticky Tessprek comment (Action)       |
+| GitHub pushes (`master` / `dev` / any branch) | Yes — Actions job summary + artifact         |
 
 This repo’s `.github/workflows/tes-pr-preview.yml` builds `tes`, runs
 `scripts/tes-pr-textconv-diff.sh` on changed `*.tes` files between the event’s
@@ -388,14 +386,14 @@ suggestion only. Deep verify runs on accept (and on footer rewrites).
 
 ## Environment variables
 
-| Variable | Effect |
-| --- | --- |
-| `TES_VAULT` | Default vault directory for `tes link` / `tes vault` |
-| `TES_THEME` | Default CSS path for `--html` export |
-| `TES_TEMPLATE_ROOT` | Default template pack root for `tes serve` / `--pdf` |
-| `TES_CHROME` | Chromium/Chrome binary for `tes export --pdf` |
+| Variable                | Effect                                                              |
+| ----------------------- | ------------------------------------------------------------------- |
+| `TES_VAULT`             | Default vault directory for `tes link` / `tes vault`                |
+| `TES_THEME`             | Default CSS path for `--html` export                                |
+| `TES_TEMPLATE_ROOT`     | Default template pack root for `tes serve` / `--pdf`                |
+| `TES_CHROME`            | Chromium/Chrome binary for `tes export --pdf`                       |
 | `TES_CHROME_NO_SANDBOX` | Force `--no-sandbox` for headless print (also auto on Linux / `CI`) |
-| `RUST_LOG` | `trace`/`debug` for library logging |
+| `RUST_LOG`              | `trace`/`debug` for library logging                                 |
 
 ---
 
@@ -414,18 +412,18 @@ suggestion only. Deep verify runs on accept (and on footer rewrites).
 Every CLI command maps to a library entry point. The `tes` binary only calls
 `tessera_doc::cli::run`; `tes-lsp` only calls `tessera_doc::lsp::run`:
 
-| CLI | Library |
-| --- | --- |
-| `tes info` | `tessera_doc::catalog::read_summary_v0` |
-| `tes verify` | `tessera_doc::verify::verify_tes_file` |
-| `tes export` | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
-| `tes import` | `tessera_doc::io::import::*` / `io::bib::import_bibliography` |
-| `tes link` / `tes vault` | `tessera_doc::vault::*` |
-| `tes save` / `log` / `diff` / `changelog` / `blame` / `export-revs` / `checkout` / `textconv` / `merge-file` | `tessera_doc::history::*` |
-| `tes serve` | `tessera_doc::render::preview::serve_preview` |
-| `tes edit-read` | `tessera_doc::edit::edit_read` |
-| `tes edit-write` | `tessera_doc::edit::edit_write` |
-| `tes apply` | `tessera_doc::edit::apply_ops` / `apply_patch` |
-| `tes-lsp` | `tessera_doc::lsp::run` |
+| CLI                                                                                                          | Library                                                                                             |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `tes info`                                                                                                   | `tessera_doc::catalog::read_summary_v0`                                                             |
+| `tes verify`                                                                                                 | `tessera_doc::verify::verify_tes_file`                                                              |
+| `tes export`                                                                                                 | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
+| `tes import`                                                                                                 | `tessera_doc::io::import::*` / `io::bib::import_bibliography`                                       |
+| `tes link` / `tes vault`                                                                                     | `tessera_doc::vault::*`                                                                             |
+| `tes save` / `log` / `diff` / `changelog` / `blame` / `export-revs` / `checkout` / `textconv` / `merge-file` | `tessera_doc::history::*`                                                                           |
+| `tes serve`                                                                                                  | `tessera_doc::render::preview::serve_preview`                                                       |
+| `tes edit-read`                                                                                              | `tessera_doc::edit::edit_read`                                                                      |
+| `tes edit-write`                                                                                             | `tessera_doc::edit::edit_write`                                                                     |
+| `tes apply`                                                                                                  | `tessera_doc::edit::apply_ops` / `apply_patch`                                                      |
+| `tes-lsp`                                                                                                    | `tessera_doc::lsp::run`                                                                             |
 
 Embedders use the library directly; CLI / LSP binaries are thin wrappers.

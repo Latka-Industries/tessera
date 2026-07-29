@@ -26,6 +26,7 @@ use crate::error::{Result, TesError};
 use crate::verify::{TesVerifyReport, verify_bytes, verify_tes_file};
 
 pub use ops::{TesOp, apply_ops_to_blocks, parse_ops_json};
+pub use tessprek::markers;
 pub use tessprek::{decode_tessprek, encode_tessprek};
 
 /// One reading-order block in a Tessprek projection.
@@ -659,11 +660,17 @@ fn hex_encode(bytes: &[u8]) -> String {
 fn normalize_tessprek_for_diff(text: &str) -> String {
     text.lines()
         .map(|line| {
-            if line.starts_with("<!-- tessera:") && line.contains("source-hash=") {
+            if line.starts_with(markers::HEADER_PREFIX) && line.contains("source-hash=") {
                 // Ignore hash churn from re-encoding into a temp file.
-                "<!-- tessera: format=tessprek version=1 source-hash=<hash> -->"
+                format!(
+                    "{} format={} version={} source-hash=<hash>{}",
+                    markers::HEADER_PREFIX,
+                    markers::FORMAT,
+                    markers::VERSION,
+                    markers::COMMENT_SUFFIX,
+                )
             } else {
-                line
+                line.to_owned()
             }
         })
         .collect::<Vec<_>>()

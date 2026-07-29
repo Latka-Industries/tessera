@@ -17,7 +17,7 @@
 - **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering
 - **Preview** — loopback `tes serve` with external template/theme packs
 - **Vault** — resolve / backlinks / broken-link check across a directory of `.tes` files
-- **LSP (scaffold)** — `tes-lsp` handshake over stdio for Tessprek editors ([docs/cli.md](docs/cli.md#tessprek-lsp-tes-lsp))
+- **LSP** — `tes-lsp` Tessprek language server over stdio ([docs/lsp.md](docs/lsp.md))
 
 ## Quick start
 
@@ -49,20 +49,21 @@ See `tes --help` and [docs/cli.md](docs/cli.md).
 
 Spec, decisions, and engine notes live under [`docs/`](docs/) (this README stays short).
 
-| | |
-| --- | --- |
-| **[Layout v0](docs/layout_v0.md)** | On-disk superblock, catalog, `TIDX`, `TLNK`, chunk payloads |
-| **[Structure v1](docs/structure_v1.md)** | Frozen next wire: spans, tables, math, media, templates |
-| **[CLI](docs/cli.md)** | `tes` command surface |
-| **[Exports](docs/exports.md)** | Decoded views (AI text, Markdown, HTML, PDF, bibliography) |
-| **[Engine](docs/engine.md)** | Reader/writer paths and module map |
-| **[MIME + magic](docs/mime.md)** | `.tes` MIME, `file(1)` magic, conformance kit |
-| **[Benchmarks](docs/benchmarks.md)** | Claim-backed Criterion harness (`cargo bench`) |
-| **[Roadmap](docs/roadmap.md)** | Milestones (M0–M10) |
-| **[Decisions](docs/decisions.md)** | Accepted design calls |
-| **[Security](docs/security.md)** | Threat model for serve / themes |
-| **[Glossary](docs/glossary.md)** | Terms |
-| **[Format comparison](docs/format-comparison.md)** | vs Markdown / DOCX / PDF |
+|                                                    |                                                             |
+| -------------------------------------------------- | ----------------------------------------------------------- |
+| **[Layout v0](docs/layout_v0.md)**                 | On-disk superblock, catalog, `TIDX`, `TLNK`, chunk payloads |
+| **[Structure v1](docs/structure_v1.md)**           | Frozen next wire: spans, tables, math, media, templates     |
+| **[CLI](docs/cli.md)**                             | `tes` command surface                                       |
+| **[LSP](docs/lsp.md)**                             | `tes-lsp` Tessprek language server                          |
+| **[Exports](docs/exports.md)**                     | Decoded views (AI text, Markdown, HTML, PDF, bibliography)  |
+| **[Engine](docs/engine.md)**                       | Reader/writer paths and module map                          |
+| **[MIME + magic](docs/mime.md)**                   | `.tes` MIME, `file(1)` magic, conformance kit               |
+| **[Benchmarks](docs/benchmarks.md)**               | Claim-backed Criterion harness (`cargo bench`)              |
+| **[Roadmap](docs/roadmap.md)**                     | Milestones (M0–M10)                                         |
+| **[Decisions](docs/decisions.md)**                 | Accepted design calls                                       |
+| **[Security](docs/security.md)**                   | Threat model for serve / themes                             |
+| **[Glossary](docs/glossary.md)**                   | Terms                                                       |
+| **[Format comparison](docs/format-comparison.md)** | vs Markdown / DOCX / PDF                                    |
 
 ## License
 

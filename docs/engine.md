@@ -38,7 +38,8 @@ It is **not**:
 
 The CLI binary (`src/bin/tes.rs`) is a thin wrapper around `tessera_doc::cli::run`.
 The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp::run`
-(open/change/diagnostics + `tessera.write` / willSave write-back).
+(open/change/diagnostics/hover + `tessera.write` / willSave write-back). See
+[lsp.md](lsp.md).
 
 ---
 
@@ -96,7 +97,7 @@ The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp
 | `edit` | Tessera Markdown + typed safe mutation | Layout v1 |
 | `history` | save/log/diff/blame/pending/`merge-file` over THST | M10 |
 | `cli` | Clap surface + command runners for `tes` | [cli.md](cli.md) |
-| `lsp` | `tes-lsp` Tessprek language server (stdio) | [cli.md — LSP](cli.md#tessprek-lsp-tes-lsp) |
+| `lsp` | `tes-lsp` Tessprek language server (stdio) | [lsp.md](lsp.md) |
 
 Crate-root aliases keep `tessera_doc::{export,import,bib,pdf,preview,template}` resolving to the `io` / `render` submodules.
 
