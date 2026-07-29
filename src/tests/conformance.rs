@@ -66,7 +66,10 @@ fn must_reject_deep_verify() {
 fn note_one_chunk_raw_export_stable() {
     let path = conformance_root().join("accept/note_one_chunk.tes");
     let out = export_view(&path, ExportView::Raw, &ExportOptions::default()).unwrap();
-    assert_eq!(out.trim_end(), "Hello from Tessera.");
+    assert_eq!(
+        out.trim_end(),
+        "Hello from Tessera — use tes textconv for readable diffs."
+    );
 }
 
 #[test]
