@@ -4,9 +4,9 @@
 `checkout`/`textconv`/`blame`/`pending`/`merge-file`), layout-v1 **text wire**
 (spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
 (external URI heap v1) are shipped as additive wire on `layout_version = 0`.
-Vault TOC (`tes vault` / `vault.tes`) is in. Next polish is feature-flag
-policy (THI-202, still `layout_version = 0`) and GitHub-readable PR diffs
-(THI-212). This is an implementation plan, not a release schedule.
+Vault TOC (`tes vault` / `vault.tes`) and catalog feature flags (THI-202) are
+in. Next polish is GitHub-readable PR diffs (THI-212 — PR Action +
+`contrib/github`). This is an implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -15,14 +15,14 @@ links.
 
 | Area | Shipped now | Frozen next | Later |
 | --- | --- | --- | --- |
-| Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify | optional/required feature policy | conformance kit grows continuously |
+| Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify, feature flags | — | conformance kit grows continuously |
 | Prose | typed text roles, Markdown/HTML import/export, Tessprek edit, ranged spans, math, code/block lang, align | — | further editor adapters |
 | Tables | structured header table + TSV fallback | — | rich import/export |
-| Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1) | light `vault.tes` catalog (`tes vault`) | — |
+| Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`) | multi-root membership (THI-217) | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
 | Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
-| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file | — | — |
+| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file | GitHub PR Tessprek preview (THI-212) | — |
 
 Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
@@ -214,7 +214,7 @@ asynchronous track changes.
 | Drafts | Save/checkout/export named full revisions |
 | Diff | Tessera Markdown textconv; structural `tes diff` / changelog |
 | Review | Authored pending ops; redline; accept/reject; comments |
-| Git interop | `.gitattributes` textconv + verified `tes merge-file` driver |
+| Git interop | `.gitattributes` textconv + verified `tes merge-file`; GitHub PR preview via THI-212 Action |
 
 **Depends on:** chunk hashes and stable ids specified during the structure
 freeze. CRDT/live cursors are not part of M10.

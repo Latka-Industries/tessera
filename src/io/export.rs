@@ -1451,7 +1451,10 @@ mod tests {
     fn raw_note_one_chunk_fixture() {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/v0/note_one_chunk.tes");
         let out = export_view(&path, ExportView::Raw, &ExportOptions::default()).unwrap();
-        assert_eq!(out, "Hello from Tessera.\n");
+        assert_eq!(
+            out,
+            "Hello from Tessera — use tes textconv for readable diffs.\n"
+        );
     }
 
     #[test]

@@ -1,12 +1,15 @@
 [tools]
 rust = "1.95"
+uv = "latest"
 
 [tasks.fixtures]
-description = "Regenerate v0 goldens, sync conformance accept/rejects, smoke kit"
+description = "Regenerate v0 goldens, vault sample, sync conformance accept/rejects, smoke kit"
 run = """
 cargo run --example gen_v0_fixtures
 cp fixtures/v0/*.tes fixtures/conformance/accept/
 cargo run --example gen_conformance_rejects
+uv run scripts/gen_structural_rejects.py
+cargo run --example gen_vault_fixtures
 bash scripts/manual-layout-v1-smoke.sh
 """
 

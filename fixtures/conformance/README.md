@@ -16,16 +16,19 @@ Third-party readers that claim Tessera compatibility should run the same gate
 Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 
 - `empty.tes` — superblock-only skeleton
-- `note_one_chunk.tes` — catalog + one text chunk
-- `note_three_chunks.tes` — heading + paragraph + list
+- `note_one_chunk.tes` — tagged note + inline `tes textconv` span
+- `note_three_chunks.tes` — agenda (flags / PR preview / vault TOC)
 - `hub_links.tes` — hub with `TLNK` edges
 - `external_links.tes` — `TLNK` v1 external URI heap (+ mixed internal)
-- `layout_v1_text.tes` — spans / math / code lang / structured table / lang / align
+- `layout_v1_text.tes` — spans / math / code / feature-id table / lang / align
 - `attachment_sample.tes` — inert attachment (safe basename + PDF bytes)
-- `slide_deck.tes` — region-based slide
+- `slide_deck.tes` — two region-based slides
 - `research_cite.tes` — cite chunk + citation link
 - `figure_sample.tes` — image + figure
 - `unknown_optional_feature.tes` — catalog declares unknown **optional** feature (warn, still ok)
+
+See also `fixtures/vault/` for a sample `vault.tes` TOC (not part of the
+must-accept kit).
 
 ## Reject set
 
@@ -64,22 +67,14 @@ Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 cargo run --example gen_v0_fixtures
 cp fixtures/v0/*.tes fixtures/conformance/accept/
 
-# Layout-v1 / attachment rejects
+# Layout-v1 / attachment / feature-flag rejects (+ unknown optional accept)
 cargo run --example gen_conformance_rejects
 
-# Structural rejects (after note_one_chunk changes)
-python3 - <<'PY'
-from pathlib import Path
-src = Path('fixtures/v0/note_one_chunk.tes').read_bytes()
-out = Path('fixtures/conformance/reject')
-b = bytearray(src); b[0] = ord('X'); (out/'bad_magic.tes').write_bytes(b)
-(out/'truncated.tes').write_bytes(src[:-10])
-(out/'too_short.tes').write_bytes(bytes(10))
-idx = src.find(b'TIDX'); b = bytearray(src); b[idx] = ord('Z'); (out/'bad_tidx_magic.tes').write_bytes(b)
-b = bytearray(src); b[64] = ord('?'); (out/'bad_catalog.tes').write_bytes(b)
-b = bytearray(src); b[8:12] = (1).to_bytes(4, 'little'); (out/'history_flag_no_thst.tes').write_bytes(b)
-PY
+# Structural rejects (from note_one_chunk.tes)
+uv run scripts/gen_structural_rejects.py
+
+# Sample vault + vault.tes
+cargo run --example gen_vault_fixtures
 ```
 
-Or: `mise run fixtures` (goldens + accept + layout smoke), then
-`cargo run --example gen_conformance_rejects`.
+Or: `mise run fixtures` (goldens, rejects, vault sample, layout smoke).

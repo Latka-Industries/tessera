@@ -315,6 +315,20 @@ for git. Example attributes:
 	driver = tes merge-file %O %A %B
 ```
 
+### Local vs GitHub
+
+| Context | Readable `.tes` diffs? |
+| --- | --- |
+| Local `git diff` / `git show` | Yes, with `diff=tessera` + `tes textconv` |
+| Local merges | Yes, with `merge=tessera` + `tes merge-file` |
+| github.com Files tab / merge UI | No — blobs stay binary (no textconv hook) |
+| GitHub pull requests | Yes, via the **Tessera PR preview** Action |
+
+This repo’s `.github/workflows/tes-pr-preview.yml` builds `tes`, runs
+`scripts/tes-pr-textconv-diff.sh` on changed `*.tes` files, and posts a sticky
+PR comment with Tessprek unified diffs. Vaults can copy the template under
+[`contrib/github/`](../contrib/github/README.md).
+
 `tes merge-file BASE OURS THEIRS` performs a chunk-hash 3-way merge (git
 `%O %A %B`): non-overlapping chunk edits auto-merge into `OURS` after deep
 verify; overlapping edits exit nonzero and leave `OURS` untouched. `TLNK` is

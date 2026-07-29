@@ -3,8 +3,8 @@
 //!
 //! These use [`TesWriterSession::add_payload_chunk`] so invalid payloads can be
 //! sealed without writer-side validation. Structural rejects
-//! (`bad_magic.tes`, …) stay in the Python snippet in
-//! `fixtures/conformance/README.md`.
+//! (`bad_magic.tes`, …) are regenerated with
+//! `uv run scripts/gen_structural_rejects.py`.
 //!
 //! ```bash
 //! cargo run --example gen_conformance_rejects

@@ -427,17 +427,18 @@ Exit code **1** on failure (CI-friendly). See [cli.md](cli.md).
 | Fixture | Description |
 | --- | --- |
 | `fixtures/v0/empty.tes` | Superblock only |
-| `fixtures/v0/note_one_chunk.tes` | Single paragraph note |
-| `fixtures/v0/note_three_chunks.tes` | Heading + paragraph + list item |
+| `fixtures/v0/note_one_chunk.tes` | Tagged note + inline `tes textconv` span |
+| `fixtures/v0/note_three_chunks.tes` | Agenda covering flags / PR preview / vault TOC |
 | `fixtures/v0/hub_links.tes` | Hub doc + link table |
 | `fixtures/v0/external_links.tes` | `TLNK` v1 https/mailto heap + mixed internal |
 | `fixtures/v0/layout_v1_text.tes` | Spans, math, code lang, structured table |
-| `fixtures/v0/slide_deck.tes` | Region-based slide |
+| `fixtures/v0/slide_deck.tes` | Two region-based slides |
 | `fixtures/v0/research_cite.tes` | Cite chunk + citation link |
 | `fixtures/v0/figure_sample.tes` | Image + figure |
 | `fixtures/v0/attachment_sample.tes` | Inert attachment |
 
-Regenerate via `cargo run --example gen_v0_fixtures` (issue-tracked).
+Regenerate via `mise run fixtures` (or `cargo run --example gen_v0_fixtures`).
+Builders live in `src/fixtures/`. Sample vault: `fixtures/vault/`.
 
 ---
 
