@@ -17,7 +17,7 @@
 - **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering
 - **Preview** — loopback `tes serve` with external template/theme packs
 - **Vault** — resolve / backlinks / broken-link check across a directory of `.tes` files
-- **LSP** — `tes-lsp` Tessprek language server over stdio ([docs/lsp.md](docs/lsp.md))
+- **LSP** — `tes-lsp` Tessprek language server over stdio ([docs/lsp.md](docs/lsp.md); Neovim client: [contrib/nvim](contrib/nvim/README.md))
 
 ## Quick start
 

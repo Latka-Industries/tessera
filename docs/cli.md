@@ -281,7 +281,7 @@ In-repo language server for Tessprek editors. Same crate as `tes`; stdout is the
 LSP wire (log to stderr only). Stack: **tokio + tower-lsp** over stdio.
 
 **Full reference:** [docs/lsp.md](lsp.md) (capabilities, document model, Neovim
-snippet, smoke). Hover covers Tessprek header / chunk markers (THI-246).
+snippet, smoke). Hover covers Tessprek header / chunk markers.
 
 ```bash
 mise run tes-lsp
