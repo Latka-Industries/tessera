@@ -20,3 +20,24 @@ run = "bash scripts/merge-file-smoke.sh"
 [tasks.bench]
 description = "Claim-backed open_format Criterion benches (THI-200)"
 run = "cargo bench -p tessera-doc --bench open_format"
+
+[tasks.tes-lsp]
+description = "Build tes-lsp debug binary"
+run = "cargo build --bin tes-lsp"
+
+[tasks.lsp-smoke]
+description = "Stdio smoke for tes-lsp (handshake, open, change, diagnostics)"
+depends = ["tes-lsp"]
+run = "uv run scripts/lsp_smoke.py"
+
+# Project override of the global `check` task: same fmt/clippy/test, plus LSP smokes.
+[tasks.check]
+description = "fmt + clippy (-D warnings) + test + lsp-smoke"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+cargo fmt --all
+cargo clippy -- -D warnings
+cargo test
+mise run lsp-smoke
+"""
