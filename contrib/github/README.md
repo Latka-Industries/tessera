@@ -9,8 +9,10 @@ dual-committing Markdown sidecars.
 1. Copy [`tes-pr-preview.yml`](tes-pr-preview.yml) to
    `.github/workflows/tes-pr-preview.yml`.
 2. Copy these scripts from the Tessera repo into your vault:
+   - [`scripts/tes-pr-resolve-range.sh`](../../scripts/tes-pr-resolve-range.sh)
    - [`scripts/tes-pr-textconv-diff.sh`](../../scripts/tes-pr-textconv-diff.sh)
    - [`scripts/tes-pr-upsert-comment.sh`](../../scripts/tes-pr-upsert-comment.sh)
+   - [`scripts/tes-pr-write-summary.sh`](../../scripts/tes-pr-write-summary.sh)
 3. Ensure a `tes` binary is available (template uses
    `cargo install tessera-doc`, or pin a release).
 
