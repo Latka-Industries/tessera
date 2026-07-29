@@ -4,9 +4,7 @@ use std::path::Path;
 use std::process::Command;
 
 use tempfile::tempdir;
-use tessera_doc::catalog::{
-    DocumentCatalog, LinkEntry, LinkKind, TesWriterSession, TextHeader,
-};
+use tessera_doc::catalog::{DocumentCatalog, LinkEntry, LinkKind, TesWriterSession, TextHeader};
 use tessera_doc::layout::DocKind;
 use uuid::Uuid;
 
@@ -72,7 +70,11 @@ fn vault_add_list_members_link_check_and_remove() {
         .arg(&external)
         .output()
         .unwrap();
-    assert!(add.status.success(), "{}", String::from_utf8_lossy(&add.stderr));
+    assert!(
+        add.status.success(),
+        "{}",
+        String::from_utf8_lossy(&add.stderr)
+    );
     let add_out = String::from_utf8_lossy(&add.stdout);
     assert!(add_out.contains("added\tfile\t"), "{add_out}");
 
@@ -104,7 +106,11 @@ fn vault_add_list_members_link_check_and_remove() {
         .arg("check")
         .output()
         .unwrap();
-    assert!(check.status.success(), "{}", String::from_utf8_lossy(&check.stderr));
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
     let check_out = String::from_utf8_lossy(&check.stdout);
     assert!(check_out.contains("status=ok"), "{check_out}");
     assert!(check_out.contains("documents=2"), "{check_out}");
@@ -152,7 +158,11 @@ fn vault_add_extra_root_lists_nested() {
         .arg(extra.path())
         .output()
         .unwrap();
-    assert!(add.status.success(), "{}", String::from_utf8_lossy(&add.stderr));
+    assert!(
+        add.status.success(),
+        "{}",
+        String::from_utf8_lossy(&add.stderr)
+    );
     assert!(
         String::from_utf8_lossy(&add.stdout).contains("added\troot\t"),
         "{}",

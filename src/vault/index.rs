@@ -371,7 +371,13 @@ mod tests {
         assert_eq!(loaded.version, 1);
         assert!(loaded.members.is_empty());
         assert!(load_registered_members(dir.path()).unwrap().is_empty());
-        assert_eq!(list_vault_documents(dir.path(), None, false).unwrap().entries.len(), 1);
+        assert_eq!(
+            list_vault_documents(dir.path(), None, false)
+                .unwrap()
+                .entries
+                .len(),
+            1
+        );
 
         rebuild_vault_index(dir.path()).unwrap();
         let upgraded = load_vault_index(dir.path()).unwrap().expect("v2 index");
