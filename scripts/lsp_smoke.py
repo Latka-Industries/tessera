@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
-"""Stdio smoke tests for ``tes-lsp`` (THI-241–244).
+"""Stdio smoke tests for ``tes-lsp`` (THI-241–247).
 
 Run from the repo root::
 
@@ -204,6 +204,7 @@ def case_handshake(bin_path: Path) -> None:
         assert sync.get("change") == 1, sync  # Full
         assert sync.get("willSave") is True, sync
         assert "tessera.write" in cmds, cmds
+        assert caps.get("hoverProvider") is True, caps
         print("ok  handshake")
     finally:
         s.close()
@@ -379,6 +380,64 @@ def case_write_stale_hash(bin_path: Path) -> None:
             s.close()
 
 
+def case_hover_chunk_marker(bin_path: Path) -> None:
+    s = open_session(bin_path)
+    try:
+        handshake(s)
+        did_open(s, CLEAN)
+        uri = CLEAN.resolve().as_uri()
+        # note_one_chunk Tessprek: line 0 header, 1 blank, 2 chunk marker
+        s.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 30,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {"uri": uri},
+                    "position": {"line": 2, "character": 12},
+                },
+            }
+        )
+        s.drain(1.5)
+        result = None
+        for msg in s.messages:
+            if msg.get("id") == 30 and "result" in msg:
+                result = msg["result"]
+                break
+            if msg.get("id") == 30 and "error" in msg:
+                raise AssertionError(f"hover error: {msg['error']}")
+        assert result is not None, "no hover result"
+        contents = result.get("contents") or {}
+        value = contents.get("value") if isinstance(contents, dict) else str(contents)
+        assert value and "chunk" in value.lower(), result
+        assert "1" in value and "paragraph" in value, result
+        print("ok  hover chunk marker")
+
+        s.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 31,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {"uri": uri},
+                    "position": {"line": 0, "character": 8},
+                },
+            }
+        )
+        s.drain(1.5)
+        header = None
+        for msg in s.messages:
+            if msg.get("id") == 31 and "result" in msg:
+                header = msg["result"]
+                break
+        assert header is not None, "no header hover result"
+        hval = (header.get("contents") or {}).get("value") or ""
+        assert "header" in hval.lower() or "tessprek" in hval.lower(), header
+        print("ok  hover document header")
+    finally:
+        s.close()
+
+
 CASES = [
     ("handshake", case_handshake),
     ("open_clean", case_open_clean),
@@ -387,6 +446,7 @@ CASES = [
     ("close_clears", case_close_clears),
     ("write_round_trip", case_write_round_trip),
     ("write_stale_hash", case_write_stale_hash),
+    ("hover", case_hover_chunk_marker),
 ]
 
 

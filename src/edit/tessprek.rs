@@ -16,9 +16,21 @@ use crate::error::{Result, TesError};
 
 use super::ContentBlock;
 
-const HEADER_PREFIX: &str = "<!-- tessera:";
-const CHUNK_PREFIX: &str = "<!-- tes ";
-const CHUNK_SUFFIX: &str = " -->";
+/// Tessprek HTML-comment wire markers (v1). Shared by encode/decode and LSP hover.
+pub mod markers {
+    /// Document header: `<!-- tessera: format=… -->`.
+    pub const HEADER_PREFIX: &str = "<!-- tessera:";
+    /// Chunk directive: `<!-- tes chunk=… -->`.
+    pub const CHUNK_PREFIX: &str = "<!-- tes ";
+    /// Closing delimiter for both header and chunk comments.
+    pub const COMMENT_SUFFIX: &str = " -->";
+    /// `format=` value stamped in the document header.
+    pub const FORMAT: &str = "tessprek";
+    /// `version=` value stamped in the document header.
+    pub const VERSION: &str = "1";
+}
+
+use markers::{CHUNK_PREFIX, COMMENT_SUFFIX, FORMAT, HEADER_PREFIX, VERSION};
 
 /// Encode a `.tes` file as Tessera Markdown, embedding `source_hash`.
 ///
@@ -29,7 +41,7 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "{HEADER_PREFIX} format=tessprek version=1 source-hash={source_hash} -->"
+        "{HEADER_PREFIX} format={FORMAT} version={VERSION} source-hash={source_hash}{COMMENT_SUFFIX}"
     );
     out.push('\n');
 
@@ -96,14 +108,14 @@ pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
             i += 1;
             continue;
         }
-        if !trimmed.starts_with(CHUNK_PREFIX) || !trimmed.ends_with(CHUNK_SUFFIX) {
+        if !trimmed.starts_with(CHUNK_PREFIX) || !trimmed.ends_with(COMMENT_SUFFIX) {
             return Err(parse_err(
                 line_no,
                 1,
-                format!("expected `{CHUNK_PREFIX}...{CHUNK_SUFFIX}` directive, found: {trimmed}"),
+                format!("expected `{CHUNK_PREFIX}...{COMMENT_SUFFIX}` directive, found: {trimmed}"),
             ));
         }
-        let attrs = &trimmed[CHUNK_PREFIX.len()..trimmed.len() - CHUNK_SUFFIX.len()];
+        let attrs = &trimmed[CHUNK_PREFIX.len()..trimmed.len() - COMMENT_SUFFIX.len()];
         let map = parse_attrs(attrs, line_no)?;
         i += 1;
 
@@ -140,7 +152,7 @@ fn skip_header_and_blanks(lines: &[&str], mut i: usize) -> usize {
 fn next_directive_index(lines: &[&str], mut i: usize) -> usize {
     while i < lines.len() {
         let t = lines[i].trim();
-        if t.starts_with(CHUNK_PREFIX) && t.ends_with(CHUNK_SUFFIX) {
+        if t.starts_with(CHUNK_PREFIX) && t.ends_with(COMMENT_SUFFIX) {
             break;
         }
         i += 1;
@@ -367,7 +379,7 @@ fn write_text_directive(out: &mut String, chunk_id: u64, header: &TextHeader) {
     if !header.classes.is_empty() {
         let _ = write!(out, " class=\"{}\"", header.classes.join(" "));
     }
-    let _ = writeln!(out, "{CHUNK_SUFFIX}");
+    let _ = writeln!(out, "{COMMENT_SUFFIX}");
 }
 
 fn write_figure_directive(out: &mut String, chunk_id: u64, figure: &FigureRef) {
@@ -383,7 +395,7 @@ fn write_figure_directive(out: &mut String, chunk_id: u64, figure: &FigureRef) {
     if let Some(caption) = figure.caption.as_deref() {
         let _ = write!(out, " caption=\"{}\"", escape_attr(caption));
     }
-    let _ = writeln!(out, "{CHUNK_SUFFIX}");
+    let _ = writeln!(out, "{COMMENT_SUFFIX}");
 }
 
 fn write_cite_directive(out: &mut String, chunk_id: u64, cite: &CitePayload) {
@@ -400,7 +412,7 @@ fn write_cite_directive(out: &mut String, chunk_id: u64, cite: &CitePayload) {
     if let Some(page) = cite.page {
         let _ = write!(out, " page={page}");
     }
-    let _ = writeln!(out, "{CHUNK_SUFFIX}");
+    let _ = writeln!(out, "{COMMENT_SUFFIX}");
 }
 
 fn write_slide_directive(out: &mut String, chunk_id: u64, slide: &SlidePayload) {
@@ -412,7 +424,7 @@ fn write_slide_directive(out: &mut String, chunk_id: u64, slide: &SlidePayload) 
         .join(",");
     let _ = writeln!(
         out,
-        "{CHUNK_PREFIX}chunk={chunk_id} type=slide layout={} regions=\"{}\"{CHUNK_SUFFIX}",
+        "{CHUNK_PREFIX}chunk={chunk_id} type=slide layout={} regions=\"{}\"{COMMENT_SUFFIX}",
         attr_token(&slide.layout_id),
         escape_attr(&regions)
     );
@@ -429,7 +441,7 @@ fn write_attachment_directive(out: &mut String, chunk_id: u64, att: &AttachmentP
     if let Some(caption) = att.caption.as_deref() {
         let _ = write!(out, " caption=\"{}\"", escape_attr(caption));
     }
-    let _ = writeln!(out, "{CHUNK_SUFFIX}");
+    let _ = writeln!(out, "{COMMENT_SUFFIX}");
 }
 
 fn parse_slide_regions(raw: &str, line_no: usize) -> Result<Vec<SlideRegion>> {

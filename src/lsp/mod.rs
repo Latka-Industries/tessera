@@ -2,11 +2,13 @@
 //!
 //! Thin LSP over stdio. Opens `.tes` files as Tessprek via [`edit_read`]
 //! (THI-242), keeps an in-memory Tessprek buffer via `didChange` (THI-243),
-//! publishes verify / source-hash diagnostics (THI-244), and writes back via
-//! `tessera.write` / `willSave` using [`edit_write`] (THI-245).
+//! publishes verify / source-hash diagnostics (THI-244), writes back via
+//! `tessera.write` / `willSave` using [`edit_write`] (THI-245), and hovers
+//! Tessprek markers (THI-246).
 
 mod diagnostics;
 mod document;
+mod hover;
 mod write;
 
 use std::collections::HashMap;
@@ -17,10 +19,10 @@ use serde_json::Value;
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::{
     DiagnosticSeverity, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, ExecuteCommandOptions, ExecuteCommandParams, InitializeParams,
-    InitializeResult, InitializedParams, MessageType, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, Url, WillSaveTextDocumentParams,
+    DidOpenTextDocumentParams, ExecuteCommandOptions, ExecuteCommandParams, Hover, HoverParams,
+    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, MessageType,
+    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, Url, WillSaveTextDocumentParams,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -28,6 +30,7 @@ use self::diagnostics::{collect_diagnostics, file_diagnostic};
 use self::document::{
     OpenDocument, apply_content_changes, is_tes_path, load_open_document, uri_to_path,
 };
+use self::hover::hover_at;
 use self::write::{WriteBackError, parse_write_uri, write_back_document};
 
 pub use self::write::COMMAND_WRITE;
@@ -176,6 +179,7 @@ impl LanguageServer for Backend {
                     commands: vec![write::COMMAND_WRITE.to_owned()],
                     ..Default::default()
                 }),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -320,6 +324,19 @@ impl LanguageServer for Backend {
                 self.client.log_message(MessageType::ERROR, msg).await;
             }
         }
+    }
+
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+        let tessprek = {
+            let docs = self.documents.lock().expect("documents lock");
+            docs.get(&uri).map(|d| d.tessprek.clone())
+        };
+        let Some(text) = tessprek else {
+            return Ok(None);
+        };
+        Ok(hover_at(&text, position))
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
