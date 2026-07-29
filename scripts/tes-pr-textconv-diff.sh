@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build a Markdown report of Tessprek diffs for .tes files changed between two
-# commits (THI-212). Used by `.github/workflows/tes-pr-preview.yml` and the
-# vault template under `contrib/github/`.
+# commits (THI-212 / THI-219). Used by `.github/workflows/tes-pr-preview.yml`
+# (PR comments + push summaries) and the vault template under `contrib/github/`.
 #
 # Usage:
 #   TES=./target/debug/tes BASE_SHA=… HEAD_SHA=… OUT=report.md \
@@ -9,8 +9,8 @@
 #
 # Env:
 #   TES       path to `tes` binary (required)
-#   BASE_SHA  merge-base / PR base commit (required)
-#   HEAD_SHA  PR head commit (required)
+#   BASE_SHA  base / before commit (required)
+#   HEAD_SHA  head / after commit (required)
 #   OUT       report path (default: tes-pr-preview.md)
 #   MAX_BYTES soft cap for report body (default: 60000)
 
