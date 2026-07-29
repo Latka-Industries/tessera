@@ -1,18 +1,24 @@
 //! Multi-file vault graph: stable document ids, resolve, backlinks, and checks.
 //!
-//! - [`Vault`] — scan a folder of `.tes` files and query the link graph.
+//! - [`Vault`] — scan membership (in-tree ∪ registered externals) and query the link graph.
 //! - [`parse_target`] — parse `UUID` or `UUID/chunk` CLI/link targets.
 //! - Optional [`vault.tes`](index) TOC index for list/search without a full graph scan.
+//! - Membership: [`register_member`] / [`unregister_member`] for out-of-tree paths.
 //! - Value types: [`VaultDocument`], [`Backlink`], [`ResolvedTarget`], [`BrokenLink`].
 
 mod graph;
 mod index;
+mod members;
 mod types;
 
 pub use graph::Vault;
 pub use index::{
     VAULT_INDEX_NAME, VaultIndex, VaultIndexEntry, VaultListReport, list_vault_documents,
     load_vault_index, rebuild_vault_index, vault_index_is_fresh, vault_index_path,
+};
+pub use members::{
+    VaultMember, VaultMemberKind, load_registered_members, membership_document_paths,
+    register_member, unregister_member,
 };
 pub use types::{Backlink, BrokenLink, ResolvedTarget, VaultDocument};
 
@@ -41,6 +47,34 @@ pub fn parse_target(value: &str) -> Result<(Uuid, Option<u64>)> {
         ))
     })?;
     Ok((doc_id, chunk_id))
+}
+
+#[cfg(test)]
+pub(super) mod test_util {
+    use std::path::Path;
+
+    use crate::catalog::{DocumentCatalog, TesWriterSession, TextHeader};
+    use crate::layout::DocKind;
+    use uuid::Uuid;
+
+    /// Write a minimal note under `dir/name` for vault unit tests.
+    pub fn write_note(dir: &Path, name: &str, title: &str, tags: &[&str]) {
+        let path = dir.join(name);
+        let mut session = TesWriterSession::create(&path, DocKind::Note);
+        let mut catalog = DocumentCatalog::new(
+            Uuid::new_v4().to_string(),
+            title,
+            "2026-07-28T00:00:00Z",
+            "2026-07-28T00:00:00Z",
+            DocKind::Note,
+        );
+        catalog.tags = tags.iter().map(|s| (*s).to_owned()).collect();
+        session.set_catalog(catalog).unwrap();
+        session
+            .add_text_chunk(&TextHeader::paragraph(), "body")
+            .unwrap();
+        session.commit().unwrap();
+    }
 }
 
 #[cfg(test)]

@@ -42,7 +42,7 @@ Terms used consistently across Tessera docs, issues, and code.
 
 | Term | Definition |
 | --- | --- |
-| **Vault** | Folder of `.tes` files; optional `vault.tes` index. |
+| **Vault** | Folder of `.tes` files plus optional registered external files/roots; optional `vault.tes` index/manifest. |
 | **Link** | Typed pointer to an internal doc/chunk, external URI, or attachment. |
 | **Link table** | `TLNK` region listing outbound links for backlink index. |
 | **Backlink** | Inverse of a link — computed from link tables across vault. |
