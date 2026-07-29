@@ -120,7 +120,7 @@ pub fn vault_index_path(root: impl AsRef<Path>) -> PathBuf {
 pub fn rebuild_vault_index(root: impl AsRef<Path>) -> Result<PathBuf> {
     let root = root.as_ref();
     let members = load_registered_members(root)?;
-    rebuild_vault_index_with_members(root, members)
+    rebuild_vault_index_with_members(root, &members)
 }
 
 /// Rebuild `vault.tes` with an explicit member registry.
@@ -130,10 +130,10 @@ pub fn rebuild_vault_index(root: impl AsRef<Path>) -> Result<PathBuf> {
 /// Returns IO / open / encode errors while scanning or writing the index.
 pub fn rebuild_vault_index_with_members(
     root: impl AsRef<Path>,
-    members: Vec<VaultMember>,
+    members: &[VaultMember],
 ) -> Result<PathBuf> {
     let root = root.as_ref();
-    let index = VaultIndex::new(members.clone(), scan_catalog_entries(root, &members)?);
+    let index = VaultIndex::new(members.to_owned(), scan_catalog_entries(root, members)?);
     let body = serde_json::to_string_pretty(&index)?;
     let path = vault_index_path(root);
     let _ = fs::remove_file(&path);
@@ -292,8 +292,7 @@ fn file_mtime_secs(path: &Path) -> Result<u64> {
     let modified = fs::metadata(path)?.modified()?;
     Ok(modified
         .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0))
+        .map_or(0, |d| d.as_secs()))
 }
 
 fn rfc3339_now() -> String {

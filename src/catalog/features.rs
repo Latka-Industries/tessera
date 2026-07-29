@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// Stable feature id strings used in catalog JSON and writer stamps.
 pub mod ids {
-    /// Layout-v1 text header fields (spans, table, math, lang, align, code_lang).
+    /// Layout-v1 text header fields (spans, table, math, lang, align, `code_lang`).
     pub const TEXT_SPANS: &str = "text_spans";
     /// Inert `ChunkType::Attachment` payloads.
     pub const ATTACHMENTS: &str = "attachments";

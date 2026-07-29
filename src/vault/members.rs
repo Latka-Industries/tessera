@@ -74,13 +74,13 @@ pub fn membership_document_paths_with(
     for member in members {
         match member.kind {
             VaultMemberKind::File => {
-                let path = resolve_stored_path(root, &member.path)?;
+                let path = resolve_stored_path(root, &member.path);
                 if path.is_file() {
                     set.insert(canon_or(path));
                 }
             }
             VaultMemberKind::Root => {
-                let dir = resolve_stored_path(root, &member.path)?;
+                let dir = resolve_stored_path(root, &member.path);
                 if dir.is_dir() {
                     insert_tes_tree(root, &dir, &mut set)?;
                 }
@@ -136,8 +136,7 @@ pub fn unregister_member(root: impl AsRef<Path>, path: impl AsRef<Path>) -> Resu
     let changed = mutate_members(root, |members| {
         let before = members.len();
         members.retain(|m| {
-            let resolved =
-                resolve_stored_path(root, &m.path).unwrap_or_else(|_| PathBuf::from(&m.path));
+            let resolved = resolve_stored_path(root, &m.path);
             canon_or(resolved) != abs && m.path != stored
         });
         members.len() != before
@@ -155,7 +154,7 @@ fn mutate_members(root: &Path, f: impl FnOnce(&mut Vec<VaultMember>) -> bool) ->
     let mut members = load_registered_members(root)?;
     let changed = f(&mut members);
     if changed {
-        super::index::rebuild_vault_index_with_members(root, members)?;
+        super::index::rebuild_vault_index_with_members(root, &members)?;
     }
     Ok(changed)
 }
@@ -206,13 +205,9 @@ fn store_path(root: &Path, abs: &Path) -> String {
     abs.to_string_lossy().replace('\\', "/")
 }
 
-fn resolve_stored_path(root: &Path, stored: &str) -> Result<PathBuf> {
+fn resolve_stored_path(root: &Path, stored: &str) -> PathBuf {
     let p = PathBuf::from(stored);
-    if p.is_absolute() {
-        Ok(p)
-    } else {
-        Ok(root.join(p))
-    }
+    if p.is_absolute() { p } else { root.join(p) }
 }
 
 fn canon_or(path: PathBuf) -> PathBuf {

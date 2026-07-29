@@ -432,7 +432,7 @@ impl TesWriterSession {
         }
     }
 
-    /// Optional features implied by pending chunks / links (layout_version stays 0).
+    /// Optional features implied by pending chunks / links (`layout_version` stays 0).
     fn inferred_features(&self) -> FeatureSet {
         let mut features = FeatureSet::default();
         for chunk in &self.chunks {

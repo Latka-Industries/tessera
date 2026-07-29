@@ -36,6 +36,10 @@ fn catalog(
 }
 
 /// Superblock-only skeleton.
+///
+/// # Panics
+///
+/// Panics if encoding the empty document fails.
 #[must_use]
 pub fn encode_empty() -> Vec<u8> {
     TesWriterSession::create("empty.tes", DocKind::Note)
@@ -44,6 +48,10 @@ pub fn encode_empty() -> Vec<u8> {
 }
 
 /// Single paragraph note (`note_one_chunk.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_note_one_chunk() -> Vec<u8> {
     let mut session = TesWriterSession::create("note_one_chunk.tes", DocKind::Note);
@@ -75,6 +83,10 @@ pub fn encode_note_one_chunk() -> Vec<u8> {
 }
 
 /// Heading + paragraph + list items (`note_three_chunks.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_note_three_chunks() -> Vec<u8> {
     let mut session = TesWriterSession::create("note_three_chunks.tes", DocKind::Note);
@@ -119,6 +131,10 @@ pub fn encode_note_three_chunks() -> Vec<u8> {
 }
 
 /// Hub with internal wiki link (`hub_links.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_hub_links() -> Vec<u8> {
     let mut session = TesWriterSession::create("hub_links.tes", DocKind::Hub);
@@ -149,6 +165,10 @@ pub fn encode_hub_links() -> Vec<u8> {
 }
 
 /// Spans / math / code / table (`layout_v1_text.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_layout_v1_text() -> Vec<u8> {
     let mut session = TesWriterSession::create("layout_v1_text.tes", DocKind::Note);
@@ -166,7 +186,26 @@ pub fn encode_layout_v1_text() -> Vec<u8> {
     session
         .add_text_chunk(&TextHeader::heading(1), "Layout wire")
         .expect("h1");
+    session
+        .add_text_chunk(&layout_v1_span_paragraph(), "Strong emphasis and code.")
+        .expect("spans");
+    session
+        .add_text_chunk(&TextHeader::math(), r"E = mc^2")
+        .expect("math");
+    session
+        .add_text_chunk(
+            &TextHeader::code_block(Some("rust")),
+            "fn main() {\n    println!(\"tessera\");\n}",
+        )
+        .expect("code");
+    session
+        .add_text_chunk(&TextHeader::table(layout_v1_feature_table()), "")
+        .expect("table");
 
+    session.encode_file().expect("layout_v1_text")
+}
+
+fn layout_v1_span_paragraph() -> TextHeader {
     let mut para = TextHeader::paragraph();
     para.lang = Some("en".into());
     para.align = Some(TextAlign::Start);
@@ -188,95 +227,50 @@ pub fn encode_layout_v1_text() -> Vec<u8> {
             kind: InlineKind::Code,
         },
     ];
-    session
-        .add_text_chunk(&para, "Strong emphasis and code.")
-        .expect("spans");
+    para
+}
 
-    session
-        .add_text_chunk(&TextHeader::math(), r"E = mc^2")
-        .expect("math");
+fn layout_cell(text: &str, is_header: bool, align: Option<TextAlign>) -> TableCell {
+    TableCell {
+        text: text.into(),
+        spans: Vec::new(),
+        align,
+        is_header,
+        rowspan: None,
+        colspan: None,
+    }
+}
 
-    session
-        .add_text_chunk(
-            &TextHeader::code_block(Some("rust")),
-            "fn main() {\n    println!(\"tessera\");\n}",
-        )
-        .expect("code");
-
-    session
-        .add_text_chunk(
-            &TextHeader::table(TableData {
-                rows: vec![
-                    TableRow {
-                        cells: vec![
-                            TableCell {
-                                text: "Feature".into(),
-                                spans: Vec::new(),
-                                align: None,
-                                is_header: true,
-                                rowspan: None,
-                                colspan: None,
-                            },
-                            TableCell {
-                                text: "Id".into(),
-                                spans: Vec::new(),
-                                align: Some(TextAlign::Center),
-                                is_header: true,
-                                rowspan: None,
-                                colspan: None,
-                            },
-                        ],
-                    },
-                    TableRow {
-                        cells: vec![
-                            TableCell {
-                                text: "Text spans".into(),
-                                spans: Vec::new(),
-                                align: None,
-                                is_header: false,
-                                rowspan: None,
-                                colspan: None,
-                            },
-                            TableCell {
-                                text: "text_spans".into(),
-                                spans: Vec::new(),
-                                align: None,
-                                is_header: false,
-                                rowspan: None,
-                                colspan: None,
-                            },
-                        ],
-                    },
-                    TableRow {
-                        cells: vec![
-                            TableCell {
-                                text: "External URIs".into(),
-                                spans: Vec::new(),
-                                align: None,
-                                is_header: false,
-                                rowspan: None,
-                                colspan: None,
-                            },
-                            TableCell {
-                                text: "external_uris".into(),
-                                spans: Vec::new(),
-                                align: None,
-                                is_header: false,
-                                rowspan: None,
-                                colspan: None,
-                            },
-                        ],
-                    },
+fn layout_v1_feature_table() -> TableData {
+    TableData {
+        rows: vec![
+            TableRow {
+                cells: vec![
+                    layout_cell("Feature", true, None),
+                    layout_cell("Id", true, Some(TextAlign::Center)),
                 ],
-            }),
-            "",
-        )
-        .expect("table");
-
-    session.encode_file().expect("layout_v1_text")
+            },
+            TableRow {
+                cells: vec![
+                    layout_cell("Text spans", false, None),
+                    layout_cell("text_spans", false, None),
+                ],
+            },
+            TableRow {
+                cells: vec![
+                    layout_cell("External URIs", false, None),
+                    layout_cell("external_uris", false, None),
+                ],
+            },
+        ],
+    }
 }
 
 /// Two-slide deck (`slide_deck.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_slide_deck() -> Vec<u8> {
     let mut session = TesWriterSession::create("slide_deck.tes", DocKind::Deck);
@@ -342,6 +336,10 @@ pub fn encode_slide_deck() -> Vec<u8> {
 }
 
 /// Cite chunk + citation TLNK (`research_cite.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_research_cite() -> Vec<u8> {
     let mut session = TesWriterSession::create("research_cite.tes", DocKind::Research);
@@ -377,6 +375,10 @@ pub fn encode_research_cite() -> Vec<u8> {
 }
 
 /// Image + figure (`figure_sample.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_figure_sample() -> Vec<u8> {
     let mut session = TesWriterSession::create("figure_sample.tes", DocKind::Note);
@@ -413,6 +415,10 @@ pub fn encode_figure_sample() -> Vec<u8> {
 }
 
 /// Inert PDF attachment (`attachment_sample.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_attachment_sample() -> Vec<u8> {
     let mut session = TesWriterSession::create("attachment_sample.tes", DocKind::Note);
@@ -450,6 +456,10 @@ pub fn encode_attachment_sample() -> Vec<u8> {
 }
 
 /// TLNK v1 external URI heap (`external_links.tes`).
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
 #[must_use]
 pub fn encode_external_links() -> Vec<u8> {
     let mut session = TesWriterSession::create("external_links.tes", DocKind::Note);

@@ -198,9 +198,12 @@ def case_handshake(bin_path: Path) -> None:
         caps = result.get("capabilities", {})
         sync = caps.get("textDocumentSync") or {}
         info = result.get("serverInfo") or {}
+        cmds = (caps.get("executeCommandProvider") or {}).get("commands") or []
         assert info.get("name") == "tes-lsp", info
         assert sync.get("openClose") is True, sync
         assert sync.get("change") == 1, sync  # Full
+        assert sync.get("willSave") is True, sync
+        assert "tessera.write" in cmds, cmds
         print("ok  handshake")
     finally:
         s.close()
@@ -276,12 +279,114 @@ def case_close_clears(bin_path: Path) -> None:
         s.close()
 
 
+def _execute_write(
+    session: LspSession,
+    path: Path,
+    *,
+    req_id: int = 10,
+    arg_form: str = "string",
+) -> dict:
+    uri = path.resolve().as_uri()
+    if arg_form == "string":
+        arguments: list[object] = [uri]
+    elif arg_form == "object":
+        arguments = [{"uri": uri}]
+    else:
+        raise ValueError(f"unknown tessera.write arg_form: {arg_form!r}")
+    session.send(
+        {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "method": "workspace/executeCommand",
+            "params": {"command": "tessera.write", "arguments": arguments},
+        }
+    )
+    session.drain(2.0)
+    for msg in session.messages:
+        if msg.get("id") == req_id and "result" in msg:
+            return msg["result"]
+        if msg.get("id") == req_id and "error" in msg:
+            raise AssertionError(f"executeCommand error: {msg['error']}")
+    raise AssertionError("no executeCommand result for tessera.write")
+
+
+def case_write_round_trip(bin_path: Path) -> None:
+    import tempfile
+
+    bodies = {
+        "string": (
+            "<!-- tessera: format=tessprek version=1 -->\n\n"
+            "<!-- tes chunk=1 role=paragraph -->\n"
+            "Hallo from Tessera — use `tes textconv` for readable diffs.\n"
+        ),
+        "object": (
+            "<!-- tessera: format=tessprek version=1 -->\n\n"
+            "<!-- tes chunk=1 role=paragraph -->\n"
+            "Hallo again from Tessera — use `tes textconv` for readable diffs.\n"
+        ),
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "note.tes"
+        path.write_bytes(CLEAN.read_bytes())
+        s = open_session(bin_path)
+        try:
+            handshake(s)
+            did_open(s, path)
+            for i, form in enumerate(("string", "object")):
+                before = path.read_bytes()
+                did_change(s, path, bodies[form])
+                result = _execute_write(s, path, req_id=10 + i, arg_form=form)
+                assert result.get("ok") is True, (form, result)
+                assert result.get("source_hash"), (form, result)
+                after = path.read_bytes()
+                assert after != before, f"expected on-disk bytes to change ({form})"
+                logs = s.notifications("window/logMessage")
+                assert any(
+                    "wrote" in (m.get("params") or {}).get("message", "") for m in logs
+                ), (form, logs)
+                print(f"ok  write round-trip ({form})")
+        finally:
+            s.close()
+
+
+def case_write_stale_hash(bin_path: Path) -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "note.tes"
+        path.write_bytes(CLEAN.read_bytes())
+        s = open_session(bin_path)
+        try:
+            handshake(s)
+            did_open(s, path)
+            # Corrupt on-disk bytes so stored source-hash no longer matches.
+            path.write_bytes(path.read_bytes() + b"x")
+            for i, form in enumerate(("string", "object")):
+                result = _execute_write(s, path, req_id=20 + i, arg_form=form)
+                assert result.get("ok") is False, (form, result)
+                assert result.get("code") == "source-hash", (form, result)
+                diags = s.notifications("textDocument/publishDiagnostics")
+                assert any(
+                    any(
+                        d.get("code") == "source-hash" and d.get("severity") == 1
+                        for d in (m.get("params") or {}).get("diagnostics") or []
+                    )
+                    for m in diags
+                ), (form, diags)
+                print(f"ok  write stale-hash refused ({form})")
+        finally:
+            s.close()
+
+
 CASES = [
     ("handshake", case_handshake),
     ("open_clean", case_open_clean),
     ("did_change", case_did_change),
     ("bad_magic", case_bad_magic_diagnostics),
     ("close_clears", case_close_clears),
+    ("write_round_trip", case_write_round_trip),
+    ("write_stale_hash", case_write_stale_hash),
 ]
 
 
