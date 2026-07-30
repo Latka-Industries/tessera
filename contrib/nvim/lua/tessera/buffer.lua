@@ -1,12 +1,11 @@
 ---@mod tessera.buffer Tessprek projection for `.tes` buffers
 local M = {}
 
----Resolve `tes` CLI: PATH, then repo `target/debug|release/tes`.
+---Resolve `tes` CLI: repo `target/debug|release/tes` first, then PATH.
+---Preferring the checkout build avoids a stale `cargo install` on PATH
+---failing on newer fixtures (e.g. `InlineKind::Underline`).
 ---@return string|nil
 function M.resolve_tes_cli()
-  if vim.fn.executable("tes") == 1 then
-    return "tes"
-  end
   local src = debug.getinfo(1, "S").source:sub(2)
   local nvim_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(src)))
   local repo_root = vim.fs.dirname(vim.fs.dirname(nvim_root))
@@ -15,6 +14,9 @@ function M.resolve_tes_cli()
     if vim.fn.executable(candidate) == 1 then
       return candidate
     end
+  end
+  if vim.fn.executable("tes") == 1 then
+    return "tes"
   end
   return nil
 end

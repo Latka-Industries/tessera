@@ -13,6 +13,8 @@ save — never dumping Tessprek text onto the binary `.tes` path.
   ```bash
   cargo build --bin tes --bin tes-lsp
   ```
+  When `contrib/nvim` is loaded from a Tessera checkout, repo `target/debug`
+  (or `release`) wins over a stale `tes` / `tes-lsp` on `PATH`.
 
 ## Install (lazy.nvim)
 

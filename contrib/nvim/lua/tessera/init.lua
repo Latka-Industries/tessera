@@ -20,15 +20,11 @@ local defaults = {
 ---@type tessera.Config
 M.config = vim.deepcopy(defaults)
 
----Resolve `tes-lsp` binary: config.cmd, PATH, then repo `target/debug|release`.
+---Resolve `tes-lsp` binary: config.cmd, repo `target/`, then PATH.
 ---@return string[]|nil
 local function resolve_cmd()
   if M.config.cmd and #M.config.cmd > 0 then
     return M.config.cmd
-  end
-
-  if vim.fn.executable("tes-lsp") == 1 then
-    return { "tes-lsp" }
   end
 
   local src = debug.getinfo(1, "S").source:sub(2)
@@ -39,6 +35,10 @@ local function resolve_cmd()
     if vim.fn.executable(candidate) == 1 then
       return { candidate }
     end
+  end
+
+  if vim.fn.executable("tes-lsp") == 1 then
+    return { "tes-lsp" }
   end
 
   return nil
