@@ -169,8 +169,10 @@ pub fn parse_markdown_blocks(markdown: &str) -> Vec<MarkdownBlock> {
             Event::TaskListMarker(done) => {
                 state.push_text(if done { "[x] " } else { "[ ] " });
             }
-            // Raw HTML, footnotes, and rules are explicitly deferred in v0.
-            Event::Html(_) | Event::InlineHtml(_) | Event::FootnoteReference(_) | Event::Rule => {}
+            // Footnotes and rules are deferred. Inline HTML is scanned for `<u>`
+            // so Tessprek/HTML underline round-trips into `InlineKind::Underline`.
+            Event::Html(_) | Event::FootnoteReference(_) | Event::Rule => {}
+            Event::InlineHtml(html) => state.push_inline_html(&html),
         }
     }
     state.finish_active();
@@ -190,6 +192,7 @@ struct ActiveBlock {
     body: String,
     pending_links: Vec<OutboundLink>,
     link_stack: Vec<(u32, String)>,
+    underline_stack: Vec<u32>,
 }
 
 impl ParseState {
@@ -303,7 +306,36 @@ impl ParseState {
             body: String::new(),
             pending_links: Vec::new(),
             link_stack: Vec::new(),
+            underline_stack: Vec::new(),
         });
+    }
+
+    fn push_inline_html(&mut self, html: &str) {
+        let lower = html.trim().to_ascii_lowercase();
+        let is_open = lower == "<u>" || lower.starts_with("<u ");
+        let is_close = lower == "</u>";
+        if !is_open && !is_close {
+            return;
+        }
+        if self.active.is_none() {
+            self.begin(TextHeader::paragraph());
+        }
+        let Some(active) = &mut self.active else {
+            return;
+        };
+        if is_open {
+            let start = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
+            active.underline_stack.push(start);
+        } else if let Some(start) = active.underline_stack.pop() {
+            let end = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
+            if end > start {
+                active.header.spans.push(InlineSpan {
+                    start,
+                    end,
+                    kind: InlineKind::Underline,
+                });
+            }
+        }
     }
 
     fn push_text(&mut self, text: &str) {
@@ -446,6 +478,20 @@ mod tests {
     use super::*;
     use crate::io::export::{ExportOptions, ExportView, export_view};
     use tempfile::tempdir;
+
+    #[test]
+    fn parses_underline_html_into_inline_span() {
+        let blocks = parse_markdown_blocks("Note the <u>underlined</u> word.\n");
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].body, "Note the underlined word.");
+        assert_eq!(blocks[0].header.spans.len(), 1);
+        assert_eq!(blocks[0].header.spans[0].kind, InlineKind::Underline);
+        assert_eq!(
+            &blocks[0].body
+                [blocks[0].header.spans[0].start as usize..blocks[0].header.spans[0].end as usize],
+            "underlined"
+        );
+    }
 
     #[test]
     fn parses_commonmark_subset_into_semantic_blocks() {

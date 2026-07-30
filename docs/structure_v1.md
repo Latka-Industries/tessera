@@ -63,6 +63,7 @@ wire encoding, not an untyped application API.
 pub enum InlineKind {
     Emphasis,
     Strong,
+    Underline,
     Code,
     Term,
     Quote,

@@ -28,7 +28,7 @@ Terms used consistently across Tessera docs, issues, and code.
 | **Chunk id** | Stable `u64` within one file; reference writer uses 1-based ids. |
 | **Chunk type** | `text`, `image`, `link`, `cite`, `slide`, `page` — see [layout_v0](layout_v0.md#chunk-types). |
 | **Text chunk** | UTF-8 body + JSON header (`role`, `level`, …). |
-| **Inline span** | Validated UTF-8 byte range plus an enum meaning such as strong, math, link, or citation. |
+| **Inline span** | Validated UTF-8 byte range plus an enum meaning such as strong, underline, math, link, or citation. |
 | **Figure ref** | One contextual use of an image chunk, with alt text, caption, placement, and reading-order position. |
 | **Attachment** | Inert generic file bytes plus media type and safe filename. |
 | **Reading order** | Chunks with `chunk_flags & 1`, sorted by `chunk_id`. |

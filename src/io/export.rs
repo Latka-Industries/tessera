@@ -589,6 +589,7 @@ fn apply_spans_html(
                 format!("<em>{}</em>", escape_html(&inner))
             }
             InlineKind::Strong => format!("<strong>{}</strong>", escape_html(&inner)),
+            InlineKind::Underline => format!("<u>{}</u>", escape_html(&inner)),
             InlineKind::Code => format!("<code>{}</code>", escape_html(&inner)),
             InlineKind::Quote => format!("<q>{}</q>", escape_html(&inner)),
             InlineKind::Math { tex } => {
