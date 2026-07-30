@@ -2,6 +2,8 @@
 //!
 //! Format (v1): HTML-comment directives carry typed fields; bodies are Markdown.
 
+mod format;
+
 use std::fmt::Write as _;
 
 use crate::catalog::TesFile;
@@ -15,6 +17,8 @@ use crate::catalog::slide::{SlidePayload, SlideRegion};
 use crate::error::{Result, TesError};
 
 use super::ContentBlock;
+
+pub use format::{normalize_tessprek, tessprek_needs_format};
 
 /// Tessprek HTML-comment wire markers (v1). Shared by encode/decode and LSP hover.
 pub mod markers {
@@ -51,7 +55,11 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
                 let raw = file.decode_payload(entry)?;
                 let (header, body) = decode_text_payload(raw.as_ref())?;
                 write_text_directive(&mut out, entry.chunk_id, &header);
-                out.push_str(&header.render_markdown_with_links(&body, file.links()));
+                out.push_str(
+                    header
+                        .render_markdown_with_links(&body, file.links())
+                        .trim_end(),
+                );
                 out.push_str("\n\n");
             }
             ChunkType::Figure => {
@@ -160,7 +168,7 @@ fn next_directive_index(lines: &[&str], mut i: usize) -> usize {
     i
 }
 
-fn decode_directive_block(
+pub(super) fn decode_directive_block(
     kind: &str,
     chunk_id: u64,
     map: &std::collections::BTreeMap<String, String>,
@@ -373,7 +381,118 @@ fn decode_attachment_block(
     })
 }
 
-fn write_text_directive(out: &mut String, chunk_id: u64, header: &TextHeader) {
+/// Encode typed content blocks as Tessprek (optional `source-hash` in the header).
+///
+/// Used by [`normalize_tessprek`] and tests; does not require an open [`TesFile`].
+#[must_use]
+pub fn encode_content_blocks(source_hash: Option<&str>, blocks: &[ContentBlock]) -> String {
+    let mut out = String::new();
+    match source_hash {
+        Some(hash) if !hash.is_empty() => {
+            let _ = writeln!(
+                out,
+                "{HEADER_PREFIX} format={FORMAT} version={VERSION} source-hash={hash}{COMMENT_SUFFIX}"
+            );
+        }
+        _ => {
+            let _ = writeln!(
+                out,
+                "{HEADER_PREFIX} format={FORMAT} version={VERSION}{COMMENT_SUFFIX}"
+            );
+        }
+    }
+    out.push('\n');
+
+    for block in blocks {
+        match block {
+            ContentBlock::Text {
+                chunk_id,
+                header,
+                body,
+                pending_links,
+            } => {
+                let id = chunk_id.unwrap_or(0);
+                write_text_directive(&mut out, id, header);
+                out.push_str(render_text_with_pending(header, body, pending_links).trim_end());
+                out.push_str("\n\n");
+            }
+            ContentBlock::Figure { chunk_id, figure } => {
+                let id = chunk_id.unwrap_or(0);
+                write_figure_directive(&mut out, id, figure);
+                let _ = writeln!(
+                    out,
+                    "![{}](media:chunk-{})",
+                    escape_alt(&figure.alt_text),
+                    figure.image_chunk_id
+                );
+                out.push('\n');
+            }
+            ContentBlock::Cite { chunk_id, cite } => {
+                let id = chunk_id.unwrap_or(0);
+                write_cite_directive(&mut out, id, cite);
+                out.push_str(cite.quote.trim_end());
+                out.push_str("\n\n");
+            }
+            ContentBlock::Slide { chunk_id, slide } => {
+                let id = chunk_id.unwrap_or(0);
+                write_slide_directive(&mut out, id, slide);
+                out.push('\n');
+            }
+            ContentBlock::Attachment {
+                chunk_id,
+                filename,
+                media_type,
+                caption,
+                sha256,
+            } => {
+                let id = chunk_id.unwrap_or(0);
+                write_attachment_directive(
+                    &mut out,
+                    id,
+                    &AttachmentPayload {
+                        filename: filename.clone(),
+                        media_type: media_type.clone(),
+                        caption: caption.clone(),
+                        sha256: sha256.clone(),
+                        // Bytes are not projected in Tessprek.
+                        data: Vec::new(),
+                    },
+                );
+                out.push('\n');
+            }
+        }
+    }
+    out
+}
+
+fn render_text_with_pending(
+    header: &TextHeader,
+    body: &str,
+    pending_links: &[crate::catalog::OutboundLink],
+) -> String {
+    use crate::catalog::{InlineKind, InlineSpan, LinkKind};
+
+    if pending_links.is_empty() {
+        return header.render_markdown(body);
+    }
+
+    let mut header = header.clone();
+    let mut links = Vec::new();
+    for link in pending_links {
+        let link_id = u64::try_from(links.len()).unwrap_or(u64::MAX);
+        if let Ok(entry) = link.clone().into_entry(0, LinkKind::Wiki) {
+            links.push(entry);
+            header.spans.push(InlineSpan {
+                start: link.start,
+                end: link.end,
+                kind: InlineKind::Link { link_id },
+            });
+        }
+    }
+    header.render_markdown_with_links(body, &links)
+}
+
+pub(super) fn write_text_directive(out: &mut String, chunk_id: u64, header: &TextHeader) {
     let _ = write!(
         out,
         "{CHUNK_PREFIX}chunk={chunk_id} role={}",
@@ -641,7 +760,10 @@ fn parse_figure_markdown(body: &str, line_no: usize) -> Result<(String, Option<u
     Ok((unescape_alt(alt), image_id))
 }
 
-fn parse_attrs(attrs: &str, line_no: usize) -> Result<std::collections::BTreeMap<String, String>> {
+pub(super) fn parse_attrs(
+    attrs: &str,
+    line_no: usize,
+) -> Result<std::collections::BTreeMap<String, String>> {
     let mut map = std::collections::BTreeMap::new();
     let mut rest = attrs.trim();
     while !rest.is_empty() {
@@ -757,7 +879,7 @@ fn optional_u32(map: &std::collections::BTreeMap<String, String>, key: &str) -> 
     map.get(key)?.parse().ok()
 }
 
-fn trim_block_body(lines: &[&str]) -> String {
+pub(super) fn trim_block_body(lines: &[&str]) -> String {
     let mut start = 0;
     let mut end = lines.len();
     while start < end && lines[start].trim().is_empty() {

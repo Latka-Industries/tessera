@@ -8,7 +8,7 @@
 //!
 //! Commands cover `info`, `verify`, `export` (including `--pdf`), CommonMark/HTML
 //! `import`, vault-aware `link`, loopback `serve`, Tessera Markdown
-//! `edit-read` / `edit-write` / `apply`, history `save` / `log` / `diff` /
+//! `edit-read` / `edit-write` / `format` / `apply`, history `save` / `log` / `diff` /
 //! `changelog` / `export-revs` / `checkout` / `blame` / `pending` / `textconv` /
 //! `merge-file`, and vault catalog `vault rebuild` / `vault list` /
 //! `vault add` / `vault remove` / `vault members`.
@@ -24,8 +24,8 @@ use clap::Parser;
 use args::{Cli, Commands};
 use commands::{
     run_apply, run_blame, run_changelog, run_checkout, run_diff, run_edit_read, run_edit_write,
-    run_export, run_export_revs, run_import, run_info, run_link, run_log, run_merge_file,
-    run_pending, run_save, run_serve, run_textconv, run_vault, run_verify,
+    run_export, run_export_revs, run_format, run_import, run_info, run_link, run_log,
+    run_merge_file, run_pending, run_save, run_serve, run_textconv, run_vault, run_verify,
 };
 use util::result_exit;
 
@@ -46,6 +46,7 @@ pub fn run() -> ExitCode {
         Commands::Vault { vault, command } => result_exit(run_vault(&vault, command)),
         Commands::Serve(args) => result_exit(run_serve(args)),
         Commands::EditRead(args) => result_exit(run_edit_read(&args)),
+        Commands::Format(args) => result_exit(run_format(&args)),
         Commands::EditWrite(args) => result_exit(run_edit_write(args)),
         Commands::Apply(args) => result_exit(run_apply(args)),
         Commands::Save(args) => result_exit(run_save(args)),

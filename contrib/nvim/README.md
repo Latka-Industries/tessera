@@ -25,7 +25,9 @@ save — never dumping Tessprek text onto the binary `.tes` path.
   lazy = false,
   opts = {
     -- cmd = { "/abs/path/to/tes-lsp" },
-    -- project = true,   -- Tessprek via edit-read (default)
+    -- project = true,          -- Tessprek via edit-read (default)
+    -- format_on_save = false,  -- run `tes format` before write-back
+    -- conceal_directives = false, -- hide <!-- tes … --> lines while editing
     -- autostart = true,
   },
 }
@@ -43,13 +45,32 @@ require("tessera").setup()
 | --- | --- |
 | Open `*.tes` | Buffer filled with Tessprek (`tes edit-read`); `tes-lsp` attaches |
 | Edit | In-memory Tessprek; `didChange` to the server |
-| `:w` / save | `workspace/executeCommand` → `tessera.write` (source-hash safe) |
+| `:TesseraFormat` | Normalize directives from Markdown shape (`tes format`) |
+| `:w` / save | Optional format-on-save, then `tessera.write` (source-hash safe) |
 | Hover | Chunk / header markers via server |
+
+### Authoring without hand-writing every directive
+
+Tessprek is a lossless wire: one `<!-- tes chunk=… -->` per chunk. While editing
+you can write Markdown-shaped bodies (`#`, `-`, fenced code, …) — including
+pasting free Markdown with no directives — then run **`:TesseraFormat`**. That
+calls `tes format`, which reuses the same CommonMark inference as
+`tes import --markdown` (roles, list depth, fence language) and reuses `chunk=`
+ids when possible.
+
+```vim
+:TesseraFormat
+```
+
+Optional: `format_on_save = true` in setup. Optional: `conceal_directives = true`
+to hide directive / header comment lines (`conceallevel=2`).
 
 ## Commands
 
+- `:TesseraFormat` — normalize Tessprek via `tes format`
 - `:TesseraLspRestart` — restart `tes-lsp` on the current buffer
 - `:TesseraProject` — re-run `edit-read` (discards unsaved buffer edits)
+- `:TesseraLspInfo` — show resolved binaries / client status
 
 ## Manual smoke (repo root)
 
@@ -65,10 +86,19 @@ Expect readable Tessprek (`Hello from Tessera`), not binary garbage.
 
 ```vim
 :TesseraLspInfo
+:TesseraFormat
 :lua =vim.lsp.get_clients({ name = "tes-lsp" })
 ```
 
-If clients is `{}`, check `:TesseraLspInfo` — usually `tes-lsp` is missing (`cargo build --bin tes-lsp`) while `tes` alone is enough for projection.
+CLI-only format check (no Neovim):
+
+```bash
+cargo run -q --bin tes -- edit-read fixtures/samples/text_roles.tes 2>/dev/null \
+  | cargo run -q --bin tes -- format --stdin \
+  | cargo run -q --bin tes -- format --check --stdin
+```
+
+If clients is `{}`, check `:TesseraLspInfo` — usually `tes-lsp` is missing (`cargo build --bin tes-lsp`) while `tes` alone is enough for projection and format.
 
 Edit a word, `:w`, then:
 
@@ -81,3 +111,4 @@ cargo run -q --bin tes -- edit-read fixtures/v0/note_one_chunk.tes | head
 ## See also
 
 - [docs/lsp.md](../../docs/lsp.md) — server capabilities and document model
+- [docs/cli.md](../../docs/cli.md) — `tes format` / edit-read / edit-write

@@ -76,6 +76,9 @@ pub(super) enum Commands {
     /// Decode a .tes file to Tessera Markdown (Tessprek) for editors
     EditRead(EditReadArgs),
 
+    /// Normalize Tessprek: infer roles / split blocks from Markdown shape
+    Format(FormatArgs),
+
     /// Compile Tessera Markdown and atomically replace a .tes file
     EditWrite(EditWriteArgs),
 
@@ -290,6 +293,31 @@ pub(super) struct EditReadArgs {
     /// Write Tessera Markdown to PATH instead of stdout
     #[arg(short = 'o', long = "output")]
     pub(super) output: Option<PathBuf>,
+}
+
+/// Flags for `tes format`.
+#[derive(Debug, Args)]
+#[command(group(
+    ArgGroup::new("format_input")
+        .required(true)
+        .args(["stdin", "input"])
+))]
+pub(super) struct FormatArgs {
+    /// Projection format (only `tessprek` today)
+    #[arg(long, default_value = "tessprek")]
+    pub(super) format: String,
+    /// Read Tessprek from stdin
+    #[arg(long)]
+    pub(super) stdin: bool,
+    /// Read Tessprek from PATH
+    #[arg(short = 'i', long = "input")]
+    pub(super) input: Option<PathBuf>,
+    /// Write normalized Tessprek to PATH instead of stdout
+    #[arg(short = 'o', long = "output")]
+    pub(super) output: Option<PathBuf>,
+    /// Exit 1 if normalization would change the input (no write)
+    #[arg(long)]
+    pub(super) check: bool,
 }
 
 /// Flags for `tes edit-write`.

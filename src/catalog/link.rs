@@ -605,7 +605,7 @@ mod tests {
     fn table_round_trip_uses_48_byte_rows() {
         let target = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
         let entry = LinkEntry::new(3, 5, 12, target, 8, LinkKind::Wiki);
-        let bytes = encode_link_table(&[entry.clone()]);
+        let bytes = encode_link_table(std::slice::from_ref(&entry));
         assert_eq!(bytes.len(), 24 + 48);
         assert_eq!(&bytes[..4], b"TLNK");
         assert_eq!(bytes[4], 0); // v0
@@ -616,7 +616,7 @@ mod tests {
     fn external_uri_uses_v1_heap_and_round_trips() {
         let entry =
             LinkEntry::external(1, 0, 4, "https://example.com/path?q=1", LinkKind::Wiki).unwrap();
-        let bytes = encode_link_table(&[entry.clone()]);
+        let bytes = encode_link_table(std::slice::from_ref(&entry));
         assert_eq!(bytes[4], 1); // v1
         assert!(bytes.len() > 24 + 48);
         let back = read_link_table(&bytes).unwrap();

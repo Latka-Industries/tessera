@@ -52,7 +52,7 @@ pub mod prelude {
     };
     pub use crate::edit::{
         EditReadReport, EditWriteOptions, EditWriteReport, TesOp, apply_ops, apply_patch,
-        edit_read, edit_write, file_source_hash,
+        edit_read, edit_write, file_source_hash, normalize_tessprek,
     };
     pub use crate::error::{Result, TesError};
     pub use crate::history::{

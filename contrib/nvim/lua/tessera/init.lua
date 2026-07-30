@@ -8,6 +8,8 @@ local M = {}
 ---@field root_markers? string[] Markers for workspace root (default: { ".git" })
 ---@field autostart? boolean Attach on FileType / *.tes (default: true)
 ---@field project? boolean Replace `.tes` buffer with Tessprek via `tes edit-read` (default: true)
+---@field format_on_save? boolean Run `tes format` before write-back (default: false)
+---@field conceal_directives? boolean Conceal `<!-- tes … -->` / header lines (default: false)
 
 ---@type tessera.Config
 local defaults = {
@@ -15,6 +17,8 @@ local defaults = {
   root_markers = { ".git" },
   autostart = true,
   project = true,
+  format_on_save = false,
+  conceal_directives = false,
 }
 
 ---@type tessera.Config
@@ -144,6 +148,27 @@ function M.project(bufnr)
   open_tes(bufnr)
 end
 
+---Normalize Tessprek directives from Markdown-shaped bodies (`tes format`).
+---@param bufnr? integer
+---@return boolean ok
+function M.format(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  return buffer.format(bufnr)
+end
+
+---@param bufnr integer
+local function apply_conceal(bufnr)
+  if M.config.conceal_directives == false then
+    return
+  end
+  vim.api.nvim_buf_call(bufnr, function()
+    vim.opt_local.conceallevel = 2
+    vim.opt_local.concealcursor = "nvic"
+    pcall(vim.cmd, [[syntax match TesseraDirective /<!--\s*tes\%(sera:\)\?\_.\{-}-->/ conceal]])
+    pcall(vim.cmd, "highlight default link TesseraDirective Comment")
+  end)
+end
+
 ---@param opts? tessera.Config
 function M.setup(opts)
   if vim.g.tessera_setup_done then
@@ -161,6 +186,10 @@ function M.setup(opts)
     M.project()
   end, { desc = "Reload Tessprek projection via tes edit-read" })
 
+  vim.api.nvim_create_user_command("TesseraFormat", function()
+    M.format()
+  end, { desc = "Normalize Tessprek directives via tes format" })
+
   vim.api.nvim_create_user_command("TesseraLspInfo", function()
     local cmd = resolve_cmd()
     local clients = vim.lsp.get_clients({ name = "tes-lsp" })
@@ -170,6 +199,8 @@ function M.setup(opts)
       "clients: " .. #clients,
       "projected: " .. tostring(vim.b.tessera_projected),
       "filetype: " .. vim.bo.filetype,
+      "format_on_save: " .. tostring(M.config.format_on_save),
+      "conceal_directives: " .. tostring(M.config.conceal_directives),
     }
     for _, c in ipairs(clients) do
       table.insert(lines, string.format("  id=%s root=%s", c.id, c.root_dir or "?"))
@@ -188,6 +219,7 @@ function M.setup(opts)
     pattern = "tes",
     callback = function(args)
       open_tes(args.buf)
+      apply_conceal(args.buf)
     end,
   })
 
@@ -204,6 +236,11 @@ function M.setup(opts)
     group = group,
     pattern = "*.tes",
     callback = function(args)
+      if M.config.format_on_save then
+        if not buffer.format(args.buf) then
+          return
+        end
+      end
       buffer.write(args.buf)
     end,
   })
@@ -211,6 +248,7 @@ function M.setup(opts)
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(bufnr) and is_tes_buf(bufnr) then
       open_tes(bufnr)
+      apply_conceal(bufnr)
     end
   end
 end

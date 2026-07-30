@@ -5,7 +5,7 @@
 //! atomic replace.
 
 mod ops;
-mod tessprek;
+pub mod tessprek;
 
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -27,7 +27,10 @@ use crate::verify::{TesVerifyReport, verify_bytes, verify_tes_file};
 
 pub use ops::{TesOp, apply_ops_to_blocks, parse_ops_json};
 pub use tessprek::markers;
-pub use tessprek::{decode_tessprek, encode_tessprek};
+pub use tessprek::{
+    decode_tessprek, encode_content_blocks, encode_tessprek, normalize_tessprek,
+    tessprek_needs_format,
+};
 
 /// One reading-order block in a Tessprek projection.
 #[derive(Debug, Clone, PartialEq, Eq)]

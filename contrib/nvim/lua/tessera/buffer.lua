@@ -65,6 +65,50 @@ function M.project(bufnr)
   return true
 end
 
+---Normalize Tessprek in-buffer via `tes format --stdin` (Markdown → roles / chunk ids).
+---@param bufnr integer
+---@return boolean ok
+function M.format(bufnr)
+  local tes = M.resolve_tes_cli()
+  if not tes then
+    vim.notify(
+      "tessera.nvim: `tes` CLI not found (build with `cargo build --bin tes`)",
+      vim.log.levels.ERROR
+    )
+    return false
+  end
+
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local text = table.concat(lines, "\n")
+  if text ~= "" and not text:match("\n$") then
+    text = text .. "\n"
+  end
+
+  local result = vim.system({ tes, "format", "--stdin" }, { text = true, stdin = text }):wait()
+  if result.code ~= 0 then
+    local err = (result.stderr or result.stdout or ""):gsub("%s+$", "")
+    vim.notify("tessera.nvim: format failed: " .. err, vim.log.levels.ERROR)
+    return false
+  end
+
+  local out = result.stdout or ""
+  local out_lines = vim.split(out, "\n", { plain = true })
+  if out_lines[#out_lines] == "" then
+    table.remove(out_lines)
+  end
+
+  local cur = table.concat(lines, "\n")
+  local next = table.concat(out_lines, "\n")
+  if cur == next then
+    return true
+  end
+
+  local view = vim.fn.winsaveview()
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, out_lines)
+  vim.fn.winrestview(view)
+  return true
+end
+
 ---Write Tessprek back via LSP `tessera.write` (does not dump buffer bytes onto `.tes`).
 ---@param bufnr integer
 ---@return boolean ok

@@ -10,7 +10,7 @@ mod link;
 mod serve;
 mod vault;
 
-pub(super) use edit::{run_apply, run_edit_read, run_edit_write};
+pub(super) use edit::{run_apply, run_edit_read, run_edit_write, run_format};
 pub(super) use history::{
     run_blame, run_changelog, run_checkout, run_diff, run_export_revs, run_log, run_merge_file,
     run_pending, run_save, run_textconv,

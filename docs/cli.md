@@ -20,7 +20,7 @@ Related: [layout_v0.md](layout_v0.md),
 | [`tes vault`](#tes-vault)                                                               | —     | Optional `vault.tes` TOC rebuild / list       |
 | [`tes serve`](#tes-serve) `<path.tes>`                                                  | —     | Local themed browser preview                  |
 | `tes meta <get\|set>`                                                                   | —     | Catalog JSON/YAML/TOML round-trip (planned)   |
-| [`tes edit-read`](#mutation-protocol) / `edit-write`                                    | —     | Tessera Markdown virtual editor protocol      |
+| [`tes edit-read`](#mutation-protocol) / `format` / `edit-write`                         | —     | Tessera Markdown virtual editor protocol      |
 | [`tes apply`](#mutation-protocol)                                                       | —     | Verified Tessera Markdown / typed-op mutation |
 | `tes log\|diff\|changelog\|blame\|pending\|export-revs\|checkout\|textconv\|merge-file` | —     | M10 revision/history tools                    |
 
@@ -246,6 +246,9 @@ by default. See [security.md](security.md).
 ```bash
 # Editor-neutral virtual buffer protocol.
 tes edit-read paper.tes --format tessprek
+tes format --stdin < buffer.tessprek
+tes format -i buffer.tessprek -o buffer.tessprek
+tes format --check --stdin < buffer.tessprek
 tes edit-write paper.tes --format tessprek --source-hash HASH --stdin
 tes edit-write paper.tes --source-hash HASH -i buffer.tessprek --dry-run
 
@@ -267,6 +270,11 @@ tes apply paper.tes --patch change.tessprek --source-hash HASH
 ![alt](media:chunk-3)
 ```
 
+`tes format` normalizes a Tessprek buffer: Markdown-shaped bodies get correct
+`role` / `level` / `list` / `depth` / `code_lang`, multi-block bodies are split
+into one directive per chunk (same inference as `tes import --markdown`), and
+`chunk=` ids are reused when possible. Free Markdown gaps (no directive) are
+accepted. `--check` exits non-zero when the input is not already normalized.
 `edit-write` and `apply` acquire an advisory per-file lock, re-check the source
 hash, compile to a sibling temporary file, deep-verify, and atomically replace.
 `--dry-run` stops before replace and prints a line diff. Vim/Neovim integrations
@@ -422,6 +430,7 @@ Every CLI command maps to a library entry point. The `tes` binary only calls
 | `tes save` / `log` / `diff` / `changelog` / `blame` / `export-revs` / `checkout` / `textconv` / `merge-file` | `tessera_doc::history::*`                                                                           |
 | `tes serve`                                                                                                  | `tessera_doc::render::preview::serve_preview`                                                       |
 | `tes edit-read`                                                                                              | `tessera_doc::edit::edit_read`                                                                      |
+| `tes format`                                                                                                 | `tessera_doc::edit::normalize_tessprek` (`edit::tessprek`)                                            |
 | `tes edit-write`                                                                                             | `tessera_doc::edit::edit_write`                                                                     |
 | `tes apply`                                                                                                  | `tessera_doc::edit::apply_ops` / `apply_patch`                                                      |
 | `tes-lsp`                                                                                                    | `tessera_doc::lsp::run`                                                                             |
