@@ -17,7 +17,7 @@ Related: [layout_v0.md](layout_v0.md),
 | [`tes export`](#tes-export) `<path.tes>`                                                | —     | Decoded views ([exports.md](exports.md))      |
 | [`tes import`](#tes-import) `<in> <out.tes>`                                            | —     | Foreign format → `.tes` (staged rollout)      |
 | [`tes link`](#tes-link)                                                                 | —     | Resolve / inspect links across a vault        |
-| [`tes vault`](#tes-vault)                                                               | —     | Optional `vault.tes` TOC rebuild / list       |
+| [`tes vault`](#tes-vault)                                                               | —     | Optional `vault.tes` TOC + FTS search         |
 | [`tes serve`](#tes-serve) `<path.tes>`                                                  | —     | Local themed browser preview                  |
 | `tes meta <get\|set>`                                                                   | —     | Catalog JSON/YAML/TOML round-trip (planned)   |
 | [`tes edit-read`](#mutation-protocol) / `format` / `edit-write`                         | —     | Tessera Markdown virtual editor protocol      |
@@ -177,10 +177,12 @@ Vault-level link operations (requires `--vault DIR`).
 
 Optional vault catalog index — a TOC-style `vault.tes` sidecar
 (`doc_kind = index`) listing `doc_id → title, tags, category, aliases, slug,
-modified, path` so list/search does not open every note. Index version ≥ 2 also
-stores **registered members** (external `.tes` files or extra roots). Version ≥ 3
-rows may include `category` / `aliases` / `slug`. `tes link` uses the same
-membership set.
+modified, path` so list does not open every note. `tes vault search` defaults
+to a **parallel scan** of membership (`--ai-text` + catalog fields). For larger
+vaults (≥ 64 docs) or with `--index`, it uses a **Tantivy** BM25 index under
+`.tessera/fts/`. Index version ≥ 2 also stores **registered members** (external
+`.tes` files or extra roots). Version ≥ 3 rows may include `category` /
+`aliases` / `slug`. `tes link` and search use the same membership set.
 
 ```bash
 tes vault --vault ./notes rebuild
@@ -188,6 +190,11 @@ tes vault --vault ./notes list
 tes vault --vault ./notes list --tag ml --json
 tes vault --vault ./notes list --category Literature
 tes vault --vault ./notes list --force-scan
+tes vault --vault ./notes search "phrase"
+tes vault --vault ./notes search "phrase" --scan
+tes vault --vault ./notes search "title:Alpha OR xylophone" --index --json
+tes vault --vault ./notes search --rebuild
+tes vault --vault ./notes search "phrase" --force-rebuild
 tes vault --vault ./notes import /path/to/obsidian-vault
 tes vault --vault ./notes add /other/project/note.tes
 tes vault --vault ./notes add /other/shared-notes
@@ -199,6 +206,7 @@ tes vault --vault ./notes remove /other/project/note.tes
 | --------------- | --------------------------------------------------------------------------- |
 | `rebuild`       | Scan membership and seal/replace `vault.tes` (preserves registered members) |
 | `list`          | List docs from a fresh index, else catalog scan (warn if stale)             |
+| `search QUERY`  | Parallel scan by default; Tantivy when ≥ 64 docs or `--index`               |
 | `import DIR`    | Import Markdown/Obsidian tree into the vault (skip `.obsidian`)             |
 | `add PATH`      | Register a `.tes` file or extra root; rebuilds `vault.tes`                  |
 | `remove PATH`   | Unregister a previous `add`; rebuilds `vault.tes`                           |
@@ -209,7 +217,12 @@ tes vault --vault ./notes remove /other/project/note.tes
 | `--tag TAG`    | Keep rows whose catalog tags include `TAG`                                 |
 | `--category C` | Keep rows whose catalog category equals `C`                                |
 | `--force-scan` | Ignore TOC freshness and rescan catalogs (still honors members)            |
-| `--json`       | Machine-readable [`VaultListReport`](../src/vault/index.rs) or member list |
+| `--scan`       | (`search`) Force parallel membership scan (no sidecar)                     |
+| `--index`      | (`search`) Force Tantivy under `.tessera/fts`                              |
+| `--rebuild`    | (`search`) Rebuild Tantivy index; with no query, rebuild only              |
+| `--force-rebuild` | (`search`) Always rebuild before an indexed query                       |
+| `--limit N`    | (`search`) Max hits (default 50)                                           |
+| `--json`       | Machine-readable list / search / member report                             |
 | `--table`      | Force aligned table (default when stdout is a TTY)                         |
 | `--tsv`        | Force tab-separated rows (default when stdout is not a TTY)                |
 
@@ -222,11 +235,20 @@ path re-seed); top-level folder → `category`; front matter tags/aliases/slug;
 `* Index.md` → `hub`; resolves `[[wikilinks]]` via title → slug → aliases;
 rebuilds `vault.tes`.
 
-**Stale detection:** entry count / display paths / file mtimes must match the
-index over the full membership set; otherwise list falls back to a catalog scan.
+**Stale detection (`vault.tes`):** entry count / display paths / file mtimes must
+match the index over the full membership set; otherwise list falls back to a
+catalog scan.
+
+**Search index (`.tessera/fts`):** Tantivy segments + `tessera_signatures.json`
+(path/mtime). Indexed search rebuilds when missing/stale. Small vaults never
+create `.tessera/` unless `--index` / `--rebuild` is used.
 
 **Paths:** under the vault root → stored relative; outside → absolute. In-tree
 files remain auto-scanned without registration.
+
+**Scale note:** this slice searches projected prose + catalog fields only. Path /
+attachment metadata at corpus scale may later use something like **nefaxer**
+(or a similar sidecar); that is a follow-up, not part of the first search cut.
 
 ---
 

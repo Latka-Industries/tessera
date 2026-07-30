@@ -310,7 +310,7 @@ fn scan_catalog_entries(root: &Path, members: &[VaultMember]) -> Result<Vec<Vaul
     Ok(entries)
 }
 
-fn path_signatures(root: &Path, paths: &[PathBuf]) -> Result<Vec<(String, u64)>> {
+pub(super) fn path_signatures(root: &Path, paths: &[PathBuf]) -> Result<Vec<(String, u64)>> {
     let mut out = Vec::with_capacity(paths.len());
     for path in paths {
         out.push((display_path(root, path), file_mtime_secs(path)?));
@@ -319,7 +319,7 @@ fn path_signatures(root: &Path, paths: &[PathBuf]) -> Result<Vec<(String, u64)>>
     Ok(out)
 }
 
-fn file_mtime_secs(path: &Path) -> Result<u64> {
+pub(super) fn file_mtime_secs(path: &Path) -> Result<u64> {
     let modified = fs::metadata(path)?.modified()?;
     Ok(modified
         .duration_since(SystemTime::UNIX_EPOCH)

@@ -11,7 +11,7 @@
 //! - [`io`] — import / export / bibliography interchange.
 //! - [`edit`] — Tessera Markdown virtual editing (`edit-read` / `edit-write` / `apply`).
 //! - [`history`] — content-addressed drafts (`tes save` / `log` / `diff` / `changelog`).
-//! - [`vault`] — stable link resolution and backlinks.
+//! - [`vault`] — stable link resolution, backlinks, and FTS search.
 //! - [`render`] — template packs, `tes serve` preview, and PDF print.
 //! - [`cli`] — `tes` command surface (`src/bin/tes.rs` → [`cli::run`]).
 //! - [`lsp`] — `tes-lsp` Tessprek language server (`src/bin/tes_lsp.rs` → [`lsp::run`]).

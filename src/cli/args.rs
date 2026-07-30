@@ -548,26 +548,7 @@ pub(super) enum VaultCommands {
     /// Rebuild the optional `vault.tes` catalog index
     Rebuild,
     /// List documents (uses `vault.tes` when fresh)
-    List {
-        /// Filter by catalog tag
-        #[arg(long)]
-        tag: Option<String>,
-        /// Filter by catalog category
-        #[arg(long)]
-        category: Option<String>,
-        /// Ignore `vault.tes` and scan catalogs
-        #[arg(long)]
-        force_scan: bool,
-        /// Emit JSON
-        #[arg(long)]
-        json: bool,
-        /// Force aligned table (default when stdout is a TTY)
-        #[arg(long)]
-        table: bool,
-        /// Force tab-separated rows (default when stdout is not a TTY)
-        #[arg(long)]
-        tsv: bool,
-    },
+    List(VaultListArgs),
     /// Import a Markdown / Obsidian folder into this vault
     Import {
         /// Root directory of `.md` files (`.obsidian` skipped)
@@ -592,4 +573,56 @@ pub(super) enum VaultCommands {
         #[arg(long)]
         json: bool,
     },
+    /// Search vault membership (scan by default; Tantivy under `.tessera/fts` when large / `--index`)
+    Search(VaultSearchArgs),
+}
+
+/// Flags for `tes vault list`.
+#[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)]
+pub(super) struct VaultListArgs {
+    /// Filter by catalog tag
+    #[arg(long)]
+    pub(super) tag: Option<String>,
+    /// Filter by catalog category
+    #[arg(long)]
+    pub(super) category: Option<String>,
+    /// Ignore `vault.tes` and scan catalogs
+    #[arg(long)]
+    pub(super) force_scan: bool,
+    /// Emit JSON
+    #[arg(long)]
+    pub(super) json: bool,
+    /// Force aligned table (default when stdout is a TTY)
+    #[arg(long)]
+    pub(super) table: bool,
+    /// Force tab-separated rows (default when stdout is not a TTY)
+    #[arg(long)]
+    pub(super) tsv: bool,
+}
+
+/// Flags for `tes vault search`.
+#[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)]
+pub(super) struct VaultSearchArgs {
+    /// Query string (Tantivy syntax when indexed). Omit with `--rebuild` to only rebuild the index.
+    pub(super) query: Option<String>,
+    /// Force Tantivy index (also used when membership ≥ 64 docs)
+    #[arg(long, conflicts_with = "scan")]
+    pub(super) index: bool,
+    /// Force parallel scan (no sidecar)
+    #[arg(long, conflicts_with = "index")]
+    pub(super) scan: bool,
+    /// Rebuild the Tantivy index under `.tessera/fts`
+    #[arg(long)]
+    pub(super) rebuild: bool,
+    /// Always rebuild before an indexed search
+    #[arg(long)]
+    pub(super) force_rebuild: bool,
+    /// Maximum hits (default 50)
+    #[arg(long, default_value_t = 50)]
+    pub(super) limit: usize,
+    /// Emit JSON
+    #[arg(long)]
+    pub(super) json: bool,
 }

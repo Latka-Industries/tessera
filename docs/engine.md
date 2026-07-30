@@ -92,7 +92,7 @@ The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp
 | `io::export` | `--raw`, `--ai-text`, `--chunks-jsonl`, … | [exports.md](exports.md) |
 | `io::import` | `--markdown`, `--html` | [decisions](decisions.md) |
 | `io::bib` | BibTeX / CSL-JSON bibliography interchange | [exports.md](exports.md#bibliography) |
-| `vault` | Multi-file link resolve, backlinks | Phase 5 |
+| `vault` | Multi-file link resolve, backlinks, search (scan / Tantivy) | Phase 5 / THI-223 |
 | `render` | Template packs, `tes serve`, print PDF | Phase 7 |
 | `edit` | Tessera Markdown + typed safe mutation | Layout v1 |
 | `history` | save/log/diff/blame/pending/`merge-file` over THST | M10 |

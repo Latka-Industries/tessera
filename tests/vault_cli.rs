@@ -181,3 +181,57 @@ fn vault_add_extra_root_lists_nested() {
     assert!(out.contains("Deep"), "{out}");
     assert!(out.contains("documents=3"), "{out}");
 }
+
+#[test]
+fn vault_search_scan_and_index() {
+    let vault = tempdir().unwrap();
+    write_note(
+        vault.path(),
+        "a.tes",
+        "Alpha note with xylophone marker",
+        Uuid::new_v4(),
+        None,
+    );
+    write_note(vault.path(), "b.tes", "Beta ordinary", Uuid::new_v4(), None);
+
+    let scan = tes()
+        .args(["vault", "--vault"])
+        .arg(vault.path())
+        .arg("search")
+        .arg("xylophone")
+        .output()
+        .unwrap();
+    assert!(
+        scan.status.success(),
+        "{}",
+        String::from_utf8_lossy(&scan.stderr)
+    );
+    let scan_err = String::from_utf8_lossy(&scan.stderr);
+    assert!(scan_err.contains("source=scan"), "{scan_err}");
+    let scan_out = String::from_utf8_lossy(&scan.stdout);
+    assert!(scan_out.contains("Alpha"), "{scan_out}");
+    assert!(scan_out.contains("hits=1"), "{scan_out}");
+    assert!(!vault.path().join(".tessera").exists());
+
+    let indexed = tes()
+        .args(["vault", "--vault"])
+        .arg(vault.path())
+        .arg("search")
+        .arg("xylophone")
+        .arg("--index")
+        .output()
+        .unwrap();
+    assert!(
+        indexed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&indexed.stderr)
+    );
+    let idx_err = String::from_utf8_lossy(&indexed.stderr);
+    assert!(
+        idx_err.contains(".tessera") || idx_err.contains("rebuilt"),
+        "{idx_err}"
+    );
+    let idx_out = String::from_utf8_lossy(&indexed.stdout);
+    assert!(idx_out.contains("Alpha"), "{idx_out}");
+    assert!(vault.path().join(".tessera/fts").is_dir());
+}

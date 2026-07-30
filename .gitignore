@@ -1,2 +1,6 @@
 .DS_Store
 /target
+
+# Vault-local caches (Tantivy FTS under .tessera/fts, etc.)
+.tessera/
+**/.tessera/

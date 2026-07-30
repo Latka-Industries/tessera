@@ -165,6 +165,13 @@ pub enum TesError {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
+    /// Vault FTS sidecar (`SQLite`) failed.
+    #[error("vault FTS: {message}")]
+    VaultFts {
+        /// Human-readable reason.
+        message: String,
+    },
+
     /// Template pack directory or manifest was not found.
     #[error("template not found: {id_or_path}")]
     TemplateNotFound {

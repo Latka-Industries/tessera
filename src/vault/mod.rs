@@ -2,7 +2,8 @@
 //!
 //! - [`Vault`] — scan membership (in-tree ∪ registered externals) and query the link graph.
 //! - [`parse_target`] — parse `UUID` or `UUID/chunk` CLI/link targets.
-//! - Optional [`vault.tes`](index) TOC index for list/search without a full graph scan.
+//! - Optional [`vault.tes`](index) TOC index for list without a full graph scan.
+//! - Vault search: parallel scan or Tantivy under [`.tessera/fts`](search).
 //! - Membership: [`register_member`] / [`unregister_member`] for out-of-tree paths.
 //! - Markdown vault import: [`import_markdown_vault`].
 //! - Value types: [`VaultDocument`], [`Backlink`], [`ResolvedTarget`], [`BrokenLink`].
@@ -11,6 +12,7 @@ mod graph;
 mod import;
 mod index;
 mod members;
+mod search;
 mod types;
 
 pub use graph::Vault;
@@ -26,6 +28,11 @@ pub use index::{
 pub use members::{
     VaultMember, VaultMemberKind, load_registered_members, membership_document_paths,
     register_member, unregister_member,
+};
+pub use search::{
+    AUTO_INDEX_DOC_THRESHOLD, VAULT_DOT_DIR, VAULT_FTS_DIRNAME, VaultSearchHit, VaultSearchMode,
+    VaultSearchOptions, VaultSearchReport, rebuild_vault_fts, search_vault, vault_fts_is_fresh,
+    vault_fts_path,
 };
 pub use types::{Backlink, BrokenLink, ResolvedTarget, VaultDocument};
 
