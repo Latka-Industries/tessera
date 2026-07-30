@@ -210,6 +210,11 @@ tes vault --vault ./notes remove /other/project/note.tes
 | `--category C` | Keep rows whose catalog category equals `C`                                |
 | `--force-scan` | Ignore TOC freshness and rescan catalogs (still honors members)            |
 | `--json`       | Machine-readable [`VaultListReport`](../src/vault/index.rs) or member list |
+| `--table`      | Force aligned table (default when stdout is a TTY)                         |
+| `--tsv`        | Force tab-separated rows (default when stdout is not a TTY)                |
+
+Interactive terminals get an aligned table (`KIND TITLE PATH CATEGORY SLUG`
+plus a short `DOC_ID` prefix). Pipes and `--tsv` keep the legacy TSV shape.
 
 **Import behavior:** preserves relative paths as `.tes`; `doc_id` from Obsidian
 `id:` or path via UUIDv5 (keeps existing id on re-import; duplicate `id:` →
