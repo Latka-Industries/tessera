@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-doc"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "argus-chunk",
