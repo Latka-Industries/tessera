@@ -561,6 +561,12 @@ pub(super) enum VaultCommands {
         /// Emit JSON
         #[arg(long)]
         json: bool,
+        /// Force aligned table (default when stdout is a TTY)
+        #[arg(long)]
+        table: bool,
+        /// Force tab-separated rows (default when stdout is not a TTY)
+        #[arg(long)]
+        tsv: bool,
     },
     /// Import a Markdown / Obsidian folder into this vault
     Import {
