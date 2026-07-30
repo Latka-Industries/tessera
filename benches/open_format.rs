@@ -31,11 +31,10 @@ use uuid::Uuid;
 
 const VAULT_N: u8 = 8;
 const STAMP: &str = "2026-07-27T00:00:00Z";
-const IMPORT_OPTS: MarkdownImportOptions = MarkdownImportOptions {
-    doc_kind: DocKind::Document,
-    title: None,
-    doc_id: None,
-};
+
+fn import_opts() -> MarkdownImportOptions {
+    MarkdownImportOptions::default()
+}
 
 fn crate_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -62,7 +61,7 @@ fn long_tes_path() -> &'static Path {
             import_markdown_v0(
                 &fixture("assets/markdown/lorem_long.md"),
                 &path,
-                &IMPORT_OPTS,
+                &import_opts(),
             )
             .expect("import lorem_long");
             (dir, path)
@@ -79,7 +78,7 @@ fn decode_chunk_1(path: &Path) -> usize {
 fn import_md_to_temp(md: &Path) -> usize {
     let dir = tempdir().unwrap();
     let out = dir.path().join("out.tes");
-    import_markdown_v0(md, &out, &IMPORT_OPTS)
+    import_markdown_v0(md, &out, &import_opts())
         .unwrap()
         .chunk_count
 }
@@ -142,7 +141,7 @@ fn fill_copies(src: &Path, dest_dir: &Path, n: u8, name: &str, ext: &str) {
 fn import_copies(src_md: &Path, dest_dir: &Path, n: u8) {
     for i in 0..n {
         let out = dest_dir.join(format!("note{i}.tes"));
-        import_markdown_v0(src_md, &out, &IMPORT_OPTS).unwrap();
+        import_markdown_v0(src_md, &out, &import_opts()).unwrap();
     }
 }
 

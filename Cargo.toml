@@ -41,7 +41,7 @@ thiserror = "2.0.18"
 time = { version = "0.3.54", features = ["formatting"] }
 tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "io-std"] }
 tower-lsp = "0.20.0"
-uuid = { version = "1.24.0", features = ["v4"] }
+uuid = { version = "1.24.0", features = ["v4", "v5"] }
 
 [patch.crates-io]
 # argus-chunk = { path = "../argus-chunk" }
@@ -50,7 +50,7 @@ uuid = { version = "1.24.0", features = ["v4"] }
 anyhow = "1.0.104"
 criterion = { version = "0.8.2", features = ["html_reports"] }
 tempfile = "3.27.0"
-uuid = { version = "1.24.0", features = ["v4"] }
+uuid = { version = "1.24.0", features = ["v4", "v5"] }
 
 [[bench]]
 name = "open_format"

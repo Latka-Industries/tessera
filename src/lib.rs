@@ -69,16 +69,19 @@ pub mod prelude {
     };
     pub use crate::io::export::{AiPart, ExportOptions, ExportView, export_ai_parts, export_view};
     pub use crate::io::import::{
-        HtmlImportOptions, HtmlImportReport, MarkdownImportOptions, MarkdownImportReport,
-        import_html_v0, import_markdown_v0,
+        HtmlImportOptions, HtmlImportReport, MarkdownFrontMatter, MarkdownImportOptions,
+        MarkdownImportReport, WikilinkResolver, WikilinkSpan, collect_unresolved_wikilinks,
+        import_html_v0, import_markdown_v0, parse_front_matter, resolve_import_doc_id,
+        rewrite_wikilinks, visit_wikilinks,
     };
     pub use crate::layout::{DocKind, Region, SuperblockV0};
     pub use crate::render::pdf::{PdfExportOptions, export_pdf, render_themed_html};
     pub use crate::render::preview::{ServeOptions, preview_html_for_path, serve_preview};
     pub use crate::render::template::{TemplateManifest, TemplatePack};
     pub use crate::vault::{
-        Backlink, ResolvedTarget, Vault, VaultDocument, VaultIndex, VaultIndexEntry, VaultMember,
-        VaultMemberKind, list_vault_documents, rebuild_vault_index, register_member,
+        Backlink, ResolvedTarget, Vault, VaultDocument, VaultIndex, VaultIndexEntry,
+        VaultMarkdownImportOptions, VaultMarkdownImportReport, VaultMember, VaultMemberKind,
+        import_markdown_vault, list_vault_documents, rebuild_vault_index, register_member,
         unregister_member,
     };
     pub use crate::verify::{TesVerifyReport, verify_tes_file};

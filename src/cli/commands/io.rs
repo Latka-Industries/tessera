@@ -160,6 +160,7 @@ pub(in crate::cli) fn run_import(args: ImportArgs) -> Result<(), TesError> {
                 doc_kind,
                 title: args.title,
                 doc_id: args.doc_id,
+                ..MarkdownImportOptions::default()
             },
         )?;
         (report.chunk_count, report.doc_id)

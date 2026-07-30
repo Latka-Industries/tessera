@@ -198,6 +198,21 @@ fn merge_catalog(
         conflicts,
     );
     out.tags = three_way_eq(&cat_o.tags, &cat_a.tags, &cat_b.tags, "tags", conflicts);
+    out.category = three_way_eq(
+        &cat_o.category,
+        &cat_a.category,
+        &cat_b.category,
+        "category",
+        conflicts,
+    );
+    out.aliases = three_way_eq(
+        &cat_o.aliases,
+        &cat_a.aliases,
+        &cat_b.aliases,
+        "aliases",
+        conflicts,
+    );
+    out.slug = three_way_eq(&cat_o.slug, &cat_a.slug, &cat_b.slug, "slug", conflicts);
     out.template_id = three_way_eq(
         &cat_o.template_id,
         &cat_a.template_id,

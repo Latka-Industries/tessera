@@ -109,6 +109,9 @@ When `catalog_length > 0`, bytes at `catalog_offset` are **UTF-8 JSON** (no BOM)
   "modified": "2026-06-05T12:30:00Z",
   "doc_kind": "note",
   "tags": ["work", "standup"],
+  "category": "Literature",
+  "aliases": ["American Fiction"],
+  "slug": "Erasure",
   "template_id": "minimal",
   "theme_id": "dark-notes"
 }
@@ -121,6 +124,9 @@ When `catalog_length > 0`, bytes at `catalog_offset` are **UTF-8 JSON** (no BOM)
 | `created`, `modified` | yes | RFC 3339 UTC |
 | `doc_kind` | yes | String mirror of superblock enum |
 | `tags` | no | String array |
+| `category` | no | Primary bucket (e.g. vault top-level folder) |
+| `aliases` | no | Alternate display / wikilink names |
+| `slug` | no | Optional vault-unique human handle |
 | `template_id`, `theme_id` | no | Export / GUI hints |
 | `cite_style_id` | no | Citation style id (display) |
 | `language` | no | BCP-47 document language |
