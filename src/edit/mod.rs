@@ -25,7 +25,7 @@ use crate::catalog::{TesFile, TesWriterSession};
 use crate::error::{Result, TesError};
 use crate::verify::{TesVerifyReport, verify_bytes, verify_tes_file};
 
-pub use ops::{TesOp, apply_ops_to_blocks, parse_ops_json};
+pub use ops::{CatalogPatch, TesOp, apply_ops_to_blocks, parse_ops_json};
 pub use tessprek::markers;
 pub use tessprek::{
     decode_tessprek, encode_content_blocks, encode_tessprek, normalize_tessprek,
@@ -297,13 +297,11 @@ pub fn apply_ops(
     let before = edit_read(path)?;
     let source = TesFile::open(path)?;
     let mut blocks = decode_tessprek(&before.tessprek)?;
-    let mut title = source
-        .catalog()
-        .map_or_else(|| "Untitled".into(), |c| c.title.clone());
-    apply_ops_to_blocks(&mut blocks, &mut title, ops)?;
+    let mut catalog = CatalogPatch::from_catalog(source.catalog());
+    apply_ops_to_blocks(&mut blocks, &mut catalog, ops)?;
     let compiled = seal_with_history(
         &source,
-        compile_blocks_to_bytes(&source, &blocks, Some(title.as_str()))?,
+        compile_blocks_to_bytes(&source, &blocks, Some(&catalog))?,
     )?;
 
     let verify = verify_bytes(path, &compiled, true);
@@ -383,9 +381,9 @@ fn seal_with_history(source: &TesFile, body: Vec<u8>) -> Result<Vec<u8>> {
 fn compile_blocks_to_bytes(
     source: &TesFile,
     blocks: &[ContentBlock],
-    title_override: Option<&str>,
+    catalog_patch: Option<&CatalogPatch>,
 ) -> Result<Vec<u8>> {
-    let catalog = catalog_for_compile(source, title_override);
+    let catalog = catalog_for_compile(source, catalog_patch);
     let image_payloads = load_referenced_images(source, blocks)?;
 
     // Build into an ephemeral session path (encode_file only; no commit).
@@ -405,7 +403,7 @@ fn compile_blocks_to_bytes(
     session.encode_file()
 }
 
-fn catalog_for_compile(source: &TesFile, title_override: Option<&str>) -> DocumentCatalog {
+fn catalog_for_compile(source: &TesFile, patch: Option<&CatalogPatch>) -> DocumentCatalog {
     let doc_kind = source.superblock().doc_kind;
     let now = OffsetDateTime::now_utc()
         .format(&Rfc3339)
@@ -419,8 +417,8 @@ fn catalog_for_compile(source: &TesFile, title_override: Option<&str>) -> Docume
             doc_kind,
         )
     });
-    if let Some(title) = title_override {
-        title.clone_into(&mut catalog.title);
+    if let Some(patch) = patch {
+        patch.apply_to(&mut catalog);
     }
     catalog.modified = now;
     catalog
@@ -740,6 +738,32 @@ mod tests {
         path
     }
 
+    fn apply_json(path: &Path, ops_json: &str, dry_run: bool) -> EditWriteReport {
+        let read = edit_read(path).unwrap();
+        apply_ops(
+            path,
+            &parse_ops_json(ops_json).unwrap(),
+            &EditWriteOptions {
+                source_hash: read.source_hash,
+                dry_run,
+            },
+        )
+        .unwrap()
+    }
+
+    fn assert_meta(
+        aliases: &[&str],
+        slug: Option<&str>,
+        category: Option<&str>,
+        got_aliases: &[String],
+        got_slug: &Option<String>,
+        got_category: &Option<String>,
+    ) {
+        assert_eq!(got_aliases, aliases);
+        assert_eq!(got_slug.as_deref(), slug);
+        assert_eq!(got_category.as_deref(), category);
+    }
+
     #[test]
     fn edit_read_write_round_trip() {
         let dir = tempdir().unwrap();
@@ -786,24 +810,85 @@ mod tests {
     fn apply_ops_set_text_dry_run() {
         let dir = tempdir().unwrap();
         let path = sample_note(dir.path());
-        let read = edit_read(&path).unwrap();
-        let ops = parse_ops_json(
-            r#"[{"op":"set_text","chunk_id":2,"body":"Updated body"},{"op":"set_title","title":"Renamed"}]"#,
-        )
-        .unwrap();
-        let report = apply_ops(
+        let report = apply_json(
             &path,
-            &ops,
-            &EditWriteOptions {
-                source_hash: read.source_hash,
-                dry_run: true,
-            },
-        )
-        .unwrap();
+            r#"[{"op":"set_text","chunk_id":2,"body":"Updated body"},{"op":"set_title","title":"Renamed"}]"#,
+            true,
+        );
         assert!(!report.replaced);
         assert!(report.diff.contains("Updated body") || report.diff.contains('+'));
         // Original unchanged.
         let file = TesFile::open(&path).unwrap();
         assert_eq!(file.catalog().unwrap().title, "Meeting notes");
+    }
+
+    #[test]
+    fn apply_ops_catalog_aliases_slug_category_round_trip() {
+        let dir = tempdir().unwrap();
+        let vault = dir.path();
+        let path = sample_note(vault);
+        let report = apply_json(
+            &path,
+            r#"[
+              {"op":"set_aliases","aliases":["American Fiction","Percival"]},
+              {"op":"set_slug","slug":"Erasure"},
+              {"op":"set_category","category":"Literature"}
+            ]"#,
+            false,
+        );
+        assert!(report.replaced);
+
+        let file = TesFile::open(&path).unwrap();
+        let cat = file.catalog().unwrap();
+        assert_meta(
+            &["American Fiction", "Percival"],
+            Some("Erasure"),
+            Some("Literature"),
+            &cat.aliases,
+            &cat.slug,
+            &cat.category,
+        );
+
+        crate::vault::rebuild_vault_index(vault).unwrap();
+        let index = crate::vault::load_vault_index(vault).unwrap().unwrap();
+        let entry = index
+            .entries
+            .iter()
+            .find(|e| e.doc_id == cat.doc_id)
+            .expect("note in vault.tes");
+        assert_meta(
+            &["American Fiction", "Percival"],
+            Some("Erasure"),
+            Some("Literature"),
+            &entry.aliases,
+            &entry.slug,
+            &entry.category,
+        );
+    }
+
+    #[test]
+    fn apply_ops_catalog_clear_fields_dry_run_unchanged() {
+        let dir = tempdir().unwrap();
+        let path = sample_note(dir.path());
+        apply_json(
+            &path,
+            r#"[{"op":"set_aliases","aliases":["Keep"]},{"op":"set_slug","slug":"keep-slug"},{"op":"set_category","category":"KeepCat"}]"#,
+            false,
+        );
+        let report = apply_json(
+            &path,
+            r#"[{"op":"set_aliases","aliases":[]},{"op":"set_slug","slug":null},{"op":"set_category","category":null}]"#,
+            true,
+        );
+        assert!(!report.replaced);
+        let cat = TesFile::open(&path).unwrap().catalog().unwrap().clone();
+        assert_meta(
+            &["Keep"],
+            Some("keep-slug"),
+            Some("KeepCat"),
+            &cat.aliases,
+            &cat.slug,
+            &cat.category,
+        );
     }
 }
