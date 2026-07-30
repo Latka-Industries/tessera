@@ -1,16 +1,20 @@
 ---@mod tessera Tessera Neovim client (tes-lsp)
+local buffer = require("tessera.buffer")
+
 local M = {}
 
 ---@class tessera.Config
 ---@field cmd? string[] Command used to start tes-lsp (default: resolve on PATH / repo target/)
 ---@field root_markers? string[] Markers for workspace root (default: { ".git" })
----@field autostart? boolean Attach on FileType tes (default: true)
+---@field autostart? boolean Attach on FileType / *.tes (default: true)
+---@field project? boolean Replace `.tes` buffer with Tessprek via `tes edit-read` (default: true)
 
 ---@type tessera.Config
 local defaults = {
   cmd = nil,
   root_markers = { ".git" },
   autostart = true,
+  project = true,
 }
 
 ---@type tessera.Config
@@ -27,7 +31,6 @@ local function resolve_cmd()
     return { "tes-lsp" }
   end
 
-  -- Walk up from this plugin file: contrib/nvim/lua/tessera/init.lua → repo root.
   local src = debug.getinfo(1, "S").source:sub(2)
   local nvim_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(src)))
   local repo_root = vim.fs.dirname(vim.fs.dirname(nvim_root))
@@ -50,6 +53,44 @@ local function root_dir(bufnr)
   return found or vim.uv.cwd()
 end
 
+---@param bufnr integer
+---@return boolean
+local function is_tes_buf(bufnr)
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  return name:match("%.[tT][eE][sS]$") ~= nil or vim.bo[bufnr].filetype == "tes"
+end
+
+---Project Tessprek into the buffer (once), then attach tes-lsp.
+---@param bufnr integer
+local function open_tes(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) or not is_tes_buf(bufnr) then
+    return
+  end
+  if vim.b[bufnr].tessera_opening then
+    return
+  end
+  vim.b[bufnr].tessera_opening = true
+
+  local ok = true
+  if M.config.project ~= false and not vim.b[bufnr].tessera_projected then
+    ok = buffer.project(bufnr)
+  elseif vim.bo[bufnr].filetype ~= "tes" then
+    vim.bo[bufnr].filetype = "tes"
+  end
+
+  vim.b[bufnr].tessera_opening = nil
+  if not ok then
+    return
+  end
+
+  -- Defer so projection + filetype settle before the client sends didOpen.
+  vim.schedule(function()
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      M.start(bufnr)
+    end
+  end)
+end
+
 ---Start or attach tes-lsp for `bufnr` (default: current).
 ---@param bufnr? integer
 ---@return integer|nil client_id
@@ -64,13 +105,20 @@ function M.start(bufnr)
     return nil
   end
 
-  return vim.lsp.start({
+  local id = vim.lsp.start({
     name = "tes-lsp",
     cmd = cmd,
     root_dir = root_dir(bufnr),
   }, {
     bufnr = bufnr,
   })
+  if not id then
+    vim.notify(
+      "tessera.nvim: vim.lsp.start failed for " .. table.concat(cmd, " "),
+      vim.log.levels.ERROR
+    )
+  end
+  return id
 end
 
 ---Stop tes-lsp clients attached to `bufnr`, then start again.
@@ -88,10 +136,17 @@ function M.restart(bufnr)
   end, 100)
 end
 
+---Re-run `tes edit-read` into the current buffer (discards unsaved edits).
+---@param bufnr? integer
+function M.project(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  vim.b[bufnr].tessera_projected = nil
+  open_tes(bufnr)
+end
+
 ---@param opts? tessera.Config
 function M.setup(opts)
   if vim.g.tessera_setup_done then
-    -- Allow re-configure (e.g. lazy opts after plugin/ autoload).
     M.config = vim.tbl_deep_extend("force", M.config, opts or {})
     return
   end
@@ -102,40 +157,60 @@ function M.setup(opts)
     M.restart()
   end, { desc = "Restart tes-lsp for the current buffer" })
 
+  vim.api.nvim_create_user_command("TesseraProject", function()
+    M.project()
+  end, { desc = "Reload Tessprek projection via tes edit-read" })
+
+  vim.api.nvim_create_user_command("TesseraLspInfo", function()
+    local cmd = resolve_cmd()
+    local clients = vim.lsp.get_clients({ name = "tes-lsp" })
+    local lines = {
+      "tes-lsp cmd: " .. (cmd and table.concat(cmd, " ") or "(not found)"),
+      "tes CLI: " .. (buffer.resolve_tes_cli() or "(not found)"),
+      "clients: " .. #clients,
+      "projected: " .. tostring(vim.b.tessera_projected),
+      "filetype: " .. vim.bo.filetype,
+    }
+    for _, c in ipairs(clients) do
+      table.insert(lines, string.format("  id=%s root=%s", c.id, c.root_dir or "?"))
+    end
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+  end, { desc = "Show tessera.nvim / tes-lsp status" })
+
   if M.config.autostart == false then
     return
   end
 
   local group = vim.api.nvim_create_augroup("tessera.lsp", { clear = true })
+
   vim.api.nvim_create_autocmd("FileType", {
     group = group,
     pattern = "tes",
     callback = function(args)
-      M.start(args.buf)
+      open_tes(args.buf)
     end,
   })
-  -- Catch `.tes` opens when filetype detection is off / late (e.g. nvim -u NONE).
+
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
     group = group,
     pattern = "*.tes",
     callback = function(args)
-      if vim.bo[args.buf].filetype ~= "tes" then
-        vim.bo[args.buf].filetype = "tes"
-      end
-      M.start(args.buf)
+      open_tes(args.buf)
     end,
   })
 
-  -- Attach to buffers already open before setup ran (common with `nvim file -c …`).
+  -- Intercept `:w` so Tessprek text never overwrites the binary `.tes` on disk.
+  vim.api.nvim_create_autocmd("BufWriteCmd", {
+    group = group,
+    pattern = "*.tes",
+    callback = function(args)
+      buffer.write(args.buf)
+    end,
+  })
+
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(bufnr) then
-      local name = vim.api.nvim_buf_get_name(bufnr)
-      if name:match("%.[tT][eE][sS]$") or vim.bo[bufnr].filetype == "tes" then
-        if vim.bo[bufnr].filetype ~= "tes" then
-          vim.bo[bufnr].filetype = "tes"
-        end
-        M.start(bufnr)
-      end
+    if vim.api.nvim_buf_is_loaded(bufnr) and is_tes_buf(bufnr) then
+      open_tes(bufnr)
     end
   end
 end

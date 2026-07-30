@@ -1,4 +1,2 @@
--- Buffer-local defaults for Tessera `.tes` files.
+-- Buffer-local defaults for Tessera `.tes` files (after Tessprek projection).
 vim.bo.commentstring = "<!-- %s -->"
--- Binary on disk until Tessprek projection lands in a follow-up.
-vim.bo.binary = true

@@ -1,26 +1,20 @@
-# tessera.nvim (scaffold)
+# tessera.nvim
 
-Thin Neovim client for **`tes-lsp`** (scaffold PR; Tessprek buffer projection follows).
+Thin Neovim client for **`tes-lsp`**.
 
-Attaches the in-repo Tessprek language server over stdio when you open a
-`.tes` buffer. Diagnostics and hover come from the server; this plugin does
-**not** reimplement `edit-read` / `edit-write`.
-
-> **Buffer caveat (follow-up):** opening a `.tes` file still shows raw binary bytes
-> in the buffer. The server already projects Tessprek on `didOpen`; a follow-up
-> will replace the buffer text with that Tessprek view and wire save →
-> `tessera.write`. Until then, use `mise run lsp-smoke` for write-back checks,
-> or set the buffer to Tessprek manually after `tes edit-read`.
+Opens `.tes` files as **Tessprek** (via `tes edit-read`), attaches the language
+server for diagnostics / hover, and writes back through `tessera.write` on
+save — never dumping Tessprek text onto the binary `.tes` path.
 
 ## Requirements
 
-- Neovim **0.10+** (`vim.lsp.start`)
-- `tes-lsp` on `PATH`, or a built binary under the Tessera repo
-  (`cargo build --bin tes-lsp` → `target/debug/tes-lsp`)
+- Neovim **0.10+** (`vim.lsp.start`, `vim.system`)
+- `tes-lsp` and `tes` on `PATH`, or built under the Tessera repo:
+  ```bash
+  cargo build --bin tes --bin tes-lsp
+  ```
 
 ## Install (lazy.nvim)
-
-Point lazy at this directory (local checkout):
 
 ```lua
 {
@@ -28,48 +22,59 @@ Point lazy at this directory (local checkout):
   name = "tessera.nvim",
   lazy = false,
   opts = {
-    -- cmd = { "/abs/path/to/tes-lsp" },  -- optional override
+    -- cmd = { "/abs/path/to/tes-lsp" },
+    -- project = true,   -- Tessprek via edit-read (default)
+    -- autostart = true,
   },
 }
 ```
 
-Or, if this tree is on `runtimepath` another way:
+Or on `runtimepath`:
 
 ```lua
 require("tessera").setup()
 ```
 
-## What this PR enables
+## Behavior
 
-| Feature | Status |
+| Action | What happens |
 | --- | --- |
-| `*.tes` → filetype `tes` | Yes |
-| Attach `tes-lsp` (stdio) | Yes |
-| Diagnostics / hover from server | Yes (once buffer text is Tessprek) |
-| Tessprek buffer projection + save write-back | Follow-up |
+| Open `*.tes` | Buffer filled with Tessprek (`tes edit-read`); `tes-lsp` attaches |
+| Edit | In-memory Tessprek; `didChange` to the server |
+| `:w` / save | `workspace/executeCommand` → `tessera.write` (source-hash safe) |
+| Hover | Chunk / header markers via server |
 
 ## Commands
 
-- `:TesseraLspRestart` — stop and re-attach `tes-lsp` for the current buffer
+- `:TesseraLspRestart` — restart `tes-lsp` on the current buffer
+- `:TesseraProject` — re-run `edit-read` (discards unsaved buffer edits)
 
 ## Manual smoke (repo root)
 
 ```bash
-cargo build --bin tes-lsp
+cargo build --bin tes --bin tes-lsp
 nvim --clean -u NONE \
   -c "set rtp+=$PWD/contrib/nvim" \
   -c "lua require('tessera').setup()" \
   fixtures/v0/note_one_chunk.tes
 ```
 
-Inside Neovim:
+Expect readable Tessprek (`Hello from Tessera`), not binary garbage.
 
 ```vim
+:TesseraLspInfo
 :lua =vim.lsp.get_clients({ name = "tes-lsp" })
 ```
 
-Expect a non-empty client list. The buffer is still binary until Tessprek
-projection lands — that is expected for this scaffold.
+If clients is `{}`, check `:TesseraLspInfo` — usually `tes-lsp` is missing (`cargo build --bin tes-lsp`) while `tes` alone is enough for projection.
+
+Edit a word, `:w`, then:
+
+```bash
+cargo run -q --bin tes -- edit-read fixtures/v0/note_one_chunk.tes | head
+```
+
+(Use a **copy** of the fixture if you do not want to dirty goldens.)
 
 ## See also
 
