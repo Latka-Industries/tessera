@@ -91,6 +91,8 @@ Block-level author intent is also typed:
 - blocks gain optional BCP-47 `lang` and `TextAlign`;
 - `TextAlign` is `Start | Center | End | Justify`, never physical
   left/right.
+- `list_item` gains optional `list_depth` (1 = top-level, 2+ = nested);
+  absent means depth 1. Indentation is derived for Markdown/HTML themes.
 
 Soft wrap, hyphenation, columns, widows/orphans, and pagination belong to the
 renderer. Intentional hard breaks remain content.
@@ -300,7 +302,7 @@ Known optional feature ids in this build (all on `layout_version = 0`):
 
 | Id | Meaning |
 | --- | --- |
-| `text_spans` | Layout-v1 text header fields (spans, table, math, lang, align, code_lang) |
+| `text_spans` | Layout-v1 text header fields (spans, table, math, lang, align, code_lang, list_depth) |
 | `attachments` | Inert `ChunkType::Attachment` payloads |
 | `external_uris` | TLNK v1 external URI heap |
 | `citations` | Cite chunks and/or citation link edges |

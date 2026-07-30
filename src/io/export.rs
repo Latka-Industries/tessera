@@ -194,6 +194,8 @@ fn append_linear_text(out: &mut String, header: &TextHeader, body: &str) {
                 ListKind::Bullet => "- ",
                 ListKind::Ordered => "1. ",
             };
+            let indent = "  ".repeat(header.list_depth_or_default().saturating_sub(1) as usize);
+            out.push_str(&indent);
             out.push_str(marker);
             out.push_str(body.trim_end());
             out.push('\n');
@@ -505,7 +507,10 @@ fn render_text_chunk_html(
                 ListKind::Bullet => ("ul", "ul"),
                 ListKind::Ordered => ("ol", "ol"),
             };
-            format!("  <{open}><li data-chunk-id=\"{chunk_id}\"{class}>{inner}</li></{close}>\n")
+            let depth = header.list_depth_or_default();
+            format!(
+                "  <{open} data-list-depth=\"{depth}\"><li data-chunk-id=\"{chunk_id}\"{class}>{inner}</li></{close}>\n"
+            )
         }
         TextRole::Blockquote => {
             format!("  <blockquote data-chunk-id=\"{chunk_id}\"{class}>{inner}</blockquote>\n")
@@ -869,6 +874,8 @@ struct ChunkJsonlRow<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     list_kind: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    list_depth: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     byte_len: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     text: Option<&'a str>,
@@ -958,6 +965,7 @@ impl<'a> ChunkJsonlRow<'a> {
             role: None,
             level: None,
             list_kind: None,
+            list_depth: None,
             byte_len: None,
             text: None,
             quote: None,
@@ -997,6 +1005,12 @@ fn append_jsonl_text(
     row.role = Some(header.role.as_str());
     row.level = header.level;
     row.list_kind = list_kind;
+    if header.role == TextRole::ListItem {
+        let depth = header.list_depth_or_default();
+        if depth > 1 {
+            row.list_depth = Some(depth);
+        }
+    }
     row.byte_len = Some(body.len());
     row.text = Some(&body);
     push_jsonl_row(out, &row)

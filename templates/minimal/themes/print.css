@@ -70,6 +70,27 @@ th {
   widows: 3;
 }
 
+ul[data-list-depth="2"],
+ol[data-list-depth="2"] {
+  margin-left: 1.2em;
+}
+ul[data-list-depth="3"],
+ol[data-list-depth="3"] {
+  margin-left: 2.4em;
+}
+ul[data-list-depth="4"],
+ol[data-list-depth="4"] {
+  margin-left: 3.6em;
+}
+ul[data-list-depth="5"],
+ol[data-list-depth="5"] {
+  margin-left: 4.8em;
+}
+ul[data-list-depth="6"],
+ol[data-list-depth="6"] {
+  margin-left: 6em;
+}
+
 blockquote {
   margin: 0.9em 0;
   padding-left: 0.9em;

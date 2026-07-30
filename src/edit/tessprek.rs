@@ -207,6 +207,28 @@ fn decode_text_block(
             map.get("list").map_or("bullet", String::as_str),
             line_no,
         )?);
+        if let Some(raw) = map.get("depth") {
+            let depth = raw
+                .parse::<u32>()
+                .map_err(|_| parse_err(line_no, 1, format!("invalid list depth '{raw}'")))?;
+            if !(1..=16).contains(&depth) {
+                return Err(parse_err(
+                    line_no,
+                    1,
+                    format!("list depth {depth} must be 1..=16"),
+                ));
+            }
+            if depth > 1 {
+                header.list_depth = Some(depth);
+            }
+        } else {
+            // Infer from leading indent before the list marker (2 spaces per nest).
+            let lead = body.len() - body.trim_start().len();
+            let inferred = u32::try_from(lead / 2).unwrap_or(0).saturating_add(1);
+            if inferred > 1 {
+                header.list_depth = Some(inferred.min(16));
+            }
+        }
     }
     if role == TextRole::CodeBlock
         && let Some(lang) = map.get("code_lang").or_else(|| map.get("fence"))
@@ -366,6 +388,12 @@ fn write_text_directive(out: &mut String, chunk_id: u64, header: &TextHeader) {
             ListKind::Ordered => "ordered",
         };
         let _ = write!(out, " list={kind}");
+    }
+    if header.role == TextRole::ListItem {
+        let depth = header.list_depth_or_default();
+        if depth > 1 {
+            let _ = write!(out, " depth={depth}");
+        }
     }
     if let Some(lang) = header.lang.as_deref() {
         let _ = write!(out, " lang={}", attr_token(lang));

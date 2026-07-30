@@ -70,6 +70,28 @@ ol {
   padding-left: 1.3em;
 }
 
+/* Per-item list wrappers: indent by nesting depth (1 = top-level). */
+ul[data-list-depth="2"],
+ol[data-list-depth="2"] {
+  margin-left: 1.25em;
+}
+ul[data-list-depth="3"],
+ol[data-list-depth="3"] {
+  margin-left: 2.5em;
+}
+ul[data-list-depth="4"],
+ol[data-list-depth="4"] {
+  margin-left: 3.75em;
+}
+ul[data-list-depth="5"],
+ol[data-list-depth="5"] {
+  margin-left: 5em;
+}
+ul[data-list-depth="6"],
+ol[data-list-depth="6"] {
+  margin-left: 6.25em;
+}
+
 blockquote {
   margin: 1.1em 0;
   padding: 0.15em 0 0.15em 1em;

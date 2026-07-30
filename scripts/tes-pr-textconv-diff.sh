@@ -45,18 +45,39 @@ textconv_blob() {
   mv "${dest}.norm" "$dest"
 }
 
-# Pick a fence longer than any line-leading backtick run in `file` so nested
-# Markdown code fences inside Tessprek do not close early and leave an empty
-# copyable block in the GitHub comment.
+# Pick a fence longer than any fence-like line in `file` so nested Markdown
+# code fences (and unified-diff lines like " ```rust") do not close early and
+# leave an empty copyable block in the GitHub comment.
+#
+# CommonMark allows up to 3 spaces before a closing fence; unified diffs also
+# prefix context lines with a space (and +/- for changes), so a bare
+# ^``` check is not enough.
+max_fence_ticks() {
+  local file="$1"
+  awk '
+    {
+      line = $0
+      # Unified diff first column (optional).
+      if (line ~ /^[+\- ]/) {
+        line = substr(line, 2)
+      }
+      # CommonMark: up to three spaces of indent before a fence.
+      sub(/^ {0,3}/, "", line)
+      if (match(line, /^`+/)) {
+        n = RLENGTH
+        if (n > max) max = n
+      }
+    }
+    END { print max + 0 }
+  ' "$file"
+}
+
 markdown_fence() {
-  local file="$1" info="${2:-}" ticks=3 fence re
-  while true; do
-    re="$(printf '^`{%d}' "$ticks")"
-    if ! grep -qE "$re" "$file" 2>/dev/null; then
-      break
-    fi
-    ticks=$((ticks + 1))
-  done
+  local file="$1" info="${2:-}" ticks fence
+  ticks=$(($(max_fence_ticks "$file") + 1))
+  if ((ticks < 3)); then
+    ticks=3
+  fi
   fence="$(printf '%*s' "$ticks" '' | tr ' ' '`')"
   printf '%s%s\n' "$fence" "$info"
   cat "$file"
