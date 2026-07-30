@@ -96,7 +96,7 @@ fn add_text_roles_intro(session: &mut TesWriterSession) {
         .add_text_chunk(&TextHeader::heading(2), "Headings and prose")
         .expect("h2");
     let mut spanned = TextHeader::paragraph();
-    // Body: "Strong, emphasis, and code in one paragraph."
+    // Body: "Strong, emphasis, underline, and code in one paragraph."
     spanned.spans = vec![
         InlineSpan {
             start: 0,
@@ -109,13 +109,21 @@ fn add_text_roles_intro(session: &mut TesWriterSession) {
             kind: InlineKind::Emphasis,
         },
         InlineSpan {
-            start: 22,
-            end: 26,
+            start: 18,
+            end: 27,
+            kind: InlineKind::Underline,
+        },
+        InlineSpan {
+            start: 33,
+            end: 37,
             kind: InlineKind::Code,
         },
     ];
     session
-        .add_text_chunk(&spanned, "Strong, emphasis, and code in one paragraph.")
+        .add_text_chunk(
+            &spanned,
+            "Strong, emphasis, underline, and code in one paragraph.",
+        )
         .expect("spans");
 }
 

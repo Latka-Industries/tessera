@@ -66,6 +66,8 @@ pub enum InlineKind {
     Emphasis,
     /// Bold / strong.
     Strong,
+    /// Underline (projected as `<u>…</u>` in Tessprek / HTML).
+    Underline,
     /// Inline code.
     Code,
     /// Defined term.
@@ -461,6 +463,7 @@ fn apply_spans_markdown(
         let wrapped = match &span.kind {
             InlineKind::Emphasis | InlineKind::Term => format!("*{inner}*"),
             InlineKind::Strong => format!("**{inner}**"),
+            InlineKind::Underline => format!("<u>{inner}</u>"),
             InlineKind::Code => format!("`{inner}`"),
             InlineKind::Quote => format!("\u{201c}{inner}\u{201d}"),
             InlineKind::Math { tex } => format!("${tex}$"),
@@ -682,13 +685,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn text_payload_round_trip() {
-        let header = TextHeader::paragraph();
-        let body = "We measured …";
+    fn underline_span_round_trip_and_markdown() {
+        let body = "see noted term here";
+        let mut header = TextHeader::paragraph();
+        header.spans = vec![InlineSpan {
+            start: 4,
+            end: 9,
+            kind: InlineKind::Underline,
+        }];
         let bytes = encode_text_payload(&header, body).unwrap();
         let (h2, b2) = decode_text_payload(&bytes).unwrap();
         assert_eq!(h2, header);
         assert_eq!(b2, body);
+        let md = header.render_markdown(body);
+        assert!(md.contains("<u>noted</u>"), "{md}");
     }
 
     #[test]
