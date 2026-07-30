@@ -320,7 +320,10 @@ hash, compile to a sibling temporary file, deep-verify, and atomically replace.
 are thin adapters over these commands (CLI today; LSP below as it lands).
 
 Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
-`set_text`, `append_paragraph`, `delete_chunk`.
+`set_aliases`, `set_slug`, `set_category`, `set_text`, `append_paragraph`,
+`delete_chunk`. Catalog fields (`set_aliases` / `set_slug` / `set_category`)
+persist on the `.tes`; refresh `vault.tes` with `tes vault rebuild` (no
+auto-rebuild on apply).
 
 ### Tessprek LSP (`tes-lsp`)
 
