@@ -2,9 +2,11 @@
 
 use std::path::{Path, PathBuf};
 
-use tower_lsp::lsp_types::{Position, TextDocumentContentChangeEvent, Url};
+use tower_lsp::lsp_types::{TextDocumentContentChangeEvent, Url};
 
 use crate::edit::edit_read;
+
+use super::position::position_to_utf8_offset;
 
 /// In-memory Tessprek projection for one open `.tes` URI.
 #[derive(Debug, Clone)]
@@ -64,35 +66,11 @@ pub(super) fn apply_content_changes(
     Ok(())
 }
 
-/// LSP positions are UTF-16 code units; map to a UTF-8 byte offset.
-fn position_to_utf8_offset(text: &str, pos: Position) -> Option<usize> {
-    let mut line = 0u32;
-    let mut utf16_col = 0u32;
-    for (byte_idx, ch) in text.char_indices() {
-        if line == pos.line && utf16_col == pos.character {
-            return Some(byte_idx);
-        }
-        if ch == '\n' {
-            if line == pos.line {
-                return None;
-            }
-            line += 1;
-            utf16_col = 0;
-        } else {
-            utf16_col += u32::try_from(ch.len_utf16()).ok()?;
-        }
-    }
-    if line == pos.line && utf16_col == pos.character {
-        return Some(text.len());
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::Path;
-    use tower_lsp::lsp_types::Range;
+    use tower_lsp::lsp_types::{Position, Range};
 
     fn fixture_tes() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/v0/note_one_chunk.tes")

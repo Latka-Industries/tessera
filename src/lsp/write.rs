@@ -13,7 +13,15 @@ pub const COMMAND_WRITE: &str = "tessera.write";
 
 #[derive(Debug)]
 pub(super) enum WriteBackError {
-    HashMismatch { expected: String, found: String },
+    HashMismatch {
+        expected: String,
+        found: String,
+    },
+    Parse {
+        line: usize,
+        column: usize,
+        message: String,
+    },
     Other(String),
 }
 
@@ -33,6 +41,15 @@ pub(super) fn write_back_document(
         TesError::SourceHashMismatch { expected, found } => {
             WriteBackError::HashMismatch { expected, found }
         }
+        TesError::EditParse {
+            line,
+            column,
+            message,
+        } => WriteBackError::Parse {
+            line,
+            column,
+            message,
+        },
         other => WriteBackError::Other(other.to_string()),
     })?;
     let new_hash = report
@@ -123,5 +140,33 @@ mod tests {
             matches!(err, WriteBackError::HashMismatch { .. }),
             "{err:?}"
         );
+    }
+
+    #[test]
+    fn write_back_parse_error_preserves_span() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.tes");
+        std::fs::copy(fixture_tes(), &path).unwrap();
+        let mut doc = load_open_document(path).unwrap();
+        doc.tessprek = "\
+<!-- tessera: format=tessprek version=1 -->\n\
+\n\
+<!-- tes chunk=1 role=not-a-real-role -->\n\
+body\n\
+"
+        .into();
+        let err = write_back_document(&mut doc).unwrap_err();
+        match err {
+            WriteBackError::Parse {
+                line,
+                column,
+                message,
+            } => {
+                assert_eq!(line, 3);
+                assert_eq!(column, 1);
+                assert!(message.contains("unknown role"), "{message}");
+            }
+            other => panic!("expected Parse, got {other:?}"),
+        }
     }
 }

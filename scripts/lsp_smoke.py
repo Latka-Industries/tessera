@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
-"""Stdio smoke tests for ``tes-lsp`` (THI-241–247).
+"""Stdio smoke tests for ``tes-lsp`` (THI-241–247, THI-254).
 
 Run from the repo root::
 
@@ -243,6 +243,41 @@ def case_did_change(bin_path: Path) -> None:
     print("ok  didChange disk unchanged")
 
 
+def case_ranged_parse_diagnostics(bin_path: Path) -> None:
+    """Invalid Tessprek on didChange should publish a ranged edit-parse diag."""
+    bad = (
+        "<!-- tessera: format=tessprek version=1 -->\n"
+        "\n"
+        "<!-- tes chunk=1 role=not-a-real-role -->\n"
+        "body\n"
+    )
+    s = open_session(bin_path)
+    try:
+        handshake(s)
+        did_open(s, CLEAN)
+        did_change(s, CLEAN, bad)
+        diags = s.notifications("textDocument/publishDiagnostics")
+        assert diags, "expected publishDiagnostics after bad didChange"
+        last = diags[-1]["params"]["diagnostics"]
+        parse_diags = [
+            d
+            for d in last
+            if d.get("code") == "edit-parse" and d.get("severity") == 1
+        ]
+        assert parse_diags, f"expected edit-parse diagnostic, got {last}"
+        rng = parse_diags[0].get("range") or {}
+        start = rng.get("start") or {}
+        end = rng.get("end") or {}
+        # Directive is on line index 2; must not be the old file-level (0,0)–(0,1).
+        assert start.get("line") == 2, rng
+        assert start.get("character") == 0, rng
+        assert end.get("line") == 2, rng
+        assert (end.get("character") or 0) > 1, rng
+        print("ok  ranged edit-parse diagnostics on didChange")
+    finally:
+        s.close()
+
+
 def case_bad_magic_diagnostics(bin_path: Path) -> None:
     s = open_session(bin_path)
     try:
@@ -442,6 +477,7 @@ CASES = [
     ("handshake", case_handshake),
     ("open_clean", case_open_clean),
     ("did_change", case_did_change),
+    ("ranged_parse", case_ranged_parse_diagnostics),
     ("bad_magic", case_bad_magic_diagnostics),
     ("close_clears", case_close_clears),
     ("write_round_trip", case_write_round_trip),
