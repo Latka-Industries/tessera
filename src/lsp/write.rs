@@ -32,10 +32,7 @@ pub(super) fn write_back_document(
     let report = edit_write(
         &doc.path,
         &doc.tessprek,
-        &EditWriteOptions {
-            source_hash: doc.source_hash.clone(),
-            dry_run: false,
-        },
+        &EditWriteOptions::new(doc.source_hash.clone(), false),
     )
     .map_err(|err| match err {
         TesError::SourceHashMismatch { expected, found } => {

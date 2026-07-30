@@ -319,6 +319,12 @@ hash, compile to a sibling temporary file, deep-verify, and atomically replace.
 `--dry-run` stops before replace and prints a line diff. Vim/Neovim integrations
 are thin adapters over these commands (CLI today; LSP below as it lands).
 
+Library callers can inject **new** image/attachment bytes via
+`edit_write_with_media` / `EditWriteOptions.media` (`EditMediaBag`): Tessprek
+figure `image=` / `media:chunk-N` and attachment `chunk=` ids resolve from the
+bag when absent from the source `.tes` (THI-233). CLI `edit-write` remains
+source-copy only for media today.
+
 Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
 `set_aliases`, `set_slug`, `set_category`, `set_text`, `append_paragraph`,
 `delete_chunk`. Catalog fields (`set_aliases` / `set_slug` / `set_category`)
@@ -473,7 +479,7 @@ Every CLI command maps to a library entry point. The `tes` binary only calls
 | `tes serve`                                                                                                  | `tessera_doc::render::preview::serve_preview`                                                       |
 | `tes edit-read`                                                                                              | `tessera_doc::edit::edit_read`                                                                      |
 | `tes format`                                                                                                 | `tessera_doc::edit::normalize_tessprek` (`edit::tessprek`)                                            |
-| `tes edit-write`                                                                                             | `tessera_doc::edit::edit_write`                                                                     |
+| `tes edit-write`                                                                                             | `tessera_doc::edit::edit_write` / `edit_write_with_media`                                            |
 | `tes apply`                                                                                                  | `tessera_doc::edit::apply_ops` / `apply_patch`                                                      |
 | `tes-lsp`                                                                                                    | `tessera_doc::lsp::run`                                                                             |
 

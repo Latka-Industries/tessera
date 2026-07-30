@@ -164,10 +164,7 @@ pub fn pending_redline(path: impl AsRef<Path>, source_hash: &str) -> Result<Stri
     let report = apply_ops(
         path,
         &ops,
-        &EditWriteOptions {
-            source_hash: source_hash.to_owned(),
-            dry_run: true,
-        },
+        &EditWriteOptions::new(source_hash.to_owned(), true),
     )?;
     let mut out = String::from("# pending redline (dry-run)\n");
     out.push_str(&report.diff);
@@ -193,10 +190,7 @@ pub fn accept_pending(
     let apply_report = apply_ops(
         path,
         &ops,
-        &EditWriteOptions {
-            source_hash: options.source_hash.clone(),
-            dry_run: false,
-        },
+        &EditWriteOptions::new(options.source_hash.clone(), false),
     )?;
 
     // Body updated; strip accepted ids from pending (footer preserved by apply_ops).

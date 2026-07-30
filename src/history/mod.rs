@@ -912,10 +912,7 @@ mod tests {
                 level: None,
                 class: None,
             }],
-            &crate::edit::EditWriteOptions {
-                source_hash: hash,
-                dry_run: false,
-            },
+            &crate::edit::EditWriteOptions::new(hash, false),
         )
         .unwrap();
 
@@ -982,10 +979,7 @@ mod tests {
                 level: None,
                 class: None,
             }],
-            &crate::edit::EditWriteOptions {
-                source_hash: hash,
-                dry_run: false,
-            },
+            &crate::edit::EditWriteOptions::new(hash, false),
         )
         .unwrap();
         let r2 = save_revision(
@@ -1062,10 +1056,7 @@ mod tests {
                 level: None,
                 class: None,
             }],
-            &crate::edit::EditWriteOptions {
-                source_hash: hash,
-                dry_run: false,
-            },
+            &crate::edit::EditWriteOptions::new(hash, false),
         )
         .unwrap();
         let r2 = save_revision(
@@ -1087,10 +1078,7 @@ mod tests {
                 level: None,
                 class: None,
             }],
-            &crate::edit::EditWriteOptions {
-                source_hash: hash,
-                dry_run: false,
-            },
+            &crate::edit::EditWriteOptions::new(hash, false),
         )
         .unwrap();
         let r3 = save_revision(
@@ -1253,10 +1241,7 @@ mod tests {
                 level: None,
                 class: None,
             }],
-            &crate::edit::EditWriteOptions {
-                source_hash: hash,
-                dry_run: false,
-            },
+            &crate::edit::EditWriteOptions::new(hash, false),
         )
         .unwrap();
 
@@ -1270,10 +1255,7 @@ mod tests {
                 level: None,
                 class: None,
             }],
-            &crate::edit::EditWriteOptions {
-                source_hash: hash,
-                dry_run: false,
-            },
+            &crate::edit::EditWriteOptions::new(hash, false),
         )
         .unwrap();
 
@@ -1316,10 +1298,7 @@ mod tests {
                 level: None,
                 class: None,
             }],
-            &crate::edit::EditWriteOptions {
-                source_hash: hash,
-                dry_run: false,
-            },
+            &crate::edit::EditWriteOptions::new(hash, false),
         )
         .unwrap();
 
@@ -1333,10 +1312,7 @@ mod tests {
                 level: None,
                 class: None,
             }],
-            &crate::edit::EditWriteOptions {
-                source_hash: hash,
-                dry_run: false,
-            },
+            &crate::edit::EditWriteOptions::new(hash, false),
         )
         .unwrap();
 
