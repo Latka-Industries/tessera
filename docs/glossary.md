@@ -32,9 +32,12 @@ Terms used consistently across Tessera docs, issues, and code.
 | **Figure ref** | One contextual use of an image chunk, with alt text, caption, placement, and reading-order position. |
 | **Attachment** | Inert generic file bytes plus media type and safe filename. |
 | **Reading order** | Chunks with `chunk_flags & 1`, sorted by `chunk_id`. |
-| **Catalog** | UTF-8 JSON blob: title, `doc_id`, tags, timestamps. |
+| **Catalog** | UTF-8 JSON blob: title, `doc_id`, tags, category, aliases, slug, timestamps. |
 | **`doc_kind`** | Document mode: `note`, `document`, `hub`, `research`, etc. |
 | **`doc_id`** | UUID string identifying one document across a vault. |
+| **`slug`** | Optional vault-unique human handle (often from Obsidian `id:`). |
+| **`category`** | Optional primary bucket (e.g. top-level folder); tags remain cross-cutting. |
+| **`aliases`** | Alternate display / wikilink names. |
 
 ---
 

@@ -17,7 +17,7 @@ Related: [layout_v0.md](layout_v0.md),
 | Choice | Rationale |
 | --- | --- |
 | One file per document | Matches note/wiki mental model; mmap one note without loading corpus |
-| Optional `vault.tes` | TOC-style `doc_id → title, tags, modified, path` (`tes vault`); list/search without opening every file; also membership manifest for out-of-tree paths |
+| Optional `vault.tes` | TOC-style `doc_id → title, tags, category, aliases, slug, modified, path` (`tes vault`); list/search without opening every file; also membership manifest for out-of-tree paths |
 | External members | Absolute (or vault-relative when under root) paths so Obsidian-style sprawl can join without moving files |
 | Shared path set | `tes vault` rebuild/list and `tes link` use the same membership so TOC and graph do not diverge |
 | No multi-doc archive v0 | Simpler writer; object-store bundling deferred |
@@ -143,7 +143,7 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 | Supported | Deferred |
 | --- | --- |
 | ATX headings, paragraphs, lists, fenced code, blockquotes | Footnotes and raw HTML blocks |
-| Link display text; `[text](https://…)` / UUID destinations → `TLNK` + `InlineKind::Link` | Footnote link kinds; vault wikilink resolver |
+| Link display text; `[text](https://…)` / UUID destinations → `TLNK` + `InlineKind::Link`; vault import resolves `[[wikilinks]]` via title → slug → aliases | Footnote link kinds |
 
 **Export:** `tes export --markdown` generates GFM-ish Markdown from chunks; **lossy** for cite/slide richness.
 

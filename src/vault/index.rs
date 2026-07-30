@@ -1,8 +1,9 @@
 //! Optional `vault.tes` catalog index (`doc_kind = index`).
 //!
-//! A sealed TOC-style sidecar listing vault documents by id/title/tags without
-//! opening every note for list/search. Version ≥ 2 also stores registered
-//! external members (THI-217) so rebuild/list/`tes link` share one membership set.
+//! A sealed TOC-style sidecar listing vault documents by id/title/tags/category
+//! without opening every note for list/search. Version ≥ 2 also stores registered
+//! external members (THI-217). Version ≥ 3 rows may carry `category`, `aliases`,
+//! and `slug` (older indexes still load; missing fields default empty).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -23,8 +24,8 @@ use super::members::{
 pub const VAULT_INDEX_NAME: &str = "vault.tes";
 
 const INDEX_FORMAT: &str = "tessera.vault_index";
-/// Current on-disk index payload version (members field).
-pub const INDEX_VERSION: u32 = 2;
+/// Current on-disk index payload version (category/aliases/slug on entries).
+pub const INDEX_VERSION: u32 = 3;
 /// Oldest readable index version (no `members`).
 const INDEX_VERSION_MIN: u32 = 1;
 /// Stable id for every `vault.tes` (one per directory).
@@ -42,6 +43,15 @@ pub struct VaultIndexEntry {
     /// Catalog tags.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    /// Primary category bucket (e.g. top-level folder).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// Alternate names for wikilink / TOC resolve.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
+    /// Optional vault-unique human handle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
     /// Catalog `modified` (RFC 3339).
     pub modified: String,
     /// Path relative to the vault root when in-tree; otherwise absolute.
@@ -193,6 +203,7 @@ pub fn vault_index_is_fresh(root: impl AsRef<Path>, index: &VaultIndex) -> Resul
 /// List vault documents using `vault.tes` when fresh; otherwise scan catalogs.
 ///
 /// When `force_scan` is true, always scan catalogs and ignore any index.
+/// Optional `tag` / `category` filters retain matching rows.
 ///
 /// # Errors
 ///
@@ -200,6 +211,20 @@ pub fn vault_index_is_fresh(root: impl AsRef<Path>, index: &VaultIndex) -> Resul
 pub fn list_vault_documents(
     root: impl AsRef<Path>,
     tag: Option<&str>,
+    force_scan: bool,
+) -> Result<VaultListReport> {
+    list_vault_documents_filtered(root, tag, None, force_scan)
+}
+
+/// List vault documents with optional tag and category filters.
+///
+/// # Errors
+///
+/// Returns IO / open errors from the index or catalog scan.
+pub fn list_vault_documents_filtered(
+    root: impl AsRef<Path>,
+    tag: Option<&str>,
+    category: Option<&str>,
     force_scan: bool,
 ) -> Result<VaultListReport> {
     let root = root.as_ref();
@@ -219,6 +244,9 @@ pub fn list_vault_documents(
 
     if let Some(tag) = tag {
         entries.retain(|e| e.tags.iter().any(|t| t == tag));
+    }
+    if let Some(category) = category {
+        entries.retain(|e| e.category.as_deref() == Some(category));
     }
     entries.sort_by(|a, b| a.title.cmp(&b.title).then(a.doc_id.cmp(&b.doc_id)));
 
@@ -271,6 +299,9 @@ fn scan_catalog_entries(root: &Path, members: &[VaultMember]) -> Result<Vec<Vaul
             title: catalog.title.clone(),
             doc_kind: catalog.doc_kind.clone(),
             tags: catalog.tags.clone(),
+            category: catalog.category.clone(),
+            aliases: catalog.aliases.clone(),
+            slug: catalog.slug.clone(),
             modified: catalog.modified.clone(),
             path: display_path(root, &path),
             mtime_secs: file_mtime_secs(&path)?,
@@ -381,7 +412,7 @@ mod tests {
         rebuild_vault_index(dir.path()).unwrap();
         let upgraded = load_vault_index(dir.path()).unwrap().expect("v2 index");
         assert_eq!(upgraded.version, INDEX_VERSION);
-        assert_eq!(upgraded.version, 2);
+        assert_eq!(upgraded.version, 3);
         assert!(upgraded.members.is_empty());
         assert_eq!(upgraded.entries.len(), 1);
     }

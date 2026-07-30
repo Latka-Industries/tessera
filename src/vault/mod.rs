@@ -4,17 +4,24 @@
 //! - [`parse_target`] — parse `UUID` or `UUID/chunk` CLI/link targets.
 //! - Optional [`vault.tes`](index) TOC index for list/search without a full graph scan.
 //! - Membership: [`register_member`] / [`unregister_member`] for out-of-tree paths.
+//! - Markdown vault import: [`import_markdown_vault`].
 //! - Value types: [`VaultDocument`], [`Backlink`], [`ResolvedTarget`], [`BrokenLink`].
 
 mod graph;
+mod import;
 mod index;
 mod members;
 mod types;
 
 pub use graph::Vault;
+pub use import::{
+    VaultMarkdownImportEntry, VaultMarkdownImportOptions, VaultMarkdownImportReport,
+    import_markdown_vault,
+};
 pub use index::{
     VAULT_INDEX_NAME, VaultIndex, VaultIndexEntry, VaultListReport, list_vault_documents,
-    load_vault_index, rebuild_vault_index, vault_index_is_fresh, vault_index_path,
+    list_vault_documents_filtered, load_vault_index, rebuild_vault_index, vault_index_is_fresh,
+    vault_index_path,
 };
 pub use members::{
     VaultMember, VaultMemberKind, load_registered_members, membership_document_paths,

@@ -1,6 +1,7 @@
 //! Document catalog JSON blob (`docs/layout_v0.md` — Document catalog).
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::catalog::features::FeatureSet;
 use crate::error::{Result, TesError};
@@ -8,6 +9,22 @@ use crate::layout::DocKind;
 
 /// Maximum catalog size accepted by the v0 reference writer (16 KiB).
 pub const CATALOG_MAX_BYTES: usize = 16 * 1024;
+
+/// DNS namespace UUID for Tessera deterministic `doc_id` seeds (`UUIDv5`).
+///
+/// Seed strings are Obsidian frontmatter `id:` values or vault-relative paths.
+pub const DOC_ID_NAMESPACE: Uuid = Uuid::from_bytes([
+    0x74, 0x65, 0x73, 0x73, // "tess"
+    0x65, 0x72, 0x61, 0x2d, // "era-"
+    0x64, 0x6f, 0x63, 0x69, // "doci"
+    0x64, 0x2d, 0x76, 0x35, // "d-v5"
+]);
+
+/// Derive a stable document UUID from a seed string (Obsidian id or relative path).
+#[must_use]
+pub fn doc_id_from_seed(seed: &str) -> Uuid {
+    Uuid::new_v5(&DOC_ID_NAMESPACE, seed.as_bytes())
+}
 
 /// UTF-8 JSON document catalog stored at `catalog_offset`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,6 +42,15 @@ pub struct DocumentCatalog {
     /// Optional tags.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    /// Optional primary bucket (e.g. vault top-level folder).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// Optional alternate display / wikilink names.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
+    /// Optional vault-unique human handle (often from Obsidian `id:`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
     /// Optional export / GUI template hint.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub template_id: Option<String>,
@@ -59,6 +85,9 @@ impl DocumentCatalog {
             modified: modified.into(),
             doc_kind: kind.as_str().to_owned(),
             tags: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            slug: None,
             template_id: None,
             theme_id: None,
             cite_style_id: None,
@@ -124,10 +153,31 @@ mod tests {
             DocKind::Research,
         );
         cat.tags = vec!["ml".into(), "notes".into()];
+        cat.category = Some("Literature".into());
+        cat.aliases = vec!["American Fiction".into()];
+        cat.slug = Some("Erasure".into());
         cat.template_id = Some("academic".into());
         cat.theme_id = Some("print".into());
         cat.cite_style_id = Some("numeric".into());
         let decoded = DocumentCatalog::from_bytes(&cat.to_bytes().unwrap()).unwrap();
         assert_eq!(decoded, cat);
+    }
+
+    #[test]
+    fn doc_id_from_seed_is_stable() {
+        let a = doc_id_from_seed("Literature/Books/Erasure.md");
+        let b = doc_id_from_seed("Literature/Books/Erasure.md");
+        let c = doc_id_from_seed("Erasure");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn legacy_catalog_without_new_fields_deserializes() {
+        let json = br#"{"doc_id":"550e8400-e29b-41d4-a716-446655440000","title":"T","created":"2026-06-05T12:00:00Z","modified":"2026-06-05T12:00:00Z","doc_kind":"note"}"#;
+        let cat = DocumentCatalog::from_bytes(json).unwrap();
+        assert!(cat.category.is_none());
+        assert!(cat.aliases.is_empty());
+        assert!(cat.slug.is_none());
     }
 }

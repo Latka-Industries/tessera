@@ -4,6 +4,9 @@
 //! paragraphs, lists, fenced code, and blockquotes. Inline presentation is
 //! parsed once and flattened into clean canonical text.
 //!
+//! Obsidian front matter (`id` / tags / aliases), deterministic `doc_id` seeds,
+//! and `[[wikilink]]` rewrite helpers support vault batch import.
+//!
 //! HTML import lives in [`html`].
 
 pub mod html;
@@ -16,23 +19,43 @@ use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::catalog::{
-    DocumentCatalog, InlineKind, InlineSpan, ListKind, OutboundLink, TesWriterSession, TextHeader,
-    TextRole,
+    DocumentCatalog, InlineKind, InlineSpan, ListKind, OutboundLink, TesFile, TesWriterSession,
+    TextHeader, TextRole, doc_id_from_seed,
 };
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
 
 pub use html::{HtmlImportOptions, HtmlImportReport, import_html_v0, parse_html_blocks};
 
+/// Shared wikilink name → catalog `doc_id` resolver (vault batch import).
+pub type WikilinkResolver = std::sync::Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
 /// Options for Markdown → `.tes` import.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MarkdownImportOptions {
     /// Kind stored in the superblock and catalog.
     pub doc_kind: DocKind,
     /// Catalog title. When absent, front matter, first heading, or filename wins.
     pub title: Option<String>,
-    /// Stable document UUID string. Generated when absent.
+    /// Stable document UUID string. When absent: keep existing output catalog
+    /// id (D2), else `UUIDv5` from [`Self::doc_id_seed`], else random.
     pub doc_id: Option<String>,
+    /// Seed for deterministic [`doc_id_from_seed`] when `doc_id` is absent and
+    /// the output file does not already exist.
+    pub doc_id_seed: Option<String>,
+    /// Catalog tags (merged with front matter tags; options win on duplicates
+    /// by extending after front matter).
+    pub tags: Vec<String>,
+    /// Catalog category override (e.g. vault top-level folder).
+    pub category: Option<String>,
+    /// Catalog aliases (merged with front matter aliases).
+    pub aliases: Vec<String>,
+    /// Catalog slug override (else front matter `id:`).
+    pub slug: Option<String>,
+    /// When true, [`Self::slug`] is authoritative even when `None` (skips front matter id).
+    pub slug_override: bool,
+    /// When set, rewrite resolved `[[wikilinks]]` to Markdown UUID links before parse.
+    pub wikilink_resolver: Option<WikilinkResolver>,
 }
 
 impl Default for MarkdownImportOptions {
@@ -41,8 +64,48 @@ impl Default for MarkdownImportOptions {
             doc_kind: DocKind::Document,
             title: None,
             doc_id: None,
+            doc_id_seed: None,
+            tags: Vec::new(),
+            category: None,
+            aliases: Vec::new(),
+            slug: None,
+            slug_override: false,
+            wikilink_resolver: None,
         }
     }
+}
+
+impl std::fmt::Debug for MarkdownImportOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MarkdownImportOptions")
+            .field("doc_kind", &self.doc_kind)
+            .field("title", &self.title)
+            .field("doc_id", &self.doc_id)
+            .field("doc_id_seed", &self.doc_id_seed)
+            .field("tags", &self.tags)
+            .field("category", &self.category)
+            .field("aliases", &self.aliases)
+            .field("slug", &self.slug)
+            .field("slug_override", &self.slug_override)
+            .field(
+                "wikilink_resolver",
+                &self.wikilink_resolver.as_ref().map(|_| "<fn>"),
+            )
+            .finish()
+    }
+}
+
+/// Parsed Obsidian-style YAML front matter (subset).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MarkdownFrontMatter {
+    /// Optional title.
+    pub title: Option<String>,
+    /// Obsidian string id (maps to slug / `doc_id` seed).
+    pub id: Option<String>,
+    /// Tags list.
+    pub tags: Vec<String>,
+    /// Aliases list.
+    pub aliases: Vec<String>,
 }
 
 /// Result summary for a completed import.
@@ -58,6 +121,8 @@ pub struct MarkdownImportReport {
     pub title: String,
     /// Number of semantic text chunks written.
     pub chunk_count: usize,
+    /// Catalog slug when set.
+    pub slug: Option<String>,
 }
 
 /// One semantic block produced by the Markdown parser.
@@ -86,13 +151,18 @@ pub fn import_markdown_v0(
     let input = input.as_ref();
     let output = output.as_ref();
     let source = std::fs::read_to_string(input)?;
-    let (front_title, markdown) = strip_front_matter(&source);
-    let blocks = parse_markdown_blocks(markdown);
+    let (front, markdown) = parse_front_matter(&source);
+    let markdown = if let Some(resolver) = options.wikilink_resolver.as_ref() {
+        rewrite_wikilinks(markdown, resolver.as_ref())
+    } else {
+        markdown.to_owned()
+    };
+    let blocks = parse_markdown_blocks(&markdown);
 
     let title = options
         .title
         .clone()
-        .or(front_title)
+        .or(front.title.clone())
         .or_else(|| first_heading(&blocks))
         .or_else(|| {
             input
@@ -101,26 +171,42 @@ pub fn import_markdown_v0(
                 .map(str::to_owned)
         })
         .unwrap_or_else(|| "Untitled".to_owned());
-    let doc_id = match &options.doc_id {
-        Some(value) => Uuid::parse_str(value)
-            .map_err(|_| TesError::InvalidDocId {
-                value: value.clone(),
-            })?
-            .to_string(),
-        None => Uuid::new_v4().to_string(),
+
+    let seed = options
+        .doc_id_seed
+        .clone()
+        .or_else(|| front.id.clone())
+        .or_else(|| {
+            input
+                .file_name()
+                .and_then(|s| s.to_str())
+                .map(str::to_owned)
+        });
+    let doc_id = resolve_import_doc_id(output, options.doc_id.as_deref(), seed.as_deref())?;
+
+    let mut tags = front.tags.clone();
+    extend_unique(&mut tags, &options.tags);
+    let mut aliases = front.aliases.clone();
+    extend_unique(&mut aliases, &options.aliases);
+    let slug = if options.slug_override {
+        options.slug.clone()
+    } else {
+        options.slug.clone().or(front.id.clone())
     };
+
     let now = OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .map_err(|err| std::io::Error::other(format!("format import timestamp: {err}")))?;
 
+    let mut catalog = DocumentCatalog::new(&doc_id, &title, &now, &now, options.doc_kind);
+    catalog.tags = tags;
+    catalog.category.clone_from(&options.category);
+    catalog.aliases = aliases;
+    catalog.slug.clone_from(&slug);
+
+    let _ = std::fs::remove_file(output);
     let mut session = TesWriterSession::create(output, options.doc_kind);
-    session.set_catalog(DocumentCatalog::new(
-        &doc_id,
-        &title,
-        &now,
-        &now,
-        options.doc_kind,
-    ))?;
+    session.set_catalog(catalog)?;
     seal_text_blocks(&mut session, &blocks)?;
     session.commit()?;
 
@@ -130,7 +216,38 @@ pub fn import_markdown_v0(
         doc_id,
         title,
         chunk_count: blocks.len(),
+        slug,
     })
+}
+
+/// Resolve `doc_id` for import: explicit option, else keep existing output catalog
+/// (D2), else `UUIDv5` from seed, else random.
+///
+/// # Errors
+///
+/// Returns [`TesError::InvalidDocId`] when an explicit id is not a UUID.
+pub fn resolve_import_doc_id(
+    output: &Path,
+    explicit: Option<&str>,
+    seed: Option<&str>,
+) -> Result<String> {
+    if let Some(value) = explicit {
+        return Ok(Uuid::parse_str(value)
+            .map_err(|_| TesError::InvalidDocId {
+                value: value.to_owned(),
+            })?
+            .to_string());
+    }
+    if output.is_file()
+        && let Ok(file) = TesFile::open(output)
+        && let Some(catalog) = file.catalog()
+    {
+        return Ok(catalog.doc_id.clone());
+    }
+    if let Some(seed) = seed {
+        return Ok(doc_id_from_seed(seed).to_string());
+    }
+    Ok(Uuid::new_v4().to_string())
 }
 
 /// Append text blocks and materialize pending outbound links into `TLNK`.
@@ -458,20 +575,199 @@ fn first_heading(blocks: &[MarkdownBlock]) -> Option<String> {
         .map(|b| b.body.clone())
 }
 
-fn strip_front_matter(source: &str) -> (Option<String>, &str) {
-    let Some(after_open) = source.strip_prefix("---\n") else {
-        return (None, source);
+/// Split Obsidian-style YAML front matter from the Markdown body.
+#[must_use]
+pub fn parse_front_matter(source: &str) -> (MarkdownFrontMatter, &str) {
+    let Some(after_open) = source
+        .strip_prefix("---\n")
+        .or_else(|| source.strip_prefix("---\r\n"))
+    else {
+        return (MarkdownFrontMatter::default(), source);
     };
-    let Some(end) = after_open.find("\n---\n") else {
-        return (None, source);
+    let Some(end) = after_open
+        .find("\n---\n")
+        .or_else(|| after_open.find("\n---\r\n"))
+    else {
+        return (MarkdownFrontMatter::default(), source);
     };
     let front = &after_open[..end];
-    let title = front.lines().find_map(|line| {
-        line.strip_prefix("title:")
-            .map(str::trim)
-            .map(|value| value.trim_matches(['"', '\'']).to_owned())
+    let body_start = if after_open[end..].starts_with("\n---\r\n") {
+        end + "\n---\r\n".len()
+    } else {
+        end + "\n---\n".len()
+    };
+    (parse_front_matter_body(front), &after_open[body_start..])
+}
+
+fn parse_front_matter_body(front: &str) -> MarkdownFrontMatter {
+    let mut out = MarkdownFrontMatter::default();
+    let mut lines = front.lines().peekable();
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("title:") {
+            out.title = Some(unquote(rest.trim()));
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("id:") {
+            let value = unquote(rest.trim());
+            if !value.is_empty() {
+                out.id = Some(value);
+            }
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("tags:") {
+            out.tags = parse_yaml_string_list(rest.trim(), &mut lines);
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("aliases:") {
+            out.aliases = parse_yaml_string_list(rest.trim(), &mut lines);
+        }
+    }
+    out
+}
+
+fn parse_yaml_string_list<'a>(
+    inline: &str,
+    lines: &mut std::iter::Peekable<impl Iterator<Item = &'a str>>,
+) -> Vec<String> {
+    if inline == "[]" {
+        return Vec::new();
+    }
+    if inline.starts_with('[') && inline.ends_with(']') {
+        return inline[1..inline.len() - 1]
+            .split(',')
+            .map(|s| unquote(s.trim()))
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+    if !inline.is_empty() {
+        return vec![unquote(inline)];
+    }
+    let mut items = Vec::new();
+    while let Some(next) = lines.peek() {
+        let t = next.trim();
+        if let Some(item) = t.strip_prefix("- ") {
+            items.push(unquote(item.trim()));
+            lines.next();
+        } else if t.is_empty() {
+            lines.next();
+        } else {
+            break;
+        }
+    }
+    items
+}
+
+fn unquote(value: &str) -> String {
+    let value = value.trim();
+    if (value.starts_with('"') && value.ends_with('"'))
+        || (value.starts_with('\'') && value.ends_with('\''))
+    {
+        value[1..value.len() - 1].to_owned()
+    } else {
+        value.to_owned()
+    }
+}
+
+/// One `[[target]]` / `[[target|label]]` span in Markdown source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WikilinkSpan<'a> {
+    /// Byte offset of the opening `[[`.
+    pub start: usize,
+    /// Byte offset immediately after the closing `]]`.
+    pub end: usize,
+    /// Link target (left of `|`, trimmed).
+    pub target: &'a str,
+    /// Display label (right of `|`, or the full inner text when unlabeled).
+    pub label: &'a str,
+}
+
+/// Invoke `visitor` for each Obsidian-style wikilink in `markdown`.
+pub fn visit_wikilinks(markdown: &str, mut visitor: impl FnMut(WikilinkSpan<'_>)) {
+    let bytes = markdown.as_bytes();
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'['
+            && bytes[i + 1] == b'['
+            && let Some(close) = find_wikilink_end(markdown, i + 2)
+        {
+            let inner = &markdown[i + 2..close];
+            let (target, label) = match inner.split_once('|') {
+                Some((t, l)) => (t.trim(), l.trim()),
+                None => {
+                    let t = inner.trim();
+                    (t, t)
+                }
+            };
+            visitor(WikilinkSpan {
+                start: i,
+                end: close + 2,
+                target,
+                label,
+            });
+            i = close + 2;
+            continue;
+        }
+        i += 1;
+    }
+}
+
+/// Collect wikilink targets for which `is_resolved` returns false (unique via `out`).
+pub fn collect_unresolved_wikilinks(
+    markdown: &str,
+    is_resolved: impl Fn(&str) -> bool,
+    out: &mut std::collections::HashSet<String>,
+) {
+    visit_wikilinks(markdown, |span| {
+        if !span.target.is_empty() && !is_resolved(span.target) {
+            out.insert(span.target.to_owned());
+        }
     });
-    (title, &after_open[end + 5..])
+}
+
+/// Rewrite `[[target]]` / `[[target|label]]` to `[label](uuid)` when `resolve` returns an id.
+///
+/// Unresolved wikilinks are left unchanged in the output.
+#[must_use]
+pub fn rewrite_wikilinks(markdown: &str, resolve: &dyn Fn(&str) -> Option<String>) -> String {
+    let mut out = String::with_capacity(markdown.len());
+    let mut cursor = 0;
+    visit_wikilinks(markdown, |span| {
+        if let Some(uuid) = resolve(span.target) {
+            out.push_str(&markdown[cursor..span.start]);
+            out.push('[');
+            out.push_str(span.label);
+            out.push_str("](");
+            out.push_str(&uuid);
+            out.push(')');
+            cursor = span.end;
+        }
+    });
+    out.push_str(&markdown[cursor..]);
+    out
+}
+
+fn find_wikilink_end(markdown: &str, start: usize) -> Option<usize> {
+    let bytes = markdown.as_bytes();
+    let mut j = start;
+    while j + 1 < bytes.len() {
+        if bytes[j] == b']' && bytes[j + 1] == b']' {
+            return Some(j);
+        }
+        j += 1;
+    }
+    None
+}
+
+fn extend_unique(dst: &mut Vec<String>, extras: &[String]) {
+    for item in extras {
+        if !dst.iter().any(|existing| existing == item) {
+            dst.push(item.clone());
+        }
+    }
 }
 
 #[cfg(test)]
@@ -596,9 +892,61 @@ mod tests {
 
     #[test]
     fn front_matter_title_wins_over_heading() {
-        let (title, body) = strip_front_matter("---\ntitle: \"Front\"\n---\n# Heading\n");
-        assert_eq!(title.as_deref(), Some("Front"));
+        let (front, body) = parse_front_matter("---\ntitle: \"Front\"\n---\n# Heading\n");
+        assert_eq!(front.title.as_deref(), Some("Front"));
         assert_eq!(body, "# Heading\n");
+    }
+
+    #[test]
+    fn parses_obsidian_front_matter_lists() {
+        let (front, _) = parse_front_matter(
+            "---\nid: Erasure\ntags:\n  - Books\n  - Fiction\naliases:\n  - American Fiction\n---\n# Erasure\n",
+        );
+        assert_eq!(front.id.as_deref(), Some("Erasure"));
+        assert_eq!(front.tags, vec!["Books", "Fiction"]);
+        assert_eq!(front.aliases, vec!["American Fiction"]);
+    }
+
+    #[test]
+    fn rewrite_wikilinks_resolves_known_targets() {
+        let out = rewrite_wikilinks("See [[Erasure|the novel]] and [[Missing]].", &|name| {
+            if name == "Erasure" {
+                Some("550e8400-e29b-41d4-a716-446655440000".into())
+            } else {
+                None
+            }
+        });
+        assert!(out.contains("[the novel](550e8400-e29b-41d4-a716-446655440000)"));
+        assert!(out.contains("[[Missing]]"));
+    }
+
+    #[test]
+    fn import_keeps_existing_doc_id_on_reimport() {
+        let dir = tempdir().unwrap();
+        let input = dir.path().join("note.md");
+        let output = dir.path().join("note.tes");
+        std::fs::write(&input, "---\nid: Stable\n---\n# Hello\n\nBody.\n").unwrap();
+        let first = import_markdown_v0(
+            &input,
+            &output,
+            &MarkdownImportOptions {
+                doc_id_seed: Some("Stable".into()),
+                ..MarkdownImportOptions::default()
+            },
+        )
+        .unwrap();
+        std::fs::write(&input, "---\nid: Stable\n---\n# Hello\n\nChanged.\n").unwrap();
+        let second = import_markdown_v0(
+            &input,
+            &output,
+            &MarkdownImportOptions {
+                doc_id_seed: Some("other-seed".into()),
+                ..MarkdownImportOptions::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(first.doc_id, second.doc_id);
+        assert_eq!(first.slug.as_deref(), Some("Stable"));
     }
 
     #[test]

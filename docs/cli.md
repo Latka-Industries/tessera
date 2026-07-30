@@ -176,34 +176,46 @@ Vault-level link operations (requires `--vault DIR`).
 ## `tes vault`
 
 Optional vault catalog index — a TOC-style `vault.tes` sidecar
-(`doc_kind = index`) listing `doc_id → title, tags, modified, path` so list/search
-does not open every note. Index version ≥ 2 also stores **registered members**
-(external `.tes` files or extra roots). `tes link` uses the same membership set.
+(`doc_kind = index`) listing `doc_id → title, tags, category, aliases, slug,
+modified, path` so list/search does not open every note. Index version ≥ 2 also
+stores **registered members** (external `.tes` files or extra roots). Version ≥ 3
+rows may include `category` / `aliases` / `slug`. `tes link` uses the same
+membership set.
 
 ```bash
 tes vault --vault ./notes rebuild
 tes vault --vault ./notes list
 tes vault --vault ./notes list --tag ml --json
+tes vault --vault ./notes list --category Literature
 tes vault --vault ./notes list --force-scan
+tes vault --vault ./notes import /path/to/obsidian-vault
 tes vault --vault ./notes add /other/project/note.tes
 tes vault --vault ./notes add /other/shared-notes
 tes vault --vault ./notes members
 tes vault --vault ./notes remove /other/project/note.tes
 ```
 
-| Subcommand    | Effect                                                                      |
-| ------------- | --------------------------------------------------------------------------- |
-| `rebuild`     | Scan membership and seal/replace `vault.tes` (preserves registered members) |
-| `list`        | List docs from a fresh index, else catalog scan (warn if stale)             |
-| `add PATH`    | Register a `.tes` file or extra root; rebuilds `vault.tes`                  |
-| `remove PATH` | Unregister a previous `add`; rebuilds `vault.tes`                           |
-| `members`     | Show registered externals only (not the automatic in-tree scan)             |
+| Subcommand      | Effect                                                                      |
+| --------------- | --------------------------------------------------------------------------- |
+| `rebuild`       | Scan membership and seal/replace `vault.tes` (preserves registered members) |
+| `list`          | List docs from a fresh index, else catalog scan (warn if stale)             |
+| `import DIR`    | Import Markdown/Obsidian tree into the vault (skip `.obsidian`)             |
+| `add PATH`      | Register a `.tes` file or extra root; rebuilds `vault.tes`                  |
+| `remove PATH`   | Unregister a previous `add`; rebuilds `vault.tes`                           |
+| `members`       | Show registered externals only (not the automatic in-tree scan)             |
 
 | Flag           | Effect                                                                     |
 | -------------- | -------------------------------------------------------------------------- |
 | `--tag TAG`    | Keep rows whose catalog tags include `TAG`                                 |
+| `--category C` | Keep rows whose catalog category equals `C`                                |
 | `--force-scan` | Ignore TOC freshness and rescan catalogs (still honors members)            |
 | `--json`       | Machine-readable [`VaultListReport`](../src/vault/index.rs) or member list |
+
+**Import behavior:** preserves relative paths as `.tes`; `doc_id` from Obsidian
+`id:` or path via UUIDv5 (keeps existing id on re-import; duplicate `id:` →
+path re-seed); top-level folder → `category`; front matter tags/aliases/slug;
+`* Index.md` → `hub`; resolves `[[wikilinks]]` via title → slug → aliases;
+rebuilds `vault.tes`.
 
 **Stale detection:** entry count / display paths / file mtimes must match the
 index over the full membership set; otherwise list falls back to a catalog scan.

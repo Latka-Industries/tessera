@@ -552,10 +552,21 @@ pub(super) enum VaultCommands {
         /// Filter by catalog tag
         #[arg(long)]
         tag: Option<String>,
+        /// Filter by catalog category
+        #[arg(long)]
+        category: Option<String>,
         /// Ignore `vault.tes` and scan catalogs
         #[arg(long)]
         force_scan: bool,
         /// Emit JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Import a Markdown / Obsidian folder into this vault
+    Import {
+        /// Root directory of `.md` files (`.obsidian` skipped)
+        source: PathBuf,
+        /// Emit JSON report
         #[arg(long)]
         json: bool,
     },
