@@ -11,7 +11,7 @@
 //! `edit-read` / `edit-write` / `format` / `apply`, history `save` / `log` / `diff` /
 //! `changelog` / `export-revs` / `checkout` / `blame` / `pending` / `textconv` /
 //! `merge-file`, and vault catalog `vault rebuild` / `vault list` /
-//! `vault add` / `vault remove` / `vault members`.
+//! `vault search` / `vault add` / `vault remove` / `vault members`.
 
 mod args;
 mod commands;

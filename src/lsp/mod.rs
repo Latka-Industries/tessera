@@ -104,102 +104,128 @@ impl Backend {
             })?;
 
         match write_result {
-            Ok(new_hash) => {
-                {
-                    let mut docs = self.documents.lock().expect("documents lock");
-                    if let Some(open) = docs.get_mut(uri) {
-                        open.source_hash.clone_from(&new_hash);
-                    }
-                }
-                let msg = format!(
-                    "tes-lsp: wrote {} source-hash={}",
-                    path.display(),
-                    &new_hash[..new_hash.len().min(12)]
-                );
-                eprintln!("{msg}");
-                self.client.log_message(MessageType::INFO, msg).await;
-                let tessprek = {
-                    let docs = self.documents.lock().expect("documents lock");
-                    docs.get(uri).map(|d| d.tessprek.clone())
-                };
-                self.publish_for_open(uri, &path, Some(&new_hash), tessprek)
-                    .await;
-                Ok(serde_json::json!({
-                    "ok": true,
-                    "path": path.to_string_lossy(),
-                    "source_hash": new_hash,
-                }))
-            }
+            Ok(new_hash) => self.write_ok(uri, &path, new_hash).await,
             Err(WriteBackError::HashMismatch { expected, found }) => {
-                let diag = file_diagnostic(
-                    DiagnosticSeverity::ERROR,
-                    "source-hash",
-                    format!(
-                        "source-hash mismatch: expected {}, found {} (refusing silent overwrite)",
-                        &expected[..expected.len().min(12)],
-                        &found[..found.len().min(12)]
-                    ),
-                );
-                self.client
-                    .publish_diagnostics(uri.clone(), vec![diag], None)
-                    .await;
-                let msg = format!(
-                    "tes-lsp: write refused (source-hash) for {}",
-                    path.display()
-                );
-                eprintln!("{msg}");
-                self.client.log_message(MessageType::ERROR, msg).await;
-                Ok(serde_json::json!({
-                    "ok": false,
-                    "code": "source-hash",
-                    "expected": expected,
-                    "found": found,
-                }))
+                self.write_hash_mismatch(uri, &path, expected, found).await
             }
             Err(WriteBackError::Parse {
                 line,
                 column,
                 message,
             }) => {
-                let tessprek = {
-                    let docs = self.documents.lock().expect("documents lock");
-                    docs.get(uri)
-                        .map(|d| d.tessprek.clone())
-                        .unwrap_or_default()
-                };
-                let diag = parse_diagnostic(&tessprek, line, column, message.clone());
-                self.client
-                    .publish_diagnostics(uri.clone(), vec![diag], None)
-                    .await;
-                let msg = format!(
-                    "tes-lsp: write failed (edit-parse {line}:{column}) for {}: {message}",
-                    path.display()
-                );
-                eprintln!("{msg}");
-                self.client.log_message(MessageType::ERROR, msg).await;
-                Ok(serde_json::json!({
-                    "ok": false,
-                    "code": "edit-parse",
-                    "line": line,
-                    "column": column,
-                    "error": message,
-                }))
+                self.write_parse_failed(uri, &path, line, column, message)
+                    .await
             }
-            Err(WriteBackError::Other(err)) => {
-                let diag = file_diagnostic(DiagnosticSeverity::ERROR, "edit-write", err.clone());
-                self.client
-                    .publish_diagnostics(uri.clone(), vec![diag], None)
-                    .await;
-                let msg = format!("tes-lsp: write failed for {}: {err}", path.display());
-                eprintln!("{msg}");
-                self.client.log_message(MessageType::ERROR, msg).await;
-                Ok(serde_json::json!({
-                    "ok": false,
-                    "code": "edit-write",
-                    "error": err,
-                }))
+            Err(WriteBackError::Other(err)) => self.write_other_failed(uri, &path, err).await,
+        }
+    }
+
+    async fn write_ok(&self, uri: &Url, path: &Path, new_hash: String) -> Result<Value> {
+        {
+            let mut docs = self.documents.lock().expect("documents lock");
+            if let Some(open) = docs.get_mut(uri) {
+                open.source_hash.clone_from(&new_hash);
             }
         }
+        let msg = format!(
+            "tes-lsp: wrote {} source-hash={}",
+            path.display(),
+            &new_hash[..new_hash.len().min(12)]
+        );
+        eprintln!("{msg}");
+        self.client.log_message(MessageType::INFO, msg).await;
+        let tessprek = {
+            let docs = self.documents.lock().expect("documents lock");
+            docs.get(uri).map(|d| d.tessprek.clone())
+        };
+        self.publish_for_open(uri, path, Some(&new_hash), tessprek)
+            .await;
+        Ok(serde_json::json!({
+            "ok": true,
+            "path": path.to_string_lossy(),
+            "source_hash": new_hash,
+        }))
+    }
+
+    async fn write_hash_mismatch(
+        &self,
+        uri: &Url,
+        path: &Path,
+        expected: String,
+        found: String,
+    ) -> Result<Value> {
+        let diag = file_diagnostic(
+            DiagnosticSeverity::ERROR,
+            "source-hash",
+            format!(
+                "source-hash mismatch: expected {}, found {} (refusing silent overwrite)",
+                &expected[..expected.len().min(12)],
+                &found[..found.len().min(12)]
+            ),
+        );
+        self.client
+            .publish_diagnostics(uri.clone(), vec![diag], None)
+            .await;
+        let msg = format!(
+            "tes-lsp: write refused (source-hash) for {}",
+            path.display()
+        );
+        eprintln!("{msg}");
+        self.client.log_message(MessageType::ERROR, msg).await;
+        Ok(serde_json::json!({
+            "ok": false,
+            "code": "source-hash",
+            "expected": expected,
+            "found": found,
+        }))
+    }
+
+    async fn write_parse_failed(
+        &self,
+        uri: &Url,
+        path: &Path,
+        line: usize,
+        column: usize,
+        message: String,
+    ) -> Result<Value> {
+        let tessprek = {
+            let docs = self.documents.lock().expect("documents lock");
+            docs.get(uri)
+                .map(|d| d.tessprek.clone())
+                .unwrap_or_default()
+        };
+        let diag = parse_diagnostic(&tessprek, line, column, message.clone());
+        self.client
+            .publish_diagnostics(uri.clone(), vec![diag], None)
+            .await;
+        let msg = format!(
+            "tes-lsp: write failed (edit-parse {line}:{column}) for {}: {message}",
+            path.display()
+        );
+        eprintln!("{msg}");
+        self.client.log_message(MessageType::ERROR, msg).await;
+        Ok(serde_json::json!({
+            "ok": false,
+            "code": "edit-parse",
+            "line": line,
+            "column": column,
+            "error": message,
+        }))
+    }
+
+    async fn write_other_failed(&self, uri: &Url, path: &Path, err: String) -> Result<Value> {
+        let diag = file_diagnostic(DiagnosticSeverity::ERROR, "edit-write", err.clone());
+        self.client
+            .publish_diagnostics(uri.clone(), vec![diag], None)
+            .await;
+        let msg = format!("tes-lsp: write failed for {}: {err}", path.display());
+        eprintln!("{msg}");
+        self.client.log_message(MessageType::ERROR, msg).await;
+        Ok(serde_json::json!({
+            "ok": false,
+            "code": "edit-write",
+            "error": err,
+        }))
     }
 }
 

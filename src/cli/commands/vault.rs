@@ -6,12 +6,13 @@ use std::path::PathBuf;
 
 use crate::error::TesError;
 use crate::vault::{
-    VaultIndexEntry, VaultMarkdownImportOptions, import_markdown_vault,
-    list_vault_documents_filtered, load_registered_members, rebuild_vault_index, register_member,
-    unregister_member, vault_index_path,
+    VaultIndexEntry, VaultMarkdownImportOptions, VaultSearchHit, VaultSearchMode,
+    VaultSearchOptions, import_markdown_vault, list_vault_documents_filtered,
+    load_registered_members, rebuild_vault_fts, rebuild_vault_index, register_member, search_vault,
+    unregister_member, vault_fts_path, vault_index_path,
 };
 
-use super::super::args::VaultCommands;
+use super::super::args::{VaultCommands, VaultListArgs, VaultSearchArgs};
 
 pub(in crate::cli) fn run_vault(root: &PathBuf, command: VaultCommands) -> Result<(), TesError> {
     match command {
@@ -19,70 +20,8 @@ pub(in crate::cli) fn run_vault(root: &PathBuf, command: VaultCommands) -> Resul
             let path = rebuild_vault_index(root)?;
             println!("wrote\t{}", path.display());
         }
-        VaultCommands::List {
-            tag,
-            category,
-            force_scan,
-            json,
-            table,
-            tsv,
-        } => {
-            let report = list_vault_documents_filtered(
-                root,
-                tag.as_deref(),
-                category.as_deref(),
-                force_scan,
-            )?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&report)?);
-            } else {
-                print_list_source(root, &report);
-                let use_table = if table {
-                    true
-                } else if tsv {
-                    false
-                } else {
-                    io::stdout().is_terminal()
-                };
-                if use_table {
-                    print_list_table(&report.entries);
-                } else {
-                    print_list_tsv(&report.entries);
-                }
-                println!("documents={}", report.entries.len());
-            }
-        }
-        VaultCommands::Import { source, json } => {
-            let report =
-                import_markdown_vault(&source, root, &VaultMarkdownImportOptions::default())?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&report)?);
-            } else {
-                for entry in &report.imported {
-                    println!(
-                        "imported\t{}\t→\t{}\tdoc_id={}\tkind={}",
-                        entry.source, entry.output, entry.doc_id, entry.doc_kind
-                    );
-                }
-                for warn in &report.slug_collisions {
-                    eprintln!("warning: {warn}");
-                }
-                for warn in &report.doc_id_collisions {
-                    eprintln!("warning: {warn}");
-                }
-                if !report.unresolved_wikilinks.is_empty() {
-                    eprintln!(
-                        "warning: unresolved wikilinks={}",
-                        report.unresolved_wikilinks.len()
-                    );
-                    for name in &report.unresolved_wikilinks {
-                        eprintln!("  [[{name}]]");
-                    }
-                }
-                println!("documents={}", report.imported.len());
-                println!("vault_index={}", report.vault_index.display());
-            }
-        }
+        VaultCommands::List(args) => run_vault_list(root, &args)?,
+        VaultCommands::Import { source, json } => run_vault_import(root, &source, json)?,
         VaultCommands::Add { path } => {
             let member = register_member(root, &path)?;
             println!("added\t{}\t{}", member.kind.as_str(), member.path);
@@ -91,21 +30,166 @@ pub(in crate::cli) fn run_vault(root: &PathBuf, command: VaultCommands) -> Resul
             unregister_member(root, &path)?;
             println!("removed\t{}", path.display());
         }
-        VaultCommands::Members { json } => {
-            let members = load_registered_members(root)?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&members)?);
-            } else if members.is_empty() {
-                println!("members=0");
-            } else {
-                for member in &members {
-                    println!("{}\t{}", member.kind.as_str(), member.path);
-                }
-                println!("members={}", members.len());
-            }
-        }
+        VaultCommands::Members { json } => run_vault_members(root, json)?,
+        VaultCommands::Search(args) => run_vault_search(root, &args)?,
     }
     Ok(())
+}
+
+fn run_vault_list(root: &PathBuf, args: &VaultListArgs) -> Result<(), TesError> {
+    let report = list_vault_documents_filtered(
+        root,
+        args.tag.as_deref(),
+        args.category.as_deref(),
+        args.force_scan,
+    )?;
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+    print_list_source(root, &report);
+    let use_table = if args.table {
+        true
+    } else if args.tsv {
+        false
+    } else {
+        io::stdout().is_terminal()
+    };
+    if use_table {
+        print_list_table(&report.entries);
+    } else {
+        print_list_tsv(&report.entries);
+    }
+    println!("documents={}", report.entries.len());
+    Ok(())
+}
+
+fn run_vault_import(root: &PathBuf, source: &PathBuf, json: bool) -> Result<(), TesError> {
+    let report = import_markdown_vault(source, root, &VaultMarkdownImportOptions::default())?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+    for entry in &report.imported {
+        println!(
+            "imported\t{}\t→\t{}\tdoc_id={}\tkind={}",
+            entry.source, entry.output, entry.doc_id, entry.doc_kind
+        );
+    }
+    for warn in &report.slug_collisions {
+        eprintln!("warning: {warn}");
+    }
+    for warn in &report.doc_id_collisions {
+        eprintln!("warning: {warn}");
+    }
+    if !report.unresolved_wikilinks.is_empty() {
+        eprintln!(
+            "warning: unresolved wikilinks={}",
+            report.unresolved_wikilinks.len()
+        );
+        for name in &report.unresolved_wikilinks {
+            eprintln!("  [[{name}]]");
+        }
+    }
+    println!("documents={}", report.imported.len());
+    println!("vault_index={}", report.vault_index.display());
+    Ok(())
+}
+
+fn run_vault_members(root: &PathBuf, json: bool) -> Result<(), TesError> {
+    let members = load_registered_members(root)?;
+    if json {
+        println!("{}", serde_json::to_string_pretty(&members)?);
+    } else if members.is_empty() {
+        println!("members=0");
+    } else {
+        for member in &members {
+            println!("{}\t{}", member.kind.as_str(), member.path);
+        }
+        println!("members={}", members.len());
+    }
+    Ok(())
+}
+
+fn run_vault_search(root: &PathBuf, args: &VaultSearchArgs) -> Result<(), TesError> {
+    let query = args
+        .query
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let Some(query) = query else {
+        return rebuild_only(root, args);
+    };
+    let report = search_vault(root, query, search_options(args))?;
+    print_search_source(root, &report);
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        print_search_tsv(&report.hits);
+        println!("hits={}", report.hits.len());
+    }
+    Ok(())
+}
+
+fn rebuild_only(root: &PathBuf, args: &VaultSearchArgs) -> Result<(), TesError> {
+    if !args.rebuild && !args.force_rebuild {
+        return Err(TesError::VaultFts {
+            message: "search requires a query, or --rebuild / --force-rebuild".into(),
+        });
+    }
+    let path = rebuild_vault_fts(root)?;
+    if args.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "rebuilt": true,
+                "mode": "index",
+                "path": path,
+            })
+        );
+    } else {
+        println!("wrote\t{}", path.display());
+    }
+    Ok(())
+}
+
+fn search_options(args: &VaultSearchArgs) -> VaultSearchOptions {
+    VaultSearchOptions {
+        limit: args.limit,
+        force_rebuild: args.force_rebuild || args.rebuild,
+        force_index: args.index || args.rebuild || args.force_rebuild,
+        force_scan: args.scan,
+    }
+}
+
+fn print_search_source(root: &PathBuf, report: &crate::vault::VaultSearchReport) {
+    match report.mode {
+        VaultSearchMode::Scan => eprintln!("source=scan documents={}", report.documents),
+        VaultSearchMode::Index if report.was_stale && report.rebuilt => {
+            eprintln!(
+                "warning: {} was stale; rebuilt Tantivy index",
+                vault_fts_path(root).display()
+            );
+        }
+        VaultSearchMode::Index if report.rebuilt => {
+            eprintln!("source=rebuilt {}", vault_fts_path(root).display());
+        }
+        VaultSearchMode::Index => {
+            eprintln!("source={}", vault_fts_path(root).display());
+        }
+    }
+}
+
+fn print_search_tsv(hits: &[VaultSearchHit]) {
+    for hit in hits {
+        println!(
+            "{}\t{}\t{}\t{}",
+            &hit.doc_id[..hit.doc_id.len().min(8)],
+            hit.title,
+            hit.path,
+            hit.snippet.replace(['\t', '\n'], " ")
+        );
+    }
 }
 
 fn print_list_source(root: &PathBuf, report: &crate::vault::VaultListReport) {
