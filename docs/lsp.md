@@ -18,6 +18,7 @@ Logs go to **stderr** only — stdout is the LSP wire.
 | Write-back | `tessera.write` / `willSave` → `edit_write` with stored hash |
 | Success | Refresh stored hash from `EditWriteReport` |
 | Hash conflict | `source-hash` diagnostic; **never** silent overwrite |
+| Parse error | Ranged `edit-parse` on the offending Tessprek line (buffer) |
 
 ## Capabilities
 
@@ -26,7 +27,7 @@ Logs go to **stderr** only — stdout is the LSP wire.
 | `initialize` / `shutdown` | Yes |
 | `textDocument/didOpen` / `didClose` | `.tes` only; open runs `edit_read` |
 | `textDocument/didChange` | Full (and incremental) apply to in-memory Tessprek |
-| `textDocument/publishDiagnostics` | `verify_*` findings + source-hash check |
+| `textDocument/publishDiagnostics` | Buffer `decode_tessprek` (`edit-parse`, ranged) + on-disk `verify_*` + source-hash |
 | `textDocument/willSave` | Triggers write-back |
 | `workspace/executeCommand` | `tessera.write` |
 | `textDocument/hover` | Tessprek header + `<!-- tes chunk=… -->` markers |

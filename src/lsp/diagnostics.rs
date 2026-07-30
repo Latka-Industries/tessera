@@ -1,13 +1,16 @@
-//! Verify + source-hash → LSP diagnostics (file-level for v1).
+//! Verify + source-hash + Tessprek parse → LSP diagnostics.
 
 use std::path::Path;
 
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range};
 
-use crate::edit::file_source_hash;
+use crate::edit::{decode_tessprek, file_source_hash};
+use crate::error::TesError;
 use crate::verify::{Finding, Severity, verify_tes_file};
 
-/// File-level range — v1 does not map every verify finding onto Tessprek spans.
+use super::position::line_column_range;
+
+/// File-level range — used when a finding has no Tessprek span (verify / hash).
 fn file_level_range() -> Range {
     Range {
         start: Position {
@@ -36,6 +39,23 @@ pub(super) fn file_diagnostic(
     }
 }
 
+/// Ranged diagnostic for a Tessprek [`TesError::EditParse`].
+pub(super) fn parse_diagnostic(
+    text: &str,
+    line: usize,
+    column: usize,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        range: line_column_range(text, line, column),
+        severity: Some(DiagnosticSeverity::ERROR),
+        code: Some(NumberOrString::String("edit-parse".into())),
+        source: Some("tes-lsp".into()),
+        message: message.into(),
+        ..Default::default()
+    }
+}
+
 fn finding_to_diagnostic(finding: &Finding) -> Diagnostic {
     let severity = match finding.severity {
         Severity::Error => DiagnosticSeverity::ERROR,
@@ -43,6 +63,27 @@ fn finding_to_diagnostic(finding: &Finding) -> Diagnostic {
         Severity::Info => DiagnosticSeverity::INFORMATION,
     };
     file_diagnostic(severity, &finding.check, finding.message.clone())
+}
+
+/// Parse the in-memory Tessprek buffer; emit a ranged `edit-parse` on failure.
+pub(super) fn collect_buffer_diagnostics(tessprek: &str) -> Vec<Diagnostic> {
+    match decode_tessprek(tessprek) {
+        Ok(_) => Vec::new(),
+        Err(TesError::EditParse {
+            line,
+            column,
+            message,
+        }) => {
+            vec![parse_diagnostic(tessprek, line, column, message)]
+        }
+        Err(err) => {
+            vec![file_diagnostic(
+                DiagnosticSeverity::ERROR,
+                "edit-parse",
+                format!("Tessprek parse failed: {err}"),
+            )]
+        }
+    }
 }
 
 /// Build diagnostics from `verify_*` plus an optional source-hash expectation.
@@ -86,6 +127,20 @@ pub(super) fn collect_diagnostics(path: &Path, expected_hash: Option<&str>) -> V
         }
     }
 
+    out
+}
+
+/// Buffer parse diagnostics plus on-disk verify / source-hash.
+pub(super) fn collect_open_diagnostics(
+    path: &Path,
+    expected_hash: Option<&str>,
+    tessprek: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut out = match tessprek {
+        Some(text) => collect_buffer_diagnostics(text),
+        None => Vec::new(),
+    };
+    out.extend(collect_diagnostics(path, expected_hash));
     out
 }
 
@@ -139,5 +194,36 @@ mod tests {
             }),
             "expected source-hash error, got {diags:?}"
         );
+    }
+
+    #[test]
+    fn buffer_parse_error_is_ranged_on_offending_line() {
+        let text = "\
+<!-- tessera: format=tessprek version=1 -->\n\
+\n\
+<!-- tes chunk=1 role=not-a-real-role -->\n\
+body\n\
+";
+        let diags = collect_buffer_diagnostics(text);
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        let d = &diags[0];
+        assert_eq!(d.severity, Some(DiagnosticSeverity::ERROR));
+        assert_eq!(d.code, Some(NumberOrString::String("edit-parse".into())));
+        assert!(d.message.contains("unknown role"), "{}", d.message);
+        // Directive is on 1-based line 3 → LSP line 2; whole-line highlight.
+        assert_eq!(d.range.start.line, 2);
+        assert_eq!(d.range.start.character, 0);
+        assert!(d.range.end.character > 1, "{:?}", d.range);
+    }
+
+    #[test]
+    fn buffer_parse_clean_empty() {
+        let text = "\
+<!-- tessera: format=tessprek version=1 -->\n\
+\n\
+<!-- tes chunk=1 role=paragraph -->\n\
+Hello\n\
+";
+        assert!(collect_buffer_diagnostics(text).is_empty());
     }
 }

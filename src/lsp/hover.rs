@@ -6,6 +6,8 @@ use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Posi
 
 use crate::edit::markers::{CHUNK_PREFIX, COMMENT_SUFFIX, HEADER_PREFIX};
 
+use super::position::{nth_line, utf16_len};
+
 /// Hover for a Tessprek marker at `position`, if any.
 pub(super) fn hover_at(text: &str, position: Position) -> Option<Hover> {
     let (line_idx, line) = nth_line(text, position.line)?;
@@ -121,18 +123,6 @@ fn parse_simple_attrs(attrs: &str) -> Vec<(String, String)> {
         rest = next;
     }
     out
-}
-
-fn nth_line(text: &str, line: u32) -> Option<(u32, &str)> {
-    text.lines()
-        .nth(usize::try_from(line).ok()?)
-        .map(|s| (line, s))
-}
-
-fn utf16_len(s: &str) -> u32 {
-    s.chars()
-        .map(|c| u32::try_from(c.len_utf16()).unwrap_or(0))
-        .sum()
 }
 
 /// Debug helper for unit tests.

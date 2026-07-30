@@ -2,13 +2,14 @@
 //!
 //! Thin LSP over stdio. Opens `.tes` files as Tessprek via [`edit_read`]
 //! (THI-242), keeps an in-memory Tessprek buffer via `didChange` (THI-243),
-//! publishes verify / source-hash diagnostics (THI-244), writes back via
-//! `tessera.write` / `willSave` using [`edit_write`] (THI-245), and hovers
-//! Tessprek markers (THI-246).
+//! publishes verify / source-hash diagnostics (THI-244) plus ranged Tessprek
+//! parse diagnostics (THI-254), writes back via `tessera.write` / `willSave`
+//! using [`edit_write`] (THI-245), and hovers Tessprek markers (THI-246).
 
 mod diagnostics;
 mod document;
 mod hover;
+mod position;
 mod write;
 
 use std::collections::HashMap;
@@ -26,7 +27,7 @@ use tower_lsp::lsp_types::{
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use self::diagnostics::{collect_diagnostics, file_diagnostic};
+use self::diagnostics::{collect_open_diagnostics, file_diagnostic, parse_diagnostic};
 use self::document::{
     OpenDocument, apply_content_changes, is_tes_path, load_open_document, uri_to_path,
 };
@@ -50,19 +51,26 @@ impl Backend {
         }
     }
 
-    async fn publish_for_path(&self, uri: &Url, path: &Path, expected_hash: Option<&str>) {
+    async fn publish_for_open(
+        &self,
+        uri: &Url,
+        path: &Path,
+        expected_hash: Option<&str>,
+        tessprek: Option<String>,
+    ) {
         let path = path.to_path_buf();
         let expected = expected_hash.map(str::to_owned);
-        let diagnostics =
-            tokio::task::spawn_blocking(move || collect_diagnostics(&path, expected.as_deref()))
-                .await
-                .unwrap_or_else(|e| {
-                    vec![file_diagnostic(
-                        DiagnosticSeverity::ERROR,
-                        "tes-lsp.join",
-                        format!("diagnostics join error: {e}"),
-                    )]
-                });
+        let diagnostics = tokio::task::spawn_blocking(move || {
+            collect_open_diagnostics(&path, expected.as_deref(), tessprek.as_deref())
+        })
+        .await
+        .unwrap_or_else(|e| {
+            vec![file_diagnostic(
+                DiagnosticSeverity::ERROR,
+                "tes-lsp.join",
+                format!("diagnostics join error: {e}"),
+            )]
+        });
         let n = diagnostics.len();
         self.client
             .publish_diagnostics(uri.clone(), diagnostics, None)
@@ -110,7 +118,12 @@ impl Backend {
                 );
                 eprintln!("{msg}");
                 self.client.log_message(MessageType::INFO, msg).await;
-                self.publish_for_path(uri, &path, Some(&new_hash)).await;
+                let tessprek = {
+                    let docs = self.documents.lock().expect("documents lock");
+                    docs.get(uri).map(|d| d.tessprek.clone())
+                };
+                self.publish_for_open(uri, &path, Some(&new_hash), tessprek)
+                    .await;
                 Ok(serde_json::json!({
                     "ok": true,
                     "path": path.to_string_lossy(),
@@ -141,6 +154,35 @@ impl Backend {
                     "code": "source-hash",
                     "expected": expected,
                     "found": found,
+                }))
+            }
+            Err(WriteBackError::Parse {
+                line,
+                column,
+                message,
+            }) => {
+                let tessprek = {
+                    let docs = self.documents.lock().expect("documents lock");
+                    docs.get(uri)
+                        .map(|d| d.tessprek.clone())
+                        .unwrap_or_default()
+                };
+                let diag = parse_diagnostic(&tessprek, line, column, message.clone());
+                self.client
+                    .publish_diagnostics(uri.clone(), vec![diag], None)
+                    .await;
+                let msg = format!(
+                    "tes-lsp: write failed (edit-parse {line}:{column}) for {}: {message}",
+                    path.display()
+                );
+                eprintln!("{msg}");
+                self.client.log_message(MessageType::ERROR, msg).await;
+                Ok(serde_json::json!({
+                    "ok": false,
+                    "code": "edit-parse",
+                    "line": line,
+                    "column": column,
+                    "error": message,
                 }))
             }
             Err(WriteBackError::Other(err)) => {
@@ -232,11 +274,13 @@ impl LanguageServer for Backend {
                 self.client.log_message(MessageType::INFO, msg).await;
                 let hash = doc.source_hash.clone();
                 let path = doc.path.clone();
+                let tessprek = doc.tessprek.clone();
                 self.documents
                     .lock()
                     .expect("documents lock")
                     .insert(uri.clone(), doc);
-                self.publish_for_path(&uri, &path, Some(&hash)).await;
+                self.publish_for_open(&uri, &path, Some(&hash), Some(tessprek))
+                    .await;
             }
             Err(err) => {
                 let msg = format!("tes-lsp: edit_read failed for {}: {err}", path.display());
@@ -281,7 +325,12 @@ impl LanguageServer for Backend {
                             ),
                         ),
                     };
-                    Some((log, doc.path.clone(), doc.source_hash.clone()))
+                    Some((
+                        log,
+                        doc.path.clone(),
+                        doc.source_hash.clone(),
+                        doc.tessprek.clone(),
+                    ))
                 }
             }
         };
@@ -292,10 +341,11 @@ impl LanguageServer for Backend {
                 eprintln!("{msg}");
                 self.client.log_message(MessageType::WARNING, msg).await;
             }
-            Some(((level, msg), path, hash)) => {
+            Some(((level, msg), path, hash, tessprek)) => {
                 eprintln!("{msg}");
                 self.client.log_message(level, msg).await;
-                self.publish_for_path(&uri, &path, Some(&hash)).await;
+                self.publish_for_open(&uri, &path, Some(&hash), Some(tessprek))
+                    .await;
             }
         }
     }
