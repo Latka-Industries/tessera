@@ -10,8 +10,13 @@ cp fixtures/v0/*.tes fixtures/conformance/accept/
 cargo run --example gen_conformance_rejects
 uv run scripts/gen_structural_rejects.py
 cargo run --example gen_vault_fixtures
+cargo run --example gen_sample_fixtures
 bash scripts/manual-layout-v1-smoke.sh
 """
+
+[tasks.samples]
+description = "Regenerate browse .tes samples under fixtures/samples"
+run = "cargo run --example gen_sample_fixtures"
 
 [tasks.merge-smoke]
 description = "Smoke tes merge-file CLI + git merge=tessera driver"

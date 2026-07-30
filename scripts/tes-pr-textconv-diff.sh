@@ -45,14 +45,29 @@ textconv_blob() {
   mv "${dest}.norm" "$dest"
 }
 
+# Pick a fence longer than any line-leading backtick run in `file` so nested
+# Markdown code fences inside Tessprek do not close early and leave an empty
+# copyable block in the GitHub comment.
+markdown_fence() {
+  local file="$1" info="${2:-}" ticks=3 fence re
+  while true; do
+    re="$(printf '^`{%d}' "$ticks")"
+    if ! grep -qE "$re" "$file" 2>/dev/null; then
+      break
+    fi
+    ticks=$((ticks + 1))
+  done
+  fence="$(printf '%*s' "$ticks" '' | tr ' ' '`')"
+  printf '%s%s\n' "$fence" "$info"
+  cat "$file"
+  printf '\n%s\n' "$fence"
+}
+
 emit_fenced() {
   local label="$1" file="$2"
   echo "_${label}_:"
   echo
-  echo '```tessprek'
-  cat "$file"
-  echo
-  echo '```'
+  markdown_fence "$file" "tessprek"
   echo
 }
 
@@ -136,9 +151,9 @@ for path in "${files[@]}"; do
       echo "_No Tessprek content change_ (binary may still differ)."
       echo
     else
-      echo '```diff'
-      diff -u --label "a/${path}" --label "b/${path}" "$base_txt" "$head_txt" || true
-      echo '```'
+      diff_file="${workdir}/diff.txt"
+      diff -u --label "a/${path}" --label "b/${path}" "$base_txt" "$head_txt" >"$diff_file" || true
+      markdown_fence "$diff_file" "diff"
       echo
     fi
   } >"$section"
