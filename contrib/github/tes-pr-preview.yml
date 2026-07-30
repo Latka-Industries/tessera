@@ -16,9 +16,19 @@ on:
   pull_request:
     paths:
       - "**/*.tes"
+      - "scripts/tes-pr-textconv-diff.sh"
+      - "scripts/tes-pr-upsert-comment.sh"
+      - "scripts/tes-pr-resolve-range.sh"
+      - "scripts/tes-pr-write-summary.sh"
+      - ".github/workflows/tes-pr-preview.yml"
   push:
     paths:
       - "**/*.tes"
+      - "scripts/tes-pr-textconv-diff.sh"
+      - "scripts/tes-pr-upsert-comment.sh"
+      - "scripts/tes-pr-resolve-range.sh"
+      - "scripts/tes-pr-write-summary.sh"
+      - ".github/workflows/tes-pr-preview.yml"
 
 permissions:
   contents: read
