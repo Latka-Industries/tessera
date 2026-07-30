@@ -199,10 +199,18 @@ fn classify_member(root: &Path, abs: &Path) -> Result<VaultMember> {
 }
 
 fn store_path(root: &Path, abs: &Path) -> String {
+    // Membership paths are often canonicalized while CLI `--vault` may be a
+    // relative or non-canonical root; normalize both before strip_prefix so
+    // in-tree TOC rows stay vault-relative (portable, no home-dir leakage).
+    let root_c = canon_or(root.to_path_buf());
+    let abs_c = canon_or(abs.to_path_buf());
+    if let Ok(rel) = abs_c.strip_prefix(&root_c) {
+        return rel.to_string_lossy().replace('\\', "/");
+    }
     if let Ok(rel) = abs.strip_prefix(root) {
         return rel.to_string_lossy().replace('\\', "/");
     }
-    abs.to_string_lossy().replace('\\', "/")
+    abs_c.to_string_lossy().replace('\\', "/")
 }
 
 fn resolve_stored_path(root: &Path, stored: &str) -> PathBuf {
@@ -280,5 +288,27 @@ mod tests {
 
         let report = crate::vault::list_vault_documents(vault.path(), None, false).unwrap();
         assert_eq!(report.entries.len(), 3);
+    }
+
+    #[test]
+    fn display_path_relativizes_when_root_is_non_canonical() {
+        let vault = tempdir().unwrap();
+        write_note(vault.path(), "note.tes", "Note", &[]);
+        let note = fs::canonicalize(vault.path().join("note.tes")).unwrap();
+        let root = vault.path().join(".");
+        assert_eq!(display_path(&root, &note), "note.tes");
+    }
+
+    #[test]
+    fn rebuild_index_uses_relative_paths_for_in_tree_files() {
+        let vault = tempdir().unwrap();
+        write_note(vault.path(), "alpha.tes", "Alpha", &["demo"]);
+        rebuild_vault_index(vault.path().join(".")).unwrap();
+        let index = crate::vault::load_vault_index(vault.path())
+            .unwrap()
+            .expect("index");
+        assert_eq!(index.entries.len(), 1);
+        assert_eq!(index.entries[0].path, "alpha.tes");
+        assert!(!Path::new(&index.entries[0].path).is_absolute());
     }
 }

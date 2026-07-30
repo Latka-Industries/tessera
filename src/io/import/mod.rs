@@ -695,12 +695,11 @@ pub fn visit_wikilinks(markdown: &str, mut visitor: impl FnMut(WikilinkSpan<'_>)
             && let Some(close) = find_wikilink_end(markdown, i + 2)
         {
             let inner = &markdown[i + 2..close];
-            let (target, label) = match inner.split_once('|') {
-                Some((t, l)) => (t.trim(), l.trim()),
-                None => {
-                    let t = inner.trim();
-                    (t, t)
-                }
+            let (target, label) = if let Some((t, l)) = inner.split_once('|') {
+                (t.trim(), l.trim())
+            } else {
+                let t = inner.trim();
+                (t, t)
             };
             visitor(WikilinkSpan {
                 start: i,
