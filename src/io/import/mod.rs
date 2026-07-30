@@ -218,7 +218,8 @@ impl ParseState {
             }
             Tag::Item => {
                 let kind = self.list_stack.last().copied().unwrap_or(ListKind::Bullet);
-                self.begin(TextHeader::list_item(kind));
+                let depth = u32::try_from(self.list_stack.len()).unwrap_or(1).max(1);
+                self.begin(TextHeader::list_item_at(kind, depth));
             }
             Tag::BlockQuote(_) => {
                 self.blockquote_depth += 1;
@@ -478,6 +479,26 @@ mod tests {
     use super::*;
     use crate::io::export::{ExportOptions, ExportView, export_view};
     use tempfile::tempdir;
+
+    #[test]
+    fn parses_nested_list_depth_from_markdown() {
+        let md = concat!(
+            "- top\n",
+            "  - nested\n",
+            "    - deeper\n",
+            "1. ordered top\n",
+            "   1. ordered nested\n",
+        );
+        let blocks = parse_markdown_blocks(md);
+        let items: Vec<_> = blocks
+            .iter()
+            .filter(|b| b.header.role == TextRole::ListItem)
+            .collect();
+        assert!(items.len() >= 4, "got {} items: {items:?}", items.len());
+        assert_eq!(items[0].header.list_depth_or_default(), 1);
+        assert_eq!(items[1].header.list_depth_or_default(), 2);
+        assert_eq!(items[2].header.list_depth_or_default(), 3);
+    }
 
     #[test]
     fn parses_underline_html_into_inline_span() {

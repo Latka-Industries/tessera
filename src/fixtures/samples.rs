@@ -139,8 +139,14 @@ fn add_text_roles_lists(session: &mut TesWriterSession) {
         .expect("b1");
     session
         .add_text_chunk(
+            &TextHeader::list_item_at(ListKind::Bullet, 2),
+            "Nested bullet under the first item",
+        )
+        .expect("b1n");
+    session
+        .add_text_chunk(
             &TextHeader::list_item(ListKind::Bullet),
-            "Bullet: nested structure is still flat in the index",
+            "Bullet: nested structure uses list_depth on the header",
         )
         .expect("b2");
     session
@@ -149,6 +155,12 @@ fn add_text_roles_lists(session: &mut TesWriterSession) {
             "Ordered first step",
         )
         .expect("o1");
+    session
+        .add_text_chunk(
+            &TextHeader::list_item_at(ListKind::Ordered, 2),
+            "Nested ordered under the first step",
+        )
+        .expect("o1n");
     session
         .add_text_chunk(
             &TextHeader::list_item(ListKind::Ordered),

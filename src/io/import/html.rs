@@ -148,11 +148,15 @@ fn parse_document_blocks(document: &Html) -> Vec<MarkdownBlock> {
             "p" => TextHeader::paragraph(),
             "li" => {
                 let ordered = has_ancestor(&element, &["ol"]);
-                TextHeader::list_item(if ordered {
-                    ListKind::Ordered
-                } else {
-                    ListKind::Bullet
-                })
+                let depth = list_depth_from_ancestors(&element);
+                TextHeader::list_item_at(
+                    if ordered {
+                        ListKind::Ordered
+                    } else {
+                        ListKind::Bullet
+                    },
+                    depth,
+                )
             }
             "blockquote" => header_for_role(TextRole::Blockquote),
             "pre" => header_for_role(TextRole::CodeBlock),
@@ -207,6 +211,16 @@ fn has_ancestor(element: &ElementRef<'_>, names: &[&str]) -> bool {
         .ancestors()
         .filter_map(ElementRef::wrap)
         .any(|ancestor| names.contains(&ancestor.value().name()))
+}
+
+/// Count enclosing `ul`/`ol` ancestors (1 = top-level list item).
+fn list_depth_from_ancestors(element: &ElementRef<'_>) -> u32 {
+    let depth = element
+        .ancestors()
+        .filter_map(ElementRef::wrap)
+        .filter(|ancestor| matches!(ancestor.value().name(), "ul" | "ol"))
+        .count();
+    u32::try_from(depth).unwrap_or(1).clamp(1, 16)
 }
 
 fn header_for_role(role: TextRole) -> TextHeader {

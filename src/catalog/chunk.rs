@@ -150,6 +150,9 @@ pub struct TextHeader {
     /// List marker when `role` is [`TextRole::ListItem`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub list_kind: Option<ListKind>,
+    /// Nesting depth for [`TextRole::ListItem`] (1 = top-level). Absent means 1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub list_depth: Option<u32>,
     /// Legacy string emphasis tags (prefer [`Self::spans`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub emphasis: Vec<String>,
@@ -229,6 +232,7 @@ impl TextHeader {
             role,
             level: None,
             list_kind: None,
+            list_depth: None,
             emphasis: Vec::new(),
             classes: Vec::new(),
             spans: Vec::new(),
@@ -253,6 +257,7 @@ impl TextHeader {
             || self.align.is_some()
             || self.code_lang.is_some()
             || self.table.is_some()
+            || self.list_depth.is_some_and(|d| d > 1)
             || matches!(self.role, TextRole::Table | TextRole::Math)
     }
 
@@ -264,12 +269,27 @@ impl TextHeader {
         h
     }
 
-    /// A list-item header.
+    /// A list-item header at depth 1 (top-level).
     #[must_use]
     pub fn list_item(kind: ListKind) -> Self {
+        Self::list_item_at(kind, 1)
+    }
+
+    /// A list-item header at `depth` (1 = top-level, 2 = one nest, …).
+    #[must_use]
+    pub fn list_item_at(kind: ListKind, depth: u32) -> Self {
         let mut h = Self::with_role(TextRole::ListItem);
         h.list_kind = Some(kind);
+        if depth > 1 {
+            h.list_depth = Some(depth);
+        }
         h
+    }
+
+    /// Effective list nesting depth (defaults to 1).
+    #[must_use]
+    pub fn list_depth_or_default(&self) -> u32 {
+        self.list_depth.unwrap_or(1).clamp(1, 16)
     }
 
     /// A code-block header with optional fence language.
@@ -338,6 +358,19 @@ impl TextHeader {
                 message: format!("heading level {level} must be 1..=6"),
             });
         }
+        if self.list_depth.is_some() && self.role != TextRole::ListItem {
+            return Err(TesError::InvalidTextHeader {
+                message: "list_depth is only valid on list_item".into(),
+            });
+        }
+        if self.role == TextRole::ListItem
+            && let Some(depth) = self.list_depth
+            && !(1..=16).contains(&depth)
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("list_depth {depth} must be 1..=16"),
+            });
+        }
         Ok(())
     }
 
@@ -361,10 +394,13 @@ impl TextHeader {
                 let level = self.level.unwrap_or(1).clamp(1, 6) as usize;
                 format!("{} {spanned}", "#".repeat(level))
             }
-            TextRole::ListItem => match self.list_kind.unwrap_or(ListKind::Bullet) {
-                ListKind::Bullet => format!("- {spanned}"),
-                ListKind::Ordered => format!("1. {spanned}"),
-            },
+            TextRole::ListItem => {
+                let indent = "  ".repeat(self.list_depth_or_default().saturating_sub(1) as usize);
+                match self.list_kind.unwrap_or(ListKind::Bullet) {
+                    ListKind::Bullet => format!("{indent}- {spanned}"),
+                    ListKind::Ordered => format!("{indent}1. {spanned}"),
+                }
+            }
             TextRole::Blockquote => spanned
                 .lines()
                 .map(|line| format!("> {line}"))
@@ -685,6 +721,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn list_depth_round_trip_and_markdown_indent() {
+        let body = "nested item";
+        let header = TextHeader::list_item_at(ListKind::Bullet, 2);
+        assert_eq!(header.list_depth, Some(2));
+        assert!(header.uses_layout_v1_features());
+        let bytes = encode_text_payload(&header, body).unwrap();
+        let (h2, b2) = decode_text_payload(&bytes).unwrap();
+        assert_eq!(h2, header);
+        assert_eq!(b2, body);
+        assert_eq!(header.render_markdown(body), "  - nested item");
+    }
+
+    #[test]
     fn underline_span_round_trip_and_markdown() {
         let body = "see noted term here";
         let mut header = TextHeader::paragraph();
@@ -699,6 +748,16 @@ mod tests {
         assert_eq!(b2, body);
         let md = header.render_markdown(body);
         assert!(md.contains("<u>noted</u>"), "{md}");
+    }
+
+    #[test]
+    fn text_payload_round_trip() {
+        let header = TextHeader::paragraph();
+        let body = "We measured …";
+        let bytes = encode_text_payload(&header, body).unwrap();
+        let (h2, b2) = decode_text_payload(&bytes).unwrap();
+        assert_eq!(h2, header);
+        assert_eq!(b2, body);
     }
 
     #[test]
