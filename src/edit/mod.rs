@@ -68,9 +68,9 @@ pub enum ContentBlock {
         /// Slide payload.
         slide: SlidePayload,
     },
-    /// Inert attachment chunk (metadata in Tessprek; bytes from source).
+    /// Inert attachment chunk (metadata in Tessprek; bytes from source or media bag).
     Attachment {
-        /// Optional stable id from the source projection.
+        /// Source chunk id, or a temporary id resolved via [`EditMediaBag`].
         chunk_id: Option<u64>,
         /// Safe basename.
         filename: String,
@@ -78,7 +78,7 @@ pub enum ContentBlock {
         media_type: String,
         /// Optional caption.
         caption: Option<String>,
-        /// Declared integrity hash (checked against source bytes on write).
+        /// Declared integrity hash (checked against bytes on write).
         sha256: String,
     },
 }
@@ -106,6 +106,49 @@ pub struct EditReadReport {
     pub tessprek: String,
 }
 
+/// New image / attachment payloads injected during [`edit_write`].
+///
+/// Tessprek (or Fluid) may reference temporary chunk ids that are not present in
+/// the source `.tes`. Those ids are resolved from this bag when compiling.
+#[derive(Debug, Clone, Default)]
+pub struct EditMediaBag {
+    /// Temporary image chunk id → payload (figure `image=` / `media:chunk-N`).
+    pub images: Vec<(u64, ImagePayload)>,
+    /// Temporary attachment chunk id → payload (attachment `chunk=`).
+    pub attachments: Vec<(u64, AttachmentPayload)>,
+}
+
+impl EditMediaBag {
+    /// Whether the bag carries any payloads.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.images.is_empty() && self.attachments.is_empty()
+    }
+
+    fn image_map(&self) -> Result<std::collections::HashMap<u64, &ImagePayload>> {
+        unique_id_map(&self.images, "image")
+    }
+
+    fn attachment_map(&self) -> Result<std::collections::HashMap<u64, &AttachmentPayload>> {
+        unique_id_map(&self.attachments, "attachment")
+    }
+}
+
+fn unique_id_map<'a, T>(
+    entries: &'a [(u64, T)],
+    kind: &str,
+) -> Result<std::collections::HashMap<u64, &'a T>> {
+    let mut map = std::collections::HashMap::with_capacity(entries.len());
+    for (id, payload) in entries {
+        if map.insert(*id, payload).is_some() {
+            return Err(TesError::EditOp {
+                message: format!("duplicate media bag {kind} id {id}"),
+            });
+        }
+    }
+    Ok(map)
+}
+
 /// Options for mutation writes.
 #[derive(Debug, Clone)]
 pub struct EditWriteOptions {
@@ -113,6 +156,20 @@ pub struct EditWriteOptions {
     pub source_hash: String,
     /// When true, compile + verify but do not replace the original.
     pub dry_run: bool,
+    /// New media payloads referenced by temporary chunk ids in Tessprek.
+    pub media: EditMediaBag,
+}
+
+impl EditWriteOptions {
+    /// Build options with an empty media bag.
+    #[must_use]
+    pub fn new(source_hash: impl Into<String>, dry_run: bool) -> Self {
+        Self {
+            source_hash: source_hash.into(),
+            dry_run,
+            media: EditMediaBag::default(),
+        }
+    }
 }
 
 /// Result of a successful (or dry-run) write.
@@ -167,11 +224,41 @@ pub fn edit_read(path: impl AsRef<Path>) -> Result<EditReadReport> {
 
 /// Compile Tessera Markdown and atomically replace `path` under lock + hash check.
 ///
+/// New image/attachment bytes may be supplied via [`EditWriteOptions::media`]
+/// (see [`edit_write_with_media`]).
+///
 /// # Errors
 ///
 /// Returns lock, hash mismatch, parse, verify, or I/O errors. On failure the
 /// original file is left untouched.
 pub fn edit_write(
+    path: impl AsRef<Path>,
+    tessprek: &str,
+    options: &EditWriteOptions,
+) -> Result<EditWriteReport> {
+    edit_write_inner(path, tessprek, options)
+}
+
+/// Like [`edit_write`], with an explicit media bag for newly injected payloads.
+///
+/// Temporary ids referenced by figure `image=` / `media:chunk-N` or attachment
+/// `chunk=` are resolved from `media` when absent from the source file.
+///
+/// # Errors
+///
+/// Same as [`edit_write`].
+pub fn edit_write_with_media(
+    path: impl AsRef<Path>,
+    tessprek: &str,
+    options: &EditWriteOptions,
+    media: EditMediaBag,
+) -> Result<EditWriteReport> {
+    let mut options = options.clone();
+    options.media = media;
+    edit_write_inner(path, tessprek, &options)
+}
+
+fn edit_write_inner(
     path: impl AsRef<Path>,
     tessprek: &str,
     options: &EditWriteOptions,
@@ -189,7 +276,10 @@ pub fn edit_write(
     let before = edit_read(path)?;
     let source = TesFile::open(path)?;
     let blocks = decode_tessprek(tessprek)?;
-    let compiled = seal_with_history(&source, compile_blocks_to_bytes(&source, &blocks, None)?)?;
+    let compiled = seal_with_history(
+        &source,
+        compile_blocks_to_bytes(&source, &blocks, None, &options.media)?,
+    )?;
 
     let verify = verify_bytes(path, &compiled, true);
     if !verify.ok {
@@ -301,7 +391,7 @@ pub fn apply_ops(
     apply_ops_to_blocks(&mut blocks, &mut catalog, ops)?;
     let compiled = seal_with_history(
         &source,
-        compile_blocks_to_bytes(&source, &blocks, Some(&catalog))?,
+        compile_blocks_to_bytes(&source, &blocks, Some(&catalog), &EditMediaBag::default())?,
     )?;
 
     let verify = verify_bytes(path, &compiled, true);
@@ -382,9 +472,12 @@ fn compile_blocks_to_bytes(
     source: &TesFile,
     blocks: &[ContentBlock],
     catalog_patch: Option<&CatalogPatch>,
+    media: &EditMediaBag,
 ) -> Result<Vec<u8>> {
     let catalog = catalog_for_compile(source, catalog_patch);
-    let image_payloads = load_referenced_images(source, blocks)?;
+    let bag_images = media.image_map()?;
+    let bag_attachments = media.attachment_map()?;
+    let image_payloads = load_referenced_images(source, blocks, &bag_images)?;
 
     // Build into an ephemeral session path (encode_file only; no commit).
     let phantom = PathBuf::from("__tessera_edit_encode__.tes");
@@ -398,7 +491,7 @@ fn compile_blocks_to_bytes(
     }
 
     for block in blocks {
-        write_compiled_block(&mut session, source, block, &image_id_map)?;
+        write_compiled_block(&mut session, source, block, &image_id_map, &bag_attachments)?;
     }
     session.encode_file()
 }
@@ -427,6 +520,7 @@ fn catalog_for_compile(source: &TesFile, patch: Option<&CatalogPatch>) -> Docume
 fn load_referenced_images(
     source: &TesFile,
     blocks: &[ContentBlock],
+    bag_images: &std::collections::HashMap<u64, &ImagePayload>,
 ) -> Result<Vec<(u64, ImagePayload)>> {
     let mut needed_images: Vec<u64> = blocks
         .iter()
@@ -440,16 +534,32 @@ fn load_referenced_images(
 
     let mut image_payloads = Vec::with_capacity(needed_images.len());
     for old_id in needed_images {
-        let entry = source.chunk_by_id(old_id)?;
-        if entry.chunk_type != ChunkType::Image {
-            return Err(TesError::EditOp {
-                message: format!("figure references chunk {old_id} which is not an image"),
-            });
+        if let Some(payload) = bag_images.get(&old_id) {
+            payload.validate()?;
+            image_payloads.push((old_id, (*payload).clone()));
+            continue;
         }
-        let raw = source.decode_payload(entry)?;
+        let raw = source_payload_bytes(source, old_id, ChunkType::Image, "image")?;
         image_payloads.push((old_id, ImagePayload::from_bytes(raw.as_ref())?));
     }
     Ok(image_payloads)
+}
+
+fn source_payload_bytes<'a>(
+    source: &'a TesFile,
+    chunk_id: u64,
+    expected: ChunkType,
+    kind: &str,
+) -> Result<std::borrow::Cow<'a, [u8]>> {
+    let entry = source.chunk_by_id(chunk_id).map_err(|_| TesError::EditOp {
+        message: format!("{kind} chunk {chunk_id} missing from source and media bag"),
+    })?;
+    if entry.chunk_type != expected {
+        return Err(TesError::EditOp {
+            message: format!("chunk {chunk_id} is not a {kind}"),
+        });
+    }
+    source.decode_payload(entry)
 }
 
 fn write_compiled_block(
@@ -457,6 +567,7 @@ fn write_compiled_block(
     source: &TesFile,
     block: &ContentBlock,
     image_id_map: &std::collections::HashMap<u64, u64>,
+    bag_attachments: &std::collections::HashMap<u64, &AttachmentPayload>,
 ) -> Result<()> {
     match block {
         ContentBlock::Text {
@@ -482,21 +593,9 @@ fn write_compiled_block(
         ContentBlock::Slide { slide, .. } => {
             session.add_slide(slide)?;
         }
-        ContentBlock::Attachment {
-            chunk_id,
-            filename,
-            media_type,
-            caption,
-            sha256,
-        } => write_attachment_block(
-            session,
-            source,
-            *chunk_id,
-            filename,
-            media_type,
-            caption.as_deref(),
-            sha256,
-        )?,
+        ContentBlock::Attachment { .. } => {
+            write_attachment_block(session, source, bag_attachments, block)?;
+        }
     }
     Ok(())
 }
@@ -563,37 +662,46 @@ fn write_cite_block(
 fn write_attachment_block(
     session: &mut TesWriterSession,
     source: &TesFile,
-    chunk_id: Option<u64>,
-    filename: &str,
-    media_type: &str,
-    caption: Option<&str>,
-    sha256: &str,
+    bag_attachments: &std::collections::HashMap<u64, &AttachmentPayload>,
+    block: &ContentBlock,
 ) -> Result<()> {
-    let Some(id) = chunk_id else {
+    let ContentBlock::Attachment {
+        chunk_id,
+        filename,
+        media_type,
+        caption,
+        sha256,
+    } = block
+    else {
         return Err(TesError::EditOp {
-            message: "attachment directives require a source chunk id to retain bytes".into(),
+            message: "internal: write_attachment_block expected Attachment".into(),
         });
     };
-    let entry = source.chunk_by_id(id)?;
-    if entry.chunk_type != ChunkType::Attachment {
+    let Some(id) = *chunk_id else {
         return Err(TesError::EditOp {
-            message: format!("chunk {id} is not an attachment"),
+            message: "attachment directives require a chunk id (source or media bag)".into(),
         });
-    }
-    let raw = source.decode_payload(entry)?;
-    let mut payload = AttachmentPayload::from_bytes(raw.as_ref())?;
+    };
+
+    let mut payload = if let Some(bag) = bag_attachments.get(&id) {
+        (*bag).clone()
+    } else {
+        let raw = source_payload_bytes(source, id, ChunkType::Attachment, "attachment")?;
+        AttachmentPayload::from_bytes(raw.as_ref())?
+    };
+
     // Allow Tessprek metadata edits that keep the same bytes.
-    if payload.sha256 != sha256 {
+    if payload.sha256 != *sha256 {
         return Err(TesError::EditOp {
             message: format!(
-                "attachment chunk {id} sha256 mismatch: tessprek={sha256}, source={}",
+                "attachment chunk {id} sha256 mismatch: tessprek={sha256}, payload={}",
                 payload.sha256
             ),
         });
     }
-    filename.clone_into(&mut payload.filename);
-    media_type.clone_into(&mut payload.media_type);
-    payload.caption = caption.map(str::to_owned);
+    payload.filename.clone_from(filename);
+    payload.media_type.clone_from(media_type);
+    payload.caption.clone_from(caption);
     payload.validate()?;
     session.add_attachment_chunk(&payload)?;
     Ok(())
@@ -713,6 +821,7 @@ use std::fmt::Write as _;
 mod tests {
     use super::*;
     use crate::catalog::chunk::TextHeader;
+    use crate::catalog::index::ChunkType;
     use crate::layout::DocKind;
     use tempfile::tempdir;
 
@@ -743,10 +852,7 @@ mod tests {
         apply_ops(
             path,
             &parse_ops_json(ops_json).unwrap(),
-            &EditWriteOptions {
-                source_hash: read.source_hash,
-                dry_run,
-            },
+            &EditWriteOptions::new(read.source_hash, dry_run),
         )
         .unwrap()
     }
@@ -777,10 +883,7 @@ mod tests {
         let report = edit_write(
             &path,
             &edited,
-            &EditWriteOptions {
-                source_hash: read.source_hash.clone(),
-                dry_run: false,
-            },
+            &EditWriteOptions::new(read.source_hash.clone(), false),
         )
         .unwrap();
         assert!(report.replaced);
@@ -797,10 +900,7 @@ mod tests {
         let err = edit_write(
             &path,
             &read.tessprek,
-            &EditWriteOptions {
-                source_hash: "deadbeef".into(),
-                dry_run: false,
-            },
+            &EditWriteOptions::new("deadbeef", false),
         )
         .unwrap_err();
         assert!(matches!(err, TesError::SourceHashMismatch { .. }));
@@ -864,6 +964,96 @@ mod tests {
             &entry.slug,
             &entry.category,
         );
+    }
+
+    #[test]
+    fn edit_write_with_media_injects_image_and_attachment() {
+        let dir = tempdir().unwrap();
+        let path = sample_note(dir.path());
+        let read = edit_read(&path).unwrap();
+
+        let image = ImagePayload {
+            media_type: "image/png".into(),
+            width_px: 2,
+            height_px: 2,
+            data: vec![0x89, 0x50, 0x4e, 0x47],
+        };
+        let att = AttachmentPayload::new(
+            "application/pdf",
+            "notes.pdf",
+            b"%PDF-1.4 inject-test".to_vec(),
+            Some("Handout".into()),
+        )
+        .unwrap();
+
+        let tessprek = format!(
+            "{}\n<!-- tes chunk=10 type=figure image=900001 placement=flow caption=\"Shot\" -->\n![Injected](media:chunk-900001)\n\n<!-- tes chunk=11 type=attachment filename=\"notes.pdf\" media_type=application/pdf sha256={} caption=\"Handout\" -->\n",
+            read.tessprek.trim_end(),
+            att.sha256,
+        );
+        let media = EditMediaBag {
+            images: vec![(900_001, image.clone())],
+            attachments: vec![(11, att.clone())],
+        };
+        let report = edit_write_with_media(
+            &path,
+            &tessprek,
+            &EditWriteOptions::new(read.source_hash, false),
+            media,
+        )
+        .unwrap();
+        assert!(report.replaced);
+
+        let file = TesFile::open(&path).unwrap();
+        let mut saw_image = false;
+        let mut saw_figure = false;
+        let mut saw_attachment = false;
+        for entry in file.chunks() {
+            match entry.chunk_type {
+                ChunkType::Image => {
+                    let raw = file.decode_payload(entry).unwrap();
+                    let payload = ImagePayload::from_bytes(raw.as_ref()).unwrap();
+                    assert_eq!(payload.data, image.data);
+                    saw_image = true;
+                }
+                ChunkType::Figure => {
+                    let raw = file.decode_payload(entry).unwrap();
+                    let figure = FigureRef::from_bytes(raw.as_ref()).unwrap();
+                    assert_eq!(figure.alt_text, "Injected");
+                    assert_eq!(figure.caption.as_deref(), Some("Shot"));
+                    saw_figure = true;
+                }
+                ChunkType::Attachment => {
+                    let raw = file.decode_payload(entry).unwrap();
+                    let payload = AttachmentPayload::from_bytes(raw.as_ref()).unwrap();
+                    assert_eq!(payload.filename, "notes.pdf");
+                    assert_eq!(payload.data, att.data);
+                    assert_eq!(payload.sha256, att.sha256);
+                    saw_attachment = true;
+                }
+                _ => {}
+            }
+        }
+        assert!(saw_image && saw_figure && saw_attachment);
+    }
+
+    #[test]
+    fn edit_write_with_media_missing_bag_image_errors() {
+        let dir = tempdir().unwrap();
+        let path = sample_note(dir.path());
+        let read = edit_read(&path).unwrap();
+        let tessprek = format!(
+            "{}\n<!-- tes chunk=10 type=figure image=900001 placement=flow -->\n![Missing](media:chunk-900001)\n",
+            read.tessprek.trim_end(),
+        );
+        let err = edit_write_with_media(
+            &path,
+            &tessprek,
+            &EditWriteOptions::new(read.source_hash, false),
+            EditMediaBag::default(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, TesError::EditOp { .. }));
     }
 
     #[test]

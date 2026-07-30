@@ -52,20 +52,14 @@ pub(in crate::cli) fn run_edit_write(args: EditWriteArgs) -> Result<(), TesError
     let report = edit_write(
         &args.path,
         &tessprek,
-        &EditWriteOptions {
-            source_hash: args.source_hash,
-            dry_run: args.dry_run,
-        },
+        &EditWriteOptions::new(args.source_hash, args.dry_run),
     )?;
     print_edit_write_report(&report);
     Ok(())
 }
 
 pub(in crate::cli) fn run_apply(args: ApplyArgs) -> Result<(), TesError> {
-    let options = EditWriteOptions {
-        source_hash: args.source_hash,
-        dry_run: args.dry_run,
-    };
+    let options = EditWriteOptions::new(args.source_hash, args.dry_run);
     let report = if let Some(ops_path) = args.ops.as_ref() {
         let json = fs::read_to_string(ops_path)?;
         let ops = parse_ops_json(&json)?;

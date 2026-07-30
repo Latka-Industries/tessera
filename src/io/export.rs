@@ -1828,10 +1828,7 @@ mod tests {
         edit_write(
             &path,
             &read.tessprek,
-            &EditWriteOptions {
-                source_hash: read.source_hash.clone(),
-                dry_run: false,
-            },
+            &EditWriteOptions::new(read.source_hash.clone(), false),
         )
         .unwrap();
         let report2 = crate::verify::verify_tes_file(&path, true).unwrap();

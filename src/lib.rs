@@ -51,8 +51,9 @@ pub mod prelude {
         TesWriterSession, TextAlign, TextHeader, TextRole, read_summary_v0,
     };
     pub use crate::edit::{
-        EditReadReport, EditWriteOptions, EditWriteReport, TesOp, apply_ops, apply_patch,
-        edit_read, edit_write, file_source_hash, normalize_tessprek,
+        EditMediaBag, EditReadReport, EditWriteOptions, EditWriteReport, TesOp, apply_ops,
+        apply_patch, edit_read, edit_write, edit_write_with_media, file_source_hash,
+        normalize_tessprek,
     };
     pub use crate::error::{Result, TesError};
     pub use crate::history::{
