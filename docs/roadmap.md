@@ -1,19 +1,18 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped on crate **0.1.12**. M10 history tools
-(`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
-`pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
-**inert attachments**, and **typed TLNK targets** (external URI heap v1) are
-additive wire on `layout_version = 0`. Vault TOC / multi-root membership,
-catalog feature flags, GitHub Tessprek PR + push-branch summaries (THI-212 /
-THI-219), manuscript conventions + `--chapter` + `manuscript` theme (THI-220),
-theme polish (THI-221), `tes repair` (THI-225), and `TesOp::SetTags` are in.
-**0.1.12** adds parser hygiene (THI-296..299): library `panic = unwind` with
-`release-cli` abort for bins, `OpenMode::Copy` / `tes --copy`, crate-root
-`deny(unsafe_code)`, and `cargo-fuzz` `verify_bytes`. Print IR / D21
-(THI-288) is accepted; native deterministic PDF via **`ariadnes-weave`**
-(THI-256 / THI-289+) is the next major render track. This is an
-implementation plan, not a release schedule.
+**Status:** M0–M11 shipped; crate **0.2.0** opens the native-print era.
+M10 history tools (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/
+`textconv`/`blame`/`pending`/`merge-file`), layout-v1 **text wire**
+(spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
+(external URI heap v1) are additive wire on `layout_version = 0`. Vault TOC /
+multi-root membership, catalog feature flags, GitHub Tessprek PR + push-branch
+summaries (THI-212 / THI-219), manuscript conventions + `--chapter` +
+`manuscript` theme (THI-220), theme polish (THI-221), `tes repair` (THI-225),
+and `TesOp::SetTags` are in. **0.1.12** added parser hygiene (THI-296..299).
+**0.2.0** wires print IR → **`ariadnes-weave`** (`tes export --pdf --backend
+native`; Chromium remains default) — THI-290 / THI-294 under epic THI-256.
+Richer native layout (tables/math/decks, OS fonts) continues on that track.
+This is an implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -27,7 +26,7 @@ links.
 | Tables | structured header table + TSV fallback | — | rich import/export |
 | Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`); multi-root membership (THI-217) | — | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
-| Human render | template packs, `tes serve`, Chromium PDF, slides, theme polish; print IR sketch (THI-288) | **`ariadnes-weave`** native PDF (THI-256 / THI-289+) | — |
+| Human render | template packs, `tes serve`, Chromium PDF (default), native PDF via **`ariadnes-weave`** (`--backend native`), slides, theme polish; print IR (THI-288/290/294) | promote native default; tables/math/decks/fonts (THI-291+) | — |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
 | History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR + push Tessprek (THI-212 / THI-219) | — | — |
 
@@ -261,13 +260,15 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. Scaffold **`ariadnes-weave`** (THI-289) → prose tree + native `--pdf`
-   (THI-290 / THI-294). Print IR sketch + D21 (THI-288) are done.
+1. **Native PDF deepen (THI-256):** tables/figures/math quality (THI-291),
+   deck regions (THI-293), OS/font packs (THI-307 / THI-308), literary
+   unfolding (THI-295); promote `--backend native` to default when ready.
 2. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 3. **open format / bench:** MIME/magic conformance cases and claim-backed
    benches continue as hygiene — see [mime.md](mime.md), [benchmarks.md](benchmarks.md).
 4. **parser hygiene (done in 0.1.12):** THI-296..299 — fuzz, unwind,
    `deny(unsafe_code)`, buffered/`--copy` open path.
+5. **Print bridge (done in 0.2.0):** THI-288..290 / THI-292 / THI-294.
 
 ---
 
