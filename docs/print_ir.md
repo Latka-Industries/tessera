@@ -192,17 +192,17 @@ not “whatever is on the system,” for CI stability.
 
 ```bash
 tes export doc.tes --pdf -o out.pdf --backend native   # ariadnes-weave
-tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (current)
+tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
 ```
 
-Default flips to `native` when prose + manuscript fixtures pass without Chrome.
+Default stays `chromium` until native is promoted; both backends ship.
 
 ---
 
 ## Implementation order
 
 1. This sketch + D21 (THI-288) — done
-2. Scaffold `ariadnes-weave` (THI-289)
-3. Tessera print-tree builder, prose (THI-290)
-4. Pagination + CLI wiring (THI-294)
-5. Deterministic fixtures (THI-292); tables/figures/math (THI-291); decks (THI-293)
+2. Scaffold `ariadnes-weave` (THI-289) — done
+3. Tessera print-tree builder, prose (THI-290) — done
+4. Pagination + CLI wiring (THI-294) — done (`--backend native`)
+5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293)

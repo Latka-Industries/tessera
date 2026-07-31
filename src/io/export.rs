@@ -1390,7 +1390,7 @@ const CHAPTER_HEADING_LEVEL: u32 = 1;
 /// A chapter starts at a text heading with level [`CHAPTER_HEADING_LEVEL`] and
 /// ends just before the next such heading. Front matter before the first H1 is
 /// excluded. Scene headings (H2+) stay inside their parent chapter.
-fn chapter_slice<'a>(
+pub(crate) fn chapter_slice<'a>(
     file: &'a TesFile,
     entries: &[&'a ChunkIndexEntry],
     chapter: u32,
@@ -1427,7 +1427,7 @@ fn chapter_slice<'a>(
     Ok(entries[start..end].to_vec())
 }
 
-fn is_chapter_heading(file: &TesFile, entry: &ChunkIndexEntry) -> Result<bool> {
+pub(crate) fn is_chapter_heading(file: &TesFile, entry: &ChunkIndexEntry) -> Result<bool> {
     if entry.chunk_type != ChunkType::Text {
         return Ok(false);
     }
