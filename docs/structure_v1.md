@@ -339,6 +339,6 @@ Post-checkout/textconv (THI-194), layout-v1 text wire (THI-195), attachments
 
 1. Optional: bump `layout_version` when must-understand feature flags land.
 
-MIME/magic/conformance work may proceed in parallel. Aleph GUI, **in-wire**
+MIME/magic/conformance work may proceed in parallel. A future GUI, **in-wire**
 full-text indexes, in-file embeddings, freeform slide geometry, and CRDTs are
 not next. Vault FTS already ships as an **external** Tantivy sidecar.

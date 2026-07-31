@@ -32,7 +32,7 @@ The **Tessera engine** is the reference library (`tessera_doc`) that:
 
 It is **not**:
 
-- A GUI or workspace (**Aleph** — future product on top).
+- A GUI or workspace (future product on top; name TBD).
 - The Tetration tensor query engine (`tet query`, reductions, GPU).
 - A dependency on the `tetration` crate.
 
@@ -220,7 +220,7 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 
 **Out (later):**
 
-- Aleph, CRDT, page tensors, non-Chromium PDF (THI-256)
+- Future GUI, CRDT, page tensors, non-Chromium PDF (THI-256)
 
 ---
 

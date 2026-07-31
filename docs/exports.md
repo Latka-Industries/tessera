@@ -9,10 +9,14 @@ Related: [layout_v0.md](layout_v0.md) (wire format), [engine.md](engine.md) (mod
 ## Principles
 
 1. **Models read views, not wire format** — pipelines request Markdown,
-   semantic HTML, plain AI text, JSONL, or typed multimodal parts.
+   semantic HTML, plain AI text, JSONL, or typed multimodal parts. `.tes` does
+   not claim to fix model memory; it claims structured chunks so pipelines are
+   not stuck on lossy PDF/DOCX→Markdown conversion.
 2. **Markup is profile-specific** — `--ai-text` remains markup-free;
-   Markdown is the compact default for general LLM prompts; AI HTML is a
-   sanitized semantic fragment.
+   Markdown is the compact default for general LLM prompts (models know it
+   well); AI HTML is a sanitized semantic fragment. Do not treat “Markdown
+   syntax in embeddings” as a Tessera advantage without measurements in
+   [benchmarks.md](benchmarks.md).
 3. **HTML is an export** — generated from chunks + theme; see [format-comparison.md](format-comparison.md).
 4. **Lossy is explicit** — Markdown/HTML/PDF exports document what they drop.
 

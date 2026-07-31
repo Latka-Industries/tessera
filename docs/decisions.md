@@ -233,9 +233,11 @@ Normative sketch: [print_ir.md](print_ir.md). Tracker: THI-256 / THI-288.
 
 ---
 
-## Naming: Tessera vs Aleph
+## Naming: Tessera vs GUI
 
-**Decision:** **Tessera** = format (`.tes`, spec, `tes` CLI). **Aleph** reserved for a future GUI/workspace product on top. No Aleph references in v0 wire format.
+**Decision:** **Tessera** = format (`.tes`, spec, `tes` CLI). A future
+GUI/workspace product sits on top (name TBD; do not hard-wire a product name
+into the v0 wire format). Docs may say “future GUI” until a name is locked.
 
 ---
 

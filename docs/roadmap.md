@@ -247,7 +247,7 @@ freeze. CRDT/live cursors are not part of M10.
 | DOCX import | Office interchange, not canonical |
 | CRDT / live collaboration | Post-M10; async review first |
 | Page tensors | Vision `[H,W,C]` export |
-| Aleph GUI | Workspace on top of `.tes`; separate product |
+| Future GUI | Workspace on top of `.tes`; separate product (name TBD) |
 | Native full-text index | Projected text / external sidecar first |
 | Shared wire crate with Tetration | Revisit after v0 stable |
 | Spec dogfood (`.tes` mirror) | Keep `docs/*.md` readable on git; optional `.tes` mirror with MD exported from it |
@@ -262,6 +262,9 @@ freeze. CRDT/live cursors are not part of M10.
 2. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 3. **open format / bench:** MIME/magic conformance cases and claim-backed
    benches continue as hygiene — see [mime.md](mime.md), [benchmarks.md](benchmarks.md).
+4. **parser hygiene:** panic=unwind for lib (THI-297), `cargo-fuzz` on
+   `verify_bytes` (THI-296), crate-root deny lints (THI-299), safe read path
+   for untrusted/network mmap (THI-298).
 
 ---
 

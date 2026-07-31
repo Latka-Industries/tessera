@@ -33,5 +33,10 @@ Do **not** invent timing claims in the README. Prefer:
 2. Optionally paste a dated local or CI Criterion summary after a measured run.
 3. Optional workflow: `.github/workflows/bench.yml` (`workflow_dispatch` / schedule).
 
+The same rule applies to **AI-friendly** claims: token overhead or retrieval
+quality for `export_ai_text()` / AI Markdown vs a `.md` baseline must be
+measured before README marketing. Open-format benches today cover mmap/import/
+export/vault axes only — AI quality is a separate harness when scoped.
+
 CI unit tests never require Criterion results; benches are intentionally offline
 by default so PR latency stays low.
