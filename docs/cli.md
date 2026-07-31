@@ -340,10 +340,10 @@ bag when absent from the source `.tes` (THI-233). CLI `edit-write` remains
 source-copy only for media today.
 
 Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
-`set_aliases`, `set_slug`, `set_category`, `set_section`, `set_text`,
-`append_paragraph`, `delete_chunk`. Catalog fields (`set_aliases` / `set_slug` /
-`set_category` / `set_section`) persist on the `.tes`; refresh `vault.tes` with
-`tes vault rebuild` (no auto-rebuild on apply).
+`set_aliases`, `set_tags`, `set_slug`, `set_category`, `set_section`, `set_text`,
+`append_paragraph`, `delete_chunk`. Catalog fields (`set_aliases` / `set_tags` /
+`set_slug` / `set_category` / `set_section`) persist on the `.tes`; refresh
+`vault.tes` with `tes vault rebuild` (no auto-rebuild on apply).
 
 ### Tessprek LSP (`tes-lsp`)
 
