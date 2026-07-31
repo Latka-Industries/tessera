@@ -975,6 +975,51 @@ mod tests {
     }
 
     #[test]
+    fn apply_ops_set_tags_round_trip_and_clear() {
+        let dir = tempdir().unwrap();
+        let vault = dir.path();
+        let path = sample_note(vault);
+
+        let set = apply_json(
+            &path,
+            r#"[{"op":"set_tags","tags":["pilot","fiction"]},{"op":"set_title","title":"Tagged note"}]"#,
+            false,
+        );
+        assert!(set.replaced);
+        let cat = TesFile::open(&path).unwrap().catalog().unwrap().clone();
+        assert_eq!(cat.title, "Tagged note");
+        assert_eq!(cat.tags, vec!["pilot", "fiction"]);
+
+        // Other catalog ops must not wipe tags.
+        apply_json(
+            &path,
+            r#"[{"op":"set_aliases","aliases":["Alt"]},{"op":"set_slug","slug":"tagged-note"}]"#,
+            false,
+        );
+        let cat = TesFile::open(&path).unwrap().catalog().unwrap().clone();
+        assert_eq!(cat.tags, vec!["pilot", "fiction"]);
+        assert_eq!(cat.aliases, vec!["Alt"]);
+        assert_eq!(cat.slug.as_deref(), Some("tagged-note"));
+
+        crate::vault::rebuild_vault_index(vault).unwrap();
+        let index = crate::vault::load_vault_index(vault).unwrap().unwrap();
+        let entry = index
+            .entries
+            .iter()
+            .find(|e| e.doc_id == cat.doc_id)
+            .expect("note in vault.tes");
+        assert_eq!(entry.tags, vec!["pilot", "fiction"]);
+
+        let clear = apply_json(&path, r#"[{"op":"set_tags","tags":[]}]"#, false);
+        assert!(clear.replaced);
+        let cat = TesFile::open(&path).unwrap().catalog().unwrap().clone();
+        assert!(cat.tags.is_empty());
+        assert_eq!(cat.aliases, vec!["Alt"]);
+        assert_eq!(cat.slug.as_deref(), Some("tagged-note"));
+        assert_eq!(cat.title, "Tagged note");
+    }
+
+    #[test]
     fn edit_write_with_media_injects_image_and_attachment() {
         let dir = tempdir().unwrap();
         let path = sample_note(dir.path());
@@ -1070,12 +1115,12 @@ mod tests {
         let path = sample_note(dir.path());
         apply_json(
             &path,
-            r#"[{"op":"set_aliases","aliases":["Keep"]},{"op":"set_slug","slug":"keep-slug"},{"op":"set_category","category":"KeepCat"},{"op":"set_section","section":"Keep/Sec"}]"#,
+            r#"[{"op":"set_aliases","aliases":["Keep"]},{"op":"set_slug","slug":"keep-slug"},{"op":"set_category","category":"KeepCat"},{"op":"set_section","section":"Keep/Sec"},{"op":"set_tags","tags":["KeepTag"]}]"#,
             false,
         );
         let report = apply_json(
             &path,
-            r#"[{"op":"set_aliases","aliases":[]},{"op":"set_slug","slug":null},{"op":"set_category","category":null},{"op":"set_section","section":null}]"#,
+            r#"[{"op":"set_aliases","aliases":[]},{"op":"set_slug","slug":null},{"op":"set_category","category":null},{"op":"set_section","section":null},{"op":"set_tags","tags":[]}]"#,
             true,
         );
         assert!(!report.replaced);
@@ -1090,5 +1135,6 @@ mod tests {
             Some("KeepCat"),
             Some("Keep/Sec"),
         );
+        assert_eq!(cat.tags, vec!["KeepTag"]);
     }
 }

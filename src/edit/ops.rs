@@ -22,6 +22,11 @@ pub enum TesOp {
         /// New alias list.
         aliases: Vec<String>,
     },
+    /// Replace catalog tags (full list; `[]` clears).
+    SetTags {
+        /// New tag list.
+        tags: Vec<String>,
+    },
     /// Replace or clear catalog slug (`null` clears).
     SetSlug {
         /// New slug, or `null` to clear.
@@ -75,6 +80,8 @@ pub struct CatalogPatch {
     pub title: String,
     /// Alternate display / wikilink names.
     pub aliases: Vec<String>,
+    /// Freeform topical tags.
+    pub tags: Vec<String>,
     /// Optional vault-unique human handle.
     pub slug: Option<String>,
     /// Optional primary bucket.
@@ -88,6 +95,7 @@ impl Default for CatalogPatch {
         Self {
             title: "Untitled".into(),
             aliases: Vec::new(),
+            tags: Vec::new(),
             slug: None,
             category: None,
             section: None,
@@ -102,6 +110,7 @@ impl CatalogPatch {
         catalog.map_or_else(Self::default, |c| Self {
             title: c.title.clone(),
             aliases: c.aliases.clone(),
+            tags: c.tags.clone(),
             slug: c.slug.clone(),
             category: c.category.clone(),
             section: c.section.clone(),
@@ -112,6 +121,7 @@ impl CatalogPatch {
     pub fn apply_to(&self, catalog: &mut DocumentCatalog) {
         catalog.title.clone_from(&self.title);
         catalog.aliases.clone_from(&self.aliases);
+        catalog.tags.clone_from(&self.tags);
         catalog.slug.clone_from(&self.slug);
         catalog.category.clone_from(&self.category);
         catalog.section.clone_from(&self.section);
@@ -126,6 +136,10 @@ impl CatalogPatch {
             }
             TesOp::SetAliases { aliases } => {
                 self.aliases.clone_from(aliases);
+                true
+            }
+            TesOp::SetTags { tags } => {
+                self.tags.clone_from(tags);
                 true
             }
             TesOp::SetSlug { slug } => {
@@ -192,6 +206,7 @@ pub fn apply_ops_to_blocks(
             }
             TesOp::SetTitle { .. }
             | TesOp::SetAliases { .. }
+            | TesOp::SetTags { .. }
             | TesOp::SetSlug { .. }
             | TesOp::SetCategory { .. }
             | TesOp::SetSection { .. } => {}
