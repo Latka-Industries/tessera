@@ -8,7 +8,10 @@ use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use super::MarkdownBlock;
-use crate::catalog::{DocumentCatalog, ListKind, TesWriterSession, TextHeader, TextRole};
+use crate::catalog::{
+    DocumentCatalog, ListKind, TableCell, TableData, TableRow, TesWriterSession, TextAlign,
+    TextHeader, TextRole,
+};
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
 
@@ -138,6 +141,20 @@ fn parse_document_blocks(document: &Html) -> Vec<MarkdownBlock> {
             // this guard only prevents pathological nested wrapping.
         }
 
+        if name == "table" {
+            let Some(data) = parse_html_table(&element, &row_selector, &cell_selector) else {
+                continue;
+            };
+            let mut header = TextHeader::table(data);
+            header.classes = element_classes(&element);
+            blocks.push(MarkdownBlock {
+                header,
+                body: String::new(),
+                pending_links: Vec::new(),
+            });
+            continue;
+        }
+
         let mut header = match name {
             "h1" => TextHeader::heading(1),
             "h2" => TextHeader::heading(2),
@@ -160,28 +177,11 @@ fn parse_document_blocks(document: &Html) -> Vec<MarkdownBlock> {
             }
             "blockquote" => header_for_role(TextRole::Blockquote),
             "pre" => header_for_role(TextRole::CodeBlock),
-            "table" => header_for_role(TextRole::Table),
             _ => continue,
         };
-        header.classes = element
-            .value()
-            .attr("class")
-            .map(|value| value.split_whitespace().map(str::to_owned).collect())
-            .unwrap_or_default();
+        header.classes = element_classes(&element);
 
-        let body = if name == "table" {
-            element
-                .select(&row_selector)
-                .map(|row| {
-                    row.select(&cell_selector)
-                        .map(|cell| clean_text(&cell))
-                        .collect::<Vec<_>>()
-                        .join("\t")
-                })
-                .filter(|row| !row.is_empty())
-                .collect::<Vec<_>>()
-                .join("\n")
-        } else if name == "pre" {
+        let body = if name == "pre" {
             element.text().collect::<String>().trim().to_owned()
         } else {
             clean_text(&element)
@@ -195,6 +195,71 @@ fn parse_document_blocks(document: &Html) -> Vec<MarkdownBlock> {
         }
     }
     blocks
+}
+
+fn element_classes(element: &ElementRef<'_>) -> Vec<String> {
+    element
+        .value()
+        .attr("class")
+        .map(|value| value.split_whitespace().map(str::to_owned).collect())
+        .unwrap_or_default()
+}
+
+/// Build [`TableData`] from an HTML `<table>`, skipping nested-table rows/cells.
+fn parse_html_table(
+    table: &ElementRef<'_>,
+    row_selector: &Selector,
+    cell_selector: &Selector,
+) -> Option<TableData> {
+    let rows: Vec<TableRow> = table
+        .select(row_selector)
+        .filter(|row| nearest_ancestor(row, "table").is_some_and(|t| t == *table))
+        .filter_map(|row| {
+            let cells: Vec<TableCell> = row
+                .select(cell_selector)
+                .filter(|cell| nearest_ancestor(cell, "tr").is_some_and(|r| r == row))
+                .map(|cell| html_table_cell(&cell))
+                .collect();
+            (!cells.is_empty()).then_some(TableRow { cells })
+        })
+        .collect();
+    (!rows.is_empty()).then_some(TableData { rows })
+}
+
+fn html_table_cell(cell: &ElementRef<'_>) -> TableCell {
+    let name = cell.value().name();
+    let rowspan = parse_span_attr(cell.value().attr("rowspan"));
+    let colspan = parse_span_attr(cell.value().attr("colspan"));
+    TableCell {
+        text: clean_text(cell),
+        spans: Vec::new(),
+        align: html_align_attr(cell.value().attr("align")),
+        is_header: name == "th",
+        rowspan,
+        colspan,
+    }
+}
+
+fn parse_span_attr(raw: Option<&str>) -> Option<u32> {
+    let value = raw?.trim().parse::<u32>().ok()?;
+    (value > 1).then_some(value)
+}
+
+fn html_align_attr(raw: Option<&str>) -> Option<TextAlign> {
+    match raw?.trim().to_ascii_lowercase().as_str() {
+        "left" | "start" => Some(TextAlign::Start),
+        "center" => Some(TextAlign::Center),
+        "right" | "end" => Some(TextAlign::End),
+        "justify" => Some(TextAlign::Justify),
+        _ => None,
+    }
+}
+
+fn nearest_ancestor<'a>(element: &ElementRef<'a>, name: &str) -> Option<ElementRef<'a>> {
+    element
+        .ancestors()
+        .filter_map(ElementRef::wrap)
+        .find(|ancestor| ancestor.value().name() == name)
 }
 
 fn clean_text(element: &ElementRef<'_>) -> String {
@@ -260,7 +325,45 @@ mod tests {
         assert_eq!(blocks[2].header.list_kind, Some(ListKind::Ordered));
         assert_eq!(blocks[4].header.role, TextRole::Blockquote);
         assert_eq!(blocks[5].header.role, TextRole::CodeBlock);
-        assert_eq!(blocks[6].body, "A\tB\n1\t2");
+        assert_eq!(blocks[6].header.role, TextRole::Table);
+        assert!(blocks[6].body.is_empty());
+        let table = blocks[6].header.table.as_ref().expect("TableData");
+        assert_eq!(table.rows.len(), 2);
+        assert!(table.rows[0].cells[0].is_header);
+        assert_eq!(table.rows[0].cells[0].text, "A");
+        assert_eq!(table.rows[0].cells[1].text, "B");
+        assert!(!table.rows[1].cells[0].is_header);
+        assert_eq!(table.rows[1].cells[0].text, "1");
+        assert_eq!(table.rows[1].cells[1].text, "2");
+    }
+
+    #[test]
+    fn parses_html_table_align_and_spans_into_table_data() {
+        let source = r#"
+            <table>
+              <tr>
+                <th align="left">Name</th>
+                <th align="right">Score</th>
+              </tr>
+              <tr>
+                <td colspan="2" align="center">Ada</td>
+              </tr>
+              <tr>
+                <td rowspan="2">Bob</td>
+                <td>7</td>
+              </tr>
+            </table>
+        "#;
+        let blocks = parse_html_blocks(source);
+        assert_eq!(blocks.len(), 1);
+        let table = blocks[0].header.table.as_ref().expect("TableData");
+        assert_eq!(table.rows[0].cells[0].align, Some(TextAlign::Start));
+        assert_eq!(table.rows[0].cells[1].align, Some(TextAlign::End));
+        assert_eq!(table.rows[1].cells[0].text, "Ada");
+        assert_eq!(table.rows[1].cells[0].colspan, Some(2));
+        assert_eq!(table.rows[1].cells[0].align, Some(TextAlign::Center));
+        assert_eq!(table.rows[2].cells[0].rowspan, Some(2));
+        assert_eq!(table.rows[2].cells[1].text, "7");
     }
 
     #[test]
