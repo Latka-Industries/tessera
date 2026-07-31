@@ -96,6 +96,8 @@ tes export note.tes --ai-text -o context.txt
 tes export paper.tes --chunks-jsonl -o chunks.jsonl
 tes export doc.tes --markdown -o doc.md
 tes export paper.tes --pdf -o paper.pdf --theme-id print
+tes export draft.tes --pdf -o ch2.pdf --chapter 2 --theme-id manuscript
+tes export draft.tes --markdown --chapter 1
 tes export paper.tes --bibliography --bib-format bibtex -o refs.bib
 tes export note.tes --attachment --chunk 3 -o notes.pdf
 tes import --bibtex fixtures/assets/citations/sample.bib refs.tes
@@ -105,7 +107,8 @@ tes export doc.tes --meta toml
 
 `--pdf` uses the same semantic HTML + template theme path as `tes serve`.
 Requires a Chromium/Chrome binary (`TES_CHROME` or auto-detect). PDF is a
-lossy print sink, not an editable source.
+lossy print sink, not an editable source. For `doc_kind = manuscript`, the
+default pack theme is `manuscript` (beta-reader) instead of academic `print`.
 
 | Flag                           | Effect                                                            |
 | ------------------------------ | ----------------------------------------------------------------- |
@@ -121,10 +124,11 @@ lossy print sink, not an editable source.
 | `--bib-format`                 | `bibtex` (default) or `csl-json` with `--bibliography`            |
 | `--template ID`                | Pack id for `--pdf` (default: catalog or `minimal`)               |
 | `--template-root DIR`          | Pack root for `--pdf` (env: `TES_TEMPLATE_ROOT`)                  |
-| `--theme-id ID`                | Pack theme for `--pdf` (default: `print`)                         |
+| `--theme-id ID`                | Pack theme for `--pdf` (default: `print`, or `manuscript`)        |
 | `--ai --format markdown\|html` | AI-safe structured profile (planned v1)                           |
 | `--meta json\|yaml\|toml`      | Catalog metadata projection (planned v1)                          |
-| `--chunk ID`                   | Single chunk (where applicable)                                   |
+| `--chunk ID`                   | Single chunk (where applicable; conflicts with `--chapter`)       |
+| `--chapter N`                  | Nth chapter by H1 boundaries (1-based; conflicts with `--chunk`)  |
 | `-o`, `--output PATH`          | Write file instead of stdout                                      |
 | `--annotate`                   | Include chunk ids in `--ai-text`                                  |
 

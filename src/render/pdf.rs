@@ -10,10 +10,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::template::{THEME_PRINT, ThemeFallback, resolve_pack_and_theme};
+use super::template::{ThemeFallback, resolve_pack_and_theme};
 use crate::catalog::file::TesFile;
 use crate::error::{Result, TesError};
 use crate::io::export::{ExportOptions, ExportView, export_file};
+use crate::layout::DocKind;
 
 /// Options for themed HTML and PDF export.
 #[derive(Debug, Clone)]
@@ -22,8 +23,10 @@ pub struct PdfExportOptions {
     pub template_root: PathBuf,
     /// Pack id; falls back to catalog `template_id`, then [`super::template::DEFAULT_TEMPLATE_ID`].
     pub template_id: Option<String>,
-    /// Theme id; defaults to [`THEME_PRINT`].
+    /// Theme id; defaults to [`THEME_PRINT`], or manuscript theme for `doc_kind = manuscript`.
     pub theme_id: Option<String>,
+    /// Restrict PDF body to the Nth chapter (1-based H1 slice).
+    pub chapter: Option<u32>,
     /// Explicit Chromium/Chrome binary; otherwise auto-detect.
     pub chrome_path: Option<PathBuf>,
 }
@@ -33,7 +36,9 @@ impl Default for PdfExportOptions {
         Self {
             template_root: PathBuf::from("templates"),
             template_id: None,
-            theme_id: Some(THEME_PRINT.into()),
+            // None → PreferPrint / PreferManuscript from doc_kind.
+            theme_id: None,
+            chapter: None,
             chrome_path: None,
         }
     }
@@ -52,13 +57,18 @@ pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) ->
     let path = path.as_ref();
     let file = TesFile::open(path)?;
     let catalog = file.catalog();
+    let fallback = if file.superblock().doc_kind == DocKind::Manuscript {
+        ThemeFallback::PreferManuscript
+    } else {
+        ThemeFallback::PreferPrint
+    };
     let resolved = resolve_pack_and_theme(
         catalog.and_then(|c| c.template_id.as_deref()),
         catalog.and_then(|c| c.theme_id.as_deref()),
         &options.template_root,
         options.template_id.as_deref(),
         options.theme_id.as_deref(),
-        ThemeFallback::PreferPrint,
+        fallback,
     )?;
     let css = resolved.pack.theme_css(&resolved.theme_id)?;
 
@@ -66,6 +76,7 @@ pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) ->
         &file,
         ExportView::Html,
         &ExportOptions {
+            chapter: options.chapter,
             standalone: true,
             embedded_css: Some(css),
             media_url_prefix: None, // data URIs for self-contained print
@@ -292,6 +303,31 @@ mod tests {
         assert!(html.contains("Print specimen"));
         assert!(html.contains("<style>"));
         assert!(!html.contains("/theme.css"));
+    }
+
+    #[test]
+    fn manuscript_theme_and_chapter_scope() {
+        let dir = tempdir().unwrap();
+        let tes = dir.path().join("ms.tes");
+        fs::write(&tes, crate::fixtures::samples::encode_manuscript_chapters()).unwrap();
+        let templates = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+        let html = render_themed_html(
+            &tes,
+            &PdfExportOptions {
+                template_root: templates,
+                chapter: Some(2),
+                // catalog theme_id is manuscript; PreferManuscript also applies.
+                ..PdfExportOptions::default()
+            },
+        )
+        .unwrap();
+        assert!(html.contains("Courier"));
+        assert!(html.contains("line-height: 2"));
+        assert!(html.contains("Chapter 2"));
+        assert!(html.contains("lantern blinked"));
+        assert!(!html.contains("Chapter 1"));
+        assert!(!html.contains("Chapter 3"));
+        assert!(!html.contains("beta readers"));
     }
 
     #[test]

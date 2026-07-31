@@ -6,7 +6,8 @@
   "cite_style_id": "numeric",
   "themes": {
     "draft": "themes/draft.css",
-    "print": "themes/print.css"
+    "print": "themes/print.css",
+    "manuscript": "themes/manuscript.css"
   },
   "slide_regions": ["title", "body", "media"],
   "allowed_blocks": [

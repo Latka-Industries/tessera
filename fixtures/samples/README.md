@@ -8,6 +8,7 @@ Hand-built multi-role `.tes` files for exploring Tessprek in Neovim / CLI.
 | `text_roles.tes` | heading / paragraph / bullet + ordered `list_item` (incl. `depth`) / blockquote / code / math / table |
 | `field_notes.tes` | longer research note: lists, quote, scorecard table, math, cite chunk |
 | `studio_brief.tes` | deck with slides + figure + attachment + external/internal links |
+| `manuscript_chapters.tes` | fiction draft (`doc_kind = manuscript`): front matter + 3 H1 chapters / H2 scene — for `--chapter N` + `manuscript` theme |
 
 ```bash
 cargo run --example gen_sample_fixtures

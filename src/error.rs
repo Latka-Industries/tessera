@@ -132,6 +132,13 @@ pub enum TesError {
     )]
     ExportViewRequired,
 
+    /// Export scope flags were invalid or out of range (`--chapter`, `--chunk`).
+    #[error("{message}")]
+    ExportScope {
+        /// Human-readable reason.
+        message: String,
+    },
+
     /// A supplied catalog document id was not a UUID.
     #[error("invalid document UUID '{value}'")]
     InvalidDocId {

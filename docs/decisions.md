@@ -179,6 +179,25 @@ citations, and other enum-backed fields for editor round trips.
 
 ---
 
+## Manuscript conventions (`doc_kind = manuscript`)
+
+Fiction / chaptered long-form. Conventions are **authoring and export
+conventions**, not a separate wire type:
+
+| Convention | Rule |
+| --- | --- |
+| Chapter | Text heading **level 1** (`#` / `<h1>`) opens a chapter |
+| Scene | Heading **level 2+** stays inside the current chapter |
+| Front matter | Chunks before the first H1 are not part of `--chapter N` |
+| Chapter index | `--chapter N` is **1-based** (first H1 = chapter 1) |
+| Beta-reader PDF | Pack theme id `manuscript` (Courier, double-spaced); auto-selected for PDF when `doc_kind = manuscript` unless `--theme-id` / catalog overrides |
+
+Import stays generic: `tes import --markdown --doc-kind manuscript`.
+Chapter-scoped export: `tes export draft.tes --markdown --chapter 2` or
+`tes export draft.tes --pdf -o ch2.pdf --chapter 2`.
+
+---
+
 ## Page tensors (vision models)
 
 **Decision:** **Out of v0**. Text + images + slides first; page-as-tensor (`[H,W,C]`) is Phase 9+ research.
