@@ -1,6 +1,6 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped on crate **0.1.11**. M10 history tools
+**Status:** M0–M11 shipped on crate **0.1.12**. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
 **inert attachments**, and **typed TLNK targets** (external URI heap v1) are
@@ -8,8 +8,12 @@ additive wire on `layout_version = 0`. Vault TOC / multi-root membership,
 catalog feature flags, GitHub Tessprek PR + push-branch summaries (THI-212 /
 THI-219), manuscript conventions + `--chapter` + `manuscript` theme (THI-220),
 theme polish (THI-221), `tes repair` (THI-225), and `TesOp::SetTags` are in.
-Native deterministic PDF via **`ariadnes-weave`** (THI-256) is the next major
-render track. This is an implementation plan, not a release schedule.
+**0.1.12** adds parser hygiene (THI-296..299): library `panic = unwind` with
+`release-cli` abort for bins, `OpenMode::Copy` / `tes --copy`, crate-root
+`deny(unsafe_code)`, and `cargo-fuzz` `verify_bytes`. Print IR / D21
+(THI-288) is accepted; native deterministic PDF via **`ariadnes-weave`**
+(THI-256 / THI-289+) is the next major render track. This is an
+implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -18,12 +22,12 @@ links.
 
 | Area | Shipped now | Frozen next | Later |
 | --- | --- | --- | --- |
-| Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify, feature flags | — | conformance kit grows continuously |
+| Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap / buffered reader, verify (+ fuzz), feature flags | — | conformance kit grows continuously |
 | Prose | typed text roles, Markdown/HTML import/export, Tessprek edit, ranged spans, math, code/block lang, align | — | further editor adapters |
 | Tables | structured header table + TSV fallback | — | rich import/export |
 | Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`); multi-root membership (THI-217) | — | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
-| Human render | template packs, `tes serve`, Chromium PDF, slides, theme polish | **`ariadnes-weave`** native PDF (THI-256); print IR (THI-288) | — |
+| Human render | template packs, `tes serve`, Chromium PDF, slides, theme polish; print IR sketch (THI-288) | **`ariadnes-weave`** native PDF (THI-256 / THI-289+) | — |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
 | History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR + push Tessprek (THI-212 / THI-219) | — | — |
 
@@ -257,14 +261,13 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **Print IR spec** (THI-288) → scaffold **`ariadnes-weave`** (THI-289) →
-   prose tree + native `--pdf` (THI-290 / THI-294).
+1. Scaffold **`ariadnes-weave`** (THI-289) → prose tree + native `--pdf`
+   (THI-290 / THI-294). Print IR sketch + D21 (THI-288) are done.
 2. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 3. **open format / bench:** MIME/magic conformance cases and claim-backed
    benches continue as hygiene — see [mime.md](mime.md), [benchmarks.md](benchmarks.md).
-4. **parser hygiene:** panic=unwind for lib (THI-297), `cargo-fuzz` on
-   `verify_bytes` (THI-296), crate-root deny lints (THI-299), safe read path
-   for untrusted/network mmap (THI-298).
+4. **parser hygiene (done in 0.1.12):** THI-296..299 — fuzz, unwind,
+   `deny(unsafe_code)`, buffered/`--copy` open path.
 
 ---
 

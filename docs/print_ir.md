@@ -1,6 +1,7 @@
 # Print IR (`ariadnes-weave`)
 
-**Status:** accepted sketch for native deterministic PDF (THI-288 / THI-256).
+**Status:** accepted sketch (THI-288 done). Implementation track: THI-256 /
+THI-289+ (`ariadnes-weave`).
 Implementation lives in a separate crate, **`ariadnes-weave`**; Tessera builds
 the IR from `.tes` and calls the crate.
 
@@ -200,7 +201,7 @@ Default flips to `native` when prose + manuscript fixtures pass without Chrome.
 
 ## Implementation order
 
-1. This sketch + D21 (THI-288) — done when merged
+1. This sketch + D21 (THI-288) — done
 2. Scaffold `ariadnes-weave` (THI-289)
 3. Tessera print-tree builder, prose (THI-290)
 4. Pagination + CLI wiring (THI-294)

@@ -11,7 +11,7 @@
 
 ## What it does today
 
-- **Container** — `TESS` superblock, catalog JSON, `TIDX` chunk index, `TLNK` links, sealed writer + mmap reader, golden fixtures, deep `tes verify`
+- **Container** — `TESS` superblock, catalog JSON, `TIDX` chunk index, `TLNK` links, sealed writer + mmap / buffered reader, golden fixtures, deep `tes verify` (`--copy`), `cargo-fuzz` on `verify_bytes`
 - **Exports** — raw / linear / AI text / JSONL / Markdown / semantic HTML / print PDF (headless Chromium); chapter-scoped `--chapter`
 - **Import** — CommonMark subset, semantic HTML, BibTeX / CSL-JSON → cite chunks
 - **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering; slides

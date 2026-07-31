@@ -223,7 +223,8 @@ layout, not a CSS engine.
 **Rejected as endgame:** WeasyPrint / pure-Rust HTML/CSS clones; Typst or LaTeX
 as canonical authoring; storing page breaks in the `.tes` wire; editable PDF.
 
-Normative sketch: [print_ir.md](print_ir.md). Tracker: THI-256 / THI-288.
+Normative sketch: [print_ir.md](print_ir.md). Spec accepted (THI-288).
+Implementation tracker: THI-256 / THI-289+.
 
 ---
 
