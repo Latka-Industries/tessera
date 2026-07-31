@@ -353,33 +353,51 @@ fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let doc_id = file.catalog().map_or("", |catalog| catalog.doc_id.as_str());
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
+    let mut list_stack: Vec<(ListKind, u32)> = Vec::new();
 
     for entry in entries {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
-                article.push_str(&render_text_chunk_html(
-                    entry.chunk_id,
-                    &header,
-                    &body,
-                    file.links(),
-                ));
+                if header.role == TextRole::ListItem {
+                    append_list_item_html(
+                        &mut article,
+                        &mut list_stack,
+                        entry.chunk_id,
+                        &header,
+                        &body,
+                        file.links(),
+                    );
+                } else {
+                    close_all_lists(&mut article, &mut list_stack);
+                    article.push_str(&render_text_chunk_html(
+                        entry.chunk_id,
+                        &header,
+                        &body,
+                        file.links(),
+                    ));
+                }
             }
             ChunkType::Figure => {
+                close_all_lists(&mut article, &mut list_stack);
                 article.push_str(&render_figure_html(file, entry, options)?);
             }
             ChunkType::Cite if !options.no_cites => {
+                close_all_lists(&mut article, &mut list_stack);
                 append_cite_html(file, entry, &cite_numbers, &mut article, &mut bib_items)?;
             }
             ChunkType::Slide => {
+                close_all_lists(&mut article, &mut list_stack);
                 article.push_str(&render_slide_html(file, entry, options)?);
             }
             ChunkType::Attachment => {
+                close_all_lists(&mut article, &mut list_stack);
                 article.push_str(&render_attachment_html(file, entry, options)?);
             }
             _ => {}
         }
     }
+    close_all_lists(&mut article, &mut list_stack);
     append_html_bibliography(&mut article, &mut bib_items);
     article.push_str("</article>\n");
 
@@ -508,14 +526,12 @@ fn render_text_chunk_html(
             format!("  <p data-chunk-id=\"{chunk_id}\"{class}>{inner}</p>\n")
         }
         TextRole::ListItem => {
-            let (open, close) = match header.list_kind.unwrap_or(ListKind::Bullet) {
-                ListKind::Bullet => ("ul", "ul"),
-                ListKind::Ordered => ("ol", "ol"),
-            };
-            let depth = header.list_depth_or_default();
-            format!(
-                "  <{open} data-list-depth=\"{depth}\"><li data-chunk-id=\"{chunk_id}\"{class}>{inner}</li></{close}>\n"
-            )
+            // Isolated list items (e.g. slide regions) still need a wrapping list.
+            let mut out = String::new();
+            let mut stack = Vec::new();
+            append_list_item_html(&mut out, &mut stack, chunk_id, header, body, links);
+            close_all_lists(&mut out, &mut stack);
+            out
         }
         TextRole::Blockquote => {
             format!("  <blockquote data-chunk-id=\"{chunk_id}\"{class}>{inner}</blockquote>\n")
@@ -559,13 +575,110 @@ fn render_text_chunk_html(
                 )
             }
         }
-        TextRole::Math => {
-            format!(
-                "  <div data-chunk-id=\"{chunk_id}\" class=\"math-display\"{class}><code>{}</code></div>\n",
-                escape_html(body)
-            )
+        TextRole::Math => render_math_html(chunk_id, body, &class, true),
+    }
+}
+
+/// Coalesce consecutive list-item chunks into real `<ul>` / `<ol>` trees.
+///
+/// Each Tessera list item is its own chunk. Emitting one list per chunk made
+/// ordered lists restart at `1.` for every item. Nesting follows `list_depth`.
+fn append_list_item_html(
+    out: &mut String,
+    stack: &mut Vec<(ListKind, u32)>,
+    chunk_id: u64,
+    header: &TextHeader,
+    body: &str,
+    links: &[crate::catalog::LinkEntry],
+) {
+    let kind = header.list_kind.unwrap_or(ListKind::Bullet);
+    let depth = header.list_depth_or_default();
+    let inner = apply_spans_html(body, &header.spans, links);
+    let class = html_class_attr(&header.classes);
+
+    // Close deeper nested lists.
+    while stack.last().is_some_and(|(_, d)| *d > depth) {
+        close_one_list(out, stack);
+    }
+
+    // Same depth, different kind → close and reopen.
+    if stack.last().is_some_and(|(k, d)| *d == depth && *k != kind) {
+        close_one_list(out, stack);
+    }
+
+    // Same depth, same kind → close previous `<li>` only.
+    if stack.last().is_some_and(|(k, d)| *d == depth && *k == kind) {
+        out.push_str("</li>\n");
+    } else {
+        // Open lists from current depth+1 up to `depth`.
+        let mut next_depth = stack.last().map_or(1, |(_, d)| d + 1);
+        while next_depth <= depth {
+            let (open, _) = list_tags(kind);
+            let _ = writeln!(out, "  <{open} data-list-depth=\"{next_depth}\">");
+            stack.push((kind, next_depth));
+            next_depth += 1;
         }
     }
+
+    let _ = write!(out, "    <li data-chunk-id=\"{chunk_id}\"{class}>{inner}");
+}
+
+fn close_all_lists(out: &mut String, stack: &mut Vec<(ListKind, u32)>) {
+    while !stack.is_empty() {
+        close_one_list(out, stack);
+    }
+}
+
+fn close_one_list(out: &mut String, stack: &mut Vec<(ListKind, u32)>) {
+    let Some((kind, _)) = stack.pop() else {
+        return;
+    };
+    let (_, close) = list_tags(kind);
+    let _ = writeln!(out, "</li>\n  </{close}>");
+}
+
+fn list_tags(kind: ListKind) -> (&'static str, &'static str) {
+    match kind {
+        ListKind::Bullet => ("ul", "ul"),
+        ListKind::Ordered => ("ol", "ol"),
+    }
+}
+
+fn render_math_html(chunk_id: u64, body: &str, class: &str, display: bool) -> String {
+    if let Ok(mathml) = render_latex_mathml(body.trim(), display) {
+        if display {
+            format!(
+                "  <div data-chunk-id=\"{chunk_id}\" class=\"math-display\"{class}>{mathml}</div>\n"
+            )
+        } else {
+            format!("<span class=\"math-inline\"{class}>{mathml}</span>")
+        }
+    } else {
+        let escaped = escape_html(body.trim());
+        if display {
+            format!(
+                "  <div data-chunk-id=\"{chunk_id}\" class=\"math-display math-fallback\"{class}><code>{escaped}</code></div>\n"
+            )
+        } else {
+            format!("<code class=\"math-inline math-fallback\"{class}>{escaped}</code>")
+        }
+    }
+}
+
+fn render_latex_mathml(tex: &str, display: bool) -> std::result::Result<String, ()> {
+    use std::sync::OnceLock;
+
+    use katex::{KatexContext, OutputFormat, Settings, render_to_string};
+
+    static CTX: OnceLock<KatexContext> = OnceLock::new();
+    let ctx = CTX.get_or_init(KatexContext::default);
+
+    let settings = Settings::builder()
+        .display_mode(display)
+        .output(OutputFormat::Mathml)
+        .throw_on_error(false)
+        .build();
+    render_to_string(ctx, tex, &settings).map_err(|_| ())
 }
 
 fn apply_spans_html(
@@ -603,7 +716,14 @@ fn apply_spans_html(
             InlineKind::Code => format!("<code>{}</code>", escape_html(&inner)),
             InlineKind::Quote => format!("<q>{}</q>", escape_html(&inner)),
             InlineKind::Math { tex } => {
-                format!("<code class=\"math-inline\">{}</code>", escape_html(tex))
+                if let Ok(mathml) = render_latex_mathml(tex, false) {
+                    format!("<span class=\"math-inline\">{mathml}</span>")
+                } else {
+                    format!(
+                        "<code class=\"math-inline math-fallback\">{}</code>",
+                        escape_html(tex)
+                    )
+                }
             }
             InlineKind::Link { link_id } => match links.get(*link_id as usize) {
                 Some(entry) => format!(
@@ -1674,6 +1794,54 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.to_string().contains("mutually exclusive"));
+    }
+
+    #[test]
+    fn html_coalesces_ordered_lists_and_renders_mathml() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("lists_math.tes");
+        let mut s = TesWriterSession::create(&path, DocKind::Document);
+        s.set_catalog(DocumentCatalog::new(
+            "990e8400-e29b-41d4-a716-446655440099",
+            "Lists and math",
+            "2026-07-30T00:00:00Z",
+            "2026-07-30T00:00:00Z",
+            DocKind::Document,
+        ))
+        .unwrap();
+        s.add_text_chunk(&TextHeader::heading(1), "Open questions")
+            .unwrap();
+        s.add_text_chunk(&TextHeader::list_item(ListKind::Ordered), "First question")
+            .unwrap();
+        s.add_text_chunk(&TextHeader::list_item(ListKind::Ordered), "Second question")
+            .unwrap();
+        s.add_text_chunk(&TextHeader::list_item(ListKind::Ordered), "Third question")
+            .unwrap();
+        s.add_text_chunk(&TextHeader::math(), r"\Delta = \frac{a}{b}")
+            .unwrap();
+        s.commit().unwrap();
+
+        let html = export_view(&path, ExportView::Html, &ExportOptions::default()).unwrap();
+        assert!(
+            html.contains("<ol data-list-depth=\"1\">"),
+            "expected one ordered list, got:\n{html}"
+        );
+        assert_eq!(
+            html.matches("<ol data-list-depth=\"1\">").count(),
+            1,
+            "ordered items must share one <ol>, got:\n{html}"
+        );
+        assert!(html.contains("First question"));
+        assert!(html.contains("Second question"));
+        assert!(html.contains("Third question"));
+        assert!(
+            html.contains("<math") || html.contains("math-fallback"),
+            "expected MathML or fallback, got:\n{html}"
+        );
+        assert!(
+            !html.contains("<ol data-list-depth=\"1\"><li data-chunk-id=\"2\""),
+            "must not wrap each item in its own ol"
+        );
     }
 
     #[test]
