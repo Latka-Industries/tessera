@@ -50,6 +50,7 @@ body:
       label: Preflight
       options:
         - label: Spec section exists or is linked from a spec issue
-        - label: No scope creep into GUI / Aleph
+        - label: No scope creep into GUI / product shell
+          description: Keep this issue on the format, CLI, and library surface.
     validations:
       required: false

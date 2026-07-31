@@ -6,24 +6,30 @@
 when a must-understand feature eventually bumps the layout version.
 
 Related: [layout v0](layout_v0.md), [decisions](decisions.md),
-[exports](exports.md), [roadmap](roadmap.md), [security](security.md).
+[exports](exports.md), [print IR](print_ir.md), [roadmap](roadmap.md),
+[security](security.md).
 
 ---
 
 ## Boundary: structure, theme, render
 
-Tessera has three conceptual layers:
+Tessera has four conceptual layers for human output:
 
 1. **Structure** is canonical in `.tes`: typed blocks, inline spans, links,
    citations, media references, stable ids, and document metadata.
 2. **Theme/template** is an external, versioned pack referenced by id and hash.
-   It supplies CSS, export defaults, slide regions, cite style, and optional
-   trusted presentation code.
-3. **Render** is generated: Tessera Markdown, semantic HTML, a website, PDF,
-   slides, or AI inputs.
+   It supplies **CSS** for browser preview, export defaults, slide regions, cite
+   style, and optional trusted presentation code.
+3. **Print IR** is a pagination-ready tree built from structure, plus a versioned
+   **print profile** (margins, fonts, break policy). See [print_ir.md](print_ir.md).
+4. **Render** is generated: Tessera Markdown, semantic HTML, PDF (via
+   `ariadnes-weave` or Chromium fallback), slides, or AI inputs.
 
 Store author intent that must survive renderers. Do not store soft wrapping,
-pagination, computed figure numbers, or pixel coordinates.
+pagination, computed figure numbers, or pixel coordinates in `.tes`.
+
+**PDF vs HTML:** native PDF layout is defined by the print IR + profile, not by
+re-printing HTML/CSS. HTML remains the preview/interchange sink (D21).
 
 ---
 
@@ -333,6 +339,6 @@ Post-checkout/textconv (THI-194), layout-v1 text wire (THI-195), attachments
 
 1. Optional: bump `layout_version` when must-understand feature flags land.
 
-MIME/magic/conformance work may proceed in parallel. Aleph GUI, **in-wire**
+MIME/magic/conformance work may proceed in parallel. A future GUI, **in-wire**
 full-text indexes, in-file embeddings, freeform slide geometry, and CRDTs are
 not next. Vault FTS already ships as an **external** Tantivy sidecar.

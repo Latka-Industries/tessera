@@ -9,10 +9,14 @@ Related: [layout_v0.md](layout_v0.md) (wire format), [engine.md](engine.md) (mod
 ## Principles
 
 1. **Models read views, not wire format** — pipelines request Markdown,
-   semantic HTML, plain AI text, JSONL, or typed multimodal parts.
+   semantic HTML, plain AI text, JSONL, or typed multimodal parts. `.tes` does
+   not claim to fix model memory; it claims structured chunks so pipelines are
+   not stuck on lossy PDF/DOCX→Markdown conversion.
 2. **Markup is profile-specific** — `--ai-text` remains markup-free;
-   Markdown is the compact default for general LLM prompts; AI HTML is a
-   sanitized semantic fragment.
+   Markdown is the compact default for general LLM prompts (models know it
+   well); AI HTML is a sanitized semantic fragment. Do not treat “Markdown
+   syntax in embeddings” as a Tessera advantage without measurements in
+   [benchmarks.md](benchmarks.md).
 3. **HTML is an export** — generated from chunks + theme; see [format-comparison.md](format-comparison.md).
 4. **Lossy is explicit** — Markdown/HTML/PDF exports document what they drop.
 
@@ -270,24 +274,27 @@ execute attachment payloads.
 
 ## `--pdf`
 
-Paginated PDF via the same semantic HTML + print theme (`@page`, margins)
-used by `tes serve --theme print`. The exporter embeds print CSS and image
-data URIs, then prints through a headless Chromium/Chrome binary
-(`TES_CHROME` or auto-detect). On Linux and in CI, Tessera passes
-`--no-sandbox` so Chromium can run when user namespaces are restricted
-(override anytime with `TES_CHROME_NO_SANDBOX`).
+Paginated PDF. **Direction (D21):** native layout via the [print IR](print_ir.md)
+and the **`ariadnes-weave`** crate (deterministic profiles such as `print` /
+`manuscript`). Until that backend ships and becomes default, Tessera still
+exports PDF by embedding print-theme CSS + image data URIs and printing through
+headless Chromium/Chrome (`TES_CHROME` or auto-detect). On Linux and in CI,
+Tessera passes `--no-sandbox` when needed (`TES_CHROME_NO_SANDBOX`).
 
 | Flag | Behavior |
 | --- | --- |
 | `-o PATH` | **Required** output PDF path |
-| `--theme-id ID` | Pack theme (default `print`; `manuscript` for `doc_kind = manuscript`) |
-| `--template ID` / `--template-root DIR` | Template pack selection |
+| `--theme-id ID` | Pack theme for **Chromium** HTML-print (default `print`; `manuscript` for `doc_kind = manuscript`) |
+| `--template ID` / `--template-root DIR` | Template pack selection (Chromium path) |
 | `--chapter N` | Restrict body to the Nth H1-bounded chapter (1-based; same flag on all export views) |
+| `--backend native\|chromium` | Planned: select `ariadnes-weave` vs HTML-print (default flips when native is ready) |
 
 PDF is a lossy print sink — never an editable canonical source. Browser
-preview and PDF are two sinks of one render path. Manuscript / beta-reader
-layout uses the `manuscript` theme (Courier, double-spaced), distinct from
-academic `print`.
+preview (`tes serve`) stays on semantic HTML + CSS. Native PDF and HTML preview
+share **structure** (`.tes` chunks), not a single CSS pagination engine.
+Manuscript / beta-reader **print profile** `manuscript` encodes Courier-like /
+double-spaced policy in `ariadnes-weave`; the pack theme `manuscript` remains
+for HTML/Chromium until cutover.
 
 ---
 

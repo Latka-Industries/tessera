@@ -11,7 +11,7 @@ Terms used consistently across Tessera docs, issues, and code.
 | **Tessera** | Open document format and reference Rust crate; `.tes` files. |
 | **`.tes`** | Tessera document file; one primary document per file in v0. |
 | **`tes`** | CLI binary: info, verify, export, import, link, vault, serve, edit/apply, history. |
-| **Aleph** | Reserved name for a future GUI/knowledge workspace built on Tessera — not part of v0 wire format. |
+| **GUI (unnamed)** | Future GUI/knowledge workspace built on Tessera — product name TBD; not part of v0 wire format. |
 | **Wire format** | On-disk bytes: superblock, catalog, index, payloads. See [layout_v0.md](layout_v0.md). |
 | **Layout version** | `u32` after magic; **`0`** in this spec. |
 | **Superblock** | Fixed 64-byte header at file offset 0. |

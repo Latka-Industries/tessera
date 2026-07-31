@@ -2,12 +2,17 @@
 
 **Status:** design reference. The v0 engine is active through the HTML
 import/export milestone; this doc explains *why* the format exists and *where*
-it competes, with **HTML as the primary point of comparison**. The accepted
-next structure model is [structure_v1.md](structure_v1.md).
+it competes. **Markdown is the real notes/wiki competitor**; HTML is the closest
+*architectural* cousin. The accepted next structure model is
+[structure_v1.md](structure_v1.md).
 
 The README states the problem in one line: we overload formats built for **printing** (PDF, DOCX) or **plain-text authoring** (Markdown) when we need **structured, linkable, partially readable documents** that humans edit, machines index, and models consume without parsing markup.
 
-HTML sits in the middle — and that is why it is the main antagonist. Tessera borrows HTML’s best idea (structure + theme) while rejecting HTML as the canonical on-disk representation.
+HTML sits in the middle architecturally — Tessera borrows its best idea
+(structure + theme) while rejecting HTML as the canonical on-disk
+representation. Markdown + vault sidecars already tried to paper over the
+identity/graph gaps and still leave rename rot and lossy office→Markdown AI
+pipelines; that is why a sealed chunked artifact is in scope.
 
 ---
 
@@ -22,7 +27,7 @@ HTML sits in the middle — and that is why it is the main antagonist. Tessera b
 | **Partial read** | Parse whole file or stream; DOM build | Page-level at best; text order fragile | Unzip + traverse XML | Read whole file or scan lines | **mmap + chunk offset** from index |
 | **Links** | `<a href>` URLs | Annotations (optional) | Relationships in XML | `[[wikilinks]]` by title string | **`target_doc` + `target_chunk`** in index |
 | **Citations** | Ad hoc footnotes | Hard to extract reliably | Fields, endnotes | `\cite{}`, pandoc extras | **cite chunks** → byte range + doc id |
-| **AI / RAG path** | Strip tags; lose tables; boilerplate | OCR / heuristics; hyphenation noise | XML soup or lossy export | Markdown syntax in embedding | **`export_ai_text()`** — UTF-8 chunks, no escapes |
+| **AI / RAG path** | Strip tags; lose tables; boilerplate | OCR / heuristics; hyphenation noise | XML soup or lossy export → MD | Strong model familiarity; identity/cites still stringy | **Structured chunks** + readable projections (`export_ai_text()`, MD/HTML views) — measure, don’t assert |
 | **Git / diff** | Noisy (formatting churn) | Binary | Binary ZIP | Excellent | Export to Markdown/text for diff |
 | **Print fidelity** | Browser-dependent | Excellent | Good | Weak unless pipeline | **Themed paginated export** (PDF target) |
 | **Edit model** | Source or WYSIWYG in browser | Not really editable | Word GUI | Text editor | GUI + optional light markup → chunks |
@@ -60,7 +65,7 @@ These are the gaps Tessera is designed to attack **within scope**:
 ### What Tessera deliberately does *not* try to beat HTML at
 
 - **Universal zero-install viewing** — browsers win; Tessera needs an app or export step.
-- **Live web publishing** — hosting, SSR, hydration, CSP, JS bundles are out of scope for the **format** (a future Aleph-style workspace might export *to* HTML sites).
+- **Live web publishing** — hosting, SSR, hydration, CSP, JS bundles are out of scope for the **format** (a future GUI workspace may export *to* HTML sites).
 - **Full DOM/CSS feature parity** — v1 targets flow layout, print themes, slide regions — not every CSS edge case or JavaScript-driven layout.
 
 **Framing:** HTML is the **rendering lingua franca**. Tessera is the **authoring and storage lingua franca** for a personal or team corpus, with HTML as one of several projections — like saying LLVM IR isn’t “against” assembly, but you don’t hand-edit assembly as your source tree.
@@ -110,15 +115,45 @@ DOCX is what people already have — and what Tessera must **import from**, not 
 
 ---
 
-## Markdown — the wiki antagonist
+## Markdown — the real competitor (wiki / notes)
 
-Markdown is Tessera’s most loved competitor for **notes and git-backed wikis**. The README already contrasts Obsidian-style vaults with a Tessera vault.
+Markdown is Tessera’s most loved competitor for **notes and git-backed wikis**.
+The README already contrasts Obsidian-style vaults with a Tessera vault. Treat
+this section as load-bearing: arguing hardest against HTML while giving
+Markdown a light pass misstates the market.
+
+### Sidecar-over-`.md` is not a different architecture
+
+Obsidian, LogSeq, and every RAG vault already ship **text + sidecar indexes**
+(backlinks, FTS, embeddings). Tessera is also **container + optional sidecars**
+(vault catalog, Tantivy FTS). Same shape. The disputed question is what the
+**sealed core** owns:
+
+| If identity lives in… | What you get |
+| --- | --- |
+| **Filename / title strings** | Rename rot; links and cites are string matches; sidecars rekey forever |
+| **Stable doc/chunk IDs in the file** | Graph and cites survive rename; indexes key off IDs/hashes |
+
+“Build a sidecar over Markdown” therefore does not refute Tessera — it
+redescribes the ecosystem that still fails on **identity ≠ filename**. That is
+also why the Markdown↔HTML debate never ends: neither is a durable canonical
+for a linked, citable corpus (Markdown is stringy; HTML bakes markup into the
+content).
+
+### Text tools are intentional, not penance
+
+Tessprek, `tes textconv`, `tes merge-file`, PR preview, and the LSP exist so
+humans can edit and diff `.tes` from a terminal *now*. They are the edit/diff
+surface for a binary canonical, and the same structured ops path is what a
+future CRDT / collaborative layer would sit on — not an accidental tax to be
+ashamed of.
 
 | Markdown strength | Tessera stance |
 | --- | --- |
-| Plain text, any editor | **Raw preview** = slice of text chunk; `export --raw` → `.txt` |
+| Plain text, any editor | Tessprek / raw / Markdown **projections**; `export --raw` → `.txt` |
 | Git diff and merge | Local `tes textconv` / `tes merge-file`; GitHub PR preview Action ([contrib/github](../contrib/github/README.md), THI-212) |
-| Huge tooling ecosystem | Markdown remains an **export**; pandoc compatibility is a goal, not storage |
+| Huge tooling ecosystem | Markdown remains an **export and edit projection**; pandoc compatibility is a goal, not storage |
+| Models know Markdown well | Keep MD/HTML as LLM projections; do **not** claim “MD syntax in embeddings is a weakness” without measurements in [benchmarks.md](benchmarks.md) |
 
 | Markdown weakness | Tessera attack (in scope) |
 | --- | --- |
@@ -126,10 +161,22 @@ Markdown is Tessera’s most loved competitor for **notes and git-backed wikis**
 | Structure = syntax (`#`, `**`) in source | Structure = **chunk metadata**; no re-parse on read |
 | One file per note, scan for backlinks | **Link table** updated on save |
 | Citations via plugins / pandoc conventions | **cite chunks** native to format |
+| Sidecars still keyed off paths/titles | Indexes key off **stable ids/hashes** in the sealed file |
 | No single fast binary artifact | One `.tes` with catalog; optional vault catalog |
 | Tables, slides, print — bolted on | Same container: text, slide, image, cite chunks |
 
-**Out of scope (v1):** replacing Markdown for every static site or README on GitHub; forcing binary for one-line notes (short-form `.tes` should still *feel* like a text file in the editor).
+**Out of scope (v1):** replacing Markdown for every static site or README on GitHub; forcing binary for one-line notes (short-form `.tes` should still *feel* like a text file in the editor); fixing model **memory** (no format does).
+
+### AI: the kludge is conversion, not “models prefer Markdown”
+
+People’s real corpora are often **PDF/DOCX**. Pipelines convert those to
+Markdown (or HTML) and hope the model understands the result — lossy twice
+(office → MD, then MD → tokens). Tessera does not claim to solve context-window
+memory. It claims a **structured chunk store** with human- and model-readable
+projections (`export_ai_text()`, Markdown/HTML AI profiles) so ingest does not
+depend on that conversion kludge. Token overhead / retrieval quality vs `.md`
+must be measured before marketing “AI-friendly” as a format win — same rule as
+mmap timings in [benchmarks.md](benchmarks.md).
 
 ---
 
@@ -165,7 +212,7 @@ Suggested order aligned with the README roadmap and the comparisons above:
 | --- | --- | --- |
 | **1** | **HTML-like structure, not HTML syntax** | Chunk types + semantic fields; themes at export — direct answer to “why not just HTML files?” |
 | **2** | **Partial I/O + vault graph** | Beats HTML/MD folder models for large corpora |
-| **3** | **AI exports** | Beats PDF/DOCX ingest and MD markup noise |
+| **3** | **AI exports** | Beats lossy PDF/DOCX→Markdown pipelines; measure vs `.md` |
 | **4** | **Import HTML/MD/DOCX/PDF once** | Lower switching cost; parse into chunks, never look back |
 | **5** | **HTML + print PDF export** | Reuse CSS ecosystem for preview and “send a PDF” |
 | **6** | **Research cites** | None of the four formats do this natively at corpus scale |
@@ -186,8 +233,8 @@ Suggested order aligned with the README roadmap and the comparisons above:
 | **HTML** | Great **output**; awkward **canonical store** for a linked, chunked, AI-ready corpus. |
 | **PDF** | Great **print snapshot**; terrible **editable structure**. |
 | **DOCX** | Great **office interchange**; terrible **machine-native document model**. |
-| **Markdown** | Great **authoring syntax**; fragile **graph and binary performance** at vault scale. |
-| **Tessera** | **Canonical chunked binary** — structure in the file, presentation in themes, **HTML/Markdown/PDF as exports**. |
+| **Markdown** | Great **authoring / model-familiar projection**; fragile **identity and graph** when used as canonical + filename-keyed sidecars. |
+| **Tessera** | **Canonical chunked binary** — stable IDs, links, and cites in the sealed file; presentation in themes; **HTML/Markdown/PDF as projections**. |
 
 ---
 

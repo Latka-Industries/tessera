@@ -66,3 +66,11 @@ bytes; they submit Tessera Markdown or typed operations through this gate.
 
 Treat a foreign `.tes` like a foreign Office or PDF file: preview with active
 content disabled and do not blindly export/open attachments.
+
+## mmap and untrusted / network-backed files
+
+Layout v0 readers may `mmap` sealed files for partial chunk reads. A truncated
+or replaced file underneath the map (common on some network mounts) can raise
+`SIGBUS` even when sealed-single-writer semantics mitigate local races. Prefer
+copy- or `read`-into-memory paths for adversarial, untrusted, or remote-backed
+inputs; document host expectations when embedding the library.
