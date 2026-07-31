@@ -45,6 +45,13 @@ pub struct DocumentCatalog {
     /// Optional primary bucket (e.g. vault top-level folder).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+    /// Ordered path nodes under [`Self::category`] (e.g. `Books/Authors`).
+    ///
+    /// Hierarchy depth for nested vault folders — not a tag bag. Prefer a
+    /// forward-slash path string; empty / absent means the note sits at the
+    /// category root (or vault root when category is also absent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
     /// Optional alternate display / wikilink names.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub aliases: Vec<String>,
@@ -86,6 +93,7 @@ impl DocumentCatalog {
             doc_kind: kind.as_str().to_owned(),
             tags: Vec::new(),
             category: None,
+            section: None,
             aliases: Vec::new(),
             slug: None,
             template_id: None,
@@ -154,6 +162,7 @@ mod tests {
         );
         cat.tags = vec!["ml".into(), "notes".into()];
         cat.category = Some("Literature".into());
+        cat.section = Some("Books".into());
         cat.aliases = vec!["American Fiction".into()];
         cat.slug = Some("Erasure".into());
         cat.template_id = Some("academic".into());
@@ -177,6 +186,7 @@ mod tests {
         let json = br#"{"doc_id":"550e8400-e29b-41d4-a716-446655440000","title":"T","created":"2026-06-05T12:00:00Z","modified":"2026-06-05T12:00:00Z","doc_kind":"note"}"#;
         let cat = DocumentCatalog::from_bytes(json).unwrap();
         assert!(cat.category.is_none());
+        assert!(cat.section.is_none());
         assert!(cat.aliases.is_empty());
         assert!(cat.slug.is_none());
     }

@@ -205,6 +205,13 @@ fn merge_catalog(
         "category",
         conflicts,
     );
+    out.section = three_way_eq(
+        &cat_o.section,
+        &cat_a.section,
+        &cat_b.section,
+        "section",
+        conflicts,
+    );
     out.aliases = three_way_eq(
         &cat_o.aliases,
         &cat_a.aliases,

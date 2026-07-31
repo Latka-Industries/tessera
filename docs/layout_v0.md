@@ -110,6 +110,7 @@ When `catalog_length > 0`, bytes at `catalog_offset` are **UTF-8 JSON** (no BOM)
   "doc_kind": "note",
   "tags": ["work", "standup"],
   "category": "Literature",
+  "section": "Books/Authors",
   "aliases": ["American Fiction"],
   "slug": "Erasure",
   "template_id": "minimal",
@@ -123,8 +124,9 @@ When `catalog_length > 0`, bytes at `catalog_offset` are **UTF-8 JSON** (no BOM)
 | `title` | yes | Display title |
 | `created`, `modified` | yes | RFC 3339 UTC |
 | `doc_kind` | yes | String mirror of superblock enum |
-| `tags` | no | String array |
-| `category` | no | Primary bucket (e.g. vault top-level folder) |
+| `tags` | no | String array (cross-cutting labels; not a folder tree) |
+| `category` | no | Single primary bucket (e.g. vault top-level folder) |
+| `section` | no | Ordered path under `category` (e.g. `Books/Authors`); hierarchy depth, not a tag bag |
 | `aliases` | no | Alternate display / wikilink names |
 | `slug` | no | Optional vault-unique human handle |
 | `template_id`, `theme_id` | no | Export / GUI hints |

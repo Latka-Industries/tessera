@@ -48,6 +48,8 @@ pub struct MarkdownImportOptions {
     pub tags: Vec<String>,
     /// Catalog category override (e.g. vault top-level folder).
     pub category: Option<String>,
+    /// Catalog section override (path under category, e.g. `Books/Authors`).
+    pub section: Option<String>,
     /// Catalog aliases (merged with front matter aliases).
     pub aliases: Vec<String>,
     /// Catalog slug override (else front matter `id:`).
@@ -67,6 +69,7 @@ impl Default for MarkdownImportOptions {
             doc_id_seed: None,
             tags: Vec::new(),
             category: None,
+            section: None,
             aliases: Vec::new(),
             slug: None,
             slug_override: false,
@@ -84,6 +87,7 @@ impl std::fmt::Debug for MarkdownImportOptions {
             .field("doc_id_seed", &self.doc_id_seed)
             .field("tags", &self.tags)
             .field("category", &self.category)
+            .field("section", &self.section)
             .field("aliases", &self.aliases)
             .field("slug", &self.slug)
             .field("slug_override", &self.slug_override)
@@ -201,6 +205,7 @@ pub fn import_markdown_v0(
     let mut catalog = DocumentCatalog::new(&doc_id, &title, &now, &now, options.doc_kind);
     catalog.tags = tags;
     catalog.category.clone_from(&options.category);
+    catalog.section.clone_from(&options.section);
     catalog.aliases = aliases;
     catalog.slug.clone_from(&slug);
 

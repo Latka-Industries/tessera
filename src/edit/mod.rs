@@ -858,16 +858,19 @@ mod tests {
     }
 
     fn assert_meta(
-        aliases: &[&str],
-        slug: Option<&str>,
-        category: Option<&str>,
-        got_aliases: &[String],
-        got_slug: &Option<String>,
-        got_category: &Option<String>,
+        aliases: &[String],
+        slug: &Option<String>,
+        category: &Option<String>,
+        section: &Option<String>,
+        want_aliases: &[&str],
+        want_slug: Option<&str>,
+        want_category: Option<&str>,
+        want_section: Option<&str>,
     ) {
-        assert_eq!(got_aliases, aliases);
-        assert_eq!(got_slug.as_deref(), slug);
-        assert_eq!(got_category.as_deref(), category);
+        assert_eq!(aliases, want_aliases);
+        assert_eq!(slug.as_deref(), want_slug);
+        assert_eq!(category.as_deref(), want_category);
+        assert_eq!(section.as_deref(), want_section);
     }
 
     #[test]
@@ -932,7 +935,8 @@ mod tests {
             r#"[
               {"op":"set_aliases","aliases":["American Fiction","Percival"]},
               {"op":"set_slug","slug":"Erasure"},
-              {"op":"set_category","category":"Literature"}
+              {"op":"set_category","category":"Literature"},
+              {"op":"set_section","section":"Books/Authors"}
             ]"#,
             false,
         );
@@ -941,12 +945,14 @@ mod tests {
         let file = TesFile::open(&path).unwrap();
         let cat = file.catalog().unwrap();
         assert_meta(
-            &["American Fiction", "Percival"],
-            Some("Erasure"),
-            Some("Literature"),
             &cat.aliases,
             &cat.slug,
             &cat.category,
+            &cat.section,
+            &["American Fiction", "Percival"],
+            Some("Erasure"),
+            Some("Literature"),
+            Some("Books/Authors"),
         );
 
         crate::vault::rebuild_vault_index(vault).unwrap();
@@ -957,12 +963,14 @@ mod tests {
             .find(|e| e.doc_id == cat.doc_id)
             .expect("note in vault.tes");
         assert_meta(
-            &["American Fiction", "Percival"],
-            Some("Erasure"),
-            Some("Literature"),
             &entry.aliases,
             &entry.slug,
             &entry.category,
+            &entry.section,
+            &["American Fiction", "Percival"],
+            Some("Erasure"),
+            Some("Literature"),
+            Some("Books/Authors"),
         );
     }
 
@@ -1062,23 +1070,25 @@ mod tests {
         let path = sample_note(dir.path());
         apply_json(
             &path,
-            r#"[{"op":"set_aliases","aliases":["Keep"]},{"op":"set_slug","slug":"keep-slug"},{"op":"set_category","category":"KeepCat"}]"#,
+            r#"[{"op":"set_aliases","aliases":["Keep"]},{"op":"set_slug","slug":"keep-slug"},{"op":"set_category","category":"KeepCat"},{"op":"set_section","section":"Keep/Sec"}]"#,
             false,
         );
         let report = apply_json(
             &path,
-            r#"[{"op":"set_aliases","aliases":[]},{"op":"set_slug","slug":null},{"op":"set_category","category":null}]"#,
+            r#"[{"op":"set_aliases","aliases":[]},{"op":"set_slug","slug":null},{"op":"set_category","category":null},{"op":"set_section","section":null}]"#,
             true,
         );
         assert!(!report.replaced);
         let cat = TesFile::open(&path).unwrap().catalog().unwrap().clone();
         assert_meta(
-            &["Keep"],
-            Some("keep-slug"),
-            Some("KeepCat"),
             &cat.aliases,
             &cat.slug,
             &cat.category,
+            &cat.section,
+            &["Keep"],
+            Some("keep-slug"),
+            Some("KeepCat"),
+            Some("Keep/Sec"),
         );
     }
 }

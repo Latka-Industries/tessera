@@ -176,19 +176,21 @@ Vault-level link operations (requires `--vault DIR`).
 ## `tes vault`
 
 Optional vault catalog index — a TOC-style `vault.tes` sidecar
-(`doc_kind = index`) listing `doc_id → title, tags, category, aliases, slug,
+(`doc_kind = index`) listing `doc_id → title, tags, category, section, aliases, slug,
 modified, path` so list does not open every note. `tes vault search` defaults
 to a **parallel scan** of membership (`--ai-text` + catalog fields). For larger
 vaults (≥ 64 docs) or with `--index`, it uses a **Tantivy** BM25 index under
 `.tessera/fts/`. Index version ≥ 2 also stores **registered members** (external
 `.tes` files or extra roots). Version ≥ 3 rows may include `category` /
-`aliases` / `slug`. `tes link` and search use the same membership set.
+`aliases` / `slug`. Version ≥ 4 adds `section` (nested path under `category`).
+`tes link` and search use the same membership set.
 
 ```bash
 tes vault --vault ./notes rebuild
 tes vault --vault ./notes list
 tes vault --vault ./notes list --tag ml --json
 tes vault --vault ./notes list --category Literature
+tes vault --vault ./notes list --section Books/Authors
 tes vault --vault ./notes list --force-scan
 tes vault --vault ./notes search "phrase"
 tes vault --vault ./notes search "phrase" --scan
@@ -216,6 +218,7 @@ tes vault --vault ./notes remove /other/project/note.tes
 | -------------- | -------------------------------------------------------------------------- |
 | `--tag TAG`    | Keep rows whose catalog tags include `TAG`                                 |
 | `--category C` | Keep rows whose catalog category equals `C`                                |
+| `--section S`  | Keep rows whose catalog section equals `S` (e.g. `Books/Authors`)          |
 | `--force-scan` | Ignore TOC freshness and rescan catalogs (still honors members)            |
 | `--scan`       | (`search`) Force parallel membership scan (no sidecar)                     |
 | `--index`      | (`search`) Force Tantivy under `.tessera/fts`                              |
@@ -226,14 +229,16 @@ tes vault --vault ./notes remove /other/project/note.tes
 | `--table`      | Force aligned table (default when stdout is a TTY)                         |
 | `--tsv`        | Force tab-separated rows (default when stdout is not a TTY)                |
 
-Interactive terminals get an aligned table (`KIND TITLE PATH CATEGORY SLUG`
-plus a short `DOC_ID` prefix). Pipes and `--tsv` keep the legacy TSV shape.
+Interactive terminals get an aligned table
+(`KIND TITLE PATH CATEGORY SECTION SLUG` plus a short `DOC_ID` prefix). Pipes
+and `--tsv` keep the legacy TSV shape (optional `section=…` extras).
 
 **Import behavior:** preserves relative paths as `.tes`; `doc_id` from Obsidian
 `id:` or path via UUIDv5 (keeps existing id on re-import; duplicate `id:` →
-path re-seed); top-level folder → `category`; front matter tags/aliases/slug;
-`* Index.md` → `hub`; resolves `[[wikilinks]]` via title → slug → aliases;
-rebuilds `vault.tes`.
+path re-seed); top-level folder → `category`, remaining parent path → `section`
+(e.g. `Literature/Books/X.md` → category `Literature`, section `Books`); front
+matter tags/aliases/slug; `* Index.md` → `hub`; resolves `[[wikilinks]]` via
+title → slug → aliases; rebuilds `vault.tes`.
 
 **Stale detection (`vault.tes`):** entry count / display paths / file mtimes must
 match the index over the full membership set; otherwise list falls back to a
@@ -326,10 +331,10 @@ bag when absent from the source `.tes` (THI-233). CLI `edit-write` remains
 source-copy only for media today.
 
 Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
-`set_aliases`, `set_slug`, `set_category`, `set_text`, `append_paragraph`,
-`delete_chunk`. Catalog fields (`set_aliases` / `set_slug` / `set_category`)
-persist on the `.tes`; refresh `vault.tes` with `tes vault rebuild` (no
-auto-rebuild on apply).
+`set_aliases`, `set_slug`, `set_category`, `set_section`, `set_text`,
+`append_paragraph`, `delete_chunk`. Catalog fields (`set_aliases` / `set_slug` /
+`set_category` / `set_section`) persist on the `.tes`; refresh `vault.tes` with
+`tes vault rebuild` (no auto-rebuild on apply).
 
 ### Tessprek LSP (`tes-lsp`)
 

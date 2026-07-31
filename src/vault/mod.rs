@@ -21,9 +21,9 @@ pub use import::{
     import_markdown_vault,
 };
 pub use index::{
-    VAULT_INDEX_NAME, VaultIndex, VaultIndexEntry, VaultListReport, list_vault_documents,
-    list_vault_documents_filtered, load_vault_index, rebuild_vault_index, vault_index_is_fresh,
-    vault_index_path,
+    INDEX_VERSION, VAULT_INDEX_NAME, VaultIndex, VaultIndexEntry, VaultListReport,
+    list_vault_documents, list_vault_documents_filtered, load_vault_index, rebuild_vault_index,
+    vault_index_is_fresh, vault_index_path,
 };
 pub use members::{
     VaultMember, VaultMemberKind, load_registered_members, membership_document_paths,

@@ -587,6 +587,9 @@ pub(super) struct VaultListArgs {
     /// Filter by catalog category
     #[arg(long)]
     pub(super) category: Option<String>,
+    /// Filter by catalog section (path under category)
+    #[arg(long)]
+    pub(super) section: Option<String>,
     /// Ignore `vault.tes` and scan catalogs
     #[arg(long)]
     pub(super) force_scan: bool,

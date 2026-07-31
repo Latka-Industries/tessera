@@ -3,7 +3,8 @@
 //! A sealed TOC-style sidecar listing vault documents by id/title/tags/category
 //! without opening every note for list/search. Version ≥ 2 also stores registered
 //! external members (THI-217). Version ≥ 3 rows may carry `category`, `aliases`,
-//! and `slug` (older indexes still load; missing fields default empty).
+//! and `slug`. Version ≥ 4 adds `section` (nested path under category). Older
+//! indexes still load; missing fields default empty.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -24,8 +25,8 @@ use super::members::{
 pub const VAULT_INDEX_NAME: &str = "vault.tes";
 
 const INDEX_FORMAT: &str = "tessera.vault_index";
-/// Current on-disk index payload version (category/aliases/slug on entries).
-pub const INDEX_VERSION: u32 = 3;
+/// Current on-disk index payload version (category/aliases/slug/section on entries).
+pub const INDEX_VERSION: u32 = 4;
 /// Oldest readable index version (no `members`).
 const INDEX_VERSION_MIN: u32 = 1;
 /// Stable id for every `vault.tes` (one per directory).
@@ -46,6 +47,9 @@ pub struct VaultIndexEntry {
     /// Primary category bucket (e.g. top-level folder).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+    /// Ordered path under [`Self::category`] (e.g. `Books/Authors`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
     /// Alternate names for wikilink / TOC resolve.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub aliases: Vec<String>,
@@ -58,6 +62,26 @@ pub struct VaultIndexEntry {
     pub path: String,
     /// File mtime as Unix seconds when the index was built.
     pub mtime_secs: u64,
+}
+
+impl VaultIndexEntry {
+    /// Copy TOC fields from a document catalog plus vault path / mtime.
+    #[must_use]
+    pub fn from_catalog(catalog: &DocumentCatalog, path: String, mtime_secs: u64) -> Self {
+        Self {
+            doc_id: catalog.doc_id.clone(),
+            title: catalog.title.clone(),
+            doc_kind: catalog.doc_kind.clone(),
+            tags: catalog.tags.clone(),
+            category: catalog.category.clone(),
+            section: catalog.section.clone(),
+            aliases: catalog.aliases.clone(),
+            slug: catalog.slug.clone(),
+            modified: catalog.modified.clone(),
+            path,
+            mtime_secs,
+        }
+    }
 }
 
 /// Parsed `vault.tes` TOC payload.
@@ -203,7 +227,7 @@ pub fn vault_index_is_fresh(root: impl AsRef<Path>, index: &VaultIndex) -> Resul
 /// List vault documents using `vault.tes` when fresh; otherwise scan catalogs.
 ///
 /// When `force_scan` is true, always scan catalogs and ignore any index.
-/// Optional `tag` / `category` filters retain matching rows.
+/// Optional `tag` / `category` / `section` filters retain matching rows.
 ///
 /// # Errors
 ///
@@ -213,10 +237,10 @@ pub fn list_vault_documents(
     tag: Option<&str>,
     force_scan: bool,
 ) -> Result<VaultListReport> {
-    list_vault_documents_filtered(root, tag, None, force_scan)
+    list_vault_documents_filtered(root, tag, None, None, force_scan)
 }
 
-/// List vault documents with optional tag and category filters.
+/// List vault documents with optional tag, category, and section filters.
 ///
 /// # Errors
 ///
@@ -225,6 +249,7 @@ pub fn list_vault_documents_filtered(
     root: impl AsRef<Path>,
     tag: Option<&str>,
     category: Option<&str>,
+    section: Option<&str>,
     force_scan: bool,
 ) -> Result<VaultListReport> {
     let root = root.as_ref();
@@ -245,9 +270,8 @@ pub fn list_vault_documents_filtered(
     if let Some(tag) = tag {
         entries.retain(|e| e.tags.iter().any(|t| t == tag));
     }
-    if let Some(category) = category {
-        entries.retain(|e| e.category.as_deref() == Some(category));
-    }
+    retain_exact_opt(&mut entries, category, |e| e.category.as_deref());
+    retain_exact_opt(&mut entries, section, |e| e.section.as_deref());
     entries.sort_by(|a, b| a.title.cmp(&b.title).then(a.doc_id.cmp(&b.doc_id)));
 
     Ok(VaultListReport {
@@ -294,20 +318,24 @@ fn scan_catalog_entries(root: &Path, members: &[VaultMember]) -> Result<Vec<Vaul
         let _id = Uuid::parse_str(&catalog.doc_id).map_err(|_| TesError::InvalidDocId {
             value: catalog.doc_id.clone(),
         })?;
-        entries.push(VaultIndexEntry {
-            doc_id: catalog.doc_id.clone(),
-            title: catalog.title.clone(),
-            doc_kind: catalog.doc_kind.clone(),
-            tags: catalog.tags.clone(),
-            category: catalog.category.clone(),
-            aliases: catalog.aliases.clone(),
-            slug: catalog.slug.clone(),
-            modified: catalog.modified.clone(),
-            path: display_path(root, &path),
-            mtime_secs: file_mtime_secs(&path)?,
-        });
+        entries.push(VaultIndexEntry::from_catalog(
+            catalog,
+            display_path(root, &path),
+            file_mtime_secs(&path)?,
+        ));
     }
     Ok(entries)
+}
+
+/// Keep rows whose extracted optional string equals `want` (no-op when `want` is `None`).
+fn retain_exact_opt(
+    entries: &mut Vec<VaultIndexEntry>,
+    want: Option<&str>,
+    get: impl Fn(&VaultIndexEntry) -> Option<&str>,
+) {
+    if let Some(want) = want {
+        entries.retain(|e| get(e) == Some(want));
+    }
 }
 
 pub(super) fn path_signatures(root: &Path, paths: &[PathBuf]) -> Result<Vec<(String, u64)>> {
@@ -410,9 +438,10 @@ mod tests {
         );
 
         rebuild_vault_index(dir.path()).unwrap();
-        let upgraded = load_vault_index(dir.path()).unwrap().expect("v2 index");
+        let upgraded = load_vault_index(dir.path())
+            .unwrap()
+            .expect("upgraded index");
         assert_eq!(upgraded.version, INDEX_VERSION);
-        assert_eq!(upgraded.version, 3);
         assert!(upgraded.members.is_empty());
         assert_eq!(upgraded.entries.len(), 1);
     }

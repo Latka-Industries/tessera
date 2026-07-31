@@ -32,6 +32,11 @@ pub enum TesOp {
         /// New category, or `null` to clear.
         category: Option<String>,
     },
+    /// Replace or clear catalog section path (`null` clears).
+    SetSection {
+        /// New section path under category (e.g. `Books/Authors`), or `null` to clear.
+        section: Option<String>,
+    },
     /// Replace a text chunk body (and optional header fields).
     SetText {
         /// Existing or projected chunk id.
@@ -74,6 +79,8 @@ pub struct CatalogPatch {
     pub slug: Option<String>,
     /// Optional primary bucket.
     pub category: Option<String>,
+    /// Optional ordered path under category.
+    pub section: Option<String>,
 }
 
 impl Default for CatalogPatch {
@@ -83,6 +90,7 @@ impl Default for CatalogPatch {
             aliases: Vec::new(),
             slug: None,
             category: None,
+            section: None,
         }
     }
 }
@@ -96,6 +104,7 @@ impl CatalogPatch {
             aliases: c.aliases.clone(),
             slug: c.slug.clone(),
             category: c.category.clone(),
+            section: c.section.clone(),
         })
     }
 
@@ -105,6 +114,7 @@ impl CatalogPatch {
         catalog.aliases.clone_from(&self.aliases);
         catalog.slug.clone_from(&self.slug);
         catalog.category.clone_from(&self.category);
+        catalog.section.clone_from(&self.section);
     }
 
     /// Apply a catalog-field op. Returns `true` when `op` mutated this patch.
@@ -126,7 +136,13 @@ impl CatalogPatch {
                 self.category.clone_from(category);
                 true
             }
-            _ => false,
+            TesOp::SetSection { section } => {
+                self.section.clone_from(section);
+                true
+            }
+            TesOp::SetText { .. } | TesOp::AppendParagraph { .. } | TesOp::DeleteChunk { .. } => {
+                false
+            }
         }
     }
 }
@@ -177,7 +193,8 @@ pub fn apply_ops_to_blocks(
             TesOp::SetTitle { .. }
             | TesOp::SetAliases { .. }
             | TesOp::SetSlug { .. }
-            | TesOp::SetCategory { .. } => {}
+            | TesOp::SetCategory { .. }
+            | TesOp::SetSection { .. } => {}
         }
     }
     Ok(())

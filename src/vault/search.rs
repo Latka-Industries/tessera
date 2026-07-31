@@ -34,7 +34,8 @@ pub const AUTO_INDEX_DOC_THRESHOLD: usize = 64;
 
 const SIGNATURES_NAME: &str = "tessera_signatures.json";
 const FTS_FORMAT: &str = "tessera.vault_fts";
-const FTS_VERSION: u32 = 1;
+/// Bumped when the Tantivy schema changes (v2 adds `section`).
+const FTS_VERSION: u32 = 2;
 const WRITER_HEAP: usize = 50_000_000;
 
 /// How a search was executed.
@@ -74,6 +75,9 @@ pub struct VaultSearchHit {
     /// Optional category.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+    /// Optional section path under category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
     /// Optional slug.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slug: Option<String>,
@@ -112,6 +116,7 @@ struct SearchableDoc {
     doc_kind: String,
     path: String,
     category: Option<String>,
+    section: Option<String>,
     slug: Option<String>,
     aliases: String,
     tags: String,
@@ -252,6 +257,7 @@ fn load_searchable_docs(root: &Path) -> Result<Vec<SearchableDoc>> {
             doc_kind: catalog.doc_kind.clone(),
             path: display_path(root, &abs),
             category: catalog.category.clone(),
+            section: catalog.section.clone(),
             slug: catalog.slug.clone(),
             aliases: catalog.aliases.join(" "),
             tags: catalog.tags.join(" "),
@@ -290,6 +296,7 @@ fn rebuild_index_from_docs(root: &Path, docs: &[SearchableDoc]) -> Result<PathBu
                 fields.aliases => d.aliases.as_str(),
                 fields.tags => d.tags.as_str(),
                 fields.category => d.category.as_deref().unwrap_or(""),
+                fields.section => d.section.as_deref().unwrap_or(""),
                 fields.slug => d.slug.as_deref().unwrap_or(""),
                 fields.path => d.path.as_str(),
                 fields.doc_id => d.doc_id.as_str(),
@@ -316,6 +323,7 @@ struct SchemaFields {
     aliases: tantivy::schema::Field,
     tags: tantivy::schema::Field,
     category: tantivy::schema::Field,
+    section: tantivy::schema::Field,
     slug: tantivy::schema::Field,
     path: tantivy::schema::Field,
     doc_id: tantivy::schema::Field,
@@ -329,6 +337,7 @@ fn build_schema() -> (Schema, SchemaFields) {
     let aliases = builder.add_text_field("aliases", TEXT | STORED);
     let tags = builder.add_text_field("tags", TEXT | STORED);
     let category = builder.add_text_field("category", TEXT | STORED);
+    let section = builder.add_text_field("section", TEXT | STORED);
     let slug = builder.add_text_field("slug", TEXT | STORED);
     let path = builder.add_text_field("path", STRING | STORED);
     let doc_id = builder.add_text_field("doc_id", STRING | STORED);
@@ -342,6 +351,7 @@ fn build_schema() -> (Schema, SchemaFields) {
             aliases,
             tags,
             category,
+            section,
             slug,
             path,
             doc_id,
@@ -365,13 +375,16 @@ fn tantivy_search(root: &Path, query: &str, limit: usize) -> Result<Vec<VaultSea
     let aliases = schema.get_field("aliases").map_err(fts_err)?;
     let tags = schema.get_field("tags").map_err(fts_err)?;
     let category = schema.get_field("category").map_err(fts_err)?;
+    let section = schema.get_field("section").map_err(fts_err)?;
     let slug = schema.get_field("slug").map_err(fts_err)?;
     let path = schema.get_field("path").map_err(fts_err)?;
     let doc_id = schema.get_field("doc_id").map_err(fts_err)?;
     let doc_kind = schema.get_field("doc_kind").map_err(fts_err)?;
 
-    let mut parser =
-        QueryParser::for_index(&index, vec![title, body, aliases, tags, category, slug]);
+    let mut parser = QueryParser::for_index(
+        &index,
+        vec![title, body, aliases, tags, category, section, slug],
+    );
     parser.set_field_boost(title, 2.5);
     parser.set_field_boost(aliases, 1.5);
     let parsed = parser.parse_query(query).map_err(|e| TesError::VaultFts {
@@ -401,6 +414,7 @@ fn tantivy_search(root: &Path, query: &str, limit: usize) -> Result<Vec<VaultSea
             doc_kind: stored_str(&doc, doc_kind).unwrap_or_default(),
             path: stored_str(&doc, path).unwrap_or_default(),
             category: stored_str(&doc, category).filter(|s| !s.is_empty()),
+            section: stored_str(&doc, section).filter(|s| !s.is_empty()),
             slug: stored_str(&doc, slug).filter(|s| !s.is_empty()),
             snippet: snippet_text,
         });
@@ -424,6 +438,7 @@ fn scan_search(docs: &[SearchableDoc], query: &str, limit: usize) -> Vec<VaultSe
             let tags_l = d.tags.to_lowercase();
             let slug_l = d.slug.as_deref().unwrap_or("").to_lowercase();
             let cat_l = d.category.as_deref().unwrap_or("").to_lowercase();
+            let section_l = d.section.as_deref().unwrap_or("").to_lowercase();
 
             let mut score = 0i32;
             if title_l.contains(&q) {
@@ -432,7 +447,7 @@ fn scan_search(docs: &[SearchableDoc], query: &str, limit: usize) -> Vec<VaultSe
             if aliases_l.contains(&q) || slug_l.contains(&q) {
                 score += 60;
             }
-            if tags_l.contains(&q) || cat_l.contains(&q) {
+            if tags_l.contains(&q) || cat_l.contains(&q) || section_l.contains(&q) {
                 score += 40;
             }
             if body_l.contains(&q) {
@@ -449,6 +464,7 @@ fn scan_search(docs: &[SearchableDoc], query: &str, limit: usize) -> Vec<VaultSe
                     doc_kind: d.doc_kind.clone(),
                     path: d.path.clone(),
                     category: d.category.clone(),
+                    section: d.section.clone(),
                     slug: d.slug.clone(),
                     snippet: scan_snippet(&d.body, &d.title, &q),
                 },
