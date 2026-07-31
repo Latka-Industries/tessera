@@ -378,7 +378,7 @@ When superblock **`flags & 1`**, suffix at EOF (same pattern as Tetration **`THS
 - `store` — exact-hash content-addressed payloads (sha256 → base64);
 - `drafts` — named pointers into revision ids;
 - `head` — tip revision;
-- `pending` — reserved for authored `TesOp` suggestions (redline later).
+- `pending` — authored `TesOp` suggestions (redline via `tes pending`).
 
 Chunk payload bounds use **`file_len − footer_suffix`** when the flag is set.
 Layout version stays **0**; only the trailer `history_version` advances.
@@ -394,11 +394,9 @@ The first shipped writer (`TesWriterSession`) MUST:
 3. Write **`TIDX`** index with contiguous payloads after index (typical).
 4. Optionally populate **link table** on save when links/cites edited.
 
-NOT required in first merge:
-
-- zstd text compression
-- slide/image/page payloads
-- `THST` footer (flag **0**)
+The current writer also supports slides, images/figures, attachments, zstd
+text compression, and `THST` footers when those features are used. The
+minimal subset above remains the floor for a valid empty/note fixture.
 
 ---
 
@@ -430,7 +428,7 @@ Exit code **1** on failure (CI-friendly). See [cli.md](cli.md).
 
 ---
 
-## Golden fixtures (planned)
+## Golden fixtures
 
 | Fixture | Description |
 | --- | --- |
@@ -464,19 +462,21 @@ will distinguish unknown **optional** features (skip with warning) from
 unknown **must-understand** features (fail), so additive optional chunks do
 not force a format-wide break.
 
-### Accepted v1 direction (not yet wire offsets)
+### Accepted v1 direction (additive on layout 0)
 
-The normative semantic design is [structure_v1.md](structure_v1.md):
+The normative semantic design is [structure_v1.md](structure_v1.md). Most of it
+ships today as optional feature-flagged headers / chunk kinds on
+`layout_version = 0`:
 
 - text bodies stay plain UTF-8; inline formatting uses validated ranged enums;
 - LaTeX is stored only for math;
-- tables become structured rows/cells and supersede v0 TSV;
+- tables are structured rows/cells (TSV remains a fallback);
 - code/document language and semantic alignment are explicit;
 - links have internal, external URI, and attachment targets;
 - image bytes are reusable while each `FigureRef` owns alt/caption/placement;
 - generic attachments are inert;
 - slides use named template regions, never freeform coordinates;
-- `THST` evolves toward content-addressed logical full revisions in M10.
+- `THST` v1 stores content-addressed logical full revisions (M10).
 
-Exact field layouts, discriminants, migration behavior, and golden fixtures
-must be specified before incrementing `layout_version`.
+Bump `layout_version` only when introducing a must-understand feature that
+older readers must fail closed on.

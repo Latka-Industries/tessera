@@ -12,11 +12,13 @@
 ## What it does today
 
 - **Container** — `TESS` superblock, catalog JSON, `TIDX` chunk index, `TLNK` links, sealed writer + mmap reader, golden fixtures, deep `tes verify`
-- **Exports** — raw / linear / AI text / JSONL / Markdown / semantic HTML / print PDF (headless Chromium)
+- **Exports** — raw / linear / AI text / JSONL / Markdown / semantic HTML / print PDF (headless Chromium); chapter-scoped `--chapter`
 - **Import** — CommonMark subset, semantic HTML, BibTeX / CSL-JSON → cite chunks
-- **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering
-- **Preview** — loopback `tes serve` with external template/theme packs
-- **Vault** — resolve / backlinks / broken-link check across a directory of `.tes` files
+- **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering; slides
+- **Preview** — loopback `tes serve` with external template/theme packs (`draft` / `print` / `manuscript`)
+- **Edit** — Tessprek `edit-read` / `format` / `edit-write` / `apply` (typed `TesOp`s including catalog tags/aliases)
+- **History** — `THST` revisions, drafts, diff/changelog, blame, pending redline, export-revs/checkout/textconv/merge-file; GitHub Tessprek Action
+- **Vault** — resolve / backlinks / broken-link check; `vault.tes` TOC; multi-root members; scan + Tantivy FTS
 - **LSP** — `tes-lsp` Tessprek language server over stdio ([docs/lsp.md](docs/lsp.md); Neovim client: [contrib/nvim](contrib/nvim/README.md))
 
 ## Quick start
@@ -59,7 +61,7 @@ Spec, decisions, and engine notes live under [`docs/`](docs/) (this README stays
 | **[Engine](docs/engine.md)**                       | Reader/writer paths and module map                          |
 | **[MIME + magic](docs/mime.md)**                   | `.tes` MIME, `file(1)` magic, conformance kit               |
 | **[Benchmarks](docs/benchmarks.md)**               | Claim-backed Criterion harness (`cargo bench`)              |
-| **[Roadmap](docs/roadmap.md)**                     | Milestones (M0–M10)                                         |
+| **[Roadmap](docs/roadmap.md)**                     | Milestones (M0–M11)                                         |
 | **[Decisions](docs/decisions.md)**                 | Accepted design calls                                       |
 | **[Security](docs/security.md)**                   | Threat model for serve / themes                             |
 | **[Glossary](docs/glossary.md)**                   | Terms                                                       |

@@ -31,11 +31,10 @@ v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**,
 
 ## Global flags
 
-| Flag                          | Effect              |
-| ----------------------------- | ------------------- |
-| `-h`, `--help`                | Command help        |
-| `-V`, `--version`             | Crate version       |
-| `--color auto\|always\|never` | stderr/stdout color |
+| Flag            | Effect        |
+| --------------- | ------------- |
+| `-h`, `--help`  | Command help  |
+| `-V`, `--version` | Crate version |
 
 **Exit codes:** `0` success, `1` user/verify error, `2` usage/IO error.
 
@@ -45,14 +44,11 @@ v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**,
 
 Summarize a `.tes` file without full payload decode.
 
-| Flag              | Effect                                                             |
-| ----------------- | ------------------------------------------------------------------ |
-| _(default)_       | Human table: title, `doc_kind`, chunk counts by type, modified     |
-| `--json`          | Full JSON: superblock, catalog, index rows (no bodies), link table |
-| `-q`, `--quiet`   | One line: `title\tchunks=N\tbytes=M`                               |
-| `--chunks`        | Include chunk id / type / byte len table                           |
-| `--links`         | Include link table entries                                         |
-| `-n`, `--limit N` | Cap chunk rows (default 32; `0` = all)                             |
+| Flag            | Effect                                                             |
+| --------------- | ------------------------------------------------------------------ |
+| _(default)_     | Human table: title, `doc_kind`, chunk counts by type, modified     |
+| `--json`        | Full JSON: superblock, catalog, index rows (no bodies), link table |
+| `-q`, `--quiet` | One line: `title\tchunks=N\tbytes=M`                               |
 
 **Example:**
 
@@ -101,14 +97,17 @@ tes export draft.tes --markdown --chapter 1
 tes export paper.tes --bibliography --bib-format bibtex -o refs.bib
 tes export note.tes --attachment --chunk 3 -o notes.pdf
 tes import --bibtex fixtures/assets/citations/sample.bib refs.tes
-tes export doc.tes --ai --format markdown
-tes export doc.tes --meta toml
+# Planned (not in clap yet):
+# tes export doc.tes --ai --format markdown
+# tes export doc.tes --meta toml
 ```
 
 `--pdf` uses the same semantic HTML + template theme path as `tes serve`.
 Requires a Chromium/Chrome binary (`TES_CHROME` or auto-detect). PDF is a
 lossy print sink, not an editable source. For `doc_kind = manuscript`, the
 default pack theme is `manuscript` (beta-reader) instead of academic `print`.
+`--chapter N` scopes **any** export view to the Nth H1-bounded chapter
+(conflicts with `--chunk`).
 
 | Flag                           | Effect                                                            |
 | ------------------------------ | ----------------------------------------------------------------- |
@@ -117,7 +116,7 @@ default pack theme is `manuscript` (beta-reader) instead of academic `print`.
 | `--ai-text`                    | LLM-oriented plain text                                           |
 | `--chunks-jsonl`               | One JSON object per chunk line                                    |
 | `--markdown`                   | Lossy Markdown                                                    |
-| `--html`                       | HTML fragment (+ `--theme`, `--standalone`)                       |
+| `--html`                       | HTML fragment (+ `--theme`, `--standalone`, `--embed-css`)        |
 | `--pdf`                        | Print-theme PDF via headless Chromium (requires `-o`)             |
 | `--bibliography`               | BibTeX / CSL-JSON from cite chunks (`--bib-format`)               |
 | `--attachment`                 | Write opaque attachment chunk bytes (requires `--chunk` and `-o`) |
@@ -125,8 +124,14 @@ default pack theme is `manuscript` (beta-reader) instead of academic `print`.
 | `--template ID`                | Pack id for `--pdf` (default: catalog or `minimal`)               |
 | `--template-root DIR`          | Pack root for `--pdf` (env: `TES_TEMPLATE_ROOT`)                  |
 | `--theme-id ID`                | Pack theme for `--pdf` (default: `print`, or `manuscript`)        |
-| `--ai --format markdown\|html` | AI-safe structured profile (planned v1)                           |
-| `--meta json\|yaml\|toml`      | Catalog metadata projection (planned v1)                          |
+| `--theme PATH`                 | Stylesheet path/href for `--html`                                 |
+| `--standalone`                 | Complete HTML document with `--html`                              |
+| `--embed-css`                  | Embed `--theme` CSS into `--html` output                          |
+| `--include-headers`            | Prefix each `--raw` chunk with a debug header                     |
+| `--all-types`                  | Include non-text rows in `--chunks-jsonl`                         |
+| `--no-cites`                   | Omit cite expansion from `--ai-text`                              |
+| `--ai --format markdown\|html` | AI-safe structured profile (planned)                              |
+| `--meta json\|yaml\|toml`      | Catalog metadata projection (planned)                             |
 | `--chunk ID`                   | Single chunk (where applicable; conflicts with `--chapter`)       |
 | `--chapter N`                  | Nth chapter by H1 boundaries (1-based; conflicts with `--chunk`)  |
 | `-o`, `--output PATH`          | Write file instead of stdout                                      |
@@ -144,7 +149,7 @@ Build a `.tes` from foreign formats. **Parse once** into chunks.
 tes import --markdown article.md article.tes
 tes import --html page.html page.tes
 tes import --bibtex refs.bib refs.tes
-tes import --pdf scan.pdf scan.tes --page-rasters
+# Planned: tes import --pdf scan.pdf scan.tes --page-rasters
 ```
 
 | Flag                      | Effect                                                                |
@@ -157,9 +162,9 @@ tes import --pdf scan.pdf scan.tes --page-rasters
 | `--title TEXT`            | Catalog title                                                         |
 | `--doc-id UUID`           | Stable id (generate if omitted)                                       |
 
-v0 target: **`--markdown`** first.
+Shipped today: **`--markdown`**, **`--html`**, **`--bibtex`** / **`--csl-json`**.
 
-DOCX import: **`--docx`** Phase 4+ (not v0 CLI).
+DOCX import: **`--docx`** Future (not v0 CLI).
 
 ---
 
@@ -458,8 +463,6 @@ suggestion only. Deep verify runs on accept (and on footer rewrites).
 
 | Variable                | Effect                                                              |
 | ----------------------- | ------------------------------------------------------------------- |
-| `TES_VAULT`             | Default vault directory for `tes link` / `tes vault`                |
-| `TES_THEME`             | Default CSS path for `--html` export                                |
 | `TES_TEMPLATE_ROOT`     | Default template pack root for `tes serve` / `--pdf`                |
 | `TES_CHROME`            | Chromium/Chrome binary for `tes export --pdf`                       |
 | `TES_CHROME_NO_SANDBOX` | Force `--no-sandbox` for headless print (also auto on Linux / `CI`) |
@@ -489,7 +492,7 @@ Every CLI command maps to a library entry point. The `tes` binary only calls
 | `tes export`                                                                                                 | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
 | `tes import`                                                                                                 | `tessera_doc::io::import::*` / `io::bib::import_bibliography`                                       |
 | `tes link` / `tes vault`                                                                                     | `tessera_doc::vault::*`                                                                             |
-| `tes save` / `log` / `diff` / `changelog` / `blame` / `export-revs` / `checkout` / `textconv` / `merge-file` | `tessera_doc::history::*`                                                                           |
+| `tes save` / `log` / `diff` / `changelog` / `blame` / `pending` / `export-revs` / `checkout` / `textconv` / `merge-file` | `tessera_doc::history::*`                                                                           |
 | `tes serve`                                                                                                  | `tessera_doc::render::preview::serve_preview`                                                       |
 | `tes edit-read`                                                                                              | `tessera_doc::edit::edit_read`                                                                      |
 | `tes format`                                                                                                 | `tessera_doc::edit::normalize_tessprek` (`edit::tessprek`)                                            |

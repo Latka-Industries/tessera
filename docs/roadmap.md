@@ -1,12 +1,14 @@
 # Roadmap and phases
 
-**Status:** M0–M9 plus M10 (`save`/`log`/`diff`/`changelog`/`export-revs`/
-`checkout`/`textconv`/`blame`/`pending`/`merge-file`), layout-v1 **text wire**
-(spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
-(external URI heap v1) are shipped as additive wire on `layout_version = 0`.
-Vault TOC (`tes vault` / `vault.tes`) and catalog feature flags (THI-202) are
-in. GitHub Tessprek PR comments shipped (THI-212); push-branch summaries are
-THI-219. This is an implementation plan, not a release schedule.
+**Status:** M0–M11 shipped on crate **0.1.10**. M10 history tools
+(`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
+`pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
+**inert attachments**, and **typed TLNK targets** (external URI heap v1) are
+additive wire on `layout_version = 0`. Vault TOC / multi-root membership,
+catalog feature flags, GitHub Tessprek PR + push-branch summaries (THI-212 /
+THI-219), manuscript conventions + `--chapter` + `manuscript` theme (THI-220),
+and theme polish (THI-221) are in. This is an implementation plan, not a
+release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -18,11 +20,11 @@ links.
 | Binary foundation | superblock, catalog, `TIDX`, `TLNK`, writer, mmap reader, verify, feature flags | — | conformance kit grows continuously |
 | Prose | typed text roles, Markdown/HTML import/export, Tessprek edit, ranged spans, math, code/block lang, align | — | further editor adapters |
 | Tables | structured header table + TSV fallback | — | rich import/export |
-| Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`) | multi-root membership (THI-217) | — |
+| Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`); multi-root membership (THI-217) | — | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
-| Human render | template packs, `tes serve`, PDF, slides, theme polish (draft/print/deck) | — | — |
+| Human render | template packs, `tes serve`, PDF, slides, theme polish (draft/print/deck/manuscript) | non-Chromium PDF backend (THI-256) | — |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
-| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR Tessprek (THI-212) | Push-branch Tessprek summary/artifact (THI-219) | — |
+| History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR + push Tessprek (THI-212 / THI-219) | — | — |
 
 Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
@@ -112,7 +114,7 @@ Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 | --- | --- |
 | Link table write path | GUI-less: CLI or test helper |
 | `tes link resolve/backlinks` | Works on fixture vault dir |
-| Hub doc fixture | [hub_links.tes](layout_v0.md#golden-fixtures-planned) |
+| Hub doc fixture | [hub_links.tes](layout_v0.md#golden-fixtures) |
 | Optional `vault.tes` index | Search by title without opening all files |
 
 **Depends on:** Phase 4. Decisions: [vault](decisions.md#vault-layout), [hub](decisions.md#hub-documents).
@@ -179,9 +181,11 @@ in `.tes`.
 | --- | --- |
 | Cite chunks + link kind 2 | Writer + ranged cite spans + graph mirror |
 | Cite styles | Template-selected APA/MLA/Chicago/numeric-style projection |
-| `tes import --pdf` | Text + optional page rasters |
 | AI cite expansion | Markdown/HTML/plain projections resolve cite data |
 | Bibliography interchange | BibTeX and CSL JSON import/export |
+
+`tes import --pdf` (text + optional page rasters) remains **Future** — not part
+of the shipped M8 acceptance set.
 
 **Depends on:** Phase 5 and the structure freeze. Phase 7 is optional except
 for producing an academic PDF.
@@ -221,7 +225,7 @@ freeze. CRDT/live cursors are not part of M10.
 
 ---
 
-## Phase 11 — Fiction + manuscript exports
+## Phase 11 — Fiction + manuscript exports (done)
 
 **Goal:** Chapter-scoped exports, beta-reader PDF.
 
@@ -231,7 +235,7 @@ freeze. CRDT/live cursors are not part of M10.
 | Chapter-scoped export flags | `--chapter N` (1-based H1 slice) |
 | Manuscript PDF theme | Pack theme `manuscript`, distinct from academic `print` |
 
-**Depends on:** Phase 7. Tracker: THI-220.
+**Depends on:** Phase 7. Tracker: THI-220 (Done).
 
 ---
 
@@ -251,11 +255,12 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **open format:** MIME/magic entries and v1 conformance cases.
-2. **benchmark:** measure the specific mmap/link/export claims — see
-   [benchmarks.md](benchmarks.md) / `mise run bench`.
-3. **vault polish:** light `vault.tes` catalog — see `tes vault` in [cli.md](cli.md).
-4. **optional:** `layout_version` / feature-flag bump when must-understand features land.
+1. **`tes repair`** (THI-225) — salvage damaged `.tes` containers; complements
+   `tes verify --deep`.
+2. **non-Chromium PDF** (THI-256) — keep HTML+theme path; alternate print backend.
+3. **optional:** `layout_version` / feature-flag bump when must-understand features land.
+4. **open format / bench:** MIME/magic conformance cases and claim-backed
+   benches continue as hygiene — see [mime.md](mime.md), [benchmarks.md](benchmarks.md).
 
 ---
 

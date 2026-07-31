@@ -215,13 +215,13 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 - `verify` (basic + deep)
 - `io::export` (`--raw`, `--linear`, `--ai-text`, `--chunks-jsonl`, Markdown/HTML, bibliography, `--attachment`)
 - `io::import` (Markdown, HTML), `io::bib`
-- `vault`, `render` (serve + PDF; `/media/` images, `/attachment/` downloads), `edit`, `history` (M10: save/log/diff/blame/pending/merge-file)
-- `cli` + `tes` binary: info, verify, export, import, link, serve, edit-*, apply, save/log/diff/changelog
+- `vault`, `render` (serve + PDF; `/media/` images, `/attachment/` downloads), `edit`, `history` (M10: save/log/diff/blame/pending/merge-file/export-revs/checkout/textconv)
+- `cli` + `tes` binary: info, verify, export, import, link, vault, serve, edit-*, format, apply, save/log/diff/changelog/blame/pending/export-revs/checkout/textconv/merge-file
 
 **Out (later):**
 
-- `repair/`
-- Aleph, CRDT, page tensors
+- `repair/` (`tes repair` — THI-225)
+- Aleph, CRDT, page tensors, non-Chromium PDF (THI-256)
 
 ---
 

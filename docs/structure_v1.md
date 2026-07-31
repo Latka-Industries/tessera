@@ -1,8 +1,9 @@
 # Structure freeze for layout v1
 
-**Status:** accepted design direction; implementation is milestone-tracked.
-Layout v0 remains the only shipped wire format. This document freezes the
-semantic model that must be specified before layout v1 code lands.
+**Status:** accepted design direction; most of the semantic model ships as
+**additive headers on `layout_version = 0`**. Layout v0 remains the only
+`layout_version` value. This document freezes the model that must stay stable
+when a must-understand feature eventually bumps the layout version.
 
 Related: [layout v0](layout_v0.md), [decisions](decisions.md),
 [exports](exports.md), [roadmap](roadmap.md), [security](security.md).
@@ -48,8 +49,8 @@ pagination, computed figure numbers, or pixel coordinates.
 | History (first slice) | `save` / `log` / `diff` / `changelog` | Content-addressed revisions + drafts | shipped (M10) |
 | History (checkout / textconv / merge) | Materialize revisions; git Tessprek + verified merge | `export-revs` / `checkout` / `textconv` / `merge-file` | shipped (M10) |
 | History (redline) | Footer `pending` reserved | Authored ops + accept/reject | shipped (M10) |
-| Vault graph | Implemented | Light `vault.tes` catalog (`tes vault`) | shipped / later |
-| Full-text search | Scan only | External index or projected-text search | later |
+| Vault graph | Implemented | Light `vault.tes` catalog (`tes vault`) + multi-root | shipped |
+| Full-text search | Parallel scan + optional Tantivy under `.tessera/fts` | External to wire (sidecar / projected text) | shipped (sidecar) |
 | Embeddings | Missing | External to `.tes` | out of wire |
 
 ---
@@ -277,7 +278,7 @@ M10 first slice ships `THST` v1 with:
 - named drafts and parent hashes;
 - structural `tes diff` / `tes changelog`.
 
-Follow-on materializes any revision as a self-contained `.tes` (`export-revs`)
+M10 also materializes any revision as a self-contained `.tes` (`export-revs`)
 or replaces the live sealed body while preserving the current footer
 (`checkout`). Git interoperability uses Tessera Markdown `textconv`
 (`tes textconv`), `tes blame`, pending-ops redline (`tes pending`), and a
@@ -332,6 +333,6 @@ Post-checkout/textconv (THI-194), layout-v1 text wire (THI-195), attachments
 
 1. Optional: bump `layout_version` when must-understand feature flags land.
 
-MIME/magic/conformance work may proceed in parallel. Aleph GUI, native
-full-text search, in-file embeddings, freeform slide geometry, and CRDTs are
-not next.
+MIME/magic/conformance work may proceed in parallel. Aleph GUI, **in-wire**
+full-text indexes, in-file embeddings, freeform slide geometry, and CRDTs are
+not next. Vault FTS already ships as an **external** Tantivy sidecar.

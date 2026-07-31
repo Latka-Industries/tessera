@@ -282,7 +282,7 @@ data URIs, then prints through a headless Chromium/Chrome binary
 | `-o PATH` | **Required** output PDF path |
 | `--theme-id ID` | Pack theme (default `print`; `manuscript` for `doc_kind = manuscript`) |
 | `--template ID` / `--template-root DIR` | Template pack selection |
-| `--chapter N` | Restrict body to the Nth H1-bounded chapter (1-based) |
+| `--chapter N` | Restrict body to the Nth H1-bounded chapter (1-based; same flag on all export views) |
 
 PDF is a lossy print sink — never an editable canonical source. Browser
 preview and PDF are two sinks of one render path. Manuscript / beta-reader
@@ -305,7 +305,7 @@ validates and updates the catalog without replacing body chunks.
 | --- | --- |
 | `tes import --markdown` | text chunks + optional link table |
 | `tes import --html` | semantic blocks per [decisions](decisions.md#html-import) |
-| `tes import --pdf` | text + optional page chunks |
+| `tes import --pdf` | text + optional page chunks (**Future** — not shipped) |
 
 Import **parses once**; subsequent exports read chunks — re-exported Markdown/HTML will not match source byte-for-byte.
 

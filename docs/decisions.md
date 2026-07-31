@@ -93,9 +93,9 @@ RAG windows may split a projection without changing canonical chunk ids.
 **Decision:** v0/v1 files are **single-writer, sealed files**. No CRDT or live
 multi-user edit.
 
-| Shipped / near-term | Later |
+| Shipped | Later |
 | --- | --- |
-| Source-hash + advisory write lock; optional `THST` suffix | M10 content-addressed revisions, drafts, diff, and review |
+| Source-hash + advisory write lock; `THST` v1 revisions, drafts, diff, review (`tes pending`) | CRDT / live multi-user edit |
 
 M10 represents full logical revisions with shared content-addressed payloads.
 Pending authored operations power redline and accept/reject. CRDT/live cursors
@@ -269,4 +269,4 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D17 | External template/theme/cite-style packs | Accepted for v1 |
 | D18 | Optional-vs-required forward compatibility | Accepted for v1 |
 | D19 | Tessera Markdown virtual editing + typed AI ops | Accepted direction |
-| D20 | Content-addressed drafts/review in `THST` | M10 direction |
+| D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
