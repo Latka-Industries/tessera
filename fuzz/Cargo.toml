@@ -1,0 +1,19 @@
+[package]
+name = "tessera-doc-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tessera-doc = { path = ".." }
+
+[[bin]]
+name = "verify_bytes"
+path = "fuzz_targets/verify_bytes.rs"
+test = false
+doc = false
+bench = false

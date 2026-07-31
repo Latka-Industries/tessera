@@ -1,4 +1,7 @@
-//! Read-only mmap'd `.tes` document (`docs/engine.md` — read path).
+//! Read-only `.tes` document (`docs/engine.md` — read path).
+//!
+//! Default open uses mmap; [`OpenMode::Copy`] / [`TesFile::open_buffered`] loads
+//! into an owned buffer for untrusted or network-backed inputs.
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -9,12 +12,12 @@ use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::{ChunkIndexEntry, Codec, read_chunk_index};
 use crate::catalog::link::{LinkEntry, read_link_table};
 use crate::error::{Result, TesError};
-use crate::layout::{self, SUPERBLOCK_LEN, SuperblockV0};
+use crate::layout::{self, FileImage, OpenMode, SUPERBLOCK_LEN, SuperblockV0};
 
-/// An open, memory-mapped `.tes` file with parsed catalog and chunk index.
+/// An open `.tes` file with parsed catalog and chunk index.
 pub struct TesFile {
     path: PathBuf,
-    mmap: Mmap,
+    bytes: FileImage,
     superblock: SuperblockV0,
     catalog: Option<DocumentCatalog>,
     chunks: Vec<ChunkIndexEntry>,
@@ -22,16 +25,38 @@ pub struct TesFile {
 }
 
 impl TesFile {
-    /// Open `path` read-only, mmap it, and parse superblock + catalog + index.
+    /// Open `path` read-only via mmap and parse superblock + catalog + index.
     ///
     /// # Errors
     ///
     /// Returns [`TesError::Io`] if the file cannot be opened or mapped, or
-    /// parse/bounds errors from [`Self::from_mmap`].
+    /// parse/bounds errors from [`Self::from_image`].
     pub fn open(path: impl Into<PathBuf>) -> Result<Self> {
+        Self::open_with(path, OpenMode::Mmap)
+    }
+
+    /// Open `path` by reading the whole file into memory (no mmap).
+    ///
+    /// Prefer this for untrusted or network-backed paths; see `docs/security.md`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::Io`] if the file cannot be read, or parse/bounds
+    /// errors from [`Self::from_image`].
+    pub fn open_buffered(path: impl Into<PathBuf>) -> Result<Self> {
+        Self::open_with(path, OpenMode::Copy)
+    }
+
+    /// Open `path` using [`OpenMode`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::Io`] on open/map/read failure, or parse/bounds errors
+    /// from [`Self::from_image`].
+    pub fn open_with(path: impl Into<PathBuf>, mode: OpenMode) -> Result<Self> {
         let path = path.into();
-        let mmap = layout::open_mmap(&path)?;
-        Self::from_mmap(path, mmap)
+        let image = layout::open_image(&path, mode)?;
+        Self::from_image(path, image)
     }
 
     /// Parse an already-mapped buffer (tests / advanced callers).
@@ -42,30 +67,50 @@ impl TesFile {
     /// superblock, decode errors from the superblock/catalog/index/link table,
     /// or [`TesError::OutOfBounds`] if a chunk payload extends past EOF.
     pub fn from_mmap(path: PathBuf, mmap: Mmap) -> Result<Self> {
-        if mmap.len() < SUPERBLOCK_LEN {
+        Self::from_image(path, FileImage::Map(mmap))
+    }
+
+    /// Parse an owned in-memory image (tests / downloaded blobs).
+    ///
+    /// # Errors
+    ///
+    /// Same as [`Self::from_image`].
+    pub fn from_bytes(path: PathBuf, bytes: Vec<u8>) -> Result<Self> {
+        Self::from_image(path, FileImage::Owned(bytes))
+    }
+
+    /// Parse a [`FileImage`] (mmap or owned).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::BufferTooSmall`] if the image is shorter than the
+    /// superblock, decode errors from the superblock/catalog/index/link table,
+    /// or [`TesError::OutOfBounds`] if a chunk payload extends past EOF.
+    pub fn from_image(path: PathBuf, bytes: FileImage) -> Result<Self> {
+        if bytes.len() < SUPERBLOCK_LEN {
             return Err(TesError::BufferTooSmall {
                 structure: "SuperblockV0",
                 need: SUPERBLOCK_LEN,
-                got: mmap.len(),
+                got: bytes.len(),
             });
         }
-        let superblock = SuperblockV0::from_bytes(&mmap)?;
+        let superblock = SuperblockV0::from_bytes(&bytes)?;
 
         let catalog = if superblock.catalog.is_present() {
-            let bytes = superblock.catalog.slice(&mmap, "catalog")?;
-            Some(DocumentCatalog::from_bytes(bytes)?)
+            let region = superblock.catalog.slice(&bytes, "catalog")?;
+            Some(DocumentCatalog::from_bytes(region)?)
         } else {
             None
         };
 
-        let index_bytes = superblock.chunk_index.slice(&mmap, "chunk_index")?;
+        let index_bytes = superblock.chunk_index.slice(&bytes, "chunk_index")?;
         let chunks = read_chunk_index(index_bytes)?;
-        let link_bytes = superblock.link_table.slice(&mmap, "link_table")?;
+        let link_bytes = superblock.link_table.slice(&bytes, "link_table")?;
         let links = read_link_table(link_bytes)?;
 
         // Light payload-bound check (full verify lands in THI-6).
         let usable_len =
-            crate::catalog::history::usable_file_len(&mmap, superblock.has_history_footer());
+            crate::catalog::history::usable_file_len(&bytes, superblock.has_history_footer());
         for entry in &chunks {
             let end = entry
                 .payload_offset
@@ -88,7 +133,7 @@ impl TesFile {
 
         Ok(Self {
             path,
-            mmap,
+            bytes,
             superblock,
             catalog,
             chunks,
@@ -102,10 +147,10 @@ impl TesFile {
         &self.path
     }
 
-    /// Mapped file length in bytes.
+    /// File length in bytes.
     #[must_use]
     pub fn file_len(&self) -> u64 {
-        self.mmap.len() as u64
+        self.bytes.len() as u64
     }
 
     /// Parsed superblock.
@@ -130,14 +175,14 @@ impl TesFile {
         if !self.superblock.has_history_footer() {
             return Ok(None);
         }
-        let suffix = crate::catalog::history::footer_suffix_len(&self.mmap).ok_or_else(|| {
+        let suffix = crate::catalog::history::footer_suffix_len(&self.bytes).ok_or_else(|| {
             TesError::InvalidHistory {
                 message: "HISTORY_FOOTER flag set but THST trailer missing".into(),
             }
         })?;
-        let start = self.mmap.len() - suffix;
+        let start = self.bytes.len() - suffix;
         Ok(Some(crate::catalog::history::decode_footer(
-            &self.mmap[start..],
+            &self.bytes[start..],
         )?))
     }
 
@@ -153,10 +198,10 @@ impl TesFile {
         &self.links
     }
 
-    /// Raw mmap bytes.
+    /// Raw file bytes (mmap view or owned buffer).
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
-        &self.mmap
+        &self.bytes
     }
 
     /// Stored payload bytes for an index entry (no codec decode).
@@ -164,10 +209,10 @@ impl TesFile {
     /// # Errors
     ///
     /// Returns [`TesError::OutOfBounds`] if the entry's payload region extends
-    /// past the mapped file length.
+    /// past the file length.
     pub fn payload_bytes(&self, entry: &ChunkIndexEntry) -> Result<&[u8]> {
         let usable_len = crate::catalog::history::usable_file_len(
-            &self.mmap,
+            &self.bytes,
             self.superblock.has_history_footer(),
         );
         let end = entry
@@ -187,7 +232,7 @@ impl TesFile {
                 file_len: usable_len,
             });
         }
-        Ok(&self.mmap[entry.payload_offset as usize..end as usize])
+        Ok(&self.bytes[entry.payload_offset as usize..end as usize])
     }
 
     /// Decode a payload to its raw (uncompressed) bytes.
@@ -263,5 +308,18 @@ mod tests {
         assert_eq!(file.chunks()[0].chunk_id, 1);
         let payload = file.payload_bytes(&file.chunks()[0]).unwrap();
         assert!(!payload.is_empty());
+    }
+
+    #[test]
+    fn open_buffered_matches_mmap() {
+        let path = fixture("note_one_chunk.tes");
+        let mapped = TesFile::open(&path).unwrap();
+        let buffered = TesFile::open_buffered(&path).unwrap();
+        assert_eq!(mapped.as_bytes(), buffered.as_bytes());
+        assert_eq!(
+            mapped.catalog().map(|c| c.title.as_str()),
+            buffered.catalog().map(|c| c.title.as_str())
+        );
+        assert_eq!(mapped.chunks().len(), buffered.chunks().len());
     }
 }

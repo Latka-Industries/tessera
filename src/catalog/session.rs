@@ -360,7 +360,7 @@ impl TesWriterSession {
             (Region::NONE, Vec::new(), Vec::new())
         } else {
             let header = ChunkIndexHeader::new(self.chunks.len() as u64);
-            let index_len = header.region_len();
+            let index_len = header.region_len().expect("entry_count fits in region_len");
             let index_offset = align8(cursor);
             cursor = index_offset + index_len;
 

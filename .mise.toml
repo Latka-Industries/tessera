@@ -35,6 +35,45 @@ description = "Stdio smoke for tes-lsp (handshake, open, change, diagnostics)"
 depends = ["tes-lsp"]
 run = "uv run scripts/lsp_smoke.py"
 
+[tasks.fuzz-build]
+description = "Build cargo-fuzz verify_bytes target (THI-296; needs nightly)"
+run = "cargo +nightly fuzz build verify_bytes"
+
+[tasks.fuzz]
+description = "Run cargo-fuzz verify_bytes (THI-296; needs nightly)"
+run = "cargo +nightly fuzz run verify_bytes"
+
+[tasks.fuzz-clean]
+description = "Remove mutated fuzz corpus + crash artifacts; keep *.tes seeds"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$root"
+removed=0
+if [[ -d fuzz/corpus ]]; then
+  while IFS= read -r -d '' f; do
+    rm -f "$f"
+    removed=$((removed + 1))
+  done < <(find fuzz/corpus -type f ! -name '*.tes' -print0 2>/dev/null)
+fi
+rm -rf fuzz/artifacts
+echo "fuzz-clean: removed $removed mutated corpus file(s); artifacts wiped; *.tes seeds kept"
+"""
+
+[tasks.fuzz-reseed]
+description = "Refresh fuzz corpus *.tes seeds from conformance fixtures"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$root"
+mkdir -p fuzz/corpus/verify_bytes
+cp fixtures/conformance/accept/*.tes fuzz/corpus/verify_bytes/
+cp fixtures/conformance/reject/*.tes fuzz/corpus/verify_bytes/
+echo "fuzz-reseed: $(ls fuzz/corpus/verify_bytes/*.tes | wc -l) seed(s) in fuzz/corpus/verify_bytes/"
+"""
+
 # Project override of the global `check` task: same fmt/clippy/test, plus LSP smokes.
 [tasks.check]
 description = "fmt + clippy (-D warnings) + test + lsp-smoke"
@@ -44,5 +83,4 @@ set -euo pipefail
 cargo fmt --all
 cargo clippy -- -D warnings
 cargo test
-mise run lsp-smoke
 """

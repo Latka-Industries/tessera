@@ -28,6 +28,9 @@ pub(super) enum Commands {
         /// One line: title\tchunks=N\tbytes=M
         #[arg(short, long)]
         quiet: bool,
+        /// Read the whole file into memory instead of mmap (safer on NFS / untrusted paths)
+        #[arg(long)]
+        copy: bool,
     },
 
     /// Validate on-disk layout (exit 1 on failure)
@@ -44,6 +47,9 @@ pub(super) enum Commands {
         /// One line per file: status=ok or status=failed
         #[arg(short, long)]
         quiet: bool,
+        /// Read the whole file into memory instead of mmap (safer on NFS / untrusted paths)
+        #[arg(long)]
+        copy: bool,
     },
 
     /// Salvage damaged .tes containers (plan by default; never invents content)

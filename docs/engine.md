@@ -109,8 +109,11 @@ Crate-root aliases keep `tessera_doc::{export,import,bib,pdf,preview,template}` 
 
 ```mermaid
 flowchart LR
-    P["path.tes"] --> M["layout::open_mmap"]
-    M --> S["parse SuperblockV0"]
+    P["path.tes"] --> M{"OpenMode"}
+    M -->|Mmap| MM["layout::open_mmap"]
+    M -->|Copy| CP["layout::open_owned"]
+    MM --> S["parse SuperblockV0"]
+    CP --> S
     S --> C["catalog: JSON + TIDX + TLNK"]
     C --> I["index row → payload_offset"]
     I --> SL["slice payload bytes"]
@@ -119,15 +122,34 @@ flowchart LR
 
 **Steps (library):**
 
-1. **`layout::open_mmap`** — read-only map; file length for bounds.
+1. **`layout::open_image`** — mmap (`OpenMode::Mmap`, default) or
+   `fs::read` (`OpenMode::Copy`) into a [`FileImage`](../src/layout.rs).
 2. **`layout::read_superblock_v0`** — validate `TESS`, version `0`, offsets.
 3. **`catalog::read_catalog`** — optional JSON blob → `DocumentCatalog`.
 4. **`catalog::read_index`** — parse `TIDX` header + fixed entries.
 5. **`catalog::read_link_table`** — optional `TLNK` entries.
-6. **Payload access** — `mmap[off..off+len]`; zstd decode if `codec = 1`.
+6. **Payload access** — `bytes[off..off+len]`; zstd decode if `codec = 1`.
 7. **Consumers** — `tes info` summarizes; `io::export` decodes text headers + bodies.
 
+Use **`TesFile::open_buffered`** / `--copy` for untrusted or network-backed
+paths (see [security.md](security.md)).
+
 Reads do **not** re-parse Markdown or HTML. Canonical text is already in chunk bodies.
+
+### Fuzzing
+
+`verify_bytes` is the fuzz entry point (in-memory; no mmap):
+
+```bash
+cargo install cargo-fuzz
+rustup component add rust-src --toolchain nightly
+mise fuzz              # or: cargo +nightly fuzz run verify_bytes
+```
+
+Needs **nightly** (`-Zsanitizer=address`). Corpus seeds live under
+`fuzz/corpus/verify_bytes/` (`mise fuzz-reseed` from conformance fixtures).
+Mutated corpus + crash artifacts are gitignored; `mise fuzz-clean` wipes them.
+Optional CI smoke: `mise fuzz-build`.
 
 ---
 

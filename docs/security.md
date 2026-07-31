@@ -71,6 +71,28 @@ content disabled and do not blindly export/open attachments.
 
 Layout v0 readers may `mmap` sealed files for partial chunk reads. A truncated
 or replaced file underneath the map (common on some network mounts) can raise
-`SIGBUS` even when sealed-single-writer semantics mitigate local races. Prefer
-copy- or `read`-into-memory paths for adversarial, untrusted, or remote-backed
-inputs; document host expectations when embedding the library.
+`SIGBUS` even when sealed-single-writer semantics mitigate local races.
+
+**Prefer copy / read-into-memory for adversarial, untrusted, or remote-backed
+inputs:**
+
+| Surface | mmap (default) | copy |
+| --- | --- | --- |
+| Library | `TesFile::open` / `verify_tes_file` | `TesFile::open_buffered` / `open_with(..., OpenMode::Copy)` / `verify_tes_file_with(..., OpenMode::Copy)` |
+| CLI | `tes info` / `tes verify` | add `--copy` |
+
+Embedders that download `.tes` bytes into a `Vec<u8>` should use
+`TesFile::from_bytes` and never mmap a shared network path when truncation is
+possible.
+
+## Release panic strategy
+
+`[profile.release]` uses `panic = "unwind"` so library hosts can `catch_unwind`
+around parse of untrusted bytes. Ship CLI binaries with abort via:
+
+```bash
+cargo build --profile release-cli --bins
+```
+
+Dependents of `tessera-doc` already control panic strategy in *their* release
+profile; this package’s default matches library-friendly embeds.

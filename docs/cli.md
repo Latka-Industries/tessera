@@ -50,6 +50,7 @@ Summarize a `.tes` file without full payload decode.
 | _(default)_     | Human table: title, `doc_kind`, chunk counts by type, modified     |
 | `--json`        | Full JSON: superblock, catalog, index rows (no bodies), link table |
 | `-q`, `--quiet` | One line: `title\tchunks=N\tbytes=M`                               |
+| `--copy`        | Read whole file into memory (no mmap; safer on NFS / untrusted)   |
 
 **Example:**
 
@@ -68,6 +69,7 @@ Validate on-disk layout per [layout_v0.md](layout_v0.md).
 | --------------- | -------------------------------------------- |
 | _(default)_     | Human-readable checklist + summary           |
 | `--deep`        | Decode every payload (zstd + UTF-8 validate) |
+| `--copy`        | Read whole file into memory (no mmap)        |
 | `--json`        | Machine-readable report                      |
 | `-q`, `--quiet` | One line: `status=ok` or `status=failed`     |
 
@@ -519,8 +521,8 @@ Every CLI command maps to a library entry point. The `tes` binary only calls
 
 | CLI                                                                                                          | Library                                                                                             |
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `tes info`                                                                                                   | `tessera_doc::catalog::read_summary_v0`                                                             |
-| `tes verify`                                                                                                 | `tessera_doc::verify::verify_tes_file`                                                              |
+| `tes info`                                                                                                   | `tessera_doc::catalog::read_summary_v0` / `read_summary_v0_with`                                    |
+| `tes verify`                                                                                                 | `tessera_doc::verify::verify_tes_file` / `verify_tes_file_with`                                     |
 | `tes repair`                                                                                                 | `tessera_doc::repair::repair_tes_file`                                                              |
 | `tes export`                                                                                                 | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
 | `tes import`                                                                                                 | `tessera_doc::io::import::*` / `io::bib::import_bibliography`                                       |

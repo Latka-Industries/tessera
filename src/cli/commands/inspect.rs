@@ -3,18 +3,30 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use crate::catalog::{format_info_human, format_info_json, format_info_quiet, read_summary_v0};
+use crate::catalog::{
+    format_info_human, format_info_json, format_info_quiet, read_summary_v0_with,
+};
 use crate::error::TesError;
+use crate::layout::OpenMode;
 use crate::repair::{RepairOptions, format_repair_json, format_repair_text, repair_tes_file};
 use crate::verify::{
-    format_verify_human, format_verify_json, format_verify_quiet, verify_tes_file,
+    format_verify_human, format_verify_json, format_verify_quiet, verify_tes_file_with,
 };
 
 use super::super::args::RepairArgs;
 use super::super::util::{exit_for, print_out};
 
-pub(in crate::cli) fn run_info(path: &PathBuf, json: bool, quiet: bool) -> Result<(), TesError> {
-    let report = read_summary_v0(path)?;
+fn open_mode(copy: bool) -> OpenMode {
+    if copy { OpenMode::Copy } else { OpenMode::Mmap }
+}
+
+pub(in crate::cli) fn run_info(
+    path: &PathBuf,
+    json: bool,
+    quiet: bool,
+    copy: bool,
+) -> Result<(), TesError> {
+    let report = read_summary_v0_with(path, open_mode(copy))?;
     let out = if json {
         format_info_json(&report)?
     } else if quiet {
@@ -31,10 +43,12 @@ pub(in crate::cli) fn run_verify(
     deep: bool,
     json: bool,
     quiet: bool,
+    copy: bool,
 ) -> ExitCode {
     let mut failed = false;
+    let mode = open_mode(copy);
     for path in paths {
-        match verify_tes_file(path, deep) {
+        match verify_tes_file_with(path, deep, mode) {
             Ok(report) => {
                 if !report.ok {
                     failed = true;

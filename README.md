@@ -24,11 +24,16 @@
 ## Quick start
 
 ```bash
+# Library-friendly release (panic = unwind)
 cargo build --release
+# CLI shipping with panic = abort
+cargo build --profile release-cli --bins
 alias tes="$PWD/target/release/tes"
+# or: alias tes="$PWD/target/release-cli/tes"
 
 tes info fixtures/v0/note_one_chunk.tes
 tes verify --deep fixtures/v0/*.tes
+tes verify --copy --deep /mnt/nfs/untrusted.tes
 tes export fixtures/v0/note_one_chunk.tes --markdown
 tes serve fixtures/v0/note_one_chunk.tes --template-root templates
 tes export fixtures/v0/note_one_chunk.tes --pdf -o /tmp/note.pdf --template-root templates

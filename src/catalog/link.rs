@@ -27,6 +27,15 @@ pub const URI_MAX_BYTES: usize = 8 * 1024;
 /// Soft upper bound on aggregate URI heap size.
 pub const URI_HEAP_MAX_BYTES: usize = 256 * 1024;
 
+/// Header + `count` fixed rows, or `None` if the size overflows `u64`.
+#[must_use]
+pub const fn rows_region_len(count: u64) -> Option<u64> {
+    match count.checked_mul(ENTRY_LEN as u64) {
+        Some(rows) => (HEADER_LEN as u64).checked_add(rows),
+        None => None,
+    }
+}
+
 const ALLOWED_SCHEMES: &[&str] = &["http", "https", "mailto"];
 
 /// Pending outbound link discovered during Markdown/HTML/Tessprek parse.
@@ -466,22 +475,36 @@ pub fn read_link_table(bytes: &[u8]) -> Result<Vec<LinkEntry>> {
 
     match version {
         TABLE_VERSION_V0 => {
-            let expected = HEADER_LEN as u64 + count * ENTRY_LEN as u64;
+            let Some(expected) = rows_region_len(count) else {
+                return Err(TesError::LinkTableLengthMismatch {
+                    expected: 0,
+                    got: bytes.len() as u64,
+                });
+            };
             if bytes.len() as u64 != expected {
                 return Err(TesError::LinkTableLengthMismatch {
                     expected,
                     got: bytes.len() as u64,
                 });
             }
-            let mut entries = Vec::with_capacity(count as usize);
-            for i in 0..count as usize {
+            let n = usize::try_from(count).map_err(|_| TesError::LinkTableLengthMismatch {
+                expected,
+                got: bytes.len() as u64,
+            })?;
+            let mut entries = Vec::with_capacity(n);
+            for i in 0..n {
                 let start = HEADER_LEN + i * ENTRY_LEN;
                 entries.push(decode_row_v0(&bytes[start..start + ENTRY_LEN])?);
             }
             Ok(entries)
         }
         TABLE_VERSION_V1 => {
-            let rows_end = HEADER_LEN as u64 + count * ENTRY_LEN as u64;
+            let Some(rows_end) = rows_region_len(count) else {
+                return Err(TesError::LinkTableLengthMismatch {
+                    expected: 0,
+                    got: bytes.len() as u64,
+                });
+            };
             if (bytes.len() as u64) < rows_end {
                 return Err(TesError::LinkTableLengthMismatch {
                     expected: rows_end,
@@ -494,8 +517,12 @@ pub fn read_link_table(bytes: &[u8]) -> Result<Vec<LinkEntry>> {
                     message: format!("URI heap {} bytes exceeds {URI_HEAP_MAX_BYTES}", heap.len()),
                 });
             }
-            let mut entries = Vec::with_capacity(count as usize);
-            for i in 0..count as usize {
+            let n = usize::try_from(count).map_err(|_| TesError::LinkTableLengthMismatch {
+                expected: rows_end,
+                got: bytes.len() as u64,
+            })?;
+            let mut entries = Vec::with_capacity(n);
+            for i in 0..n {
                 let start = HEADER_LEN + i * ENTRY_LEN;
                 entries.push(decode_row_v1(&bytes[start..start + ENTRY_LEN], heap)?);
             }
@@ -628,6 +655,27 @@ mod tests {
         assert!(matches!(
             LinkEntry::external(1, 0, 1, "javascript:alert(1)", LinkKind::Wiki),
             Err(TesError::InvalidLink { .. })
+        ));
+    }
+
+    #[test]
+    fn rows_region_len_overflow_is_none() {
+        assert!(rows_region_len(u64::MAX / 8).is_none());
+        assert_eq!(rows_region_len(0), Some(HEADER_LEN as u64));
+        assert_eq!(rows_region_len(1), Some((HEADER_LEN + ENTRY_LEN) as u64));
+    }
+
+    #[test]
+    fn read_link_table_survives_count_mul_overflow() {
+        let mut bytes = vec![0u8; HEADER_LEN];
+        bytes[0..4].copy_from_slice(&MAGIC);
+        // version 0
+        bytes[4..8].copy_from_slice(&0u32.to_le_bytes());
+        // huge entry count
+        bytes[8..16].copy_from_slice(&(u64::MAX / 8).to_le_bytes());
+        assert!(matches!(
+            read_link_table(&bytes),
+            Err(TesError::LinkTableLengthMismatch { expected: 0, .. })
         ));
     }
 }

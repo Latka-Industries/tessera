@@ -5,7 +5,7 @@
 //!
 //! ## Module map
 //!
-//! - [`layout`] — fixed 64-byte superblock (`TESS`) and mmap open.
+//! - [`layout`] — fixed 64-byte superblock (`TESS`), mmap / copy open.
 //! - [`catalog`] — document model: index, session writer, payloads, `THST` wire.
 //! - [`verify`] — layout health findings for `tes verify`.
 //! - [`repair`] — salvage damaged containers for `tes repair` (complements verify).
@@ -23,6 +23,10 @@
 //!
 //! Wire helpers (`LeReader` / `align8` / codecs) come from
 //! [`argus`](https://crates.io/crates/argus-chunk).
+
+#![deny(unsafe_code)]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 pub mod catalog;
 pub mod cli;
@@ -77,7 +81,7 @@ pub mod prelude {
         import_html_v0, import_markdown_v0, parse_front_matter, resolve_import_doc_id,
         rewrite_wikilinks, visit_wikilinks,
     };
-    pub use crate::layout::{DocKind, Region, SuperblockV0};
+    pub use crate::layout::{DocKind, OpenMode, Region, SuperblockV0};
     pub use crate::render::pdf::{PdfExportOptions, export_pdf, render_themed_html};
     pub use crate::render::preview::{ServeOptions, preview_html_for_path, serve_preview};
     pub use crate::render::template::{TemplateManifest, TemplatePack};
@@ -87,5 +91,5 @@ pub mod prelude {
         import_markdown_vault, list_vault_documents, rebuild_vault_index, register_member,
         unregister_member,
     };
-    pub use crate::verify::{TesVerifyReport, verify_tes_file};
+    pub use crate::verify::{TesVerifyReport, verify_tes_file, verify_tes_file_with};
 }

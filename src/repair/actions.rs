@@ -235,18 +235,35 @@ fn read_index_entries(bytes: &[u8], sb: &SuperblockV0) -> (Vec<ChunkIndexEntry>,
         Ok(h) => h,
         Err(err) => return (Vec::new(), Some(err.to_string())),
     };
-    if header.region_len() != region.len() as u64 {
+    let Some(expected) = header.region_len() else {
         return (
             Vec::new(),
             Some(format!(
-                "index length mismatch (header {}, region {})",
-                header.region_len(),
+                "entry_count {} × index entry overflows u64",
+                header.entry_count
+            )),
+        );
+    };
+    if expected != region.len() as u64 {
+        return (
+            Vec::new(),
+            Some(format!(
+                "index length mismatch (header {expected}, region {})",
                 region.len()
             )),
         );
     }
-    let mut entries = Vec::with_capacity(header.entry_count as usize);
-    for i in 0..header.entry_count as usize {
+    let Ok(count) = usize::try_from(header.entry_count) else {
+        return (
+            Vec::new(),
+            Some(format!(
+                "entry_count {} does not fit usize",
+                header.entry_count
+            )),
+        );
+    };
+    let mut entries = Vec::with_capacity(count);
+    for i in 0..count {
         let start = HEADER_LEN + i * ENTRY_LEN;
         match ChunkIndexEntry::from_bytes(&region[start..]) {
             Ok(entry) => entries.push(entry),

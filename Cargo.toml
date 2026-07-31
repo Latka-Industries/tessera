@@ -63,8 +63,15 @@ uuid = { version = "1.24.0", features = ["v4", "v5"] }
 name = "open_format"
 harness = false
 
+# Default release uses unwind so embedders can catch_unwind on malformed files
+# (THI-297). Ship the `tes` / `tes-lsp` CLIs with abort via:
+#   cargo build --profile release-cli --bins
 [profile.release]
 codegen-units = 1
 lto = true
-panic = "abort"
+panic = "unwind"
 strip = true
+
+[profile.release-cli]
+inherits = "release"
+panic = "abort"

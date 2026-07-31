@@ -11,7 +11,7 @@
 mod checks;
 mod report;
 
-pub use checks::{verify_bytes, verify_tes_file};
+pub use checks::{verify_bytes, verify_tes_file, verify_tes_file_with};
 pub use report::{
     Finding, Severity, TesVerifyReport, format_verify_human, format_verify_json,
     format_verify_quiet,

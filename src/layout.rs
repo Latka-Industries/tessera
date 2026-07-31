@@ -2,13 +2,51 @@
 //!
 //! Wire spec: `docs/layout_v0.md` — *Superblock v0 (64 bytes)*.
 
-use std::fs::File;
+use std::fs::{self, File};
+use std::ops::Deref;
 use std::path::Path;
 
 use memmap2::Mmap;
 
 use crate::error::{Result, TesError};
 use argus::{LeReader, LeWriter};
+
+/// How to load a `.tes` file from a path into memory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OpenMode {
+    /// Read-only `mmap` (default). Fast partial reads; can `SIGBUS` if the file
+    /// is truncated underneath the map (network mounts / adversarial inputs).
+    #[default]
+    Mmap,
+    /// `fs::read` into an owned buffer — prefer for untrusted or remote-backed paths.
+    Copy,
+}
+
+/// Owned or mapped file bytes used by [`crate::catalog::TesFile`].
+#[derive(Debug)]
+pub enum FileImage {
+    /// Read-only memory map.
+    Map(Mmap),
+    /// Fully buffered copy of the file.
+    Owned(Vec<u8>),
+}
+
+impl AsRef<[u8]> for FileImage {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            Self::Map(map) => map,
+            Self::Owned(bytes) => bytes.as_slice(),
+        }
+    }
+}
+
+impl Deref for FileImage {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
 
 /// Magic tag at bytes `0..4` of every `.tes` file.
 pub const MAGIC: [u8; 4] = *b"TESS";
@@ -125,22 +163,47 @@ impl Region {
     }
 
     /// Exclusive end offset (`offset + length`).
+    ///
+    /// Returns `None` if the sum overflows `u64` (malicious / corrupt headers).
+    #[must_use]
+    pub const fn checked_end(self) -> Option<u64> {
+        self.offset.checked_add(self.length)
+    }
+
+    /// Exclusive end offset (`offset + length`) for trusted regions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `offset + length` overflows. Prefer [`Self::checked_end`] or
+    /// [`Self::slice`] for untrusted input.
     #[must_use]
     pub const fn end(self) -> u64 {
-        self.offset + self.length
+        match self.checked_end() {
+            Some(end) => end,
+            None => panic!("region offset + length overflows u64"),
+        }
     }
 
     /// Slice `bytes` for this region, checking bounds against `file_len`.
     ///
     /// # Errors
     ///
-    /// Returns [`TesError::OutOfBounds`] if the region extends past `bytes`.
+    /// Returns [`TesError::OutOfBounds`] if the region extends past `bytes` or
+    /// if `offset + length` overflows `u64`.
     pub fn slice<'a>(self, bytes: &'a [u8], structure: &'static str) -> Result<&'a [u8]> {
         let file_len = bytes.len() as u64;
         if !self.is_present() {
             return Ok(&[]);
         }
-        if self.end() > file_len {
+        let Some(end) = self.checked_end() else {
+            return Err(TesError::OutOfBounds {
+                structure,
+                offset: self.offset,
+                length: self.length,
+                file_len,
+            });
+        };
+        if end > file_len {
             return Err(TesError::OutOfBounds {
                 structure,
                 offset: self.offset,
@@ -149,19 +212,48 @@ impl Region {
             });
         }
         let start = self.offset as usize;
-        let end = self.end() as usize;
+        let end = end as usize;
         Ok(&bytes[start..end])
     }
 }
 
 /// Memory-map an existing `.tes` file for read-only access.
 ///
+/// Prefer [`open_image`] with [`OpenMode::Copy`] for untrusted or network-backed
+/// paths (see `docs/security.md`).
+///
 /// # Errors
 ///
 /// Returns [`TesError::Io`] if the file cannot be opened or mapped.
+#[allow(unsafe_code)] // sole intentional unsafe: memmap2::Mmap::map
 pub fn open_mmap(path: &Path) -> Result<Mmap> {
     let file = File::open(path)?;
+    // SAFETY: `Mmap::map` creates a read-only mapping of `file`. The returned
+    // `Mmap` owns the mapping for its lifetime; callers must not assume the
+    // underlying file is immutable (truncation under the map may SIGBUS —
+    // use [`OpenMode::Copy`] when that matters).
     Ok(unsafe { Mmap::map(&file)? })
+}
+
+/// Read an existing `.tes` file fully into memory (no mmap).
+///
+/// # Errors
+///
+/// Returns [`TesError::Io`] if the file cannot be read.
+pub fn open_owned(path: &Path) -> Result<Vec<u8>> {
+    Ok(fs::read(path)?)
+}
+
+/// Load a `.tes` file as a [`FileImage`] using `mode`.
+///
+/// # Errors
+///
+/// Returns [`TesError::Io`] if the file cannot be opened, mapped, or read.
+pub fn open_image(path: &Path, mode: OpenMode) -> Result<FileImage> {
+    match mode {
+        OpenMode::Mmap => Ok(FileImage::Map(open_mmap(path)?)),
+        OpenMode::Copy => Ok(FileImage::Owned(open_owned(path)?)),
+    }
 }
 
 /// The fixed 64-byte header at offset 0 of a `.tes` file.
@@ -370,5 +462,37 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn region_checked_end_detects_overflow() {
+        let region = Region::new(u64::MAX - 8, 16);
+        assert!(region.checked_end().is_none());
+        let bytes = [0u8; 64];
+        assert!(matches!(
+            region.slice(&bytes, "chunk_index"),
+            Err(TesError::OutOfBounds {
+                structure: "chunk_index",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn verify_bytes_survives_region_overflow_fuzz_crash() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fuzz/artifacts/verify_bytes/crash-bdfb93e40b51f737c4eb11068babe8d4bff40dd4");
+        if !path.is_file() {
+            return;
+        }
+        let bytes = std::fs::read(&path).unwrap();
+        let report = crate::verify::verify_bytes(&path, &bytes, true);
+        assert!(!report.ok);
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.message.contains("overflow") || f.check.contains("bounds"))
+        );
     }
 }

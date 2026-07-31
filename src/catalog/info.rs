@@ -181,7 +181,19 @@ pub fn info_report(file: &TesFile) -> TesInfoReport {
 ///
 /// Returns errors from [`TesFile::open`].
 pub fn read_summary_v0(path: impl AsRef<Path>) -> Result<TesInfoReport> {
-    let file = TesFile::open(path.as_ref())?;
+    read_summary_v0_with(path, crate::layout::OpenMode::Mmap)
+}
+
+/// Open `path` with [`crate::layout::OpenMode`] and return an info report.
+///
+/// # Errors
+///
+/// Returns errors from [`TesFile::open_with`].
+pub fn read_summary_v0_with(
+    path: impl AsRef<Path>,
+    mode: crate::layout::OpenMode,
+) -> Result<TesInfoReport> {
+    let file = TesFile::open_with(path.as_ref(), mode)?;
     Ok(info_report(&file))
 }
 

@@ -33,6 +33,7 @@ pub use history::{
 pub use index::{ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec};
 pub use info::{
     TesInfoReport, format_info_human, format_info_json, format_info_quiet, read_summary_v0,
+    read_summary_v0_with,
 };
 pub use link::{LinkEntry, LinkKind, LinkTarget, OutboundLink, validate_external_uri};
 pub use media::{

@@ -34,13 +34,19 @@ use util::result_exit;
 #[must_use]
 pub fn run() -> ExitCode {
     match Cli::parse().command {
-        Commands::Info { path, json, quiet } => result_exit(run_info(&path, json, quiet)),
+        Commands::Info {
+            path,
+            json,
+            quiet,
+            copy,
+        } => result_exit(run_info(&path, json, quiet, copy)),
         Commands::Verify {
             paths,
             deep,
             json,
             quiet,
-        } => run_verify(&paths, deep, json, quiet),
+            copy,
+        } => run_verify(&paths, deep, json, quiet, copy),
         Commands::Repair(args) => run_repair(args),
         Commands::Export(args) => result_exit(run_export(args)),
         Commands::Import(args) => result_exit(run_import(args)),

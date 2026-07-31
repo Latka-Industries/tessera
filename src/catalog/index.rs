@@ -255,9 +255,14 @@ impl ChunkIndexHeader {
     }
 
     /// Total encoded size of the index region: header + all entries.
+    ///
+    /// Returns `None` if `entry_count × ENTRY_LEN + HEADER_LEN` overflows `u64`.
     #[must_use]
-    pub const fn region_len(&self) -> u64 {
-        HEADER_LEN as u64 + self.entry_count * ENTRY_LEN as u64
+    pub const fn region_len(&self) -> Option<u64> {
+        match self.entry_count.checked_mul(ENTRY_LEN as u64) {
+            Some(entries) => (HEADER_LEN as u64).checked_add(entries),
+            None => None,
+        }
     }
 
     /// Encode the header into exactly [`HEADER_LEN`] bytes.
@@ -319,13 +324,20 @@ pub fn read_chunk_index(bytes: &[u8]) -> Result<Vec<ChunkIndexEntry>> {
         return Ok(Vec::new());
     }
     let header = ChunkIndexHeader::from_bytes(bytes)?;
-    let expected = header.region_len();
+    let Some(expected) = header.region_len() else {
+        return Err(TesError::IndexLengthMismatch {
+            expected: 0,
+            got: bytes.len() as u64,
+        });
+    };
     let got = bytes.len() as u64;
     if got != expected {
         return Err(TesError::IndexLengthMismatch { expected, got });
     }
-    let mut entries = Vec::with_capacity(header.entry_count as usize);
-    for i in 0..header.entry_count as usize {
+    let count = usize::try_from(header.entry_count)
+        .map_err(|_| TesError::IndexLengthMismatch { expected, got })?;
+    let mut entries = Vec::with_capacity(count);
+    for i in 0..count {
         let start = HEADER_LEN + i * ENTRY_LEN;
         entries.push(ChunkIndexEntry::from_bytes(&bytes[start..])?);
     }
@@ -377,7 +389,7 @@ mod tests {
     #[test]
     fn header_round_trip_and_region_len() {
         let header = ChunkIndexHeader::new(3);
-        assert_eq!(header.region_len(), 32 + 3 * 48);
+        assert_eq!(header.region_len(), Some(32 + 3 * 48));
         let bytes = header.to_bytes();
         assert_eq!(&bytes[0..4], b"TIDX");
         let decoded = ChunkIndexHeader::from_bytes(&bytes).unwrap();
@@ -386,7 +398,13 @@ mod tests {
 
     #[test]
     fn empty_index_region_len() {
-        assert_eq!(ChunkIndexHeader::new(0).region_len(), 32);
+        assert_eq!(ChunkIndexHeader::new(0).region_len(), Some(32));
+    }
+
+    #[test]
+    fn region_len_overflow_is_none() {
+        let header = ChunkIndexHeader::new(u64::MAX / 8);
+        assert!(header.region_len().is_none());
     }
 
     #[test]
@@ -406,7 +424,7 @@ mod tests {
         for e in &entries {
             region.extend_from_slice(&e.to_bytes());
         }
-        assert_eq!(region.len() as u64, header.region_len());
+        assert_eq!(region.len() as u64, header.region_len().unwrap());
 
         let decoded_header = ChunkIndexHeader::from_bytes(&region).unwrap();
         assert_eq!(decoded_header.entry_count, 2);

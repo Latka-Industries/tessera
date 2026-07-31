@@ -1,6 +1,6 @@
 //! Structural checks over a mapped or in-memory `.tes` image.
 //!
-//! Entry points: [`verify_tes_file`] and [`verify_bytes`].
+//! Entry points: [`verify_tes_file`], [`verify_tes_file_with`], and [`verify_bytes`].
 
 use std::path::Path;
 
@@ -14,7 +14,7 @@ use crate::layout::{self, MAGIC as TESS_MAGIC, Region, SUPERBLOCK_LEN};
 
 use super::report::{Finding, Severity, TesVerifyReport};
 
-/// Verify the `.tes` file at `path`.
+/// Verify the `.tes` file at `path` (mmap open).
 ///
 /// `deep` additionally decodes every payload (codec + UTF-8 validation for text).
 ///
@@ -22,9 +22,24 @@ use super::report::{Finding, Severity, TesVerifyReport};
 ///
 /// Returns [`crate::error::TesError::Io`] if the file cannot be opened or memory-mapped.
 pub fn verify_tes_file(path: impl AsRef<Path>, deep: bool) -> Result<TesVerifyReport> {
+    verify_tes_file_with(path, deep, layout::OpenMode::Mmap)
+}
+
+/// Verify the `.tes` file at `path` using [`layout::OpenMode`].
+///
+/// Prefer [`layout::OpenMode::Copy`] for untrusted or network-backed paths.
+///
+/// # Errors
+///
+/// Returns [`crate::error::TesError::Io`] if the file cannot be opened, mapped, or read.
+pub fn verify_tes_file_with(
+    path: impl AsRef<Path>,
+    deep: bool,
+    mode: layout::OpenMode,
+) -> Result<TesVerifyReport> {
     let path = path.as_ref();
-    let mmap = layout::open_mmap(path)?;
-    Ok(verify_bytes(path, &mmap, deep))
+    let image = layout::open_image(path, mode)?;
+    Ok(verify_bytes(path, &image, deep))
 }
 
 /// Verify an in-memory image of a `.tes` file.
@@ -181,27 +196,44 @@ fn verify_chunk_index_region(
                 match ChunkIndexHeader::from_bytes(region) {
                     Ok(header) => {
                         chunk_count = header.entry_count;
-                        let expected = header.region_len();
-                        if expected == region.len() as u64 {
-                            for i in 0..header.entry_count as usize {
-                                let start = HEADER_LEN + i * ENTRY_LEN;
-                                match ChunkIndexEntry::from_bytes(&region[start..]) {
-                                    Ok(entry) => entries.push(entry),
-                                    Err(err) => findings.push(Finding::error(
-                                        "chunk_index.entry",
-                                        format!("row {i}: {err}"),
-                                    )),
+                        match header.region_len() {
+                            None => findings.push(Finding::error(
+                                "chunk_index.length",
+                                format!(
+                                    "entry_count {} × {ENTRY_LEN} + {HEADER_LEN} overflows u64",
+                                    header.entry_count
+                                ),
+                            )),
+                            Some(expected) if expected == region.len() as u64 => {
+                                let Ok(count) = usize::try_from(header.entry_count) else {
+                                    findings.push(Finding::error(
+                                        "chunk_index.length",
+                                        format!(
+                                            "entry_count {} does not fit usize",
+                                            header.entry_count
+                                        ),
+                                    ));
+                                    return (chunk_count, entries);
+                                };
+                                for i in 0..count {
+                                    let start = HEADER_LEN + i * ENTRY_LEN;
+                                    match ChunkIndexEntry::from_bytes(&region[start..]) {
+                                        Ok(entry) => entries.push(entry),
+                                        Err(err) => findings.push(Finding::error(
+                                            "chunk_index.entry",
+                                            format!("row {i}: {err}"),
+                                        )),
+                                    }
                                 }
                             }
-                        } else {
-                            findings.push(Finding::error(
+                            Some(expected) => findings.push(Finding::error(
                                 "chunk_index.length",
                                 format!(
                                     "header implies {expected} bytes (32 + {}×48), region is {}",
                                     header.entry_count,
                                     region.len()
                                 ),
-                            ));
+                            )),
                         }
                     }
                     Err(err) => {
@@ -371,6 +403,16 @@ fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, p
     }
 }
 
+fn payload_slice<'a>(entry: &ChunkIndexEntry, bytes: &'a [u8]) -> Option<&'a [u8]> {
+    let end = entry.payload_offset.checked_add(entry.stored_byte_len)?;
+    if end > bytes.len() as u64 {
+        return None;
+    }
+    let start = usize::try_from(entry.payload_offset).ok()?;
+    let end = usize::try_from(end).ok()?;
+    Some(&bytes[start..end])
+}
+
 fn verify_cite_mirrors(
     findings: &mut Vec<Finding>,
     entries: &[ChunkIndexEntry],
@@ -398,12 +440,10 @@ fn verify_cite_mirrors(
         if entry.chunk_type != ChunkType::Cite {
             continue;
         }
-        let start = entry.payload_offset as usize;
-        let end = start + entry.stored_byte_len as usize;
-        if end > bytes.len() {
+        let Some(payload) = payload_slice(entry, bytes) else {
             continue;
-        }
-        let Ok(cite) = CitePayload::from_bytes(&bytes[start..end]) else {
+        };
+        let Ok(cite) = CitePayload::from_bytes(payload) else {
             continue;
         };
         let Some(doc_id) = cite.target_doc_id.as_deref() else {
@@ -442,12 +482,10 @@ fn verify_slide_targets(findings: &mut Vec<Finding>, entries: &[ChunkIndexEntry]
         if entry.chunk_type != ChunkType::Slide {
             continue;
         }
-        let start = entry.payload_offset as usize;
-        let end = start + entry.stored_byte_len as usize;
-        if end > bytes.len() {
+        let Some(payload) = payload_slice(entry, bytes) else {
             continue;
-        }
-        let Ok(slide) = SlidePayload::from_bytes(&bytes[start..end]) else {
+        };
+        let Ok(slide) = SlidePayload::from_bytes(payload) else {
             continue;
         };
         for region in &slide.regions {
@@ -497,12 +535,10 @@ fn verify_figure_targets(findings: &mut Vec<Finding>, entries: &[ChunkIndexEntry
         if entry.chunk_type != ChunkType::Figure {
             continue;
         }
-        let start = entry.payload_offset as usize;
-        let end = start + entry.stored_byte_len as usize;
-        if end > bytes.len() {
+        let Some(payload) = payload_slice(entry, bytes) else {
             continue;
-        }
-        let Ok(figure) = FigureRef::from_bytes(&bytes[start..end]) else {
+        };
+        let Ok(figure) = FigureRef::from_bytes(payload) else {
             continue;
         };
         match by_id.get(&figure.image_chunk_id) {
@@ -563,13 +599,11 @@ fn verify_attachment_limits(
 
     let mut aggregate = 0u64;
     for entry in attachment_entries {
-        let start = entry.payload_offset as usize;
-        let end = start.saturating_add(entry.stored_byte_len as usize);
-        if end > bytes.len() {
+        let Some(payload) = payload_slice(entry, bytes) else {
             continue;
-        }
+        };
         let data_len = if deep && entry.codec == Codec::Raw {
-            match AttachmentPayload::from_bytes(&bytes[start..end]) {
+            match AttachmentPayload::from_bytes(payload) {
                 Ok(att) => att.data.len() as u64,
                 Err(_) => entry.raw_byte_len,
             }
@@ -597,7 +631,7 @@ fn check_region_bounds(
     if !region.is_present() {
         return;
     }
-    match region.offset.checked_add(region.length) {
+    match region.checked_end() {
         None => findings.push(Finding::error(
             "region.bounds",
             format!("{name} offset + length overflows u64"),

@@ -5,3 +5,11 @@
 # Vault-local caches (Tantivy FTS under .tessera/fts, etc.)
 .tessera/
 **/.tessera/
+
+# cargo-fuzz: keep *.tes seeds tracked; ignore mutated corpus + build/crash dirs
+fuzz/target/
+fuzz/artifacts/
+fuzz/coverage/
+fuzz/corpus/**/*
+!fuzz/corpus/**/
+!fuzz/corpus/**/*.tes
