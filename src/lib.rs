@@ -8,6 +8,7 @@
 //! - [`layout`] — fixed 64-byte superblock (`TESS`) and mmap open.
 //! - [`catalog`] — document model: index, session writer, payloads, `THST` wire.
 //! - [`verify`] — layout health findings for `tes verify`.
+//! - [`repair`] — salvage damaged containers for `tes repair` (complements verify).
 //! - [`io`] — import / export / bibliography interchange.
 //! - [`edit`] — Tessera Markdown virtual editing (`edit-read` / `edit-write` / `apply`).
 //! - [`history`] — content-addressed drafts (`tes save` / `log` / `diff` / `changelog`).
@@ -33,6 +34,7 @@ pub mod io;
 pub mod layout;
 pub mod lsp;
 pub mod render;
+pub mod repair;
 pub mod vault;
 pub mod verify;
 

@@ -212,15 +212,14 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 **In:**
 
 - `layout`, `catalog` (session, index, catalog JSON, text/media/slide/attachment chunks, THST wire)
-- `verify` (basic + deep)
+- `verify` (basic + deep), `repair` (`tes repair` — THI-225: footer clear + drop OOB chunks)
 - `io::export` (`--raw`, `--linear`, `--ai-text`, `--chunks-jsonl`, Markdown/HTML, bibliography, `--attachment`)
 - `io::import` (Markdown, HTML), `io::bib`
 - `vault`, `render` (serve + PDF; `/media/` images, `/attachment/` downloads), `edit`, `history` (M10: save/log/diff/blame/pending/merge-file/export-revs/checkout/textconv)
-- `cli` + `tes` binary: info, verify, export, import, link, vault, serve, edit-*, format, apply, save/log/diff/changelog/blame/pending/export-revs/checkout/textconv/merge-file
+- `cli` + `tes` binary: info, verify, repair, export, import, link, vault, serve, edit-*, format, apply, save/log/diff/changelog/blame/pending/export-revs/checkout/textconv/merge-file
 
 **Out (later):**
 
-- `repair/` (`tes repair` — THI-225)
 - Aleph, CRDT, page tensors, non-Chromium PDF (THI-256)
 
 ---

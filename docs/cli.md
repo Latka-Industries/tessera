@@ -14,6 +14,7 @@ Related: [layout_v0.md](layout_v0.md),
 | --------------------------------------------------------------------------------------- | ----- | --------------------------------------------- |
 | [`tes info`](#tes-info) `<path.tes>`                                                    | —     | Summarize document (catalog + chunk table)    |
 | [`tes verify`](#tes-verify) `<path.tes>`                                                | —     | Layout health check (exit 1 on failure)       |
+| [`tes repair`](#tes-repair) `<path.tes>`                                                | —     | Salvage damaged containers (plan by default)  |
 | [`tes export`](#tes-export) `<path.tes>`                                                | —     | Decoded views ([exports.md](exports.md))      |
 | [`tes import`](#tes-import) `<in> <out.tes>`                                            | —     | Foreign format → `.tes` (staged rollout)      |
 | [`tes link`](#tes-link)                                                                 | —     | Resolve / inspect links across a vault        |
@@ -24,7 +25,7 @@ Related: [layout_v0.md](layout_v0.md),
 | [`tes apply`](#mutation-protocol)                                                       | —     | Verified Tessera Markdown / typed-op mutation |
 | `tes log\|diff\|changelog\|blame\|pending\|export-revs\|checkout\|textconv\|merge-file` | —     | M10 revision/history tools                    |
 
-v0 ships **`info`**, **`verify`**, **`export`**, **`import`**, **`link`**,
+v0 ships **`info`**, **`verify`**, **`repair`**, **`export`**, **`import`**, **`link`**,
 **`vault`**, **`serve`**, **mutation**, and **history** commands.
 
 ---
@@ -78,7 +79,38 @@ Exit code **1** when verification fails (CI-friendly).
 tes verify manuscript.tes --json
 ```
 
-Future: `tes repair` (Tetration parity) — **not v0**.
+---
+
+## `tes repair`
+
+Salvage damaged `.tes` containers. Complements [`tes verify`](#tes-verify)
+(`--deep`). Verify stays read-only; mutations happen only here. **Never invents
+semantic content** — clears bad history flags or drops out-of-bounds chunks and
+rewrites a sealed body (THST rebuild is out of scope).
+
+```bash
+tes repair damaged.tes                          # plan only
+tes repair damaged.tes --apply-all --dry-run
+tes repair damaged.tes --apply footer_invalid
+tes repair truncated.tes --apply drop_oob_chunks -o fixed.tes
+```
+
+| Flag | Effect |
+| --- | --- |
+| _(default)_ | Plan from verify findings; no writes |
+| `--apply CODE` | Apply one or more codes (`footer_invalid`, `drop_oob_chunks`) |
+| `--apply-all` | Apply every repairable code from the plan |
+| `--dry-run` | Show would-apply messages without writing |
+| `-o`, `--output PATH` | Write repaired bytes here (default: replace input) |
+| `--json` | Machine-readable report |
+
+| Code | Action |
+| --- | --- |
+| `footer_invalid` | Clear `HISTORY_FOOTER` / strip broken `THST` trailer |
+| `drop_oob_chunks` | Drop index rows whose payloads extend past EOF; rewrite sealed body |
+
+Unrepairable findings (bad magic, corrupt catalog, …) are listed as `manual` /
+`unrecoverable` in the report.
 
 ---
 
@@ -489,6 +521,7 @@ Every CLI command maps to a library entry point. The `tes` binary only calls
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
 | `tes info`                                                                                                   | `tessera_doc::catalog::read_summary_v0`                                                             |
 | `tes verify`                                                                                                 | `tessera_doc::verify::verify_tes_file`                                                              |
+| `tes repair`                                                                                                 | `tessera_doc::repair::repair_tes_file`                                                              |
 | `tes export`                                                                                                 | `tessera_doc::io::export::export_view` (also `--pdf` → `render::pdf`, `--bibliography` → `io::bib`) |
 | `tes import`                                                                                                 | `tessera_doc::io::import::*` / `io::bib::import_bibliography`                                       |
 | `tes link` / `tes vault`                                                                                     | `tessera_doc::vault::*`                                                                             |

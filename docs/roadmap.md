@@ -244,7 +244,6 @@ freeze. CRDT/live cursors are not part of M10.
 | Theme | Notes |
 | --- | --- |
 | DOCX import | Office interchange, not canonical |
-| `tes repair` | Tetration parity |
 | CRDT / live collaboration | Post-M10; async review first |
 | Page tensors | Vision `[H,W,C]` export |
 | Aleph GUI | Workspace on top of `.tes`; separate product |
