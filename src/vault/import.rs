@@ -2,7 +2,7 @@
 //!
 //! Pipeline:
 //! 1. Collect `.md` files (skip hidden / `.obsidian` by default)
-//! 2. Plan each note: `doc_id`, title, slug, aliases, category, `doc_kind`
+//! 2. Plan each note: `doc_id`, title, slug, aliases, category, section, `doc_kind`
 //! 3. Resolve slug / `doc_id` collisions within the batch
 //! 4. Build a title → slug → aliases resolve map and rewrite wikilinks
 //! 5. Seal each `.tes`, rebuild `vault.tes`
@@ -61,6 +61,9 @@ pub struct VaultMarkdownImportEntry {
     /// Catalog category when assigned.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+    /// Catalog section (path under category) when assigned.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
     /// Document kind written.
     pub doc_kind: String,
     /// Text chunk count.
@@ -92,7 +95,8 @@ pub struct VaultMarkdownImportReport {
 /// path) via [`crate::catalog::doc_id_from_seed`]. Re-import keeps an existing
 /// catalog `doc_id` (D2). Duplicate `id:` values within the batch clear the later
 /// slug and re-seed that note from its path. Top-level folder becomes `category`;
-/// `* Index.md` becomes [`DocKind::Hub`] when enabled.
+/// remaining parent path becomes `section`; `* Index.md` becomes [`DocKind::Hub`]
+/// when enabled.
 ///
 /// # Errors
 ///
@@ -226,6 +230,7 @@ fn import_planned_notes(
             doc_id_seed: None,
             tags: Vec::new(),
             category: plan.category.clone(),
+            section: plan.section.clone(),
             aliases: Vec::new(),
             slug: plan.slug.clone(),
             slug_override: true,
@@ -252,6 +257,7 @@ fn import_planned_notes(
             title: report.title,
             slug: report.slug,
             category: plan.category.clone(),
+            section: plan.section.clone(),
             doc_kind: plan.doc_kind.as_str().to_owned(),
             chunk_count: report.chunk_count,
         });
@@ -271,6 +277,7 @@ struct PlannedNote {
     slug: Option<String>,
     aliases: Vec<String>,
     category: Option<String>,
+    section: Option<String>,
     doc_kind: DocKind,
 }
 
@@ -302,7 +309,7 @@ fn plan_note(
         })
         .unwrap_or_else(|| "Untitled".to_owned());
 
-    let category = top_level_category(&rel_md);
+    let (category, section) = category_and_section(&rel_md);
     let seed = front.id.clone().unwrap_or_else(|| path_seed(&rel_md));
     let doc_id = existing_or_seeded_doc_id(&abs_tes, &seed);
 
@@ -322,22 +329,32 @@ fn plan_note(
         slug: front.id,
         aliases: front.aliases,
         category,
+        section,
         doc_kind,
     })
 }
 
-/// Top-level folder name, or `None` for vault-root Markdown files.
-fn top_level_category(rel_md: &Path) -> Option<String> {
-    rel_md
+/// Split vault-relative Markdown path into root `category` and nested `section`.
+///
+/// * `Erasure.md` → `(None, None)`
+/// * `Literature/Erasure.md` → `("Literature", None)`
+/// * `Literature/Books/Authors/X.md` → `("Literature", Some("Books/Authors"))`
+fn category_and_section(rel_md: &Path) -> (Option<String>, Option<String>) {
+    let mut dirs: Vec<String> = rel_md
         .components()
-        .next()
-        .and_then(|c| c.as_os_str().to_str())
-        .filter(|s| {
-            !Path::new(s)
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("md"))
+        .filter_map(|c| match c {
+            std::path::Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+            _ => None,
         })
-        .map(str::to_owned)
+        .collect();
+    // Drop the filename; root-level notes have no category/section.
+    if dirs.len() <= 1 {
+        return (None, None);
+    }
+    dirs.pop();
+    let category = dirs.remove(0);
+    let section = (!dirs.is_empty()).then(|| dirs.join("/"));
+    (Some(category), section)
 }
 
 /// Vault-relative path seed for `UUIDv5` (forward slashes).
@@ -417,6 +434,7 @@ fn collect_markdown_files_rec(dir: &Path, skip_hidden: bool, out: &mut Vec<PathB
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vault::index::{INDEX_VERSION, load_vault_index};
     use tempfile::tempdir;
 
     #[test]
@@ -462,7 +480,46 @@ mod tests {
         assert_eq!(cat.tags, vec!["Fiction"]);
         assert_eq!(cat.aliases, vec!["American Fiction"]);
         assert_eq!(cat.category.as_deref(), Some("Literature"));
+        assert!(cat.section.is_none());
         assert!(dst.path().join("vault.tes").is_file());
+    }
+
+    #[test]
+    fn nested_folders_set_section_under_category() {
+        let src = tempdir().unwrap();
+        let dst = tempdir().unwrap();
+        let authors = src.path().join("Literature/Books/Authors");
+        fs::create_dir_all(&authors).unwrap();
+        fs::write(
+            authors.join("DFW.md"),
+            "---\nid: DFW\n---\n# David Foster Wallace\n",
+        )
+        .unwrap();
+
+        let report = import_markdown_vault(
+            src.path(),
+            dst.path(),
+            &VaultMarkdownImportOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(report.imported.len(), 1);
+        let entry = &report.imported[0];
+        assert_eq!(entry.category.as_deref(), Some("Literature"));
+        assert_eq!(entry.section.as_deref(), Some("Books/Authors"));
+
+        let file = TesFile::open(dst.path().join(&entry.output)).unwrap();
+        let cat = file.catalog().unwrap();
+        assert_eq!(cat.category.as_deref(), Some("Literature"));
+        assert_eq!(cat.section.as_deref(), Some("Books/Authors"));
+
+        let index = load_vault_index(dst.path()).unwrap().unwrap();
+        assert_eq!(index.version, INDEX_VERSION);
+        let row = index
+            .entries
+            .iter()
+            .find(|e| e.doc_id == cat.doc_id)
+            .unwrap();
+        assert_eq!(row.section.as_deref(), Some("Books/Authors"));
     }
 
     #[test]
@@ -527,6 +584,22 @@ mod tests {
             .unwrap();
         assert_eq!(author.slug.as_deref(), Some("David Foster Wallace"));
         assert!(book.slug.is_none());
+        assert_eq!(author.category.as_deref(), Some("Literature"));
+        assert_eq!(author.section.as_deref(), Some("Authors"));
+        assert_eq!(book.section.as_deref(), Some("Books"));
         assert!(report.unresolved_wikilinks.is_empty());
+    }
+
+    #[test]
+    fn category_and_section_splits_path() {
+        assert_eq!(category_and_section(Path::new("Erasure.md")), (None, None));
+        assert_eq!(
+            category_and_section(Path::new("Literature/Erasure.md")),
+            (Some("Literature".into()), None)
+        );
+        assert_eq!(
+            category_and_section(Path::new("Literature/Books/Authors/X.md")),
+            (Some("Literature".into()), Some("Books/Authors".into()))
+        );
     }
 }

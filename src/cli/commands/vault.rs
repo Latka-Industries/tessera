@@ -41,6 +41,7 @@ fn run_vault_list(root: &PathBuf, args: &VaultListArgs) -> Result<(), TesError> 
         root,
         args.tag.as_deref(),
         args.category.as_deref(),
+        args.section.as_deref(),
         args.force_scan,
     )?;
     if args.json {
@@ -209,19 +210,22 @@ fn print_list_source(root: &PathBuf, report: &crate::vault::VaultListReport) {
 fn print_list_tsv(entries: &[VaultIndexEntry]) {
     for entry in entries {
         let mut extras = String::new();
-        if let Some(category) = &entry.category {
-            let _ = write!(extras, "\tcategory={category}");
-        }
+        append_tsv_opt(&mut extras, "category", entry.category.as_deref());
+        append_tsv_opt(&mut extras, "section", entry.section.as_deref());
         if !entry.tags.is_empty() {
             let _ = write!(extras, "\ttags={}", entry.tags.join(","));
         }
-        if let Some(slug) = &entry.slug {
-            let _ = write!(extras, "\tslug={slug}");
-        }
+        append_tsv_opt(&mut extras, "slug", entry.slug.as_deref());
         println!(
             "{}\t{}\t{}\t{}{extras}",
             entry.doc_id, entry.title, entry.doc_kind, entry.path
         );
+    }
+}
+
+fn append_tsv_opt(extras: &mut String, key: &str, value: Option<&str>) {
+    if let Some(value) = value {
+        let _ = write!(extras, "\t{key}={value}");
     }
 }
 
@@ -231,8 +235,10 @@ fn print_list_table(entries: &[VaultIndexEntry]) {
         return;
     }
 
-    let headers = ["KIND", "TITLE", "PATH", "CATEGORY", "SLUG", "DOC_ID"];
-    let rows: Vec<[String; 6]> = entries
+    const HEADERS: [&str; 7] = [
+        "KIND", "TITLE", "PATH", "CATEGORY", "SECTION", "SLUG", "DOC_ID",
+    ];
+    let rows: Vec<[String; 7]> = entries
         .iter()
         .map(|e| {
             [
@@ -240,54 +246,39 @@ fn print_list_table(entries: &[VaultIndexEntry]) {
                 e.title.clone(),
                 e.path.clone(),
                 e.category.clone().unwrap_or_default(),
+                e.section.clone().unwrap_or_default(),
                 e.slug.clone().unwrap_or_default(),
                 short_doc_id(&e.doc_id),
             ]
         })
         .collect();
 
-    let mut widths = headers.map(|h| h.chars().count());
+    let mut widths = HEADERS.map(|h| h.chars().count());
     for row in &rows {
         for (i, cell) in row.iter().enumerate() {
             widths[i] = widths[i].max(cell.chars().count());
         }
     }
 
+    println!("{}", format_table_row(HEADERS.map(str::to_owned), &widths));
     println!(
-        "{}  {}  {}  {}  {}  {}",
-        pad(headers[0], widths[0]),
-        pad(headers[1], widths[1]),
-        pad(headers[2], widths[2]),
-        pad(headers[3], widths[3]),
-        pad(headers[4], widths[4]),
-        pad(headers[5], widths[5]),
-    );
-    println!(
-        "{}  {}  {}  {}  {}  {}",
-        "-".repeat(widths[0]),
-        "-".repeat(widths[1]),
-        "-".repeat(widths[2]),
-        "-".repeat(widths[3]),
-        "-".repeat(widths[4]),
-        "-".repeat(widths[5]),
+        "{}",
+        format_table_row(widths.map(|w| "-".repeat(w)), &widths)
     );
     for row in &rows {
-        println!(
-            "{}  {}  {}  {}  {}  {}",
-            pad(&row[0], widths[0]),
-            pad(&row[1], widths[1]),
-            pad(&row[2], widths[2]),
-            pad(&row[3], widths[3]),
-            pad(&row[4], widths[4]),
-            pad(&row[5], widths[5]),
-        );
+        println!("{}", format_table_row(row.clone(), &widths));
     }
+}
+
+fn format_table_row(cells: [String; 7], widths: &[usize; 7]) -> String {
+    cells
+        .iter()
+        .zip(widths.iter())
+        .map(|(cell, width)| format!("{cell:<width$}"))
+        .collect::<Vec<_>>()
+        .join("  ")
 }
 
 fn short_doc_id(doc_id: &str) -> String {
     doc_id.get(..8).unwrap_or(doc_id).to_owned()
-}
-
-fn pad(s: &str, width: usize) -> String {
-    format!("{s:<width$}")
 }
