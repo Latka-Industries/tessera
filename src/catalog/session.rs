@@ -316,9 +316,10 @@ impl TesWriterSession {
     ///
     /// # Errors
     ///
-    /// Returns [`TesError::SessionSealed`] if sealed, or
+    /// Returns [`TesError::SessionSealed`] if sealed,
     /// [`TesError::CatalogTooLarge`] / [`TesError::Json`] when encoding the
-    /// catalog.
+    /// catalog, or [`TesError::IndexLengthMismatch`] if the chunk count would
+    /// overflow the index region size.
     pub fn encode_file(&self) -> Result<Vec<u8>> {
         self.ensure_open()?;
 
@@ -360,7 +361,10 @@ impl TesWriterSession {
             (Region::NONE, Vec::new(), Vec::new())
         } else {
             let header = ChunkIndexHeader::new(self.chunks.len() as u64);
-            let index_len = header.region_len().expect("entry_count fits in region_len");
+            let index_len = header.region_len().ok_or(TesError::IndexLengthMismatch {
+                expected: 0,
+                got: header.entry_count,
+            })?;
             let index_offset = align8(cursor);
             cursor = index_offset + index_len;
 

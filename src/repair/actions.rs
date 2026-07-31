@@ -10,9 +10,9 @@ use crate::catalog::history::footer_suffix_len;
 use crate::catalog::index::{
     ChunkIndexEntry, ChunkIndexHeader, ENTRY_LEN, HEADER_LEN, MAGIC as TIDX_MAGIC,
 };
-use crate::catalog::link::read_link_table;
+use crate::catalog::link::{LinkEntry, read_link_table};
 use crate::error::{Result, TesError};
-use crate::layout::{SUPERBLOCK_LEN, SuperblockV0, flags};
+use crate::layout::{DocKind, SUPERBLOCK_LEN, SuperblockV0, flags};
 
 use super::RepairActionResult;
 
@@ -89,97 +89,33 @@ pub(super) fn apply_drop_oob_chunks(
     also_clear_footer: bool,
 ) -> Result<RepairActionResult> {
     if working.len() < SUPERBLOCK_LEN {
-        return Ok(RepairActionResult {
-            code: "drop_oob_chunks".to_owned(),
-            applied: false,
+        return Ok(drop_oob_skip(
             dry_run,
-            message: "file too short for superblock; cannot salvage chunks".to_owned(),
-        });
+            "file too short for superblock; cannot salvage chunks",
+        ));
     }
 
     let sb = SuperblockV0::from_bytes(working)?;
-    let file_len = working.len() as u64;
-
-    let catalog = if sb.catalog.is_present() {
-        match sb.catalog.slice(working, "catalog") {
-            Ok(slice) => match DocumentCatalog::from_bytes(slice) {
-                Ok(cat) => Some(cat),
-                Err(err) => {
-                    return Ok(RepairActionResult {
-                        code: "drop_oob_chunks".to_owned(),
-                        applied: false,
-                        dry_run,
-                        message: format!("catalog unreadable ({err}); refuse to invent catalog"),
-                    });
-                }
-            },
-            Err(err) => {
-                return Ok(RepairActionResult {
-                    code: "drop_oob_chunks".to_owned(),
-                    applied: false,
-                    dry_run,
-                    message: format!("catalog bounds invalid ({err})"),
-                });
-            }
-        }
-    } else {
-        None
+    let catalog = match load_salvage_catalog(working, &sb, dry_run) {
+        Ok(cat) => cat,
+        Err(result) => return Ok(result),
     };
-
-    let links = if sb.link_table.is_present() {
-        match sb.link_table.slice(working, "link_table") {
-            Ok(region) => read_link_table(region).ok(),
-            Err(_) => None,
-        }
-    } else {
-        Some(Vec::new())
-    };
-
+    let links = load_salvage_links(working, &sb);
     let (entries, index_err) = read_index_entries(working, &sb);
     if let Some(err) = index_err {
-        return Ok(RepairActionResult {
-            code: "drop_oob_chunks".to_owned(),
-            applied: false,
+        return Ok(drop_oob_skip(
             dry_run,
-            message: format!("chunk index unreadable ({err}); cannot salvage"),
-        });
+            format!("chunk index unreadable ({err}); cannot salvage"),
+        ));
     }
 
-    let mut kept = Vec::new();
-    let mut dropped = Vec::new();
-    for entry in &entries {
-        let end = entry.payload_offset.saturating_add(entry.stored_byte_len);
-        if end <= file_len {
-            let start = entry.payload_offset as usize;
-            let stop = end as usize;
-            kept.push((entry, working[start..stop].to_vec()));
-        } else {
-            dropped.push(entry.chunk_id);
-        }
-    }
-
+    let file_len = working.len() as u64;
+    let (kept, dropped) = partition_in_bounds(&entries, working, file_len);
     if dropped.is_empty() && !also_clear_footer && !sb.has_history_footer() {
-        return Ok(RepairActionResult {
-            code: "drop_oob_chunks".to_owned(),
-            applied: false,
-            dry_run,
-            message: "no out-of-bounds chunks to drop".to_owned(),
-        });
+        return Ok(drop_oob_skip(dry_run, "no out-of-bounds chunks to drop"));
     }
 
-    let msg = if dropped.is_empty() {
-        format!(
-            "rewrite {} kept chunk(s), clear history flag (no OOB drops)",
-            kept.len()
-        )
-    } else {
-        format!(
-            "drop chunk id(s) {:?}; rewrite {} kept chunk(s); omit THST",
-            dropped,
-            kept.len()
-        )
-    };
-
+    let msg = drop_oob_message(&kept, &dropped);
     if dry_run {
         return Ok(RepairActionResult {
             code: "drop_oob_chunks".to_owned(),
@@ -189,7 +125,101 @@ pub(super) fn apply_drop_oob_chunks(
         });
     }
 
-    let doc_kind = sb.doc_kind;
+    let bytes = rewrite_salvaged(target, sb.doc_kind, catalog, links, kept)?;
+    write_bytes(target, &bytes)?;
+    *working = bytes;
+    Ok(RepairActionResult {
+        code: "drop_oob_chunks".to_owned(),
+        applied: true,
+        dry_run: false,
+        message: msg,
+    })
+}
+
+fn drop_oob_skip(dry_run: bool, message: impl Into<String>) -> RepairActionResult {
+    RepairActionResult {
+        code: "drop_oob_chunks".to_owned(),
+        applied: false,
+        dry_run,
+        message: message.into(),
+    }
+}
+
+fn load_salvage_catalog(
+    working: &[u8],
+    sb: &SuperblockV0,
+    dry_run: bool,
+) -> std::result::Result<Option<DocumentCatalog>, RepairActionResult> {
+    if !sb.catalog.is_present() {
+        return Ok(None);
+    }
+    match sb.catalog.slice(working, "catalog") {
+        Ok(slice) => match DocumentCatalog::from_bytes(slice) {
+            Ok(cat) => Ok(Some(cat)),
+            Err(err) => Err(drop_oob_skip(
+                dry_run,
+                format!("catalog unreadable ({err}); refuse to invent catalog"),
+            )),
+        },
+        Err(err) => Err(drop_oob_skip(
+            dry_run,
+            format!("catalog bounds invalid ({err})"),
+        )),
+    }
+}
+
+fn load_salvage_links(working: &[u8], sb: &SuperblockV0) -> Option<Vec<LinkEntry>> {
+    if sb.link_table.is_present() {
+        match sb.link_table.slice(working, "link_table") {
+            Ok(region) => read_link_table(region).ok(),
+            Err(_) => None,
+        }
+    } else {
+        Some(Vec::new())
+    }
+}
+
+fn partition_in_bounds<'a>(
+    entries: &'a [ChunkIndexEntry],
+    working: &[u8],
+    file_len: u64,
+) -> (Vec<(&'a ChunkIndexEntry, Vec<u8>)>, Vec<u64>) {
+    let mut kept = Vec::new();
+    let mut dropped = Vec::new();
+    for entry in entries {
+        let end = entry.payload_offset.saturating_add(entry.stored_byte_len);
+        if end <= file_len {
+            let start = entry.payload_offset as usize;
+            let stop = end as usize;
+            kept.push((entry, working[start..stop].to_vec()));
+        } else {
+            dropped.push(entry.chunk_id);
+        }
+    }
+    (kept, dropped)
+}
+
+fn drop_oob_message(kept: &[(&ChunkIndexEntry, Vec<u8>)], dropped: &[u64]) -> String {
+    if dropped.is_empty() {
+        format!(
+            "rewrite {} kept chunk(s), clear history flag (no OOB drops)",
+            kept.len()
+        )
+    } else {
+        format!(
+            "drop chunk id(s) {dropped:?}; rewrite {} kept chunk(s); omit THST",
+            kept.len()
+        )
+    }
+}
+
+fn rewrite_salvaged(
+    target: &Path,
+    doc_kind: DocKind,
+    catalog: Option<DocumentCatalog>,
+    links: Option<Vec<LinkEntry>>,
+    kept: Vec<(&ChunkIndexEntry, Vec<u8>)>,
+) -> Result<Vec<u8>> {
     let mut session = TesWriterSession::create(target, doc_kind);
     if let Some(cat) = catalog {
         session.set_catalog(cat)?;
@@ -202,16 +232,7 @@ pub(super) fn apply_drop_oob_chunks(
     for (entry, payload) in kept {
         let _ = session.add_payload_chunk(entry.chunk_type, entry.chunk_flags, payload)?;
     }
-
-    let bytes = session.encode_file()?;
-    write_bytes(target, &bytes)?;
-    *working = bytes;
-    Ok(RepairActionResult {
-        code: "drop_oob_chunks".to_owned(),
-        applied: true,
-        dry_run: false,
-        message: msg,
-    })
+    session.encode_file()
 }
 
 fn read_index_entries(bytes: &[u8], sb: &SuperblockV0) -> (Vec<ChunkIndexEntry>, Option<String>) {

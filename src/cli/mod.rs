@@ -23,9 +23,9 @@ use clap::Parser;
 
 use args::{Cli, Commands};
 use commands::{
-    run_apply, run_blame, run_changelog, run_checkout, run_diff, run_edit_read, run_edit_write,
-    run_export, run_export_revs, run_format, run_import, run_info, run_link, run_log,
-    run_merge_file, run_pending, run_repair, run_save, run_serve, run_textconv, run_vault,
+    VerifyFlags, run_apply, run_blame, run_changelog, run_checkout, run_diff, run_edit_read,
+    run_edit_write, run_export, run_export_revs, run_format, run_import, run_info, run_link,
+    run_log, run_merge_file, run_pending, run_repair, run_save, run_serve, run_textconv, run_vault,
     run_verify,
 };
 use util::result_exit;
@@ -46,7 +46,15 @@ pub fn run() -> ExitCode {
             json,
             quiet,
             copy,
-        } => run_verify(&paths, deep, json, quiet, copy),
+        } => run_verify(
+            &paths,
+            VerifyFlags {
+                deep,
+                json,
+                quiet,
+                copy,
+            },
+        ),
         Commands::Repair(args) => run_repair(args),
         Commands::Export(args) => result_exit(run_export(args)),
         Commands::Import(args) => result_exit(run_import(args)),

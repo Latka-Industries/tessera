@@ -38,22 +38,26 @@ pub(in crate::cli) fn run_info(
     Ok(())
 }
 
-pub(in crate::cli) fn run_verify(
-    paths: &[PathBuf],
-    deep: bool,
-    json: bool,
-    quiet: bool,
-    copy: bool,
-) -> ExitCode {
+/// Flags for [`run_verify`].
+#[derive(Debug, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
+pub(in crate::cli) struct VerifyFlags {
+    pub deep: bool,
+    pub json: bool,
+    pub quiet: bool,
+    pub copy: bool,
+}
+
+pub(in crate::cli) fn run_verify(paths: &[PathBuf], flags: VerifyFlags) -> ExitCode {
     let mut failed = false;
-    let mode = open_mode(copy);
+    let mode = open_mode(flags.copy);
     for path in paths {
-        match verify_tes_file_with(path, deep, mode) {
+        match verify_tes_file_with(path, flags.deep, mode) {
             Ok(report) => {
                 if !report.ok {
                     failed = true;
                 }
-                let out = if json {
+                let out = if flags.json {
                     match format_verify_json(&report) {
                         Ok(s) => s,
                         Err(err) => {
@@ -61,7 +65,7 @@ pub(in crate::cli) fn run_verify(
                             return ExitCode::from(2);
                         }
                     }
-                } else if quiet {
+                } else if flags.quiet {
                     format!("{}\t{}", path.display(), format_verify_quiet(&report))
                 } else {
                     format_verify_human(&report)
