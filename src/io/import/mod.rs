@@ -1,8 +1,9 @@
 //! Foreign-format importers under [`crate::io`].
 //!
 //! v0 implements the `CommonMark` subset from `docs/decisions.md`: ATX headings,
-//! paragraphs, lists, fenced code, and blockquotes. Inline presentation is
-//! parsed once and flattened into clean canonical text.
+//! paragraphs, lists, fenced code, and blockquotes, plus GFM pipe tables
+//! (`Options::ENABLE_TABLES` → [`TextRole::Table`] + [`TableData`]). Inline
+//! presentation is parsed once and flattened into clean canonical text.
 //!
 //! Obsidian front matter (`id` / tags / aliases), deterministic `doc_id` seeds,
 //! and `[[wikilink]]` rewrite helpers support vault batch import.
@@ -13,14 +14,14 @@ pub mod html;
 
 use std::path::{Path, PathBuf};
 
-use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Alignment, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::catalog::{
-    DocumentCatalog, InlineKind, InlineSpan, ListKind, OutboundLink, TesFile, TesWriterSession,
-    TextHeader, TextRole, doc_id_from_seed,
+    DocumentCatalog, InlineKind, InlineSpan, ListKind, OutboundLink, TableCell, TableData,
+    TableRow, TesFile, TesWriterSession, TextAlign, TextHeader, TextRole, doc_id_from_seed,
 };
 use crate::error::{Result, TesError};
 use crate::layout::DocKind;
@@ -271,11 +272,12 @@ pub fn seal_text_blocks(session: &mut TesWriterSession, blocks: &[MarkdownBlock]
     Ok(())
 }
 
-/// Parse the supported `CommonMark` subset into semantic text blocks.
+/// Parse the supported `CommonMark` subset (plus GFM tables) into semantic text blocks.
 #[must_use]
 pub fn parse_markdown_blocks(markdown: &str) -> Vec<MarkdownBlock> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_MATH);
+    options.insert(Options::ENABLE_TABLES);
     let parser = Parser::new_ext(markdown, options);
     let mut state = ParseState::default();
 
@@ -307,6 +309,19 @@ struct ParseState {
     active: Option<ActiveBlock>,
     list_stack: Vec<ListKind>,
     blockquote_depth: usize,
+    /// Active GFM table builder (`None` outside tables).
+    table: Option<TableBuilder>,
+}
+
+/// Accumulates pulldown-cmark table events into [`TableData`].
+#[derive(Debug, Default)]
+struct TableBuilder {
+    alignments: Vec<Alignment>,
+    rows: Vec<TableRow>,
+    current_row: Vec<TableCell>,
+    current_cell: String,
+    in_head: bool,
+    cell_index: usize,
 }
 
 struct ActiveBlock {
@@ -360,12 +375,39 @@ impl ParseState {
                 self.begin(TextHeader::code_block(lang));
             }
             Tag::Link { dest_url, .. } => {
+                if self.table.is_some() {
+                    // Flatten link text into the current cell; skip TLNK for tables.
+                    return;
+                }
                 if self.active.is_none() {
                     self.begin(TextHeader::paragraph());
                 }
                 if let Some(active) = &mut self.active {
                     let start = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
                     active.link_stack.push((start, dest_url.to_string()));
+                }
+            }
+            Tag::Table(alignments) => {
+                self.finish_active();
+                self.table = Some(TableBuilder {
+                    alignments: alignments.clone(),
+                    ..TableBuilder::default()
+                });
+            }
+            Tag::TableHead => {
+                if let Some(table) = &mut self.table {
+                    table.in_head = true;
+                }
+            }
+            Tag::TableRow => {
+                if let Some(table) = &mut self.table {
+                    table.current_row.clear();
+                    table.cell_index = 0;
+                }
+            }
+            Tag::TableCell => {
+                if let Some(table) = &mut self.table {
+                    table.current_cell.clear();
                 }
             }
             // Other inline tags are intentionally flattened; unsupported block
@@ -406,6 +448,9 @@ impl ParseState {
                 }
             }
             TagEnd::Link => {
+                if self.table.is_some() {
+                    return;
+                }
                 if let Some(active) = &mut self.active
                     && let Some((start, dest)) = active.link_stack.pop()
                 {
@@ -418,6 +463,16 @@ impl ParseState {
                     }
                 }
             }
+            TagEnd::TableCell => self.finish_table_cell(),
+            TagEnd::TableRow => self.finish_table_row(),
+            TagEnd::TableHead => {
+                // Header cells may appear directly under `TableHead` (no `TableRow`).
+                self.finish_table_row();
+                if let Some(table) = &mut self.table {
+                    table.in_head = false;
+                }
+            }
+            TagEnd::Table => self.finish_table(),
             _ => {}
         }
     }
@@ -434,6 +489,9 @@ impl ParseState {
     }
 
     fn push_inline_html(&mut self, html: &str) {
+        if self.table.is_some() {
+            return;
+        }
         let lower = html.trim().to_ascii_lowercase();
         let is_open = lower == "<u>" || lower.starts_with("<u ");
         let is_close = lower == "</u>";
@@ -462,6 +520,10 @@ impl ParseState {
     }
 
     fn push_text(&mut self, text: &str) {
+        if let Some(table) = &mut self.table {
+            table.current_cell.push_str(text);
+            return;
+        }
         if self.active.is_none() && !text.trim().is_empty() {
             self.begin(TextHeader::paragraph());
         }
@@ -471,6 +533,10 @@ impl ParseState {
     }
 
     fn push_inline_math(&mut self, tex: &str) {
+        if self.table.is_some() {
+            self.push_text(tex);
+            return;
+        }
         if self.active.is_none() {
             self.begin(TextHeader::paragraph());
         }
@@ -489,6 +555,10 @@ impl ParseState {
     }
 
     fn push_display_math(&mut self, tex: &str) {
+        if self.table.is_some() {
+            self.push_text(tex);
+            return;
+        }
         self.finish_active();
         self.begin(TextHeader::math());
         self.push_text(tex);
@@ -496,9 +566,61 @@ impl ParseState {
     }
 
     fn push_break(&mut self, hard: bool) {
+        if let Some(table) = &mut self.table {
+            table.current_cell.push(if hard { '\n' } else { ' ' });
+            return;
+        }
         if let Some(active) = &mut self.active {
             active.body.push(if hard { '\n' } else { ' ' });
         }
+    }
+
+    fn finish_table_cell(&mut self) {
+        let Some(table) = &mut self.table else {
+            return;
+        };
+        let align = table
+            .alignments
+            .get(table.cell_index)
+            .copied()
+            .and_then(alignment_to_text_align);
+        table.current_row.push(TableCell {
+            text: table.current_cell.trim().to_owned(),
+            spans: Vec::new(),
+            align,
+            is_header: table.in_head,
+            rowspan: None,
+            colspan: None,
+        });
+        table.current_cell.clear();
+        table.cell_index += 1;
+    }
+
+    fn finish_table_row(&mut self) {
+        let Some(table) = &mut self.table else {
+            return;
+        };
+        if !table.current_row.is_empty() {
+            table.rows.push(TableRow {
+                cells: std::mem::take(&mut table.current_row),
+            });
+        }
+        table.cell_index = 0;
+    }
+
+    fn finish_table(&mut self) {
+        let Some(table) = self.table.take() else {
+            return;
+        };
+        if table.rows.is_empty() {
+            return;
+        }
+        let data = TableData { rows: table.rows };
+        self.blocks.push(MarkdownBlock {
+            header: TextHeader::table(data),
+            body: String::new(),
+            pending_links: Vec::new(),
+        });
     }
 
     fn finish_active(&mut self) {
@@ -560,6 +682,15 @@ impl ParseState {
 
 fn header_for_role(role: TextRole) -> TextHeader {
     TextHeader::with_role(role)
+}
+
+fn alignment_to_text_align(align: Alignment) -> Option<TextAlign> {
+    match align {
+        Alignment::None => None,
+        Alignment::Left => Some(TextAlign::Start),
+        Alignment::Center => Some(TextAlign::Center),
+        Alignment::Right => Some(TextAlign::End),
+    }
 }
 
 fn heading_level(level: HeadingLevel) -> u32 {
@@ -840,6 +971,60 @@ mod tests {
         assert_eq!(blocks[3].header.list_kind, Some(ListKind::Ordered));
         assert_eq!(blocks[5].header.role, TextRole::CodeBlock);
         assert_eq!(blocks[5].body, "let x = 1;");
+    }
+
+    #[test]
+    fn parses_gfm_pipe_table_into_table_data() {
+        let md = concat!(
+            "| Name | Score |\n",
+            "| :--- | ----: |\n",
+            "| Ada | 10 |\n",
+            "| Bob | 7 |\n",
+        );
+        let blocks = parse_markdown_blocks(md);
+        assert_eq!(blocks.len(), 1, "{blocks:?}");
+        assert_eq!(blocks[0].header.role, TextRole::Table);
+        assert!(blocks[0].body.is_empty());
+        let table = blocks[0].header.table.as_ref().expect("TableData");
+        assert_eq!(table.rows.len(), 3);
+        assert!(table.rows[0].cells[0].is_header);
+        assert_eq!(table.rows[0].cells[0].text, "Name");
+        assert_eq!(table.rows[0].cells[0].align, Some(TextAlign::Start));
+        assert_eq!(table.rows[0].cells[1].text, "Score");
+        assert_eq!(table.rows[0].cells[1].align, Some(TextAlign::End));
+        assert!(!table.rows[1].cells[0].is_header);
+        assert_eq!(table.rows[1].cells[0].text, "Ada");
+        assert_eq!(table.rows[2].cells[1].text, "7");
+    }
+
+    #[test]
+    fn imports_obsidian_pipe_table_round_trips_as_table_role() {
+        let dir = tempdir().unwrap();
+        let input = dir.path().join("table.md");
+        let output = dir.path().join("table.tes");
+        std::fs::write(&input, "# Notes\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n").unwrap();
+        let report =
+            import_markdown_v0(&input, &output, &MarkdownImportOptions::default()).unwrap();
+        assert_eq!(report.chunk_count, 2);
+
+        let file = TesFile::open(&output).unwrap();
+        let mut saw_table = false;
+        for entry in file.chunks() {
+            if entry.chunk_type != crate::catalog::ChunkType::Text {
+                continue;
+            }
+            let raw = file.decode_payload(entry).unwrap();
+            let (header, body) = crate::catalog::decode_text_payload(&raw).unwrap();
+            if header.role == TextRole::Table {
+                saw_table = true;
+                assert!(body.is_empty());
+                let table = header.table.as_ref().expect("TableData on header");
+                assert_eq!(table.rows.len(), 2);
+                assert_eq!(table.rows[0].cells[0].text, "A");
+                assert_eq!(table.rows[1].cells[1].text, "2");
+            }
+        }
+        assert!(saw_table, "expected a table text chunk");
     }
 
     #[test]
