@@ -64,7 +64,9 @@ pub(in crate::cli) fn run_export(args: ExportArgs) -> Result<(), TesError> {
             &PdfExportOptions {
                 template_root,
                 template_id: args.template,
-                theme_id: args.theme_id.or_else(|| Some("print".into())),
+                // None → PreferPrint / PreferManuscript from doc_kind.
+                theme_id: args.theme_id,
+                chapter: args.chapter,
                 chrome_path: env::var_os("TES_CHROME").map(PathBuf::from),
             },
         );
@@ -93,6 +95,7 @@ pub(in crate::cli) fn run_export(args: ExportArgs) -> Result<(), TesError> {
     };
     let options = ExportOptions {
         chunk_id: args.chunk,
+        chapter: args.chapter,
         include_headers: args.include_headers,
         annotate: args.annotate,
         all_types: args.all_types,

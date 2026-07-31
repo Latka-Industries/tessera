@@ -47,6 +47,7 @@ plus Markdown/HTML/PDF/bibliography/attachment as shipped.
 | --- | --- |
 | _(default)_ | Concatenate all text chunk **bodies** in reading order, `\n\n` between chunks |
 | `--chunk ID` | Single text chunk body only |
+| `--chapter N` | Text bodies in the Nth H1-bounded chapter only (1-based) |
 | `--include-headers` | Prefix each chunk with `[chunk_id=N role=heading level=2]\n` (debug) |
 
 **Guarantees:**
@@ -273,11 +274,14 @@ data URIs, then prints through a headless Chromium/Chrome binary
 | Flag | Behavior |
 | --- | --- |
 | `-o PATH` | **Required** output PDF path |
-| `--theme-id ID` | Pack theme (default `print`) |
+| `--theme-id ID` | Pack theme (default `print`; `manuscript` for `doc_kind = manuscript`) |
 | `--template ID` / `--template-root DIR` | Template pack selection |
+| `--chapter N` | Restrict body to the Nth H1-bounded chapter (1-based) |
 
 PDF is a lossy print sink — never an editable canonical source. Browser
-preview and PDF are two sinks of one render path.
+preview and PDF are two sinks of one render path. Manuscript / beta-reader
+layout uses the `manuscript` theme (Courier, double-spaced), distinct from
+academic `print`.
 
 ---
 

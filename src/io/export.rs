@@ -42,6 +42,11 @@ pub enum ExportView {
 pub struct ExportOptions {
     /// Restrict output to a single chunk id (where applicable).
     pub chunk_id: Option<u64>,
+    /// Restrict output to the Nth chapter (1-based), bounded by level-1 headings.
+    ///
+    /// Mutually exclusive with [`Self::chunk_id`]. See manuscript conventions in
+    /// `docs/decisions.md`.
+    pub chapter: Option<u32>,
     /// Prefix each `--raw` chunk with a debug header line.
     pub include_headers: bool,
     /// Prefix each `--ai-text` chunk with `<!-- chunk:N -->`.
@@ -339,7 +344,7 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
 }
 
 fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
-    if options.chunk_id.is_none() && file_has_slides(file) {
+    if options.chunk_id.is_none() && options.chapter.is_none() && file_has_slides(file) {
         return export_deck_html(file, options);
     }
 
@@ -785,11 +790,7 @@ fn html_class_attr(classes: &[String]) -> String {
 fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let mut parts: Vec<String> = Vec::new();
 
-    let entries: Vec<&ChunkIndexEntry> = if let Some(id) = options.chunk_id {
-        vec![file.chunk_by_id(id)?]
-    } else {
-        file.reading_order_chunks()
-    };
+    let entries = reading_order_scoped(file, options)?;
 
     for entry in entries {
         match entry.chunk_type {
@@ -942,8 +943,15 @@ fn jsonl_entries<'a>(
     file: &'a TesFile,
     options: &ExportOptions,
 ) -> Result<Vec<&'a ChunkIndexEntry>> {
-    if let Some(id) = options.chunk_id {
-        return Ok(vec![file.chunk_by_id(id)?]);
+    if options.chunk_id.is_some() || options.chapter.is_some() {
+        let scoped = reading_order_scoped(file, options)?;
+        if options.all_types {
+            return Ok(scoped);
+        }
+        return Ok(scoped
+            .into_iter()
+            .filter(|c| is_content_export_type(c.chunk_type))
+            .collect());
     }
     if options.all_types {
         return Ok(file.chunks().iter().collect());
@@ -1143,11 +1151,7 @@ pub enum AiPart {
 /// Returns [`TesError::ChunkNotFound`] if a requested chunk is missing, or
 /// [`TesError::Decode`] when a text/figure/image payload cannot be decoded.
 pub fn export_ai_parts(file: &TesFile, options: &ExportOptions) -> Result<Vec<AiPart>> {
-    let entries: Vec<&ChunkIndexEntry> = if let Some(id) = options.chunk_id {
-        vec![file.chunk_by_id(id)?]
-    } else {
-        file.reading_order_chunks()
-    };
+    let entries = reading_order_scoped(file, options)?;
 
     let mut parts = Vec::new();
     for entry in entries {
@@ -1194,8 +1198,9 @@ fn selected_text_entries<'a>(
     file: &'a TesFile,
     options: &ExportOptions,
 ) -> Result<Vec<&'a ChunkIndexEntry>> {
+    let entries = reading_order_scoped(file, options)?;
     if let Some(id) = options.chunk_id {
-        let entry = file.chunk_by_id(id)?;
+        let entry = entries[0];
         if entry.chunk_type != ChunkType::Text {
             return Err(TesError::Decode {
                 chunk_id: id,
@@ -1205,10 +1210,9 @@ fn selected_text_entries<'a>(
                 ),
             });
         }
-        return Ok(vec![entry]);
+        return Ok(entries);
     }
-    Ok(file
-        .reading_order_chunks()
+    Ok(entries
         .into_iter()
         .filter(|c| c.chunk_type == ChunkType::Text)
         .collect())
@@ -1218,8 +1222,9 @@ fn selected_content_entries<'a>(
     file: &'a TesFile,
     options: &ExportOptions,
 ) -> Result<Vec<&'a ChunkIndexEntry>> {
+    let entries = reading_order_scoped(file, options)?;
     if let Some(id) = options.chunk_id {
-        let entry = file.chunk_by_id(id)?;
+        let entry = entries[0];
         if !is_content_export_type(entry.chunk_type) {
             return Err(TesError::Decode {
                 chunk_id: id,
@@ -1229,13 +1234,86 @@ fn selected_content_entries<'a>(
                 ),
             });
         }
-        return Ok(vec![entry]);
+        return Ok(entries);
     }
-    Ok(file
-        .reading_order_chunks()
+    Ok(entries
         .into_iter()
         .filter(|c| is_content_export_type(c.chunk_type))
         .collect())
+}
+
+/// Reading-order chunks, optionally scoped to `--chunk` or `--chapter`.
+fn reading_order_scoped<'a>(
+    file: &'a TesFile,
+    options: &ExportOptions,
+) -> Result<Vec<&'a ChunkIndexEntry>> {
+    if options.chunk_id.is_some() && options.chapter.is_some() {
+        return Err(TesError::ExportScope {
+            message: "--chunk and --chapter are mutually exclusive".into(),
+        });
+    }
+    if let Some(id) = options.chunk_id {
+        return Ok(vec![file.chunk_by_id(id)?]);
+    }
+    let entries = file.reading_order_chunks();
+    if let Some(chapter) = options.chapter {
+        return chapter_slice(file, &entries, chapter);
+    }
+    Ok(entries)
+}
+
+/// Default heading level that opens a manuscript chapter (H1).
+const CHAPTER_HEADING_LEVEL: u32 = 1;
+
+/// Slice reading-order entries to the Nth chapter (1-based).
+///
+/// A chapter starts at a text heading with level [`CHAPTER_HEADING_LEVEL`] and
+/// ends just before the next such heading. Front matter before the first H1 is
+/// excluded. Scene headings (H2+) stay inside their parent chapter.
+fn chapter_slice<'a>(
+    file: &'a TesFile,
+    entries: &[&'a ChunkIndexEntry],
+    chapter: u32,
+) -> Result<Vec<&'a ChunkIndexEntry>> {
+    if chapter == 0 {
+        return Err(TesError::ExportScope {
+            message: "--chapter must be >= 1 (1-based)".into(),
+        });
+    }
+    let mut starts: Vec<usize> = Vec::new();
+    for (i, entry) in entries.iter().enumerate() {
+        if is_chapter_heading(file, entry)? {
+            starts.push(i);
+        }
+    }
+    if starts.is_empty() {
+        return Err(TesError::ExportScope {
+            message: format!(
+                "no chapter headings (H{CHAPTER_HEADING_LEVEL}) found; cannot select --chapter {chapter}"
+            ),
+        });
+    }
+    let idx = (chapter as usize).saturating_sub(1);
+    let Some(&start) = starts.get(idx) else {
+        return Err(TesError::ExportScope {
+            message: format!(
+                "chapter {chapter} not found (document has {} chapter{})",
+                starts.len(),
+                if starts.len() == 1 { "" } else { "s" }
+            ),
+        });
+    };
+    let end = starts.get(idx + 1).copied().unwrap_or(entries.len());
+    Ok(entries[start..end].to_vec())
+}
+
+fn is_chapter_heading(file: &TesFile, entry: &ChunkIndexEntry) -> Result<bool> {
+    if entry.chunk_type != ChunkType::Text {
+        return Ok(false);
+    }
+    let (header, _) = decode_text_entry(file, entry)?;
+    Ok(header.role == TextRole::Heading
+        && header.level.unwrap_or(CHAPTER_HEADING_LEVEL) == CHAPTER_HEADING_LEVEL)
 }
 
 fn is_content_export_type(chunk_type: ChunkType) -> bool {
@@ -1418,6 +1496,7 @@ mod tests {
     use super::*;
     use crate::catalog::{DocumentCatalog, ListKind, TesWriterSession, TextHeader};
     use crate::layout::DocKind;
+    use std::fs;
     use std::path::PathBuf;
     use tempfile::tempdir;
 
@@ -1527,6 +1606,74 @@ mod tests {
         };
         let out = export_view(&path, ExportView::Raw, &opts).unwrap();
         assert_eq!(out, "We measured temperature at 15 stations.\n");
+    }
+
+    #[test]
+    fn chapter_filter_excludes_front_matter_and_other_chapters() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("ms.tes");
+        fs::write(
+            &path,
+            crate::fixtures::samples::encode_manuscript_chapters(),
+        )
+        .unwrap();
+
+        let ch2 = export_view(
+            &path,
+            ExportView::Markdown,
+            &ExportOptions {
+                chapter: Some(2),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(ch2.contains("Chapter 2 — The Signal"));
+        assert!(ch2.contains("lantern blinked"));
+        assert!(!ch2.contains("Chapter 1"));
+        assert!(!ch2.contains("Chapter 3"));
+        assert!(!ch2.contains("Front matter"));
+        assert!(!ch2.contains("beta readers"));
+
+        let ch1 = export_view(
+            &path,
+            ExportView::Markdown,
+            &ExportOptions {
+                chapter: Some(1),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(ch1.contains("Chapter 1 — The Quay"));
+        assert!(ch1.contains("Scene: Warehouse"));
+        assert!(!ch1.contains("Chapter 2"));
+
+        let err = export_view(
+            &path,
+            ExportView::Raw,
+            &ExportOptions {
+                chapter: Some(9),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("chapter 9 not found"));
+    }
+
+    #[test]
+    fn chapter_and_chunk_conflict() {
+        let dir = tempdir().unwrap();
+        let path = write_article(dir.path());
+        let err = export_view(
+            &path,
+            ExportView::Raw,
+            &ExportOptions {
+                chunk_id: Some(1),
+                chapter: Some(1),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("mutually exclusive"));
     }
 
     #[test]

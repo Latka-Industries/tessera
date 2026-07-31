@@ -178,8 +178,11 @@ pub(super) struct ExportArgs {
     )]
     pub(super) bib_format: String,
     /// Restrict to a single chunk id
-    #[arg(long = "chunk")]
+    #[arg(long = "chunk", conflicts_with = "chapter")]
     pub(super) chunk: Option<u64>,
+    /// Restrict to the Nth chapter (1-based; H1 boundaries)
+    #[arg(long = "chapter", conflicts_with = "chunk")]
+    pub(super) chapter: Option<u32>,
     /// Prefix each --raw chunk with a debug header
     #[arg(long = "include-headers")]
     pub(super) include_headers: bool,
@@ -210,7 +213,7 @@ pub(super) struct ExportArgs {
     /// Template pack root for --pdf (env: `TES_TEMPLATE_ROOT`)
     #[arg(long = "template-root", requires = "pdf")]
     pub(super) template_root: Option<PathBuf>,
-    /// Pack theme id for --pdf (default: print)
+    /// Pack theme id for --pdf (default: print, or manuscript for doc_kind=manuscript)
     #[arg(long = "theme-id", requires = "pdf")]
     pub(super) theme_id: Option<String>,
 }

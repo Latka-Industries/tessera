@@ -23,6 +23,9 @@ pub const THEME_DRAFT: &str = "draft";
 /// Print-oriented theme id (shared preview/PDF path).
 pub const THEME_PRINT: &str = "print";
 
+/// Manuscript / beta-reader print theme id (fiction; distinct from academic print).
+pub const THEME_MANUSCRIPT: &str = "manuscript";
+
 /// Versioned pack manifest.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TemplateManifest {
@@ -188,6 +191,8 @@ pub enum ThemeFallback {
     Draft,
     /// Prefer [`THEME_PRINT`] when present, else [`default_theme_id`].
     PreferPrint,
+    /// Prefer [`THEME_MANUSCRIPT`] when present, else [`THEME_PRINT`] / [`default_theme_id`].
+    PreferManuscript,
 }
 
 /// Pack + theme selected for preview or print HTML.
@@ -227,6 +232,15 @@ pub fn resolve_pack_and_theme(
             ThemeFallback::Draft => default_theme_id(&pack).to_string(),
             ThemeFallback::PreferPrint => {
                 if pack.manifest.themes.contains_key(THEME_PRINT) {
+                    THEME_PRINT.to_string()
+                } else {
+                    default_theme_id(&pack).to_string()
+                }
+            }
+            ThemeFallback::PreferManuscript => {
+                if pack.manifest.themes.contains_key(THEME_MANUSCRIPT) {
+                    THEME_MANUSCRIPT.to_string()
+                } else if pack.manifest.themes.contains_key(THEME_PRINT) {
                     THEME_PRINT.to_string()
                 } else {
                     default_theme_id(&pack).to_string()

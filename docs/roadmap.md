@@ -227,11 +227,11 @@ freeze. CRDT/live cursors are not part of M10.
 
 | Issue theme | Acceptance |
 | --- | --- |
-| `doc_kind = manuscript` conventions | Scene/chapter chunking |
-| Chapter-scoped export flags | `--chapter N` |
-| Manuscript PDF theme | Separate from academic print |
+| `doc_kind = manuscript` conventions | Scene/chapter chunking (H1 chapter, H2+ scene) — [decisions](decisions.md#manuscript-conventions-doc_kind--manuscript) |
+| Chapter-scoped export flags | `--chapter N` (1-based H1 slice) |
+| Manuscript PDF theme | Pack theme `manuscript`, distinct from academic `print` |
 
-**Depends on:** Phase 7.
+**Depends on:** Phase 7. Tracker: THI-220.
 
 ---
 
