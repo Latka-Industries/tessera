@@ -138,11 +138,12 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 
 ## Markdown import / export
 
-**Decision:** **CommonMark subset** for v0 import:
+**Decision:** **CommonMark + GFM tables** for v0 import:
 
 | Supported | Deferred |
 | --- | --- |
 | ATX headings, paragraphs, lists, fenced code, blockquotes | Footnotes and raw HTML blocks |
+| GFM pipe tables → `TextRole::Table` + `TableData` (header / body / column align) | HTML `<table>` → `TableData` (still TSV body today) |
 | Link display text; `[text](https://…)` / UUID destinations → `TLNK` + `InlineKind::Link`; vault import resolves `[[wikilinks]]` via title → slug → aliases | Footnote link kinds |
 
 **Export:** `tes export --markdown` generates GFM-ish Markdown from chunks; **lossy** for cite/slide richness.

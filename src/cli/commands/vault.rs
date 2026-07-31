@@ -229,15 +229,16 @@ fn append_tsv_opt(extras: &mut String, key: &str, value: Option<&str>) {
     }
 }
 
+const LIST_TABLE_HEADERS: [&str; 7] = [
+    "KIND", "TITLE", "PATH", "CATEGORY", "SECTION", "SLUG", "DOC_ID",
+];
+
 /// Aligned columns for interactive terminals.
 fn print_list_table(entries: &[VaultIndexEntry]) {
     if entries.is_empty() {
         return;
     }
 
-    const HEADERS: [&str; 7] = [
-        "KIND", "TITLE", "PATH", "CATEGORY", "SECTION", "SLUG", "DOC_ID",
-    ];
     let rows: Vec<[String; 7]> = entries
         .iter()
         .map(|e| {
@@ -253,24 +254,28 @@ fn print_list_table(entries: &[VaultIndexEntry]) {
         })
         .collect();
 
-    let mut widths = HEADERS.map(|h| h.chars().count());
+    let mut widths = LIST_TABLE_HEADERS.map(|h| h.chars().count());
     for row in &rows {
         for (i, cell) in row.iter().enumerate() {
             widths[i] = widths[i].max(cell.chars().count());
         }
     }
 
-    println!("{}", format_table_row(HEADERS.map(str::to_owned), &widths));
+    println!("{}", format_table_row(LIST_TABLE_HEADERS, &widths));
+    let separators = widths.map(|w| "-".repeat(w));
     println!(
         "{}",
-        format_table_row(widths.map(|w| "-".repeat(w)), &widths)
+        format_table_row(separators.each_ref().map(String::as_str), &widths)
     );
     for row in &rows {
-        println!("{}", format_table_row(row.clone(), &widths));
+        println!(
+            "{}",
+            format_table_row(row.each_ref().map(String::as_str), &widths)
+        );
     }
 }
 
-fn format_table_row(cells: [String; 7], widths: &[usize; 7]) -> String {
+fn format_table_row(cells: [&str; 7], widths: &[usize; 7]) -> String {
     cells
         .iter()
         .zip(widths.iter())

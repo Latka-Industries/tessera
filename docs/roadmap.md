@@ -96,7 +96,7 @@ Full decisions and non-goals: [structure_v1.md](structure_v1.md).
 
 | Issue theme | Acceptance |
 | --- | --- |
-| CommonMark subset | Headings, lists, paragraphs, code, quotes |
+| CommonMark + GFM tables | Headings, lists, paragraphs, code, quotes, pipe tables → `TableData` |
 | Link table | External `href` optional v0 |
 | Import + export | Structure preserved through MD → tes → MD |
 
