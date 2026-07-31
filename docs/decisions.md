@@ -58,12 +58,13 @@ code may add presentation motion.
 
 ## Tables
 
-**v0 decision:** one text chunk with `"role": "table"` and a UTF-8 TSV body.
+**v0 decision:** one text chunk with `"role": "table"` and a UTF-8 TSV body
+(still accepted on read).
 
 **v1 decision (supersedes D4):** a structured table payload contains rows and
 cells with text, spans, alignment, header status, and row/column spans. One
-table remains one reading-order unit. HTML/Markdown tables compile into that
-structure.
+table remains one reading-order unit. GFM pipe tables and HTML `<table>`
+import compile into that structure (`TableData` on the text header; empty body).
 
 Tables and other structured/spanned blocks are never auto-split.
 
@@ -122,7 +123,8 @@ remain rejected for v1.
 
 | Imported | Discarded |
 | --- | --- |
-| `h1`–`h6`, `p`, `ul/ol/li`, `blockquote`, `pre/code`, `table`, `a` display text | `script`, `style`, inline `style=""` |
+| `h1`–`h6`, `p`, `ul/ol/li`, `blockquote`, `pre/code`, `a` display text | `script`, `style`, inline `style=""` |
+| `<table>` → `TextRole::Table` + `TableData` (`th`/`td`, `align`, rowspan/colspan) | Nested-table edge cases beyond nearest-ancestor filter |
 | Internal document edges → `TLNK` | — |
 
 **Export:** HTML is generated from chunks + theme CSS — not round-tripped from imported HTML source.
@@ -143,7 +145,7 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 | Supported | Deferred |
 | --- | --- |
 | ATX headings, paragraphs, lists, fenced code, blockquotes | Footnotes and raw HTML blocks |
-| GFM pipe tables → `TextRole::Table` + `TableData` (header / body / column align) | HTML `<table>` → `TableData` (still TSV body today) |
+| GFM pipe tables → `TextRole::Table` + `TableData` (header / body / column align) | |
 | Link display text; `[text](https://…)` / UUID destinations → `TLNK` + `InlineKind::Link`; vault import resolves `[[wikilinks]]` via title → slug → aliases | Footnote link kinds |
 
 **Export:** `tes export --markdown` generates GFM-ish Markdown from chunks; **lossy** for cite/slide richness.
