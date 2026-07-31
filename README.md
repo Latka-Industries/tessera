@@ -64,6 +64,7 @@ binary alone would not.
 | **[Engine](docs/engine.md)**                       | Reader/writer paths and module map                          |
 | **[MIME + magic](docs/mime.md)**                   | `.tes` MIME, `file(1)` magic, conformance kit               |
 | **[Benchmarks](docs/benchmarks.md)**               | Claim-backed Criterion harness (`cargo bench`)              |
+| **[Print IR](docs/print_ir.md)**                   | Native PDF tree + `ariadnes-weave` (D21)                |
 | **[Roadmap](docs/roadmap.md)**                     | Milestones (M0–M11)                                         |
 | **[Decisions](docs/decisions.md)**                 | Accepted design calls                                       |
 | **[Security](docs/security.md)**                   | Threat model for serve / themes                             |

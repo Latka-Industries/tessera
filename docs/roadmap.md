@@ -1,14 +1,15 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped on crate **0.1.10**. M10 history tools
+**Status:** M0–M11 shipped on crate **0.1.11**. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
 **inert attachments**, and **typed TLNK targets** (external URI heap v1) are
 additive wire on `layout_version = 0`. Vault TOC / multi-root membership,
 catalog feature flags, GitHub Tessprek PR + push-branch summaries (THI-212 /
 THI-219), manuscript conventions + `--chapter` + `manuscript` theme (THI-220),
-and theme polish (THI-221) are in. This is an implementation plan, not a
-release schedule.
+theme polish (THI-221), `tes repair` (THI-225), and `TesOp::SetTags` are in.
+Native deterministic PDF via **`ariadnes-weave`** (THI-256) is the next major
+render track. This is an implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -22,7 +23,7 @@ links.
 | Tables | structured header table + TSV fallback | — | rich import/export |
 | Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`); multi-root membership (THI-217) | — | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
-| Human render | template packs, `tes serve`, PDF, slides, theme polish (draft/print/deck/manuscript) | non-Chromium PDF backend (THI-256) | — |
+| Human render | template packs, `tes serve`, Chromium PDF, slides, theme polish | **`ariadnes-weave`** native PDF (THI-256); print IR (THI-288) | — |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
 | History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR + push Tessprek (THI-212 / THI-219) | — | — |
 
@@ -250,16 +251,16 @@ freeze. CRDT/live cursors are not part of M10.
 | Native full-text index | Projected text / external sidecar first |
 | Shared wire crate with Tetration | Revisit after v0 stable |
 | Spec dogfood (`.tes` mirror) | Keep `docs/*.md` readable on git; optional `.tes` mirror with MD exported from it |
+| `ariadnes-weave` | Native deterministic PDF from print IR — [print_ir.md](print_ir.md), THI-256 |
 
 ---
 
 ## Next Linear issue batch
 
-1. **`tes repair`** (THI-225) — salvage damaged `.tes` containers; complements
-   `tes verify --deep`.
-2. **non-Chromium PDF** (THI-256) — keep HTML+theme path; alternate print backend.
-3. **optional:** `layout_version` / feature-flag bump when must-understand features land.
-4. **open format / bench:** MIME/magic conformance cases and claim-backed
+1. **Print IR spec** (THI-288) → scaffold **`ariadnes-weave`** (THI-289) →
+   prose tree + native `--pdf` (THI-290 / THI-294).
+2. **optional:** `layout_version` / feature-flag bump when must-understand features land.
+3. **open format / bench:** MIME/magic conformance cases and claim-backed
    benches continue as hygiene — see [mime.md](mime.md), [benchmarks.md](benchmarks.md).
 
 ---

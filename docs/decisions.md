@@ -6,7 +6,8 @@ unchanged until migration code lands.
 
 Related: [layout_v0.md](layout_v0.md),
 [structure_v1.md](structure_v1.md), [security](security.md),
-[format-comparison.md](format-comparison.md), [README](../README.md).
+[print_ir.md](print_ir.md), [format-comparison.md](format-comparison.md),
+[README](../README.md).
 
 ---
 
@@ -196,6 +197,34 @@ Import stays generic: `tes import --markdown --doc-kind manuscript`.
 Chapter-scoped export: `tes export draft.tes --markdown --chapter 2` or
 `tes export draft.tes --pdf -o ch2.pdf --chapter 2`.
 
+Native PDF (`ariadnes-weave`) uses print profile `manuscript` for the same
+conventions (H1 → always new page); Chromium HTML-print may still use pack
+theme CSS until the native backend is default.
+
+---
+
+## Print IR and PDF source of truth
+
+**Decision (D21):** Native PDF layout is owned by a **print IR** consumed by
+the **`ariadnes-weave`** crate. Semantic HTML + template CSS remain the
+**browser preview / HTML export** path (`tes serve`, `--html`). They are **not**
+the source of truth for native pagination.
+
+| Path | Role |
+| --- | --- |
+| `.tes` → print IR → `ariadnes-weave` → PDF | Deterministic print (target default) |
+| `.tes` → HTML + theme CSS → browser / Chromium print | Preview; optional `--backend chromium` |
+
+**Rationale:** Markdown/HTML→PDF toolchains disagree on page breaks. Tessera
+should guarantee **replayable unfolding** (especially manuscripts): same file +
+same print profile version → same pagination. That requires Tessera-owned
+layout, not a CSS engine.
+
+**Rejected as endgame:** WeasyPrint / pure-Rust HTML/CSS clones; Typst or LaTeX
+as canonical authoring; storing page breaks in the `.tes` wire; editable PDF.
+
+Normative sketch: [print_ir.md](print_ir.md). Tracker: THI-256 / THI-288.
+
 ---
 
 ## Page tensors (vision models)
@@ -221,7 +250,9 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 3. **Language:** optional BCP-47 document language plus block override; code
    blocks retain an optional programming language.
 4. **Layout intent:** enum-backed alignment and image placement; soft wrap,
-   pagination, and computed numbering are renderer concerns.
+   pagination, and computed numbering are renderer concerns. **Native PDF**
+   pagination is owned by the print IR / `ariadnes-weave` ([print_ir.md](print_ir.md),
+   D21); HTML+CSS themes own browser preview only.
 5. **Media:** image bytes are reusable; each `FigureRef` owns contextual alt,
    caption, placement, and reading-order position. Generic attachments are
    inert.
@@ -270,3 +301,4 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D18 | Optional-vs-required forward compatibility | Accepted for v1 |
 | D19 | Tessera Markdown virtual editing + typed AI ops | Accepted direction |
 | D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
+| D21 | Print IR + `ariadnes-weave` own native PDF; HTML is preview | Accepted direction |
