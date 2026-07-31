@@ -46,6 +46,9 @@ pub(super) enum Commands {
         quiet: bool,
     },
 
+    /// Salvage damaged .tes containers (plan by default; never invents content)
+    Repair(RepairArgs),
+
     /// Write a decoded view to stdout or -o PATH
     Export(ExportArgs),
 
@@ -120,6 +123,28 @@ pub(super) enum Commands {
 
     /// Verified 3-way merge for git merge drivers (`%O %A %B`)
     MergeFile(MergeFileArgs),
+}
+
+/// Flags for `tes repair`.
+#[derive(Debug, Args)]
+pub(super) struct RepairArgs {
+    /// Path to a damaged .tes file
+    pub(super) path: PathBuf,
+    /// Apply specific repair codes (repeatable). Default is plan-only.
+    #[arg(long = "apply")]
+    pub(super) apply: Vec<String>,
+    /// Apply every repairable code from the verify plan
+    #[arg(long = "apply-all", conflicts_with = "apply")]
+    pub(super) apply_all: bool,
+    /// Show what would change without writing
+    #[arg(long)]
+    pub(super) dry_run: bool,
+    /// Write repaired bytes to PATH instead of replacing in place
+    #[arg(short = 'o', long = "output")]
+    pub(super) output: Option<PathBuf>,
+    /// Machine-readable report
+    #[arg(long)]
+    pub(super) json: bool,
 }
 
 /// Flags for `tes export`.

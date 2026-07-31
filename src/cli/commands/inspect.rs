@@ -1,14 +1,16 @@
-//! `tes info` and `tes verify`.
+//! `tes info`, `tes verify`, and `tes repair`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use crate::catalog::{format_info_human, format_info_json, format_info_quiet, read_summary_v0};
 use crate::error::TesError;
+use crate::repair::{RepairOptions, format_repair_json, format_repair_text, repair_tes_file};
 use crate::verify::{
     format_verify_human, format_verify_json, format_verify_quiet, verify_tes_file,
 };
 
+use super::super::args::RepairArgs;
 use super::super::util::{exit_for, print_out};
 
 pub(in crate::cli) fn run_info(path: &PathBuf, json: bool, quiet: bool) -> Result<(), TesError> {
@@ -62,5 +64,39 @@ pub(in crate::cli) fn run_verify(
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+pub(in crate::cli) fn run_repair(args: RepairArgs) -> ExitCode {
+    let options = RepairOptions {
+        dry_run: args.dry_run,
+        apply: args.apply,
+        apply_all: args.apply_all,
+        output: args.output,
+    };
+    match repair_tes_file(&args.path, &options) {
+        Ok(report) => {
+            let out = if args.json {
+                match format_repair_json(&report) {
+                    Ok(s) => s,
+                    Err(err) => {
+                        eprintln!("error: {err}");
+                        return ExitCode::from(2);
+                    }
+                }
+            } else {
+                format_repair_text(&report)
+            };
+            println!("{}", out.trim_end());
+            if report.verify_after_ok == Some(false) {
+                ExitCode::from(1)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(err) => {
+            eprintln!("error: {err}");
+            exit_for(&err)
+        }
     }
 }
