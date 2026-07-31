@@ -20,7 +20,7 @@ links.
 | Tables | structured header table + TSV fallback | — | rich import/export |
 | Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`) | multi-root membership (THI-217) | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
-| Human render | template packs, `tes serve`, PDF, slides | — | theme polish |
+| Human render | template packs, `tes serve`, PDF, slides, theme polish (draft/print/deck) | — | — |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
 | History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR Tessprek (THI-212) | Push-branch Tessprek summary/artifact (THI-219) | — |
 

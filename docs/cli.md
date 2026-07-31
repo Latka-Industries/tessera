@@ -276,7 +276,7 @@ tes serve paper.tes --theme print --watch
 | --------------------- | ----------------------------------------------------------------------------- |
 | `--template ID`       | Pack id under `--template-root` (default: catalog `template_id` or `minimal`) |
 | `--template-root DIR` | Pack search root (env: `TES_TEMPLATE_ROOT`, default `templates`)              |
-| `--theme ID`          | Pack theme (`draft` / `print`, or catalog `theme_id`)                         |
+| `--theme ID`          | Pack theme (`draft` / `print` / `manuscript`, or catalog `theme_id`)          |
 | `--host`              | Loopback only: `127.0.0.1`, `localhost`, or `::1`                             |
 | `--port`              | Bind port (default `7878`; `0` = ephemeral)                                   |
 | `--watch`             | Inject HTML meta-refresh (no theme JavaScript)                                |
@@ -286,6 +286,11 @@ tes serve paper.tes --theme print --watch
 Routes: `/` (standalone HTML), `/theme.css` (selected theme), `/media/{chunk_id}`
 (image bytes), `/healthz`. Each request re-opens the `.tes` file. CSP is CSS-only
 by default. See [security.md](security.md).
+
+**`minimal` pack themes (v0.1.1):** `draft` (screen), `print` (academic PDF /
+print preview), `manuscript` (beta-reader). Deck/slide layouts share the same
+CSS files (`.deck` / `.slide` rules). Themes stay CSS-only — no exporter-owned
+presentation.
 
 ---
 

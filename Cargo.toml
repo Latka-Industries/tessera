@@ -48,6 +48,7 @@ tokio = { version = "1.53.1", features = [
 ] }
 tower-lsp = "0.20.0"
 uuid = { version = "1.24.0", features = ["v4", "v5"] }
+katex-rs = "0.2"
 
 [patch.crates-io]
 # argus-chunk = { path = "../argus-chunk" }

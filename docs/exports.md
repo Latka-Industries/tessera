@@ -211,6 +211,12 @@ placement, citations, and other enum-backed fields.
 
 ## `--html`
 
+Semantic HTML5 projection of reading-order content. List-item chunks with the
+same `list_kind` / `list_depth` are coalesced into a single `<ul>` / `<ol>`
+(so ordered lists number `1. 2. 3.` instead of restarting). Display and inline
+math render to **MathML** via KaTeX at export time (LaTeX remains the stored
+source; fallback is escaped TeX in `<code class="math-fallback">`).
+
 Generated **DOM-like** HTML5 fragment + linked theme CSS.
 
 ```html
