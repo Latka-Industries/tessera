@@ -127,6 +127,7 @@ tes export paper.tes --chunks-jsonl -o chunks.jsonl
 tes export doc.tes --markdown -o doc.md
 tes export paper.tes --pdf -o paper.pdf --theme-id print
 tes export draft.tes --pdf -o ch2.pdf --chapter 2 --theme-id manuscript
+tes export note.tes --pdf --backend native -o note.pdf
 tes export draft.tes --markdown --chapter 1
 tes export paper.tes --bibliography --bib-format bibtex -o refs.bib
 tes export note.tes --attachment --chunk 3 -o notes.pdf
@@ -136,10 +137,11 @@ tes import --bibtex fixtures/assets/citations/sample.bib refs.tes
 # tes export doc.tes --meta toml
 ```
 
-`--pdf` uses the same semantic HTML + template theme path as `tes serve`.
-Requires a Chromium/Chrome binary (`TES_CHROME` or auto-detect). PDF is a
-lossy print sink, not an editable source. For `doc_kind = manuscript`, the
-default pack theme is `manuscript` (beta-reader) instead of academic `print`.
+`--pdf` defaults to **Chromium**: same semantic HTML + template theme path as
+`tes serve` (requires `TES_CHROME` or auto-detect). `--backend native` uses
+print IR → [`ariadnes-weave`](print_ir.md) with no browser. PDF is a lossy
+print sink, not an editable source. For `doc_kind = manuscript`, the default
+pack theme / native profile is `manuscript` instead of academic `print`.
 `--chapter N` scopes **any** export view to the Nth H1-bounded chapter
 (conflicts with `--chunk`).
 
@@ -151,13 +153,14 @@ default pack theme is `manuscript` (beta-reader) instead of academic `print`.
 | `--chunks-jsonl`               | One JSON object per chunk line                                    |
 | `--markdown`                   | Lossy Markdown                                                    |
 | `--html`                       | HTML fragment (+ `--theme`, `--standalone`, `--embed-css`)        |
-| `--pdf`                        | Print-theme PDF via headless Chromium (requires `-o`)             |
+| `--pdf`                        | PDF export (requires `-o`; engine via `--backend`)                |
+| `--backend chromium\|native`   | PDF engine (default `chromium`; `native` = ariadnes-weave)        |
 | `--bibliography`               | BibTeX / CSL-JSON from cite chunks (`--bib-format`)               |
 | `--attachment`                 | Write opaque attachment chunk bytes (requires `--chunk` and `-o`) |
 | `--bib-format`                 | `bibtex` (default) or `csl-json` with `--bibliography`            |
-| `--template ID`                | Pack id for `--pdf` (default: catalog or `minimal`)               |
-| `--template-root DIR`          | Pack root for `--pdf` (env: `TES_TEMPLATE_ROOT`)                  |
-| `--theme-id ID`                | Pack theme for `--pdf` (default: `print`, or `manuscript`)        |
+| `--template ID`                | Pack id for Chromium `--pdf` (default: catalog or `minimal`)      |
+| `--template-root DIR`          | Pack root for Chromium `--pdf` (env: `TES_TEMPLATE_ROOT`)         |
+| `--theme-id ID`                | Pack theme / native profile hint (`print`, `manuscript`, …)       |
 | `--theme PATH`                 | Stylesheet path/href for `--html`                                 |
 | `--standalone`                 | Complete HTML document with `--html`                              |
 | `--embed-css`                  | Embed `--theme` CSS into `--html` output                          |

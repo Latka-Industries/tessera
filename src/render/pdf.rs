@@ -1,20 +1,62 @@
-//! Print/PDF export under [`crate::render`] via the semantic HTML + print-theme pipeline.
+//! Print/PDF export under [`crate::render`].
 //!
-//! Browser preview (`tes serve --theme print`) and `tes export --pdf` share the
-//! same HTML render. PDF generation shells out to a Chromium-family browser in
-//! headless print mode. PDF is never an editable canonical source.
+//! Two backends:
+//! - **Chromium** (default): semantic HTML + print-theme → headless Chromium
+//! - **Native** (THI-294): print IR → [`ariadnes_weave::emit_pdf`]
+//!
+//! Browser preview (`tes serve --theme print`) still shares the HTML path with
+//! the Chromium backend. PDF is never an editable canonical source.
 
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use ariadnes_weave::PrintProfileId;
+
+use super::print::{PrintBuildOptions, build_print_document};
 use super::template::{ThemeFallback, resolve_pack_and_theme};
 use crate::catalog::file::TesFile;
 use crate::error::{Result, TesError};
 use crate::io::export::{ExportOptions, ExportView, export_file};
 use crate::layout::DocKind;
+
+/// PDF generation engine for [`export_pdf`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PdfBackend {
+    /// HTML + print theme → headless Chromium (current default).
+    #[default]
+    Chromium,
+    /// Print IR → ariadnes-weave (no Chromium).
+    Native,
+}
+
+impl PdfBackend {
+    /// Stable CLI / docs name (`chromium` | `native`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Chromium => "chromium",
+            Self::Native => "native",
+        }
+    }
+}
+
+impl FromStr for PdfBackend {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "chromium" | "chrome" => Ok(Self::Chromium),
+            "native" | "weave" | "ariadnes-weave" => Ok(Self::Native),
+            other => Err(format!(
+                "unknown PDF backend '{other}' (expected chromium|native)"
+            )),
+        }
+    }
+}
 
 /// Options for themed HTML and PDF export.
 #[derive(Debug, Clone)]
@@ -29,6 +71,8 @@ pub struct PdfExportOptions {
     pub chapter: Option<u32>,
     /// Explicit Chromium/Chrome binary; otherwise auto-detect.
     pub chrome_path: Option<PathBuf>,
+    /// PDF engine; defaults to [`PdfBackend::Chromium`].
+    pub backend: PdfBackend,
 }
 
 impl Default for PdfExportOptions {
@@ -40,6 +84,7 @@ impl Default for PdfExportOptions {
             theme_id: None,
             chapter: None,
             chrome_path: None,
+            backend: PdfBackend::Chromium,
         }
     }
 }
@@ -85,19 +130,64 @@ pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) ->
     )
 }
 
-/// Export `path` to a PDF file at `output` using headless Chromium print.
+/// Export `path` to a PDF file at `output`.
+///
+/// Backend is selected by [`PdfExportOptions::backend`] (`chromium` default,
+/// `native` for ariadnes-weave).
 ///
 /// # Errors
 ///
-/// Returns errors from [`render_themed_html`] / [`find_chrome`], [`TesError::Io`]
-/// for temp-file and output writes, or [`TesError::PdfEngine`] if Chromium fails
-/// to launch, print, or produce a valid PDF.
+/// Returns errors from [`render_themed_html`] / [`find_chrome`] /
+/// [`build_print_document`] / [`ariadnes_weave::emit_pdf`], [`TesError::Io`] for
+/// output writes, or [`TesError::PdfEngine`] if emit fails or output is not a PDF.
 pub fn export_pdf(
     path: impl AsRef<Path>,
     output: impl AsRef<Path>,
     options: &PdfExportOptions,
 ) -> Result<()> {
-    let html = render_themed_html(path.as_ref(), options)?;
+    match options.backend {
+        PdfBackend::Chromium => export_pdf_chromium(path.as_ref(), output.as_ref(), options),
+        PdfBackend::Native => export_pdf_native(path.as_ref(), output.as_ref(), options),
+    }
+}
+
+fn export_pdf_native(path: &Path, output: &Path, options: &PdfExportOptions) -> Result<()> {
+    let file = TesFile::open(path)?;
+    let doc = build_print_document(
+        &file,
+        &PrintBuildOptions {
+            chapter: options.chapter,
+            profile: profile_from_theme_id(options.theme_id.as_deref()),
+        },
+    )?;
+    let bytes = ariadnes_weave::emit_pdf(&doc).map_err(|err| TesError::PdfEngine {
+        message: format!("ariadnes-weave emit failed: {err}"),
+    })?;
+    if bytes.len() < 5 || &bytes[..5] != b"%PDF-" {
+        return Err(TesError::PdfEngine {
+            message: "ariadnes-weave output is not a PDF".into(),
+        });
+    }
+    if let Some(parent) = output.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(output, bytes)?;
+    Ok(())
+}
+
+fn profile_from_theme_id(theme_id: Option<&str>) -> Option<PrintProfileId> {
+    match theme_id {
+        Some("manuscript") => Some(PrintProfileId::manuscript_v0()),
+        Some("deck") => Some(PrintProfileId::deck_v0()),
+        Some("print") => Some(PrintProfileId::print_v0()),
+        _ => None,
+    }
+}
+
+fn export_pdf_chromium(path: &Path, output: &Path, options: &PdfExportOptions) -> Result<()> {
+    let html = render_themed_html(path, options)?;
     let chrome = match &options.chrome_path {
         Some(p) => p.clone(),
         None => find_chrome()?,
@@ -161,12 +251,12 @@ pub fn export_pdf(
         });
     }
 
-    if let Some(parent) = output.as_ref().parent()
+    if let Some(parent) = output.parent()
         && !parent.as_os_str().is_empty()
     {
         fs::create_dir_all(parent)?;
     }
-    fs::write(output.as_ref(), bytes)?;
+    fs::write(output, bytes)?;
     let _ = fs::remove_dir_all(&tmp_dir);
     Ok(())
 }
@@ -328,6 +418,48 @@ mod tests {
         assert!(!html.contains("Chapter 1"));
         assert!(!html.contains("Chapter 3"));
         assert!(!html.contains("beta readers"));
+    }
+
+    #[test]
+    fn export_pdf_native_note_three_chunks() {
+        let dir = tempdir().unwrap();
+        let tes = dir.path().join("note.tes");
+        fs::write(&tes, crate::fixtures::v0::encode_note_three_chunks()).unwrap();
+        let out = dir.path().join("native.pdf");
+        export_pdf(
+            &tes,
+            &out,
+            &PdfExportOptions {
+                backend: PdfBackend::Native,
+                ..PdfExportOptions::default()
+            },
+        )
+        .unwrap();
+        let bytes = fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+        assert!(bytes.len() > 200);
+    }
+
+    #[test]
+    fn export_pdf_native_manuscript_chapter() {
+        let dir = tempdir().unwrap();
+        let tes = dir.path().join("ms.tes");
+        fs::write(&tes, crate::fixtures::samples::encode_manuscript_chapters()).unwrap();
+        let out = dir.path().join("ch2.pdf");
+        export_pdf(
+            &tes,
+            &out,
+            &PdfExportOptions {
+                backend: PdfBackend::Native,
+                chapter: Some(2),
+                theme_id: Some("manuscript".into()),
+                ..PdfExportOptions::default()
+            },
+        )
+        .unwrap();
+        let bytes = fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+        assert!(bytes.len() > 200);
     }
 
     #[test]

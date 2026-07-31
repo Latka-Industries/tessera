@@ -192,9 +192,12 @@ pub(super) struct ExportArgs {
     /// Semantic HTML5 fragment or standalone page
     #[arg(long)]
     pub(super) html: bool,
-    /// Print-theme PDF via headless Chromium (requires -o)
+    /// Print-theme PDF (requires -o); engine via `--backend`
     #[arg(long)]
     pub(super) pdf: bool,
+    /// PDF engine: `chromium` (default) or `native` (ariadnes-weave)
+    #[arg(long = "backend", default_value = "chromium", requires = "pdf")]
+    pub(super) pdf_backend: String,
     /// BibTeX or CSL-JSON bibliography from cite chunks
     #[arg(long)]
     pub(super) bibliography: bool,

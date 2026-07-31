@@ -14,7 +14,7 @@ use crate::io::import::{
     HtmlImportOptions, MarkdownImportOptions, import_html_v0, import_markdown_v0,
 };
 use crate::layout::DocKind;
-use crate::render::pdf::{PdfExportOptions, export_pdf};
+use crate::render::pdf::{PdfBackend, PdfExportOptions, export_pdf};
 
 use super::super::args::{ExportArgs, ImportArgs};
 use super::super::util::{parse_doc_kind, print_out, resolve_template_root};
@@ -58,6 +58,9 @@ pub(in crate::cli) fn run_export(args: ExportArgs) -> Result<(), TesError> {
             )));
         };
         let template_root = resolve_template_root(args.template_root);
+        let backend: PdfBackend = args.pdf_backend.parse().map_err(|message| {
+            TesError::Io(io::Error::new(io::ErrorKind::InvalidInput, message))
+        })?;
         return export_pdf(
             &args.path,
             out_path,
@@ -68,6 +71,7 @@ pub(in crate::cli) fn run_export(args: ExportArgs) -> Result<(), TesError> {
                 theme_id: args.theme_id,
                 chapter: args.chapter,
                 chrome_path: env::var_os("TES_CHROME").map(PathBuf::from),
+                backend,
             },
         );
     }

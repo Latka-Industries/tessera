@@ -82,7 +82,7 @@ pub mod prelude {
         rewrite_wikilinks, visit_wikilinks,
     };
     pub use crate::layout::{DocKind, OpenMode, Region, SuperblockV0};
-    pub use crate::render::pdf::{PdfExportOptions, export_pdf, render_themed_html};
+    pub use crate::render::pdf::{PdfBackend, PdfExportOptions, export_pdf, render_themed_html};
     pub use crate::render::preview::{ServeOptions, preview_html_for_path, serve_preview};
     pub use crate::render::print::{
         PrintBuildOptions, build_print_document, build_print_document_from_path,
