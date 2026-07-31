@@ -250,6 +250,7 @@ freeze. CRDT/live cursors are not part of M10.
 | Aleph GUI | Workspace on top of `.tes`; separate product |
 | Native full-text index | Projected text / external sidecar first |
 | Shared wire crate with Tetration | Revisit after v0 stable |
+| Spec dogfood (`.tes` mirror) | Keep `docs/*.md` readable on git; optional `.tes` mirror with MD exported from it |
 
 ---
 

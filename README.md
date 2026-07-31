@@ -49,7 +49,10 @@ See `tes --help` and [docs/cli.md](docs/cli.md).
 
 ## Documentation
 
-Spec, decisions, and engine notes live under [`docs/`](docs/) (this README stays short).
+Spec, decisions, and engine notes live under [`docs/`](docs/) as Markdown so
+they stay readable on GitHub. A later dogfood step may add a `.tes` mirror of
+that tree and generate the `.md` from it — Markdown remains the published view;
+binary alone would not.
 
 |                                                    |                                                             |
 | -------------------------------------------------- | ----------------------------------------------------------- |
