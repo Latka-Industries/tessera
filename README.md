@@ -12,7 +12,7 @@
 ## What it does today
 
 - **Container** — `TESS` superblock, catalog JSON, `TIDX` chunk index, `TLNK` links, sealed writer + mmap / buffered reader, golden fixtures, deep `tes verify` (`--copy`), `cargo-fuzz` on `verify_bytes`
-- **Exports** — raw / linear / AI text / JSONL / Markdown / semantic HTML / print PDF (headless Chromium); chapter-scoped `--chapter`
+- **Exports** — raw / linear / AI text / JSONL / Markdown / semantic HTML / print PDF (Chromium default; `--backend native` via `ariadnes-weave`); chapter-scoped `--chapter`
 - **Import** — CommonMark subset, semantic HTML, BibTeX / CSL-JSON → cite chunks
 - **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering; slides
 - **Preview** — loopback `tes serve` with external template/theme packs (`draft` / `print` / `manuscript`)
@@ -37,7 +37,12 @@ tes verify --copy --deep /mnt/nfs/untrusted.tes
 tes export fixtures/v0/note_one_chunk.tes --markdown
 tes serve fixtures/v0/note_one_chunk.tes --template-root templates
 tes export fixtures/v0/note_one_chunk.tes --pdf -o /tmp/note.pdf --template-root templates
+tes export fixtures/v0/note_one_chunk.tes --pdf --backend native -o /tmp/note-native.pdf
 ```
+
+Cargo features (library): `native-pdf` (default), plus optional `weave-cjk` /
+`weave-emoji` / `weave-icons` pass-throughs to `ariadnes-weave`. Format-only
+embeds can use `default-features = false`.
 
 ```bash
 tes import --markdown notes.md notes.tes

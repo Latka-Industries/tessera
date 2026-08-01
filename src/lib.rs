@@ -13,7 +13,7 @@
 //! - [`edit`] — Tessera Markdown virtual editing (`edit-read` / `edit-write` / `apply`).
 //! - [`history`] — content-addressed drafts (`tes save` / `log` / `diff` / `changelog`).
 //! - [`vault`] — stable link resolution, backlinks, and FTS search.
-//! - [`render`] — template packs, `tes serve` preview, and PDF print.
+//! - [`render`] — template packs, `tes serve` preview, print IR, and PDF print.
 //! - [`cli`] — `tes` command surface (`src/bin/tes.rs` → [`cli::run`]).
 //! - [`lsp`] — `tes-lsp` Tessprek language server (`src/bin/tes_lsp.rs` → [`lsp::run`]).
 //! - [`error`] — shared [`error::TesError`] / [`error::Result`].
@@ -44,7 +44,12 @@ pub mod verify;
 
 /// Crate-root aliases for [`io`] and [`render`] submodules.
 pub use io::{bib, export, import};
+#[cfg(feature = "native-pdf")]
+pub use render::print;
 pub use render::{pdf, preview, template};
+
+/// `ariadnes-weave` native PDF path compiled in (`native-pdf` feature; default).
+pub const FEATURE_NATIVE_PDF: bool = cfg!(feature = "native-pdf");
 
 #[cfg(test)]
 mod tests;
@@ -82,8 +87,12 @@ pub mod prelude {
         rewrite_wikilinks, visit_wikilinks,
     };
     pub use crate::layout::{DocKind, OpenMode, Region, SuperblockV0};
-    pub use crate::render::pdf::{PdfExportOptions, export_pdf, render_themed_html};
+    pub use crate::render::pdf::{PdfBackend, PdfExportOptions, export_pdf, render_themed_html};
     pub use crate::render::preview::{ServeOptions, preview_html_for_path, serve_preview};
+    #[cfg(feature = "native-pdf")]
+    pub use crate::render::print::{
+        PrintBuildOptions, build_print_document, build_print_document_from_path,
+    };
     pub use crate::render::template::{TemplateManifest, TemplatePack};
     pub use crate::vault::{
         Backlink, ResolvedTarget, Vault, VaultDocument, VaultIndex, VaultIndexEntry,
