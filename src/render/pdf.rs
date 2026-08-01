@@ -2,7 +2,7 @@
 //!
 //! Two backends:
 //! - **Chromium** (default): semantic HTML + print-theme → headless Chromium
-//! - **Native** (THI-294): print IR → [`ariadnes_weave::emit_pdf`]
+//! - **Native** (THI-294, feature `native-pdf`): print IR → `ariadnes_weave::emit_pdf`
 //!
 //! Browser preview (`tes serve --theme print`) still shares the HTML path with
 //! the Chromium backend. PDF is never an editable canonical source.
@@ -14,9 +14,6 @@ use std::process::Command;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ariadnes_weave::PrintProfileId;
-
-use super::print::{PrintBuildOptions, build_print_document};
 use super::template::{ThemeFallback, resolve_pack_and_theme};
 use crate::catalog::file::TesFile;
 use crate::error::{Result, TesError};
@@ -133,13 +130,13 @@ pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) ->
 /// Export `path` to a PDF file at `output`.
 ///
 /// Backend is selected by [`PdfExportOptions::backend`] (`chromium` default,
-/// `native` for ariadnes-weave).
+/// `native` for ariadnes-weave when the `native-pdf` Cargo feature is enabled).
 ///
 /// # Errors
 ///
-/// Returns errors from [`render_themed_html`] / [`find_chrome`] /
-/// [`build_print_document`] / [`ariadnes_weave::emit_pdf`], [`TesError::Io`] for
-/// output writes, or [`TesError::PdfEngine`] if emit fails or output is not a PDF.
+/// Returns errors from [`render_themed_html`] / [`find_chrome`] / native emit,
+/// [`TesError::Io`] for output writes, or [`TesError::PdfEngine`] if emit fails,
+/// the `native-pdf` feature is disabled, or output is not a PDF.
 pub fn export_pdf(
     path: impl AsRef<Path>,
     output: impl AsRef<Path>,
@@ -151,13 +148,24 @@ pub fn export_pdf(
     }
 }
 
+#[cfg(feature = "native-pdf")]
 fn export_pdf_native(path: &Path, output: &Path, options: &PdfExportOptions) -> Result<()> {
+    use ariadnes_weave::PrintProfileId;
+
+    use super::print::{PrintBuildOptions, build_print_document};
+
     let file = TesFile::open(path)?;
+    let profile = match options.theme_id.as_deref() {
+        Some("manuscript") => Some(PrintProfileId::manuscript_v0()),
+        Some("deck") => Some(PrintProfileId::deck_v0()),
+        Some("print") => Some(PrintProfileId::print_v0()),
+        _ => None,
+    };
     let doc = build_print_document(
         &file,
         &PrintBuildOptions {
             chapter: options.chapter,
-            profile: profile_from_theme_id(options.theme_id.as_deref()),
+            profile,
         },
     )?;
     let bytes = ariadnes_weave::emit_pdf(&doc).map_err(|err| TesError::PdfEngine {
@@ -177,13 +185,13 @@ fn export_pdf_native(path: &Path, output: &Path, options: &PdfExportOptions) -> 
     Ok(())
 }
 
-fn profile_from_theme_id(theme_id: Option<&str>) -> Option<PrintProfileId> {
-    match theme_id {
-        Some("manuscript") => Some(PrintProfileId::manuscript_v0()),
-        Some("deck") => Some(PrintProfileId::deck_v0()),
-        Some("print") => Some(PrintProfileId::print_v0()),
-        _ => None,
-    }
+#[cfg(not(feature = "native-pdf"))]
+fn export_pdf_native(_path: &Path, _output: &Path, _options: &PdfExportOptions) -> Result<()> {
+    Err(TesError::PdfEngine {
+        message: "native PDF backend requires the `native-pdf` Cargo feature \
+                  (default; rebuild with --features native-pdf)"
+            .into(),
+    })
 }
 
 fn export_pdf_chromium(path: &Path, output: &Path, options: &PdfExportOptions) -> Result<()> {
@@ -420,6 +428,7 @@ mod tests {
         assert!(!html.contains("beta readers"));
     }
 
+    #[cfg(feature = "native-pdf")]
     #[test]
     fn export_pdf_native_note_three_chunks() {
         let dir = tempdir().unwrap();
@@ -440,6 +449,7 @@ mod tests {
         assert!(bytes.len() > 200);
     }
 
+    #[cfg(feature = "native-pdf")]
     #[test]
     fn export_pdf_native_manuscript_chapter() {
         let dir = tempdir().unwrap();

@@ -154,7 +154,7 @@ pack theme / native profile is `manuscript` instead of academic `print`.
 | `--markdown`                   | Lossy Markdown                                                    |
 | `--html`                       | HTML fragment (+ `--theme`, `--standalone`, `--embed-css`)        |
 | `--pdf`                        | PDF export (requires `-o`; engine via `--backend`)                |
-| `--backend chromium\|native`   | PDF engine (default `chromium`; `native` = ariadnes-weave)        |
+| `--backend chromium\|native`   | PDF engine (default `chromium`; `native` needs Cargo `native-pdf`) |
 | `--bibliography`               | BibTeX / CSL-JSON from cite chunks (`--bib-format`)               |
 | `--attachment`                 | Write opaque attachment chunk bytes (requires `--chunk` and `-o`) |
 | `--bib-format`                 | `bibtex` (default) or `csl-json` with `--bibliography`            |

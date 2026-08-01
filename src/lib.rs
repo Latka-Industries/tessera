@@ -44,7 +44,12 @@ pub mod verify;
 
 /// Crate-root aliases for [`io`] and [`render`] submodules.
 pub use io::{bib, export, import};
-pub use render::{pdf, preview, print, template};
+#[cfg(feature = "native-pdf")]
+pub use render::print;
+pub use render::{pdf, preview, template};
+
+/// `ariadnes-weave` native PDF path compiled in (`native-pdf` feature; default).
+pub const FEATURE_NATIVE_PDF: bool = cfg!(feature = "native-pdf");
 
 #[cfg(test)]
 mod tests;
@@ -84,6 +89,7 @@ pub mod prelude {
     pub use crate::layout::{DocKind, OpenMode, Region, SuperblockV0};
     pub use crate::render::pdf::{PdfBackend, PdfExportOptions, export_pdf, render_themed_html};
     pub use crate::render::preview::{ServeOptions, preview_html_for_path, serve_preview};
+    #[cfg(feature = "native-pdf")]
     pub use crate::render::print::{
         PrintBuildOptions, build_print_document, build_print_document_from_path,
     };

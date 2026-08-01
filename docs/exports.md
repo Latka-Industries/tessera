@@ -276,15 +276,19 @@ execute attachment payloads.
 
 Paginated PDF. **Direction (D21):** native layout via the [print IR](print_ir.md)
 and the **`ariadnes-weave`** crate (deterministic profiles such as `print` /
-`manuscript`). `--backend native` is available now; **default remains
-`chromium`** (HTML + print-theme CSS → headless Chromium/Chrome via
-`TES_CHROME` or auto-detect) until native is the product default. On Linux and
-in CI, Tessera passes `--no-sandbox` when needed (`TES_CHROME_NO_SANDBOX`).
+`manuscript`). `--backend native` is available when the Cargo feature `native-pdf` is enabled
+(crate default). **CLI default remains `chromium`** (HTML + print-theme CSS →
+headless Chromium/Chrome via `TES_CHROME` or auto-detect) until native is the
+product default. On Linux and in CI, Tessera passes `--no-sandbox` when needed
+(`TES_CHROME_NO_SANDBOX`).
+
+Optional weave font packs: Cargo features `weave-cjk`, `weave-emoji`,
+`weave-icons` (pass-through to `ariadnes-weave`).
 
 | Flag | Behavior |
 | --- | --- |
 | `-o PATH` | **Required** output PDF path |
-| `--backend chromium\|native` | `chromium` (default) or `native` (ariadnes-weave; no Chrome) |
+| `--backend chromium\|native` | `chromium` (default) or `native` (ariadnes-weave; needs `native-pdf`) |
 | `--theme-id ID` | Pack theme for Chromium HTML-print; also selects native profile when set (`print` / `manuscript` / `deck`) |
 | `--template ID` / `--template-root DIR` | Template pack selection (Chromium path) |
 | `--chapter N` | Restrict body to the Nth H1-bounded chapter (1-based; same flag on all export views) |
