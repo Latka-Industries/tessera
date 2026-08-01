@@ -28,9 +28,18 @@ path = "src/bin/tes.rs"
 name = "tes-lsp"
 path = "src/bin/tes_lsp.rs"
 
+[features]
+default = ["native-pdf"]
+# Print IR → ariadnes-weave (`tes export --pdf --backend native`).
+native-pdf = ["dep:ariadnes-weave"]
+# Pass-through sealed font packs from ariadnes-weave (large; opt-in).
+weave-cjk = ["native-pdf", "ariadnes-weave/cjk"]
+weave-emoji = ["native-pdf", "ariadnes-weave/emoji"]
+weave-icons = ["native-pdf", "ariadnes-weave/icons"]
+
 [dependencies]
 argus-chunk = "0.1.0"
-ariadnes-weave = "0.2.1"
+ariadnes-weave = { version = "0.2.1", optional = true }
 clap = { version = "4.6.4", features = ["derive"] }
 memmap2 = "0.9.11"
 pulldown-cmark = "0.13.4"
