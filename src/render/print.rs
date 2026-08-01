@@ -74,9 +74,10 @@ fn print_meta(file: &TesFile) -> PrintMeta {
     let catalog = file.catalog();
     PrintMeta {
         title: catalog.map(|c| c.title.clone()).unwrap_or_default(),
-        doc_kind: catalog
-            .map(|c| c.doc_kind.clone())
-            .unwrap_or_else(|| file.superblock().doc_kind.as_str().to_owned()),
+        doc_kind: catalog.map_or_else(
+            || file.superblock().doc_kind.as_str().to_owned(),
+            |c| c.doc_kind.clone(),
+        ),
         language: catalog.and_then(|c| c.language.clone()),
         source_doc_id: catalog.map(|c| c.doc_id.clone()),
     }
@@ -161,15 +162,15 @@ fn flush_list(blocks: &mut Vec<PrintBlock>, list_buf: &mut Vec<PendingListItem>)
         return;
     }
     let items = std::mem::take(list_buf);
-    blocks.push(coalesce_list(items));
+    blocks.push(coalesce_list(&items));
 }
 
-fn coalesce_list(items: Vec<PendingListItem>) -> PrintBlock {
+fn coalesce_list(items: &[PendingListItem]) -> PrintBlock {
     let ordered = matches!(items.first().map(|i| i.kind), Some(ListKind::Ordered));
     let min_depth = items.iter().map(|i| i.depth).min().unwrap_or(1);
     PrintBlock::List {
         ordered,
-        items: nest_list_items(&items, min_depth),
+        items: nest_list_items(items, min_depth),
     }
 }
 
@@ -242,7 +243,8 @@ fn map_text_block(header: &TextHeader, body: &str, profile: &PrintProfileId) -> 
                 break_before,
             }
         }
-        TextRole::Paragraph => PrintBlock::Paragraph {
+        // ListItem: isolated items should have been coalesced; paragraph fallback.
+        TextRole::Paragraph | TextRole::ListItem => PrintBlock::Paragraph {
             runs: body_to_runs(body, &header.spans),
         },
         TextRole::Blockquote => PrintBlock::Quote {
@@ -256,10 +258,6 @@ fn map_text_block(header: &TextHeader, body: &str, profile: &PrintProfileId) -> 
         TextRole::Math => PrintBlock::Math {
             display: true,
             latex: body.trim().to_owned(),
-        },
-        TextRole::ListItem => PrintBlock::Paragraph {
-            // Isolated list items should have been coalesced; fallback.
-            runs: body_to_runs(body, &header.spans),
         },
     }
 }
@@ -326,11 +324,11 @@ fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<PrintBlock> {
         },
         alt: figure.alt_text,
         caption,
-        placement: map_figure_placement(figure.placement),
+        placement: map_figure_placement(&figure.placement),
     })
 }
 
-fn map_figure_placement(placement: ImagePlacement) -> FigurePlacement {
+fn map_figure_placement(placement: &ImagePlacement) -> FigurePlacement {
     match placement {
         ImagePlacement::FloatStart | ImagePlacement::FloatEnd => FigurePlacement::FloatNear,
         _ => FigurePlacement::Flow,
