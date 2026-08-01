@@ -1,6 +1,6 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.2.0** opens the native-print era.
+**Status:** M0–M11 shipped; crate **0.2.1** continues the native-print era.
 M10 history tools (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/
 `textconv`/`blame`/`pending`/`merge-file`), layout-v1 **text wire**
 (spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
@@ -11,6 +11,7 @@ summaries (THI-212 / THI-219), manuscript conventions + `--chapter` +
 and `TesOp::SetTags` are in. **0.1.12** added parser hygiene (THI-296..299).
 **0.2.0** wires print IR → **`ariadnes-weave`** (`tes export --pdf --backend
 native`; Chromium remains default) — THI-290 / THI-294 under epic THI-256.
+**0.2.1** requires `ariadnes-weave` 0.2.2 (`TextRun.face` / pinned faces).
 Richer native layout (tables/math/decks, OS fonts) continues on that track.
 This is an implementation plan, not a release schedule.
 

@@ -283,7 +283,9 @@ promoted. On Linux and in CI, Tessera passes `--no-sandbox` when needed
 (`TES_CHROME_NO_SANDBOX`).
 
 Optional weave font packs: Cargo features `weave-cjk`, `weave-emoji`,
-`weave-icons` (pass-through to `ariadnes-weave`).
+`weave-icons` (pass-through to `ariadnes-weave`). Native CLI emit uses sealed
+faces only; library embeds can pin host TTFs via weave `EmitOptions` /
+`TextRun::face` ([print IR](print_ir.md#host-pinned-faces-ariadnes-weave--022)).
 
 | Flag | Behavior |
 | --- | --- |

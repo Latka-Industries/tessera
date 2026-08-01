@@ -1,8 +1,9 @@
 # Print IR (`ariadnes-weave`)
 
-**Status (Tessera 0.2.0):** prose print-tree builder + CLI `--backend native`
-shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Layout quality
-beyond prose (THI-291+ tables/math/decks/fonts) continues in
+**Status (Tessera 0.2.1):** prose print-tree builder + CLI `--backend native`
+shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Requires
+**`ariadnes-weave` ≥ 0.2.2** (`TextRun.face` for optional pinned faces). Layout
+quality beyond prose (THI-291+ tables/math/decks/fonts) continues in
 **`ariadnes-weave`** under epic THI-256.
 
 Tessera builds the IR from `.tes` (`render::print`) and calls the crate
@@ -123,6 +124,9 @@ pub enum PrintBlock {
 pub struct TextRun {
     pub text: String,
     pub style: InlineStyle, // strong/em/code/link/cite flags; no free CSS
+    /// Optional pin id for `EmitOptions::pinned_faces` (host TTF).
+    /// Tessera prose runs leave this `None` (Liberation style mapping).
+    pub face: Option<String>,
 }
 
 pub enum BreakHint {
@@ -175,6 +179,26 @@ export — the anti-Markdown-PDF property.
 Font files used by a profile are **crate-bundled or explicitly hashed** inputs,
 not “whatever is on the system,” for CI stability.
 
+### Host-pinned faces (`ariadnes-weave` ≥ 0.2.2)
+
+`emit_pdf` is `emit_pdf_with(..., EmitOptions::bundled_only())`: sealed
+Liberation (plus optional `icons` / future `cjk` / `emoji` packs). Embedders
+can pin host TTFs and select them per run:
+
+```rust
+let opts = EmitOptions::bundled_only().with_pinned_face("ui", ttf_bytes);
+// TextRun::pinned("…", "ui")  or  TextRun { face: Some("ui".into()), … }
+let pdf = emit_pdf_with(&doc, &opts)?;
+```
+
+Unknown pin ids fail emit (`WeaveError::Font`). Pins are stable inputs (sorted
+ids + fixed bytes), so fixtures stay deterministic — this is not OS fontconfig
+lookup (that remains later / THI-311).
+
+**Tessera today:** the print builder sets `face: None` on all prose runs; the
+CLI native path calls `emit_pdf` only. No `--pin-face` / wire face ids yet
+(library consumers use weave’s API directly).
+
 ---
 
 ## Tessera mapping (prose MVP)
@@ -199,7 +223,10 @@ tes export doc.tes --pdf -o out.pdf --backend native   # ariadnes-weave
 tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
 ```
 
-Default stays `chromium` until native is promoted; both backends ship in 0.2.0.
+Default stays `chromium` until native is promoted; both backends ship since 0.2.0
+(`ariadnes-weave` 0.2.2+ as of Tessera 0.2.1). Native CLI uses bundled faces
+only; see [Host-pinned faces](#host-pinned-faces-ariadnes-weave--022) for the
+library pin path.
 
 ---
 
@@ -209,4 +236,4 @@ Default stays `chromium` until native is promoted; both backends ship in 0.2.0.
 2. Scaffold `ariadnes-weave` (THI-289) — done
 3. Tessera print-tree builder, prose (THI-290) — done (0.2.0)
 4. Pagination + CLI wiring (THI-294) — done (0.2.0, `--backend native`)
-5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308)
+5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1)

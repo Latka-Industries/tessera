@@ -1,6 +1,6 @@
 [package]
 name = "tessera-doc"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.95"
 authors = ["AHurowitz <latkaindustries@gmail.com>"]
@@ -39,7 +39,7 @@ weave-icons = ["native-pdf", "ariadnes-weave/icons"]
 
 [dependencies]
 argus-chunk = "0.1.0"
-ariadnes-weave = { version = "0.2.1", optional = true }
+ariadnes-weave = { version = "0.2.2", optional = true }
 clap = { version = "4.6.4", features = ["derive"] }
 memmap2 = "0.9.11"
 pulldown-cmark = "0.13.4"
@@ -63,7 +63,7 @@ katex-rs = "0.2"
 [patch.crates-io]
 # argus-chunk = { path = "../argus-chunk" }
 # Local suite sibling (tessera-suite/ariadnes-weave → LatkaIndustries).
-# Enable while co-developing weave; leave commented to use crates.io 0.2.1.
+# Enable while co-developing weave; leave commented to use crates.io 0.2.2.
 # ariadnes-weave = { path = "../ariadnes-weave" }
 
 [dev-dependencies]
