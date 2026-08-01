@@ -411,6 +411,7 @@ fn body_to_runs(body: &str, spans: &[InlineSpan]) -> Vec<TextRun> {
         runs.push(TextRun {
             text: body[a..b].to_owned(),
             style,
+            face: None,
         });
     }
     runs
