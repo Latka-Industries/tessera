@@ -8,6 +8,7 @@
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
 **In active development — layout v0 wire may change before a stable v1.**
+Crate **0.2.0** adds native PDF (`ariadnes-weave`) alongside Chromium print.
 
 ## What it does today
 

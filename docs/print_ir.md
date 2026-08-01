@@ -1,9 +1,13 @@
 # Print IR (`ariadnes-weave`)
 
-**Status:** accepted sketch (THI-288 done). Implementation track: THI-256 /
-THI-289+ (`ariadnes-weave`).
-Implementation lives in a separate crate, **`ariadnes-weave`**; Tessera builds
-the IR from `.tes` and calls the crate.
+**Status (Tessera 0.2.0):** prose print-tree builder + CLI `--backend native`
+shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Layout quality
+beyond prose (THI-291+ tables/math/decks/fonts) continues in
+**`ariadnes-weave`** under epic THI-256.
+
+Tessera builds the IR from `.tes` (`render::print`) and calls the crate
+(`ariadnes_weave::emit_pdf`). Cargo feature `native-pdf` (default) gates the
+dependency; optional `weave-cjk` / `weave-emoji` / `weave-icons` pass through.
 
 Related: [decisions — Print IR](decisions.md#print-ir-and-pdf-source-of-truth),
 [exports — PDF](exports.md#--pdf), [roadmap](roadmap.md).
@@ -32,8 +36,8 @@ unfolding**: same `.tes` + same **print profile** version → same pagination.
 **PDF source of truth for layout** = print IR + profile, not CSS.
 **HTML** remains the browser sink; it does not drive native PDF.
 
-Chromium HTML-print stays available as `--backend chromium` until native wins
-on fixtures, then becomes optional/fallback.
+Chromium HTML-print remains the **CLI default** (`--backend chromium`); native
+is opt-in until promoted. After cutover, Chromium stays as optional fallback.
 
 ---
 
@@ -180,22 +184,22 @@ not “whatever is on the system,” for CI stability.
 | Text `heading` level N | `Heading { level: N, … }`; level 1 + `manuscript` → `PageAlways` |
 | `paragraph` / quote / code / list | Matching blocks; inline spans → `TextRun` styles |
 | `--chapter N` | Emit only that H1 slice (same rules as export) |
-| Structured table | `Table` (after prose MVP) |
-| Figure + image | `Figure` (after prose MVP) |
-| Math role / inline math | `Math { latex }` (after prose MVP) |
-| Slide chunk | `Slide { … }` (later) |
+| Structured table | `Table` (IR mapped; layout quality THI-291) |
+| Figure + image | `Figure` (IR mapped; float/placement THI-291) |
+| Math role / inline math | `Math { latex }` (IR mapped; real math layout THI-291) |
+| Slide chunk | `Slide` (IR mapped; richer regions THI-293) |
 | THST / pending | Ignored for print body (sealed body only) |
 
 ---
 
-## CLI (direction)
+## CLI
 
 ```bash
 tes export doc.tes --pdf -o out.pdf --backend native   # ariadnes-weave
 tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
 ```
 
-Default stays `chromium` until native is promoted; both backends ship.
+Default stays `chromium` until native is promoted; both backends ship in 0.2.0.
 
 ---
 
@@ -203,6 +207,6 @@ Default stays `chromium` until native is promoted; both backends ship.
 
 1. This sketch + D21 (THI-288) — done
 2. Scaffold `ariadnes-weave` (THI-289) — done
-3. Tessera print-tree builder, prose (THI-290) — done
-4. Pagination + CLI wiring (THI-294) — done (`--backend native`)
-5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293)
+3. Tessera print-tree builder, prose (THI-290) — done (0.2.0)
+4. Pagination + CLI wiring (THI-294) — done (0.2.0, `--backend native`)
+5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308)

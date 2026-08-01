@@ -274,12 +274,12 @@ execute attachment payloads.
 
 ## `--pdf`
 
-Paginated PDF. **Direction (D21):** native layout via the [print IR](print_ir.md)
-and the **`ariadnes-weave`** crate (deterministic profiles such as `print` /
-`manuscript`). `--backend native` is available when the Cargo feature `native-pdf` is enabled
+Paginated PDF (**0.2.0**). **Direction (D21):** native layout via the
+[print IR](print_ir.md) and **`ariadnes-weave`** (profiles such as `print` /
+`manuscript` / `deck`). `--backend native` requires Cargo feature `native-pdf`
 (crate default). **CLI default remains `chromium`** (HTML + print-theme CSS →
-headless Chromium/Chrome via `TES_CHROME` or auto-detect) until native is the
-product default. On Linux and in CI, Tessera passes `--no-sandbox` when needed
+headless Chromium/Chrome via `TES_CHROME` or auto-detect) until native is
+promoted. On Linux and in CI, Tessera passes `--no-sandbox` when needed
 (`TES_CHROME_NO_SANDBOX`).
 
 Optional weave font packs: Cargo features `weave-cjk`, `weave-emoji`,

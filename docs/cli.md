@@ -138,12 +138,12 @@ tes import --bibtex fixtures/assets/citations/sample.bib refs.tes
 ```
 
 `--pdf` defaults to **Chromium**: same semantic HTML + template theme path as
-`tes serve` (requires `TES_CHROME` or auto-detect). `--backend native` uses
-print IR → [`ariadnes-weave`](print_ir.md) with no browser. PDF is a lossy
-print sink, not an editable source. For `doc_kind = manuscript`, the default
-pack theme / native profile is `manuscript` instead of academic `print`.
-`--chapter N` scopes **any** export view to the Nth H1-bounded chapter
-(conflicts with `--chunk`).
+`tes serve` (requires `TES_CHROME` or auto-detect). `--backend native` (0.2.0,
+Cargo feature `native-pdf`) uses print IR → [`ariadnes-weave`](print_ir.md)
+with no browser. PDF is a lossy print sink, not an editable source. For
+`doc_kind = manuscript`, the default pack theme / native profile is
+`manuscript` instead of academic `print`. `--chapter N` scopes **any** export
+view to the Nth H1-bounded chapter (conflicts with `--chunk`).
 
 | Flag                           | Effect                                                            |
 | ------------------------------ | ----------------------------------------------------------------- |

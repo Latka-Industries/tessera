@@ -65,6 +65,9 @@ Terms used consistently across Tessera docs, issues, and code.
 | **Export / view** | Decoded projection: `--raw`, `--ai-text`, `--html`, etc. |
 | **Parse once** | Import or save compiles markup into chunks; reads do not re-parse Markdown/HTML. |
 | **Render** | Generated HTML, PDF, deck, or AI view; never stored as canonical layout. |
+| **Print IR** | Pagination-ready tree Tessera builds from `.tes` for native PDF ([print_ir.md](print_ir.md)). |
+| **`ariadnes-weave`** | Separate crate that lays out print IR → deterministic PDF bytes. |
+| **PDF backend** | `chromium` (HTML-print, CLI default) or `native` (print IR + weave). |
 
 ---
 

@@ -198,8 +198,8 @@ Chapter-scoped export: `tes export draft.tes --markdown --chapter 2` or
 `tes export draft.tes --pdf -o ch2.pdf --chapter 2`.
 
 Native PDF (`ariadnes-weave`) uses print profile `manuscript` for the same
-conventions (H1 → always new page); Chromium HTML-print may still use pack
-theme CSS until the native backend is default.
+conventions (H1 → always new page). Chromium HTML-print still uses pack theme
+CSS and remains the CLI default until native is promoted.
 
 ---
 
@@ -212,8 +212,8 @@ the source of truth for native pagination.
 
 | Path | Role |
 | --- | --- |
-| `.tes` → print IR → `ariadnes-weave` → PDF | Deterministic print (target default) |
-| `.tes` → HTML + theme CSS → browser / Chromium print | Preview; optional `--backend chromium` |
+| `.tes` → print IR → `ariadnes-weave` → PDF | Deterministic print (`--backend native`; target default) |
+| `.tes` → HTML + theme CSS → browser / Chromium print | Preview; CLI default `--backend chromium` |
 
 **Rationale:** Markdown/HTML→PDF toolchains disagree on page breaks. Tessera
 should guarantee **replayable unfolding** (especially manuscripts): same file +
@@ -223,8 +223,9 @@ layout, not a CSS engine.
 **Rejected as endgame:** WeasyPrint / pure-Rust HTML/CSS clones; Typst or LaTeX
 as canonical authoring; storing page breaks in the `.tes` wire; editable PDF.
 
-Normative sketch: [print_ir.md](print_ir.md). Spec accepted (THI-288).
-Implementation tracker: THI-256 / THI-289+.
+Normative sketch: [print_ir.md](print_ir.md). Spec accepted (THI-288). Prose
+bridge + CLI wiring shipped in **0.2.0** (THI-290 / THI-294). Follow-on layout
+quality: THI-256 / THI-291+.
 
 ---
 

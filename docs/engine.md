@@ -1,8 +1,10 @@
 # Tessera reference engine — architecture
 
 **Status:** architecture reference. The v0 engine through Markdown/HTML import,
-export views, vault, preview/PDF, edit, and history is implemented; layout v1
-additions are planned in [structure_v1.md](structure_v1.md).
+export views, vault, preview/PDF (Chromium + native print IR), edit, and
+history is implemented; layout v1 additions are planned in
+[structure_v1.md](structure_v1.md). Native PDF via `ariadnes-weave` lands in
+crate **0.2.0** (feature `native-pdf`).
 
 This doc sits **between** the wire spec and the user-facing CLI: how bytes become documents, how documents become exports, and what is **not** in the engine (GUI, query stack, Tetration dependency).
 
@@ -26,7 +28,8 @@ The **Tessera engine** is the reference library (`tessera_doc`) that:
 3. **Imports** foreign formats into chunks **once** (`io::import`, `io::bib`).
 4. **Exports** decoded views for humans and models (`io::export`).
 5. **Resolves** cross-document links across a vault (`vault`).
-6. **Renders** semantic HTML with external templates/themes (`render`: serve + PDF).
+6. **Renders** semantic HTML with external templates/themes and PDF
+   (`render`: serve, Chromium print, optional native print IR).
 7. **Applies** editor/agent changes through typed compile/verify/replace (`edit`)
    and content-addressed history (`history`).
 
@@ -54,7 +57,7 @@ The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp
 ┌───────────────────────────────▼─────────────────────────────┐
 │  Domain layer (document semantics)                          │
 │  io/ (import · export · bib) · vault/ · edit/ · history/    │
-│  render/ (template · preview · pdf) · lsp/ (Tessprek LSP)   │
+│  render/ (template · preview · pdf · print) · lsp/          │
 └───────────────────────────────┬─────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────┐
@@ -93,13 +96,14 @@ The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp
 | `io::import` | `--markdown`, `--html` | [decisions](decisions.md) |
 | `io::bib` | BibTeX / CSL-JSON bibliography interchange | [exports.md](exports.md#bibliography) |
 | `vault` | Multi-file link resolve, backlinks, search (scan / Tantivy) | Phase 5 / THI-223 |
-| `render` | Template packs, `tes serve`, print PDF | Phase 7 |
+| `render` | Template packs, `tes serve`, Chromium PDF, print IR → weave | Phase 7 / 0.2.0 |
 | `edit` | Tessera Markdown + typed safe mutation | Layout v1 |
 | `history` | save/log/diff/blame/pending/`merge-file` over THST | M10 |
 | `cli` | Clap surface + command runners for `tes` | [cli.md](cli.md) |
 | `lsp` | `tes-lsp` Tessprek language server (stdio) | [lsp.md](lsp.md) |
 
-Crate-root aliases keep `tessera_doc::{export,import,bib,pdf,preview,template}` resolving to the `io` / `render` submodules.
+Crate-root aliases keep `tessera_doc::{export,import,bib,pdf,preview,template}`
+(and `print` when `native-pdf`) resolving to the `io` / `render` submodules.
 
 `repair/` is **optional** post–v0 (Tetration parity); not in the module tree.
 
@@ -237,7 +241,7 @@ Report shape follows Tetration (`TetVerifyReport`-style): findings, severity, JS
 - `verify` (basic + deep), `repair` (`tes repair` — THI-225: footer clear + drop OOB chunks)
 - `io::export` (`--raw`, `--linear`, `--ai-text`, `--chunks-jsonl`, Markdown/HTML, bibliography, `--attachment`)
 - `io::import` (Markdown, HTML), `io::bib`
-- `vault`, `render` (serve + PDF; `/media/` images, `/attachment/` downloads), `edit`, `history` (M10: save/log/diff/blame/pending/merge-file/export-revs/checkout/textconv)
+- `vault`, `render` (serve + Chromium/native PDF; `/media/` images, `/attachment/` downloads), `edit`, `history` (M10: save/log/diff/blame/pending/merge-file/export-revs/checkout/textconv)
 - `cli` + `tes` binary: info, verify, repair, export, import, link, vault, serve, edit-*, format, apply, save/log/diff/changelog/blame/pending/export-revs/checkout/textconv/merge-file
 
 **Out (later):**
