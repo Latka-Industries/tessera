@@ -13,7 +13,9 @@ use super::bib::{
     BibEntry, format_numeric_marker, format_numeric_reference, format_pandoc_cite,
     format_reference_body,
 };
-use crate::catalog::chunk::{CitePayload, ListKind, TextHeader, TextRole, decode_text_payload};
+use crate::catalog::chunk::{
+    CitePayload, ListKind, OrderedListNumbering, TextHeader, TextRole, decode_text_payload,
+};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload, base64_encode};
@@ -135,38 +137,45 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let cite_numbers = cite_number_map(file, &entries)?;
     let mut out = String::new();
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
+    let mut ordered = OrderedListNumbering::default();
     for (i, entry) in entries.iter().enumerate() {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
-                append_linear_text(&mut out, &header, &body);
+                let ordered_index = ordered.take_for_text(&header);
+                append_linear_text(&mut out, &header, &body, ordered_index);
             }
-            ChunkType::Figure => {
-                let figure = decode_figure_entry(file, entry)?;
-                append_linear_figure(&mut out, &figure);
-            }
-            ChunkType::Cite if !options.no_cites => {
-                let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
-                let marker = format_numeric_marker(n);
-                if cite.quote.trim().is_empty() {
-                    let _ = writeln!(out, "{marker}");
-                } else {
-                    let _ = writeln!(out, "{marker} {}", cite.quote.trim());
+            other => {
+                ordered.clear();
+                match other {
+                    ChunkType::Figure => {
+                        let figure = decode_figure_entry(file, entry)?;
+                        append_linear_figure(&mut out, &figure);
+                    }
+                    ChunkType::Cite if !options.no_cites => {
+                        let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
+                        let marker = format_numeric_marker(n);
+                        if cite.quote.trim().is_empty() {
+                            let _ = writeln!(out, "{marker}");
+                        } else {
+                            let _ = writeln!(out, "{marker} {}", cite.quote.trim());
+                        }
+                        bib_items.push((n, bib));
+                    }
+                    ChunkType::Slide => {
+                        let slide = decode_slide_entry(file, entry)?;
+                        let _ = writeln!(out, "[slide layout={}]", slide.layout_id);
+                        for region in &slide.regions {
+                            let _ = writeln!(out, "  {}: chunk-{}", region.name, region.chunk_id);
+                        }
+                    }
+                    ChunkType::Attachment => {
+                        let att = decode_attachment_entry(file, entry)?;
+                        append_linear_attachment(&mut out, &att);
+                    }
+                    _ => {}
                 }
-                bib_items.push((n, bib));
             }
-            ChunkType::Slide => {
-                let slide = decode_slide_entry(file, entry)?;
-                let _ = writeln!(out, "[slide layout={}]", slide.layout_id);
-                for region in &slide.regions {
-                    let _ = writeln!(out, "  {}: chunk-{}", region.name, region.chunk_id);
-                }
-            }
-            ChunkType::Attachment => {
-                let att = decode_attachment_entry(file, entry)?;
-                append_linear_attachment(&mut out, &att);
-            }
-            _ => {}
         }
         if i + 1 < entries.len() {
             out.push('\n');
@@ -185,7 +194,12 @@ fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
     Ok(out)
 }
 
-fn append_linear_text(out: &mut String, header: &TextHeader, body: &str) {
+fn append_linear_text(
+    out: &mut String,
+    header: &TextHeader,
+    body: &str,
+    ordered_index: Option<u32>,
+) {
     match header.role {
         TextRole::Heading => {
             let level = header.level.unwrap_or(1).clamp(1, 6) as usize;
@@ -195,13 +209,7 @@ fn append_linear_text(out: &mut String, header: &TextHeader, body: &str) {
             out.push('\n');
         }
         TextRole::ListItem => {
-            let marker = match header.list_kind.unwrap_or(ListKind::Bullet) {
-                ListKind::Bullet => "- ",
-                ListKind::Ordered => "1. ",
-            };
-            let indent = "  ".repeat(header.list_depth_or_default().saturating_sub(1) as usize);
-            out.push_str(&indent);
-            out.push_str(marker);
+            out.push_str(&header.list_marker_prefix(ordered_index));
             out.push_str(body.trim_end());
             out.push('\n');
         }
@@ -266,66 +274,77 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let cite_numbers = cite_number_map(file, &entries)?;
     let mut parts = Vec::with_capacity(entries.len());
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
+    let mut ordered = OrderedListNumbering::default();
     for entry in entries {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
-                parts.push(header.render_markdown_with_links(&body, file.links()));
+                let ordered_index = ordered.take_for_text(&header);
+                parts.push(header.render_markdown_with_links_indexed(
+                    &body,
+                    file.links(),
+                    ordered_index,
+                ));
             }
-            ChunkType::Figure => {
-                let figure = decode_figure_entry(file, entry)?;
-                let mut block = format!(
-                    "![{}](media:chunk-{})",
-                    markdown_escape_alt(&figure.alt_text),
-                    figure.image_chunk_id
-                );
-                if let Some(caption) = figure.caption.as_deref() {
-                    block.push_str("\n\n*");
-                    block.push_str(caption.trim());
-                    block.push('*');
+            other => {
+                ordered.clear();
+                match other {
+                    ChunkType::Figure => {
+                        let figure = decode_figure_entry(file, entry)?;
+                        let mut block = format!(
+                            "![{}](media:chunk-{})",
+                            markdown_escape_alt(&figure.alt_text),
+                            figure.image_chunk_id
+                        );
+                        if let Some(caption) = figure.caption.as_deref() {
+                            block.push_str("\n\n*");
+                            block.push_str(caption.trim());
+                            block.push('*');
+                        }
+                        parts.push(block);
+                    }
+                    ChunkType::Cite if !options.no_cites => {
+                        let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
+                        let label = cite
+                            .label
+                            .as_deref()
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or(bib.cite_key.as_str());
+                        let label = if label.is_empty() { "unknown" } else { label };
+                        let mut block = format_pandoc_cite(label);
+                        if !cite.quote.trim().is_empty() {
+                            block.push(' ');
+                            block.push('"');
+                            block.push_str(cite.quote.trim());
+                            block.push('"');
+                        }
+                        parts.push(block);
+                        bib_items.push((n, bib));
+                    }
+                    ChunkType::Slide => {
+                        let slide = decode_slide_entry(file, entry)?;
+                        let mut block = format!("<!-- slide layout={} -->", slide.layout_id);
+                        for region in &slide.regions {
+                            let _ = write!(block, "\n[{}]: chunk-{}", region.name, region.chunk_id);
+                        }
+                        parts.push(block);
+                    }
+                    ChunkType::Attachment => {
+                        let att = decode_attachment_entry(file, entry)?;
+                        let mut block = format!(
+                            "*Attachment:* `{}` (`{}`)",
+                            att.filename.replace('`', "'"),
+                            att.media_type
+                        );
+                        if let Some(caption) = att.caption.as_deref() {
+                            block.push_str(" — ");
+                            block.push_str(caption.trim());
+                        }
+                        parts.push(block);
+                    }
+                    _ => {}
                 }
-                parts.push(block);
             }
-            ChunkType::Cite if !options.no_cites => {
-                let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
-                let label = cite
-                    .label
-                    .as_deref()
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(bib.cite_key.as_str());
-                let label = if label.is_empty() { "unknown" } else { label };
-                let mut block = format_pandoc_cite(label);
-                if !cite.quote.trim().is_empty() {
-                    block.push(' ');
-                    block.push('"');
-                    block.push_str(cite.quote.trim());
-                    block.push('"');
-                }
-                parts.push(block);
-                bib_items.push((n, bib));
-            }
-            ChunkType::Slide => {
-                let slide = decode_slide_entry(file, entry)?;
-                let mut block = format!("<!-- slide layout={} -->", slide.layout_id);
-                for region in &slide.regions {
-                    let _ = write!(block, "\n[{}]: chunk-{}", region.name, region.chunk_id);
-                }
-                parts.push(block);
-            }
-            ChunkType::Attachment => {
-                let att = decode_attachment_entry(file, entry)?;
-                let mut block = format!(
-                    "*Attachment:* `{}` (`{}`)",
-                    att.filename.replace('`', "'"),
-                    att.media_type
-                );
-                if let Some(caption) = att.caption.as_deref() {
-                    block.push_str(" — ");
-                    block.push_str(caption.trim());
-                }
-                parts.push(block);
-            }
-            _ => {}
         }
     }
     if !bib_items.is_empty() {

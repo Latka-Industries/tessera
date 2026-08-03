@@ -113,19 +113,19 @@ function M.start(bufnr)
     return nil
   end
 
-  -- Hover only on `\tessera` / `\ids` / brace-command lines (not prose).
-  -- Wrapper notifies when LSP is missing or the cursor isn't on a marker.
+  -- Standard LSP hover (`K`) — same binding most nvim LSP configs use.
+  -- Server returns marker + body-line chunk info (THI-340).
   vim.keymap.set("n", "K", function()
     M.hover(bufnr)
   end, {
     buffer = bufnr,
     silent = true,
-    desc = "Tessprek LSP hover (brace commands / header)",
+    desc = "LSP hover (Tessprek marker / body chunk)",
   })
   return id
 end
 
----Hover Tessprek markers; explain why when nothing shows.
+---Hover Tessprek markers / body lines via standard LSP hover (`K`).
 ---@param bufnr? integer
 function M.hover(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
@@ -138,19 +138,6 @@ function M.hover(bufnr)
     )
     return
   end
-
-  local line = vim.api.nvim_get_current_line()
-  local trimmed = vim.trim(line)
-  local is_marker = trimmed:match("^\\[a-z]+%{.*%}$") ~= nil
-  if not is_marker then
-    vim.notify(
-      "tessera.nvim: hover only works on marker lines — move to "
-        .. "`\\tessera{…}` / `\\ids{…}` / `\\figure{…}` (line 1–2 of a projected file)",
-      vim.log.levels.WARN
-    )
-    return
-  end
-
   vim.lsp.buf.hover()
 end
 
@@ -265,7 +252,7 @@ function M.setup(opts)
 
   user_cmd("TesseraHover", function()
     M.hover()
-  end, { desc = "Hover Tessprek marker under cursor (or explain why not)" })
+  end, { desc = "LSP hover under cursor (Tessprek marker or body chunk)" })
 
   user_cmd("TesseraLspInfo", function()
     local cmd = resolve_cmd()

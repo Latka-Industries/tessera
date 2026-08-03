@@ -4,8 +4,10 @@
 //! (THI-242), keeps an in-memory Tessprek buffer via `didChange` (THI-243),
 //! publishes verify / source-hash diagnostics (THI-244) plus ranged Tessprek
 //! parse diagnostics (THI-254), writes back via `tessera.write` / `willSave`
-//! using [`edit_write`] (THI-245), and hovers Tessprek markers (THI-246).
+//! using [`edit_write`] (THI-245), hovers Tessprek markers and body lines
+//! (THI-246 / THI-340), and completes brace commands (THI-340).
 
+mod completion;
 mod diagnostics;
 mod document;
 mod hover;
@@ -19,14 +21,16 @@ use std::sync::Mutex;
 use serde_json::Value;
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::{
-    DiagnosticSeverity, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, ExecuteCommandOptions, ExecuteCommandParams, Hover, HoverParams,
-    HoverProviderCapability, InitializeParams, InitializeResult, InitializedParams, MessageType,
-    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, Url, WillSaveTextDocumentParams,
+    CompletionOptions, CompletionParams, CompletionResponse, DiagnosticSeverity,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    ExecuteCommandOptions, ExecuteCommandParams, Hover, HoverParams, HoverProviderCapability,
+    InitializeParams, InitializeResult, InitializedParams, MessageType, ServerCapabilities,
+    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextDocumentSyncSaveOptions, Url, WillSaveTextDocumentParams,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
+use self::completion::completions_at;
 use self::diagnostics::{collect_open_diagnostics, file_diagnostic, parse_diagnostic};
 use self::document::{
     OpenDocument, apply_content_changes, is_tes_path, load_open_document, uri_to_path,
@@ -59,6 +63,18 @@ impl Backend {
             client,
             documents: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Resolve open Tessprek text for `uri` (exact key, else path match).
+    fn tessprek_for_uri(&self, uri: &Url) -> Option<String> {
+        let docs = self.documents.lock().expect("documents lock");
+        if let Some(doc) = docs.get(uri) {
+            return Some(doc.tessprek.clone());
+        }
+        let path = uri_to_path(uri)?;
+        docs.values()
+            .find(|d| paths_match(&d.path, &path))
+            .map(|d| d.tessprek.clone())
     }
 
     async fn publish_for_open(
@@ -258,6 +274,10 @@ impl LanguageServer for Backend {
                     ..Default::default()
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                completion_provider: Some(CompletionOptions {
+                    trigger_characters: Some(vec!["\\".into(), "{".into(), " ".into()]),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -421,25 +441,20 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        let tessprek = {
-            let docs = self.documents.lock().expect("documents lock");
-            if let Some(doc) = docs.get(&uri) {
-                Some(doc.tessprek.clone())
-            } else if let Some(path) = uri_to_path(&uri) {
-                // Clients sometimes reopen with a different file:// spelling
-                // (symlink vs realpath); fall back to path match.
-                docs.values()
-                    .find(|d| paths_match(&d.path, &path))
-                    .map(|d| d.tessprek.clone())
-            } else {
-                None
-            }
-        };
-        let Some(text) = tessprek else {
+        let Some(text) = self.tessprek_for_uri(&uri) else {
             eprintln!("tes-lsp: hover for unknown URI: {uri}");
             return Ok(None);
         };
         Ok(hover_at(&text, position))
+    }
+
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let Some(text) = self.tessprek_for_uri(&uri) else {
+            return Ok(None);
+        };
+        Ok(completions_at(&text, position))
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {

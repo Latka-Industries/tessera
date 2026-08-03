@@ -81,7 +81,7 @@ The mean was 12.4°C.
 | --- | --- |
 | `role: heading` | Prefix `#` repeated `level` times + space + body |
 | `role: paragraph` | Body only |
-| `role: list_item` | `- ` or `1. ` from `list_kind` |
+| `role: list_item` | `- ` or sequential `1.` / `2.` / … from `list_kind` (contiguous ordered runs; nested depths restart) |
 | `role: table` | v0 TSV; v1 structured cells in reading order |
 | `attachment` | `[attachment filename=… media_type=… sha256=…]` (+ optional caption line); never embeds bytes |
 | Links | Inline `[display](doc:UUID/chunk)` form |

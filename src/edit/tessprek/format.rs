@@ -73,42 +73,199 @@ pub fn tessprek_needs_format(input: &str) -> Result<bool> {
 ///
 /// Returns [`TesError::EditParse`] for malformed directives.
 pub(super) fn build_content_blocks(lines: &[&str]) -> Result<Vec<ContentBlock>> {
+    Ok(build_content_blocks_with_spans(lines)?
+        .into_iter()
+        .map(|(_, _, block)| block)
+        .collect())
+}
+
+/// Like [`build_content_blocks`], but each block carries a 0-based half-open
+/// line span `[start, end)` covering its Tessprek source lines (for LSP hover).
+///
+/// # Errors
+///
+/// Returns [`TesError::EditParse`] for malformed directives.
+pub(crate) fn build_content_blocks_with_spans(
+    lines: &[&str],
+) -> Result<Vec<(usize, usize, ContentBlock)>> {
     let segments = scan_segments(lines)?;
-    let mut blocks = Vec::new();
+    let mut out = Vec::new();
     for segment in segments {
         match segment {
             Segment::Markdown {
-                line_no,
+                start,
+                end,
                 preserve,
-                text,
             } => {
-                append_mixed_markdown(&mut blocks, &text, preserve.as_ref(), line_no)?;
+                // `\text{…}` occupies `start`; body begins on the next line.
+                let body_start = if preserve.is_some() {
+                    start.saturating_add(1).min(end)
+                } else {
+                    start
+                };
+                append_mixed_markdown_spanned(&mut out, lines, body_start, end, preserve.as_ref())?;
             }
             Segment::Directive {
-                line_no,
+                start,
+                end,
                 kind,
                 map,
                 body,
             } => {
-                blocks.push(decode_named_directive(&kind, &map, &body, line_no)?);
+                let line_no = start + 1;
+                let block = decode_named_directive(&kind, &map, &body, line_no)?;
+                out.push((start, end, block));
             }
         }
     }
-    Ok(blocks)
+    Ok(out)
+}
+
+/// Walk blank-separated sections in `lines[start..end)`, emitting blocks with
+/// absolute line spans (avoids whole-run greedy anchoring that mis-attributed
+/// math lines to a following table).
+fn append_mixed_markdown_spanned(
+    out: &mut Vec<(usize, usize, ContentBlock)>,
+    lines: &[&str],
+    start: usize,
+    end: usize,
+    preserve: Option<&BTreeMap<String, String>>,
+) -> Result<()> {
+    let mut i = start;
+    let mut pending_preserve = preserve;
+    while i < end {
+        while i < end && lines[i].trim().is_empty() {
+            i += 1;
+        }
+        if i >= end {
+            break;
+        }
+        let sec_start = i;
+        while i < end && !lines[i].trim().is_empty() {
+            i += 1;
+        }
+        let sec_end = i;
+        let section_lines = &lines[sec_start..sec_end];
+        let section = section_lines.join("\n");
+        let line_no = sec_start + 1;
+
+        let mut blocks = Vec::new();
+        if looks_like_gfm_table(&section) {
+            for table in split_pipe_run_into_tables(section_lines) {
+                blocks.push(build_table_block(&table));
+            }
+        } else {
+            append_markdown_blocks(&mut blocks, &section, pending_preserve.take(), line_no)?;
+        }
+
+        let ranges = distribute_line_spans(sec_start, sec_end, lines, &blocks);
+        for ((s, e), block) in ranges.into_iter().zip(blocks) {
+            out.push((s, e, block));
+        }
+    }
+    Ok(())
+}
+
+/// Split `[start, end)` across `blocks.len()` spans by matching each block's
+/// first significant body line (fallback: even-ish slices).
+fn distribute_line_spans(
+    start: usize,
+    end: usize,
+    lines: &[&str],
+    blocks: &[ContentBlock],
+) -> Vec<(usize, usize)> {
+    if blocks.is_empty() {
+        return Vec::new();
+    }
+    if blocks.len() == 1 || start >= end {
+        return vec![(start, clamp_span_end(start, end, lines.len()))];
+    }
+
+    let mut starts = Vec::with_capacity(blocks.len());
+    let mut cursor = start;
+    for (idx, block) in blocks.iter().enumerate() {
+        if idx == 0 {
+            starts.push(start);
+            continue;
+        }
+        let needle = block_anchor_line(block);
+        let found = lines
+            .iter()
+            .enumerate()
+            .take(end)
+            .skip(cursor)
+            .find_map(|(j, line)| line_anchors(line, &needle).then_some(j));
+        let next_start = found.unwrap_or(cursor);
+        starts.push(next_start);
+        cursor = next_start.saturating_add(1).min(end);
+    }
+
+    let mut ranges = Vec::with_capacity(blocks.len());
+    for i in 0..blocks.len() {
+        let s = starts[i];
+        let e = if i + 1 < starts.len() {
+            starts[i + 1].max(s)
+        } else {
+            end.max(s)
+        };
+        ranges.push((s, clamp_span_end(s, e, lines.len())));
+    }
+    ranges
+}
+
+fn clamp_span_end(start: usize, end: usize, line_count: usize) -> usize {
+    end.max(start.saturating_add(1).min(line_count.max(start + 1)))
+}
+
+fn block_anchor_line(block: &ContentBlock) -> String {
+    match block {
+        ContentBlock::Text { header, .. } if header.role == TextRole::Math => "$$".to_owned(),
+        ContentBlock::Text { header, body, .. } if header.role == TextRole::CodeBlock => {
+            format!("```{}", header.code_lang.as_deref().unwrap_or(""))
+        }
+        ContentBlock::Text { header, body, .. } if header.role == TextRole::Table => header
+            .table
+            .as_ref()
+            .and_then(|t| t.rows.first())
+            .and_then(|r| r.cells.first())
+            .map_or_else(|| first_nonempty_line(body), |c| format!("| {} ", c.text)),
+        ContentBlock::Text { body, .. } => first_nonempty_line(body),
+        ContentBlock::Figure { figure, .. } => first_nonempty_line(&figure.alt_text),
+        ContentBlock::Cite { cite, .. } => first_nonempty_line(&cite.quote),
+        ContentBlock::Slide { slide, .. } => slide.layout_id.clone(),
+        ContentBlock::Attachment { filename, .. } => filename.clone(),
+    }
+}
+
+fn first_nonempty_line(raw: &str) -> String {
+    raw.lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("")
+        .to_owned()
+}
+
+fn line_anchors(line: &str, needle: &str) -> bool {
+    if needle.is_empty() {
+        return false;
+    }
+    let t = line.trim();
+    t == needle || t.starts_with(needle) || needle.starts_with(t)
 }
 
 #[derive(Debug)]
 enum Segment {
     /// Free Markdown run, optionally preceded by `\text{…}` (attrs applied to
-    /// the first resulting block).
+    /// the first resulting block). Lines are 0-based half-open `[start, end)`.
     Markdown {
-        line_no: usize,
+        start: usize,
+        end: usize,
         preserve: Option<BTreeMap<String, String>>,
-        text: String,
     },
     /// A brace-command directive (`figure` / `cite` / `slide` / `attachment`).
     Directive {
-        line_no: usize,
+        start: usize,
+        end: usize,
         kind: String,
         map: BTreeMap<String, String>,
         body: String,
@@ -197,6 +354,7 @@ fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
     let mut i = skip_header_and_blanks(lines, 0);
 
     while i < lines.len() {
+        let start = i;
         let line_no = i + 1;
         let trimmed = lines[i].trim();
         if trimmed.is_empty() {
@@ -209,18 +367,17 @@ fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             i += 1;
             match kind {
                 "text" => {
-                    let body_start = i;
                     i = next_boundary(lines, i);
-                    let text = trim_block_body(&lines[body_start..i]);
                     segments.push(Segment::Markdown {
-                        line_no,
+                        start,
+                        end: i,
                         preserve: Some(map),
-                        text,
                     });
                 }
                 "slide" | "attachment" => {
                     segments.push(Segment::Directive {
-                        line_no,
+                        start,
+                        end: i,
                         kind: kind.to_owned(),
                         map,
                         body: String::new(),
@@ -231,7 +388,8 @@ fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
                     i = next_boundary(lines, i);
                     let body = trim_block_body(&lines[body_start..i]);
                     segments.push(Segment::Directive {
-                        line_no,
+                        start,
+                        end: i,
                         kind: kind.to_owned(),
                         map,
                         body,
@@ -239,14 +397,13 @@ fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
                 }
             }
         } else {
-            let body_start = i;
             i = next_boundary(lines, i);
-            let text = trim_block_body(&lines[body_start..i]);
-            if !text.is_empty() {
+            // Skip all-blank runs (shouldn't happen after trim gate above).
+            if lines[start..i].iter().any(|l| !l.trim().is_empty()) {
                 segments.push(Segment::Markdown {
-                    line_no,
+                    start,
+                    end: i,
                     preserve: None,
-                    text,
                 });
             }
         }
@@ -256,12 +413,22 @@ fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
 }
 
 fn looks_like_gfm_table(body: &str) -> bool {
-    let lines: Vec<&str> = body
-        .lines()
+    table_header_and_sep(&nonempty_trimmed_lines_str(body))
+}
+
+fn nonempty_trimmed_lines_str(body: &str) -> Vec<&str> {
+    body.lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
-        .collect();
-    table_header_and_sep(&lines)
+        .collect()
+}
+
+fn nonempty_trimmed_lines<'a>(lines: &[&'a str]) -> Vec<&'a str> {
+    lines
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect()
 }
 
 fn is_gfm_separator_row(line: &str) -> bool {
@@ -278,11 +445,7 @@ fn table_header_and_sep(lines: &[&str]) -> bool {
 /// A second header+separator (copied divider under a new header) starts a new
 /// table even without a blank line between them.
 fn split_pipe_run_into_tables(lines: &[&str]) -> Vec<String> {
-    let lines: Vec<&str> = lines
-        .iter()
-        .map(|l| l.trim())
-        .filter(|l| !l.is_empty())
-        .collect();
+    let lines = nonempty_trimmed_lines(lines);
     if lines.is_empty() {
         return Vec::new();
     }
@@ -308,45 +471,6 @@ fn split_pipe_run_into_tables(lines: &[&str]) -> Vec<String> {
         tables.push(lines[start..i].join("\n"));
     }
     tables
-}
-
-/// Emit tables and other Markdown from a Tessprek free-Markdown run.
-///
-/// Blank lines separate sections. Pipe sections become one chunk per GFM table
-/// (split on a repeated header+`---` divider). Everything else uses
-/// [`parse_markdown_blocks`]. `preserve` (from a leading `\text{…}`) applies
-/// only to the very first non-table block.
-fn append_mixed_markdown(
-    out: &mut Vec<ContentBlock>,
-    markdown: &str,
-    preserve: Option<&BTreeMap<String, String>>,
-    line_no: usize,
-) -> Result<()> {
-    let lines: Vec<&str> = markdown.lines().collect();
-    let mut i = 0;
-    let mut pending_preserve = preserve;
-    while i < lines.len() {
-        while i < lines.len() && lines[i].trim().is_empty() {
-            i += 1;
-        }
-        if i >= lines.len() {
-            break;
-        }
-        let start = i;
-        while i < lines.len() && !lines[i].trim().is_empty() {
-            i += 1;
-        }
-        let section_lines = &lines[start..i];
-        let section = section_lines.join("\n");
-        if looks_like_gfm_table(&section) {
-            for table in split_pipe_run_into_tables(section_lines) {
-                out.push(build_table_block(&table));
-            }
-        } else {
-            append_markdown_blocks(out, &section, pending_preserve.take(), line_no)?;
-        }
-    }
-    Ok(())
 }
 
 fn build_table_block(table_md: &str) -> ContentBlock {
@@ -513,8 +637,8 @@ mod tests {
         let input = "## Section\n\n1. first\n2. second\n";
         let out = normalize_tessprek(input).unwrap();
         assert!(out.contains("## Section"), "{out}");
-        assert!(out.contains("1. first"), "{out}");
-        assert!(out.contains("1. second"), "{out}");
+        assert!(out.contains("1. first\n2. second"), "{out}");
+        assert!(!out.contains("1. first\n\n2. second"), "{out}");
         assert!(out.contains("\\ids{1,2,3}"), "{out}");
     }
 

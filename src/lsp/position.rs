@@ -16,6 +16,25 @@ pub(super) fn utf16_len(s: &str) -> u32 {
         .sum()
 }
 
+/// Byte slice of `line` covering the first `utf16_cols` UTF-16 code units.
+pub(super) fn utf16_prefix(line: &str, utf16_cols: usize) -> &str {
+    if utf16_cols == 0 {
+        return "";
+    }
+    let mut units = 0usize;
+    for (i, ch) in line.char_indices() {
+        let u = ch.len_utf16();
+        if units + u > utf16_cols {
+            return &line[..i];
+        }
+        units += u;
+        if units == utf16_cols {
+            return &line[..i + ch.len_utf8()];
+        }
+    }
+    line
+}
+
 /// Map 1-based Tessprek `EditParse` line/column onto an LSP [`Range`].
 ///
 /// Column `1` (the common case from the parser) highlights the whole line.

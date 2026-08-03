@@ -205,6 +205,7 @@ def case_handshake(bin_path: Path) -> None:
         assert sync.get("willSave") is True, sync
         assert "tessera.write" in cmds, cmds
         assert caps.get("hoverProvider") is True, caps
+        assert caps.get("completionProvider") is not None, caps
         print("ok  handshake")
     finally:
         s.close()
@@ -469,6 +470,65 @@ def case_hover_chunk_marker(bin_path: Path) -> None:
         hval = (header.get("contents") or {}).get("value") or ""
         assert "header" in hval.lower() or "tessprek" in hval.lower(), header
         print("ok  hover document header")
+
+        # Body line (prose) — chunk id hover (THI-340)
+        s.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 32,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {"uri": uri},
+                    "position": {"line": 3, "character": 0},
+                },
+            }
+        )
+        s.drain(1.5)
+        body = None
+        for msg in s.messages:
+            if msg.get("id") == 32 and "result" in msg:
+                body = msg["result"]
+                break
+        assert body is not None, "no body hover result"
+        bval = (body.get("contents") or {}).get("value") or ""
+        assert "chunk" in bval.lower(), body
+        print("ok  hover body chunk")
+    finally:
+        s.close()
+
+
+def case_completion_brace(bin_path: Path) -> None:
+    s = open_session(bin_path)
+    try:
+        handshake(s)
+        did_open(s, CLEAN)
+        uri = CLEAN.resolve().as_uri()
+        # Replace buffer with a partial `\fig` stem for completion.
+        did_change(s, CLEAN, "\\fig")
+        s.send(
+            {
+                "jsonrpc": "2.0",
+                "id": 40,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": {"uri": uri},
+                    "position": {"line": 0, "character": 4},
+                },
+            }
+        )
+        s.drain(1.5)
+        result = None
+        for msg in s.messages:
+            if msg.get("id") == 40 and "result" in msg:
+                result = msg["result"]
+                break
+            if msg.get("id") == 40 and "error" in msg:
+                raise AssertionError(f"completion error: {msg['error']}")
+        assert result is not None, "no completion result"
+        items = result if isinstance(result, list) else (result or {}).get("items") or []
+        labels = [i.get("label") for i in items]
+        assert any(lbl == "\\figure" for lbl in labels), labels
+        print("ok  completion \\figure")
     finally:
         s.close()
 
@@ -483,6 +543,7 @@ CASES = [
     ("write_round_trip", case_write_round_trip),
     ("write_stale_hash", case_write_stale_hash),
     ("hover", case_hover_chunk_marker),
+    ("completion", case_completion_brace),
 ]
 
 
