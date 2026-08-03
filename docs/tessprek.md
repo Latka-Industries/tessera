@@ -128,7 +128,10 @@ No body; attachment bytes are never projected into Tessprek (inert — see
 
 1. Write `\tessera{format=tessprek version=2 source-hash=…}`.
 2. Collect the reading-order chunk ids → `\ids{…}`.
-3. Per chunk: text → optional `\text{…}` + `TextHeader::render_markdown_with_links`;
+3. Per chunk: text → optional `\text{…}` + Markdown via
+   `OrderedListNumbering` + `TextHeader::render_markdown_with_links_indexed`
+   (contiguous ordered items become `1.` / `2.` / …; nested depths restart;
+   consecutive list items stay tight — one `\n`, not a blank line);
    figure/cite/slide/attachment → brace command + body as above (no `chunk=`
    attr on the command itself — the id lives only in `\ids{}`).
 

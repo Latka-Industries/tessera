@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use crate::catalog::chunk::{CitePayload, TextHeader};
+use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::history::attach_footer;
 use crate::catalog::index::ChunkType;
@@ -94,6 +94,15 @@ impl ContentBlock {
             | Self::Slide { chunk_id, .. }
             | Self::Attachment { chunk_id, .. } => *chunk_id,
         }
+    }
+
+    /// Whether this block is a list-item text chunk.
+    #[must_use]
+    pub fn is_list_item(&self) -> bool {
+        matches!(
+            self,
+            Self::Text { header, .. } if header.role == TextRole::ListItem
+        )
     }
 }
 

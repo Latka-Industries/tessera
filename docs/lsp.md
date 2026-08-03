@@ -30,7 +30,8 @@ Logs go to **stderr** only — stdout is the LSP wire.
 | `textDocument/publishDiagnostics` | Buffer `decode_tessprek` (`edit-parse`, ranged) + on-disk `verify_*` + source-hash |
 | `textDocument/willSave` | Triggers write-back |
 | `workspace/executeCommand` | `tessera.write` |
-| `textDocument/hover` | Tessprek `\tessera{}` / `\ids{}` / brace-command lines only (not prose). Neovim plugin binds `K`. |
+| `textDocument/hover` | Tessprek brace-command markers **and** body lines (chunk id / role / cite fields). Neovim binds `K` like other LSP clients. |
+| `textDocument/completion` | Brace commands (`\figure` …) + attribute keys inside `{…}`; triggers on `\`, `{`, space |
 
 ### `tessera.write`
 
@@ -44,11 +45,17 @@ conflict: `ok: false`, `code: "source-hash"`.
 
 ### Hover
 
-Hovering a Tessprek brace-command marker shows its parsed attrs:
+Hover uses the standard LSP `textDocument/hover` method (Neovim: `K`, same as
+other language servers; VS Code / other clients: editor hover).
 
-- `\tessera{…}` — format / version / truncated source-hash
-- `\ids{…}` — the reading-order id list
-- `\text{…}` / `\figure{…}` / `\cite{…}` / `\slide{…}` / `\attach{…}` — parsed attrs
+- Brace-command lines (`\tessera{…}` / `\ids{…}` / `\figure{…}` / …) — parsed attrs
+- Body lines (prose, quote, figure markdown, …) — **chunk id**, role/type, and
+  cite/source fields when present
+
+### Completion
+
+Typing `\` offers Tessprek brace commands (`\figure`, `\cite`, …). Inside an
+open `{…}` attribute list, attribute keys are offered (`image=`, `placement=`, …).
 
 ## Launch
 

@@ -44,6 +44,52 @@ pub enum ListKind {
     Ordered,
 }
 
+/// Sequential `1.` / `2.` / … markers for contiguous ordered list runs.
+///
+/// Tessera stores each list item as its own chunk with no stored index;
+/// projections (Tessprek, Markdown export) use this to avoid every item
+/// rendering as `1.`.
+#[derive(Debug, Default, Clone)]
+pub struct OrderedListNumbering {
+    /// Next index is `stack[depth - 1]` after increment (depth is 1-based).
+    stack: Vec<u32>,
+}
+
+impl OrderedListNumbering {
+    /// Next marker for an ordered item at `depth` (1 = top-level).
+    #[must_use]
+    pub fn next(&mut self, depth: u32) -> u32 {
+        let d = usize::try_from(depth.max(1)).unwrap_or(1);
+        self.stack.truncate(d);
+        while self.stack.len() < d {
+            self.stack.push(0);
+        }
+        self.stack[d - 1] = self.stack[d - 1].saturating_add(1);
+        self.stack[d - 1]
+    }
+
+    /// Reset when leaving an ordered run (bullet item, non-list chunk, …).
+    pub fn clear(&mut self) {
+        self.stack.clear();
+    }
+
+    /// Marker index when `header` is an ordered list item; otherwise clears
+    /// state and returns `None`.
+    pub fn take_for_text(&mut self, header: &TextHeader) -> Option<u32> {
+        if header.role != TextRole::ListItem {
+            self.clear();
+            return None;
+        }
+        match header.list_kind.unwrap_or(ListKind::Bullet) {
+            ListKind::Ordered => Some(self.next(header.list_depth_or_default())),
+            ListKind::Bullet => {
+                self.clear();
+                None
+            }
+        }
+    }
+}
+
 /// Semantic horizontal alignment (never physical left/right).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -292,6 +338,21 @@ impl TextHeader {
         self.list_depth.unwrap_or(1).clamp(1, 16)
     }
 
+    /// Indent + `- ` / `N. ` prefix for a list item (empty when not a list item).
+    #[must_use]
+    pub fn list_marker_prefix(&self, ordered_index: Option<u32>) -> String {
+        if self.role != TextRole::ListItem {
+            return String::new();
+        }
+        let indent = "  ".repeat(self.list_depth_or_default().saturating_sub(1) as usize);
+        match self.list_kind.unwrap_or(ListKind::Bullet) {
+            ListKind::Bullet => format!("{indent}- "),
+            ListKind::Ordered => {
+                format!("{indent}{}. ", ordered_index.unwrap_or(1))
+            }
+        }
+    }
+
     /// A code-block header with optional fence language.
     #[must_use]
     pub fn code_block(code_lang: Option<&str>) -> Self {
@@ -387,6 +448,18 @@ impl TextHeader {
         body: &str,
         links: &[crate::catalog::LinkEntry],
     ) -> String {
+        self.render_markdown_with_links_indexed(body, links, None)
+    }
+
+    /// Like [`Self::render_markdown_with_links`], with an optional ordered-list
+    /// marker index (defaults to `1` when absent).
+    #[must_use]
+    pub fn render_markdown_with_links_indexed(
+        &self,
+        body: &str,
+        links: &[crate::catalog::LinkEntry],
+        ordered_index: Option<u32>,
+    ) -> String {
         let body = body.trim_end();
         let spanned = apply_spans_markdown(body, &self.spans, links);
         match self.role {
@@ -395,11 +468,7 @@ impl TextHeader {
                 format!("{} {spanned}", "#".repeat(level))
             }
             TextRole::ListItem => {
-                let indent = "  ".repeat(self.list_depth_or_default().saturating_sub(1) as usize);
-                match self.list_kind.unwrap_or(ListKind::Bullet) {
-                    ListKind::Bullet => format!("{indent}- {spanned}"),
-                    ListKind::Ordered => format!("{indent}1. {spanned}"),
-                }
+                format!("{}{spanned}", self.list_marker_prefix(ordered_index))
             }
             TextRole::Blockquote => spanned
                 .lines()
@@ -719,6 +788,29 @@ pub fn decode_text_payload(bytes: &[u8]) -> Result<(TextHeader, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ordered_list_numbering_restarts_per_depth_and_run() {
+        let mut n = OrderedListNumbering::default();
+        let o1 = TextHeader::list_item(ListKind::Ordered);
+        let o2 = TextHeader::list_item_at(ListKind::Ordered, 2);
+        let bullet = TextHeader::list_item(ListKind::Bullet);
+        let para = TextHeader::paragraph();
+
+        assert_eq!(n.take_for_text(&o1), Some(1));
+        assert_eq!(n.take_for_text(&o1), Some(2));
+        assert_eq!(n.take_for_text(&o2), Some(1));
+        assert_eq!(n.take_for_text(&o2), Some(2));
+        assert_eq!(n.take_for_text(&o1), Some(3));
+        assert_eq!(n.take_for_text(&bullet), None);
+        assert_eq!(n.take_for_text(&o1), Some(1));
+        assert_eq!(n.take_for_text(&para), None);
+        assert_eq!(n.take_for_text(&o1), Some(1));
+        assert_eq!(
+            o1.render_markdown_with_links_indexed("alpha", &[], Some(2)),
+            "2. alpha"
+        );
+    }
 
     #[test]
     fn list_depth_round_trip_and_markdown_indent() {

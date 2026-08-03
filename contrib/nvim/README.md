@@ -47,7 +47,8 @@ require("tessera").setup()
 | Edit | In-memory Tessprek; `didChange` to the server |
 | `:TesseraFormat` | Normalize directives from Markdown shape (`tes format`) |
 | `:w` / save | Optional format-on-save, then `tessera.write` (source-hash safe) |
-| Hover | Chunk / header markers via server |
+| Hover | Markers + body-line chunk id / role via server |
+| Completion | Brace commands (`\figure{…}`, …) + attr keys |
 
 ### Authoring without hand-writing every directive
 
@@ -71,12 +72,13 @@ it notifies the new state — useful when testing the write refuse path.
 Optional: `conceal_directives = true` to hide directive / header
 brace-command lines (`conceallevel=2`).
 
-Hover (`K` in the plugin): only on `\tessera{…}` / `\ids{…}` / `\figure{…}` /
-`\cite{…}` / `\slide{…}` / `\attach{…}` / `\text{…}` lines — not on prose.
+Hover (`K` — same as other Neovim LSP clients): brace-command markers **and**
+body lines (shows chunk id / role; cite fields when present). Completion on
+`\` for `\figure{…}` etc.
 
 ## Commands
 
-- `:TesseraHover` / `K` — hover marker under cursor (explains if LSP missing / wrong line)
+- `:TesseraHover` / `K` — standard LSP hover (marker or body chunk)
 - `:TesseraFormat` — normalize Tessprek via `tes format`
 - `:TesseraFormatOnSave` `[on|off|toggle]` — toggle format-before-write (notifies)
 - `:TesseraLspRestart` — restart `tes-lsp` on the current buffer

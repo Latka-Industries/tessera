@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use crate::catalog::TesFile;
-use crate::catalog::chunk::{CitePayload, TextHeader, decode_text_payload};
+use crate::catalog::chunk::{CitePayload, OrderedListNumbering, TextHeader, decode_text_payload};
 use crate::catalog::index::ChunkType;
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
@@ -63,6 +63,12 @@ pub mod markers {
         (SLIDE_PREFIX, "slide"),
         (ATTACH_PREFIX, "attachment"),
     ];
+
+    /// Wire surface name for completions (`attachment` → `attach`).
+    #[must_use]
+    pub fn surface_name(kind: &str) -> &str {
+        if kind == "attachment" { "attach" } else { kind }
+    }
 
     /// Parse a brace-command line → `(kind, inner attrs)`.
     ///
@@ -176,6 +182,18 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
 /// Returns [`TesError::EditParse`] with line/column on malformed directives,
 /// bodies, missing header/ids, or an id/block count mismatch.
 pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
+    Ok(decode_tessprek_with_spans(input)?
+        .into_iter()
+        .map(|(_, _, block)| block)
+        .collect())
+}
+
+/// Decode Tessprek with 0-based half-open line spans per block (for LSP hover).
+///
+/// # Errors
+///
+/// Same as [`decode_tessprek`].
+pub(crate) fn decode_tessprek_with_spans(input: &str) -> Result<Vec<(usize, usize, ContentBlock)>> {
     let lines: Vec<&str> = input.lines().collect();
 
     let mut i = 0;
@@ -227,8 +245,8 @@ pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
     };
     let ids = parse_ids_list(ids_inner, ids_line_no)?;
 
-    let mut blocks = format::build_content_blocks(&lines)?;
-    if blocks.len() != ids.len() {
+    let mut spanned = format::build_content_blocks_with_spans(&lines)?;
+    if spanned.len() != ids.len() {
         return Err(parse_err(
             ids_line_no,
             1,
@@ -236,14 +254,14 @@ pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
                 "`{IDS_PREFIX}...{BRACE_SUFFIX}` declares {} id(s) but document has {} block(s); \
                  run `:TesseraFormat` (or enable format-on-save) / `tes format` to refresh `\\ids{{}}`",
                 ids.len(),
-                blocks.len()
+                spanned.len()
             ),
         ));
     }
-    for (block, id) in blocks.iter_mut().zip(ids) {
+    for ((_, _, block), id) in spanned.iter_mut().zip(ids) {
         set_chunk_id(block, id);
     }
-    Ok(blocks)
+    Ok(spanned)
 }
 
 fn parse_ids_list(inner: &str, line_no: usize) -> Result<Vec<u64>> {
@@ -395,7 +413,9 @@ pub fn encode_content_blocks(
     write_ids(&mut out, blocks);
     out.push('\n');
 
-    for block in blocks {
+    let mut ordered = OrderedListNumbering::default();
+    for (i, block) in blocks.iter().enumerate() {
+        let next = blocks.get(i + 1);
         match block {
             ContentBlock::Text {
                 header,
@@ -403,48 +423,65 @@ pub fn encode_content_blocks(
                 pending_links,
                 ..
             } => {
+                let ordered_index = ordered.take_for_text(header);
                 write_text_directive(&mut out, header);
-                out.push_str(render_text_body(header, body, pending_links, links).trim_end());
-                out.push_str("\n\n");
-            }
-            ContentBlock::Figure { figure, .. } => {
-                write_figure_directive(&mut out, figure);
-                let _ = writeln!(
-                    out,
-                    "![{}](media:chunk-{})",
-                    escape_alt(&figure.alt_text),
-                    figure.image_chunk_id
+                out.push_str(
+                    render_text_body(header, body, pending_links, links, ordered_index).trim_end(),
                 );
-                out.push('\n');
-            }
-            ContentBlock::Cite { cite, .. } => {
-                write_cite_directive(&mut out, cite);
-                out.push_str(&render_quote_body(&cite.quote));
-                out.push_str("\n\n");
-            }
-            ContentBlock::Slide { slide, .. } => {
-                write_slide_directive(&mut out, slide);
-                out.push('\n');
-            }
-            ContentBlock::Attachment {
-                filename,
-                media_type,
-                caption,
-                sha256,
-                ..
-            } => {
-                write_attachment_directive(
-                    &mut out,
-                    &AttachmentPayload {
-                        filename: filename.clone(),
-                        media_type: media_type.clone(),
-                        caption: caption.clone(),
-                        sha256: sha256.clone(),
-                        // Bytes are not projected in Tessprek.
-                        data: Vec::new(),
+                // Tight lists: consecutive list items share a single newline
+                // (CommonMark). Blank line separates other blocks / list runs.
+                out.push_str(
+                    if block.is_list_item() && next.is_some_and(ContentBlock::is_list_item) {
+                        "\n"
+                    } else {
+                        "\n\n"
                     },
                 );
-                out.push('\n');
+            }
+            other => {
+                ordered.clear();
+                match other {
+                    ContentBlock::Figure { figure, .. } => {
+                        write_figure_directive(&mut out, figure);
+                        let _ = writeln!(
+                            out,
+                            "![{}](media:chunk-{})",
+                            escape_alt(&figure.alt_text),
+                            figure.image_chunk_id
+                        );
+                        out.push('\n');
+                    }
+                    ContentBlock::Cite { cite, .. } => {
+                        write_cite_directive(&mut out, cite);
+                        out.push_str(&render_quote_body(&cite.quote));
+                        out.push_str("\n\n");
+                    }
+                    ContentBlock::Slide { slide, .. } => {
+                        write_slide_directive(&mut out, slide);
+                        out.push('\n');
+                    }
+                    ContentBlock::Attachment {
+                        filename,
+                        media_type,
+                        caption,
+                        sha256,
+                        ..
+                    } => {
+                        write_attachment_directive(
+                            &mut out,
+                            &AttachmentPayload {
+                                filename: filename.clone(),
+                                media_type: media_type.clone(),
+                                caption: caption.clone(),
+                                sha256: sha256.clone(),
+                                // Bytes are not projected in Tessprek.
+                                data: Vec::new(),
+                            },
+                        );
+                        out.push('\n');
+                    }
+                    ContentBlock::Text { .. } => unreachable!("text handled above"),
+                }
             }
         }
     }
@@ -477,11 +514,12 @@ fn render_text_body(
     body: &str,
     pending_links: &[crate::catalog::OutboundLink],
     links: &[crate::catalog::LinkEntry],
+    ordered_index: Option<u32>,
 ) -> String {
     use crate::catalog::{InlineKind, InlineSpan, LinkKind};
 
     if pending_links.is_empty() {
-        return header.render_markdown_with_links(body, links);
+        return header.render_markdown_with_links_indexed(body, links, ordered_index);
     }
 
     let mut header = header.clone();
@@ -497,7 +535,7 @@ fn render_text_body(
             });
         }
     }
-    header.render_markdown_with_links(body, &synthetic_links)
+    header.render_markdown_with_links_indexed(body, &synthetic_links, ordered_index)
 }
 
 /// Write `\text{class=… lang=… align=…}` when the header carries attrs that
