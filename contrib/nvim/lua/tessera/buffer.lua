@@ -1,24 +1,65 @@
 ---@mod tessera.buffer Tessprek projection for `.tes` buffers
 local M = {}
 
+---Resolve a binary under the Tessera checkout `target/`, then PATH.
+---@param name string e.g. `"tes"` or `"tes-lsp"`
+---@return string|nil
+function M.resolve_repo_bin(name)
+  local src = debug.getinfo(1, "S").source:sub(2)
+  local nvim_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(src)))
+  local repo_root = vim.fs.dirname(vim.fs.dirname(nvim_root))
+  for _, profile in ipairs({ "debug", "release" }) do
+    local candidate = vim.fs.joinpath(repo_root, "target", profile, name)
+    if vim.fn.executable(candidate) == 1 then
+      return candidate
+    end
+  end
+  if vim.fn.executable(name) == 1 then
+    return name
+  end
+  return nil
+end
+
 ---Resolve `tes` CLI: repo `target/debug|release/tes` first, then PATH.
 ---Preferring the checkout build avoids a stale `cargo install` on PATH
 ---failing on newer fixtures (e.g. `InlineKind::Underline`).
 ---@return string|nil
 function M.resolve_tes_cli()
-  local src = debug.getinfo(1, "S").source:sub(2)
-  local nvim_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(src)))
-  local repo_root = vim.fs.dirname(vim.fs.dirname(nvim_root))
-  for _, rel in ipairs({ "target/debug/tes", "target/release/tes" }) do
-    local candidate = vim.fs.joinpath(repo_root, rel)
-    if vim.fn.executable(candidate) == 1 then
-      return candidate
-    end
+  return M.resolve_repo_bin("tes")
+end
+
+---@return string|nil
+local function require_tes_cli()
+  local tes = M.resolve_tes_cli()
+  if not tes then
+    vim.notify(
+      "tessera.nvim: `tes` CLI not found (build with `cargo build --bin tes`)",
+      vim.log.levels.ERROR
+    )
   end
-  if vim.fn.executable("tes") == 1 then
-    return "tes"
+  return tes
+end
+
+---Split CLI stdout into buffer lines (drop a single trailing empty line).
+---@param text string
+---@return string[]
+local function stdout_lines(text)
+  local lines = vim.split(text or "", "\n", { plain = true })
+  if lines[#lines] == "" then
+    table.remove(lines)
   end
-  return nil
+  return lines
+end
+
+---@param prefix string
+---@param detail any
+---@param level integer
+local function notify_detail(prefix, detail, level)
+  if detail and detail ~= "" then
+    vim.notify(prefix .. ": " .. tostring(detail), level)
+  else
+    vim.notify(prefix, level)
+  end
 end
 
 ---Replace buffer contents with `tes edit-read` Tessprek projection.
@@ -30,12 +71,8 @@ function M.project(bufnr)
     return false
   end
 
-  local tes = M.resolve_tes_cli()
+  local tes = require_tes_cli()
   if not tes then
-    vim.notify(
-      "tessera.nvim: `tes` CLI not found (build with `cargo build --bin tes`)",
-      vim.log.levels.ERROR
-    )
     return false
   end
 
@@ -46,11 +83,7 @@ function M.project(bufnr)
     return false
   end
 
-  local text = result.stdout or ""
-  local lines = vim.split(text, "\n", { plain = true })
-  if lines[#lines] == "" then
-    table.remove(lines)
-  end
+  local lines = stdout_lines(result.stdout or "")
 
   local bo = vim.bo[bufnr]
   bo.binary = false
@@ -69,12 +102,8 @@ end
 ---@param bufnr integer
 ---@return boolean ok
 function M.format(bufnr)
-  local tes = M.resolve_tes_cli()
+  local tes = require_tes_cli()
   if not tes then
-    vim.notify(
-      "tessera.nvim: `tes` CLI not found (build with `cargo build --bin tes`)",
-      vim.log.levels.ERROR
-    )
     return false
   end
 
@@ -91,12 +120,7 @@ function M.format(bufnr)
     return false
   end
 
-  local out = result.stdout or ""
-  local out_lines = vim.split(out, "\n", { plain = true })
-  if out_lines[#out_lines] == "" then
-    table.remove(out_lines)
-  end
-
+  local out_lines = stdout_lines(result.stdout or "")
   local cur = table.concat(lines, "\n")
   local next = table.concat(out_lines, "\n")
   if cur == next then
@@ -163,7 +187,23 @@ function M.write(bufnr)
   end
 
   local code = type(result) == "table" and result.code or "unknown"
-  vim.notify("tessera.nvim: write refused (" .. tostring(code) .. ")", vim.log.levels.ERROR)
+  local detail = type(result) == "table" and (result.error or result.message) or nil
+  if code == "edit-parse" then
+    local hint =
+      "Run :TesseraFormat (or :TesseraFormatOnSave on) so `\\ids{}` matches your blocks, then :w again."
+    notify_detail(
+      "tessera.nvim: write refused (edit-parse)",
+      detail and (tostring(detail) .. "\n" .. hint) or hint,
+      vim.log.levels.ERROR
+    )
+    return false
+  end
+
+  notify_detail(
+    "tessera.nvim: write refused (" .. tostring(code) .. ")",
+    detail,
+    vim.log.levels.ERROR
+  )
   return false
 end
 

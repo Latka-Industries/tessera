@@ -1,16 +1,20 @@
 //! Tessera Markdown (Tessprek) encode/decode for virtual editor buffers.
 //!
-//! Format (v1): HTML-comment directives carry typed fields; bodies are Markdown.
+//! Format (v2): hybrid plain Markdown for heading/paragraph/list/quote/table/
+//! math/fenced-code, plus LaTeX-lite brace commands for structured chunks
+//! (`\figure{}` / `\cite{}` / `\slide{}` / `\attach{}`) and an optional
+//! `\text{class=… lang=… align=…}` directive before a Markdown block when
+//! those attrs cannot live in Markdown itself. See `docs/tessprek.md`.
+//!
+//! `.tes` stays canonical; Tessprek is a lossy projection only.
 
 mod format;
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use crate::catalog::TesFile;
-use crate::catalog::chunk::{
-    CitePayload, ListKind, TableCell, TableData, TableRow, TextAlign, TextHeader, TextRole,
-    decode_text_payload,
-};
+use crate::catalog::chunk::{CitePayload, TextHeader, decode_text_payload};
 use crate::catalog::index::ChunkType;
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
@@ -20,278 +24,282 @@ use super::ContentBlock;
 
 pub use format::{normalize_tessprek, tessprek_needs_format};
 
-/// Tessprek HTML-comment wire markers (v1). Shared by encode/decode and LSP hover.
+/// Tessprek v2 wire markers: `\tessera{}` header + `\ids{}` reading order,
+/// LaTeX-lite brace commands for structured chunks. Shared by encode/decode
+/// and LSP hover. No per-block `\id{N}`, no HTML comments, no YAML front
+/// matter, no dual-read of the v1 HTML-comment format.
 pub mod markers {
-    /// Document header: `<!-- tessera: format=… -->`.
-    pub const HEADER_PREFIX: &str = "<!-- tessera:";
-    /// Chunk directive: `<!-- tes chunk=… -->`.
-    pub const CHUNK_PREFIX: &str = "<!-- tes ";
-    /// Closing delimiter for both header and chunk comments.
-    pub const COMMENT_SUFFIX: &str = " -->";
     /// `format=` value stamped in the document header.
     pub const FORMAT: &str = "tessprek";
     /// `version=` value stamped in the document header.
-    pub const VERSION: &str = "1";
+    pub const VERSION: &str = "2";
+    /// Document header: `\tessera{format=… version=… source-hash=…}`.
+    pub const TESSERA_PREFIX: &str = "\\tessera{";
+    /// Reading-order chunk id list: `\ids{1,2,3,…}`.
+    pub const IDS_PREFIX: &str = "\\ids{";
+    /// Optional preserved-attrs directive before a Markdown block.
+    pub const TEXT_PREFIX: &str = "\\text{";
+    /// Figure directive: `\figure{image=… placement=… caption=…}`.
+    pub const FIGURE_PREFIX: &str = "\\figure{";
+    /// Cite directive: `\cite{label=… target_chunk=…}` + quote body.
+    pub const CITE_PREFIX: &str = "\\cite{";
+    /// Slide directive: `\slide{layout=… regions=…}`.
+    pub const SLIDE_PREFIX: &str = "\\slide{";
+    /// Attachment directive: `\attach{filename=… media_type=… sha256=…}`.
+    pub const ATTACH_PREFIX: &str = "\\attach{";
+    /// Closing delimiter for every brace command.
+    pub const BRACE_SUFFIX: &str = "}";
+
+    /// Header-only brace lines (`\tessera` / `\ids`).
+    pub const HEADER_COMMANDS: &[(&str, &str)] =
+        &[(TESSERA_PREFIX, "tessera"), (IDS_PREFIX, "ids")];
+
+    /// Body brace lines (structured chunks + optional `\text`).
+    /// Kind `attachment` matches [`super::decode_named_directive`].
+    pub const BODY_COMMANDS: &[(&str, &str)] = &[
+        (TEXT_PREFIX, "text"),
+        (FIGURE_PREFIX, "figure"),
+        (CITE_PREFIX, "cite"),
+        (SLIDE_PREFIX, "slide"),
+        (ATTACH_PREFIX, "attachment"),
+    ];
+
+    /// Parse a brace-command line → `(kind, inner attrs)`.
+    ///
+    /// When `include_header` is true, also matches `\tessera{…}` / `\ids{…}`
+    /// (LSP hover). Format/decode body scans use `include_header = false`.
+    #[must_use]
+    pub fn parse_brace_command(
+        trimmed: &str,
+        include_header: bool,
+    ) -> Option<(&'static str, &str)> {
+        if include_header && let Some(hit) = match_brace_table(trimmed, HEADER_COMMANDS) {
+            return Some(hit);
+        }
+        match_brace_table(trimmed, BODY_COMMANDS)
+    }
+
+    fn match_brace_table<'a>(
+        trimmed: &'a str,
+        table: &'static [(&'static str, &'static str)],
+    ) -> Option<(&'static str, &'a str)> {
+        for &(prefix, kind) in table {
+            if let Some(rest) = trimmed.strip_prefix(prefix)
+                && let Some(attrs) = rest.strip_suffix(BRACE_SUFFIX)
+            {
+                return Some((kind, attrs));
+            }
+        }
+        None
+    }
 }
 
-use markers::{CHUNK_PREFIX, COMMENT_SUFFIX, FORMAT, HEADER_PREFIX, VERSION};
+use markers::{
+    ATTACH_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX, SLIDE_PREFIX,
+    TESSERA_PREFIX, TEXT_PREFIX, VERSION,
+};
 
-/// Encode a `.tes` file as Tessera Markdown, embedding `source_hash`.
+/// Encode a `.tes` file as Tessprek, embedding `source_hash`.
 ///
 /// # Errors
 ///
-/// Returns decode errors for reading-order text/figure/cite payloads.
+/// Returns decode errors for reading-order text/figure/cite/slide/attachment
+/// payloads.
 pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
-    let mut out = String::new();
-    let _ = writeln!(
-        out,
-        "{HEADER_PREFIX} format={FORMAT} version={VERSION} source-hash={source_hash}{COMMENT_SUFFIX}"
-    );
-    out.push('\n');
-
+    let mut blocks = Vec::new();
     for entry in file.reading_order_chunks() {
-        match entry.chunk_type {
+        let block = match entry.chunk_type {
             ChunkType::Text => {
                 let raw = file.decode_payload(entry)?;
                 let (header, body) = decode_text_payload(raw.as_ref())?;
-                write_text_directive(&mut out, entry.chunk_id, &header);
-                out.push_str(
-                    header
-                        .render_markdown_with_links(&body, file.links())
-                        .trim_end(),
-                );
-                out.push_str("\n\n");
+                ContentBlock::Text {
+                    chunk_id: Some(entry.chunk_id),
+                    header,
+                    body,
+                    pending_links: Vec::new(),
+                }
             }
             ChunkType::Figure => {
                 let raw = file.decode_payload(entry)?;
                 let figure = FigureRef::from_bytes(raw.as_ref())?;
-                write_figure_directive(&mut out, entry.chunk_id, &figure);
-                let _ = writeln!(
-                    out,
-                    "![{}](media:chunk-{})",
-                    escape_alt(&figure.alt_text),
-                    figure.image_chunk_id
-                );
-                out.push('\n');
+                ContentBlock::Figure {
+                    chunk_id: Some(entry.chunk_id),
+                    figure,
+                }
             }
             ChunkType::Cite => {
                 let raw = file.decode_payload(entry)?;
                 let cite = CitePayload::from_bytes(raw.as_ref())?;
-                write_cite_directive(&mut out, entry.chunk_id, &cite);
-                out.push_str(cite.quote.trim_end());
-                out.push_str("\n\n");
+                ContentBlock::Cite {
+                    chunk_id: Some(entry.chunk_id),
+                    cite,
+                }
             }
             ChunkType::Slide => {
                 let raw = file.decode_payload(entry)?;
                 let slide = SlidePayload::from_bytes(raw.as_ref())?;
-                write_slide_directive(&mut out, entry.chunk_id, &slide);
-                out.push('\n');
+                ContentBlock::Slide {
+                    chunk_id: Some(entry.chunk_id),
+                    slide,
+                }
             }
             ChunkType::Attachment => {
                 let raw = file.decode_payload(entry)?;
                 let att = AttachmentPayload::from_bytes(raw.as_ref())?;
-                write_attachment_directive(&mut out, entry.chunk_id, &att);
-                out.push('\n');
+                ContentBlock::Attachment {
+                    chunk_id: Some(entry.chunk_id),
+                    filename: att.filename,
+                    media_type: att.media_type,
+                    caption: att.caption,
+                    sha256: att.sha256,
+                }
             }
-            _ => {}
-        }
+            _ => continue,
+        };
+        blocks.push(block);
     }
-    Ok(out)
+    Ok(encode_content_blocks(
+        Some(source_hash),
+        &blocks,
+        file.links(),
+    ))
 }
 
-/// Parse Tessera Markdown into typed content blocks.
+/// Parse Tessprek v2 into typed content blocks.
+///
+/// Strict: requires a `\tessera{format=tessprek version=2 …}` header
+/// immediately followed by `\ids{…}`, and the id count must match the number
+/// of parsed blocks.
 ///
 /// # Errors
 ///
-/// Returns [`TesError::EditParse`] with line/column on malformed directives or bodies.
+/// Returns [`TesError::EditParse`] with line/column on malformed directives,
+/// bodies, missing header/ids, or an id/block count mismatch.
 pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
     let lines: Vec<&str> = input.lines().collect();
-    let mut blocks = Vec::new();
-    let mut i = skip_header_and_blanks(&lines, 0);
 
-    while i < lines.len() {
-        let line_no = i + 1;
-        let trimmed = lines[i].trim();
-        if trimmed.is_empty() {
-            i += 1;
-            continue;
-        }
-        if !trimmed.starts_with(CHUNK_PREFIX) || !trimmed.ends_with(COMMENT_SUFFIX) {
-            return Err(parse_err(
-                line_no,
-                1,
-                format!("expected `{CHUNK_PREFIX}...{COMMENT_SUFFIX}` directive, found: {trimmed}"),
-            ));
-        }
-        let attrs = &trimmed[CHUNK_PREFIX.len()..trimmed.len() - COMMENT_SUFFIX.len()];
-        let map = parse_attrs(attrs, line_no)?;
+    let mut i = 0;
+    while i < lines.len() && lines[i].trim().is_empty() {
         i += 1;
-
-        let chunk_id = required_u64(&map, "chunk", line_no)?;
-        let kind = map
-            .get("type")
-            .map(String::as_str)
-            .or_else(|| map.get("role").map(|_| "text"))
-            .unwrap_or("text");
-
-        let body_start = i;
-        i = next_directive_index(&lines, i);
-        let body = trim_block_body(&lines[body_start..i]);
-        blocks.push(decode_directive_block(
-            kind, chunk_id, &map, &body, line_no,
-        )?);
     }
+    let header_line_no = i + 1;
+    let header_trimmed = lines.get(i).map_or("", |l| l.trim());
+    let Some(("tessera", header_inner)) = markers::parse_brace_command(header_trimmed, true) else {
+        return Err(parse_err(
+            header_line_no,
+            1,
+            format!(
+                "expected `{TESSERA_PREFIX}...{BRACE_SUFFIX}` document header, found: {header_trimmed}"
+            ),
+        ));
+    };
+    let header_attrs = parse_attrs(header_inner, header_line_no)?;
+    if header_attrs.get("format").map(String::as_str) != Some(FORMAT) {
+        return Err(parse_err(
+            header_line_no,
+            1,
+            format!("unsupported tessprek header (expected format={FORMAT})"),
+        ));
+    }
+    if header_attrs.get("version").map(String::as_str) != Some(VERSION) {
+        return Err(parse_err(
+            header_line_no,
+            1,
+            format!(
+                "unsupported tessprek version (expected version={VERSION}); v1 HTML-comment Tessprek is no longer supported"
+            ),
+        ));
+    }
+    i += 1;
+    while i < lines.len() && lines[i].trim().is_empty() {
+        i += 1;
+    }
+    let ids_line_no = i + 1;
+    let ids_trimmed = lines.get(i).map_or("", |l| l.trim());
+    let Some(("ids", ids_inner)) = markers::parse_brace_command(ids_trimmed, true) else {
+        return Err(parse_err(
+            ids_line_no,
+            1,
+            format!(
+                "expected `{IDS_PREFIX}...{BRACE_SUFFIX}` reading-order id list, found: {ids_trimmed}"
+            ),
+        ));
+    };
+    let ids = parse_ids_list(ids_inner, ids_line_no)?;
 
+    let mut blocks = format::build_content_blocks(&lines)?;
+    if blocks.len() != ids.len() {
+        return Err(parse_err(
+            ids_line_no,
+            1,
+            format!(
+                "`{IDS_PREFIX}...{BRACE_SUFFIX}` declares {} id(s) but document has {} block(s); \
+                 run `:TesseraFormat` (or enable format-on-save) / `tes format` to refresh `\\ids{{}}`",
+                ids.len(),
+                blocks.len()
+            ),
+        ));
+    }
+    for (block, id) in blocks.iter_mut().zip(ids) {
+        set_chunk_id(block, id);
+    }
     Ok(blocks)
 }
 
-fn skip_header_and_blanks(lines: &[&str], mut i: usize) -> usize {
-    while i < lines.len() {
-        let trimmed = lines[i].trim();
-        if trimmed.is_empty() || trimmed.starts_with(HEADER_PREFIX) {
-            i += 1;
-            continue;
-        }
-        break;
+fn parse_ids_list(inner: &str, line_no: usize) -> Result<Vec<u64>> {
+    let inner = inner.trim();
+    if inner.is_empty() {
+        return Ok(Vec::new());
     }
-    i
+    inner
+        .split(',')
+        .map(|s| {
+            let s = s.trim();
+            s.parse::<u64>().map_err(|_| {
+                parse_err(
+                    line_no,
+                    1,
+                    format!("invalid id '{s}' in `{IDS_PREFIX}...{BRACE_SUFFIX}`"),
+                )
+            })
+        })
+        .collect()
 }
 
-fn next_directive_index(lines: &[&str], mut i: usize) -> usize {
-    while i < lines.len() {
-        let t = lines[i].trim();
-        if t.starts_with(CHUNK_PREFIX) && t.ends_with(COMMENT_SUFFIX) {
-            break;
-        }
-        i += 1;
+pub(super) fn set_chunk_id(block: &mut ContentBlock, id: u64) {
+    match block {
+        ContentBlock::Text { chunk_id, .. }
+        | ContentBlock::Figure { chunk_id, .. }
+        | ContentBlock::Cite { chunk_id, .. }
+        | ContentBlock::Slide { chunk_id, .. }
+        | ContentBlock::Attachment { chunk_id, .. } => *chunk_id = Some(id),
     }
-    i
 }
 
-pub(super) fn decode_directive_block(
+/// Dispatch a brace-command body (`figure` / `cite` / `slide` / `attachment`)
+/// to its typed decoder. `kind` comes from which prefix matched during
+/// scanning (see [`markers::parse_brace_command`]), not from a `type=` attribute.
+fn decode_named_directive(
     kind: &str,
-    chunk_id: u64,
-    map: &std::collections::BTreeMap<String, String>,
+    map: &BTreeMap<String, String>,
     body: &str,
     line_no: usize,
 ) -> Result<ContentBlock> {
     match kind {
-        "text" | "paragraph" | "heading" | "list_item" | "blockquote" | "code_block" | "table"
-        | "math" => decode_text_block(kind, chunk_id, map, body, line_no),
-        "figure" => decode_figure_block(chunk_id, map, body, line_no),
-        "cite" => Ok(decode_cite_block(chunk_id, map, body)),
-        "slide" => decode_slide_block(chunk_id, map, line_no),
-        "attachment" => decode_attachment_block(chunk_id, map, line_no),
+        "figure" => decode_figure_block(map, body, line_no),
+        "cite" => Ok(decode_cite_block(map, body)),
+        "slide" => decode_slide_block(map, line_no),
+        "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
             line_no,
             1,
-            format!("unknown tes directive type '{other}'"),
+            format!("unknown tessprek directive '\\{other}{{...}}'"),
         )),
     }
 }
 
-fn decode_text_block(
-    kind: &str,
-    chunk_id: u64,
-    map: &std::collections::BTreeMap<String, String>,
-    body: &str,
-    line_no: usize,
-) -> Result<ContentBlock> {
-    let role = parse_role(map.get("role").map_or(kind, String::as_str), line_no)?;
-    let mut header = TextHeader::with_role(role);
-    header.classes = parse_classes(map.get("class").map(String::as_str));
-    if let Some(lang) = map.get("lang").filter(|s| !s.is_empty()) {
-        header.lang = Some(lang.clone());
-    }
-    if let Some(align) = map.get("align") {
-        header.align =
-            Some(TextAlign::from_name(align).map_err(|e| parse_err(line_no, 1, format!("{e}")))?);
-    }
-    if role == TextRole::Heading {
-        header.level = Some(required_u32(map, "level", line_no)?.clamp(1, 6));
-    }
-    if role == TextRole::ListItem {
-        header.list_kind = Some(parse_list_kind(
-            map.get("list").map_or("bullet", String::as_str),
-            line_no,
-        )?);
-        if let Some(raw) = map.get("depth") {
-            let depth = raw
-                .parse::<u32>()
-                .map_err(|_| parse_err(line_no, 1, format!("invalid list depth '{raw}'")))?;
-            if !(1..=16).contains(&depth) {
-                return Err(parse_err(
-                    line_no,
-                    1,
-                    format!("list depth {depth} must be 1..=16"),
-                ));
-            }
-            if depth > 1 {
-                header.list_depth = Some(depth);
-            }
-        } else {
-            // Infer from leading indent before the list marker (2 spaces per nest).
-            let lead = body.len() - body.trim_start().len();
-            let inferred = u32::try_from(lead / 2).unwrap_or(0).saturating_add(1);
-            if inferred > 1 {
-                header.list_depth = Some(inferred.min(16));
-            }
-        }
-    }
-    if role == TextRole::CodeBlock
-        && let Some(lang) = map.get("code_lang").or_else(|| map.get("fence"))
-        && !lang.is_empty()
-    {
-        header.code_lang = Some(lang.clone());
-    }
-    let text_body = strip_markdown_wrapper(&header, body);
-    if role == TextRole::CodeBlock
-        && header.code_lang.is_none()
-        && let Some(lang) = fence_lang(body)
-    {
-        header.code_lang = Some(lang);
-    }
-    if role == TextRole::Table
-        && let Some(table) = parse_markdown_table(body)
-    {
-        header.table = Some(table);
-    }
-    let clear_body = header.table.is_some();
-    let (body, pending_links) =
-        if clear_body || role == TextRole::CodeBlock || role == TextRole::Math {
-            (
-                if clear_body { String::new() } else { text_body },
-                Vec::new(),
-            )
-        } else {
-            // Re-parse inline markdown so `[text](https://…)` becomes TLNK on write.
-            let parsed = crate::io::import::parse_markdown_blocks(&text_body);
-            if parsed.len() == 1 {
-                let block = &parsed[0];
-                // Preserve role/header fields; take body + links + math spans from parse.
-                let mut merged = header;
-                for span in &block.header.spans {
-                    if !merged.spans.iter().any(|s| s == span) {
-                        merged.spans.push(span.clone());
-                    }
-                }
-                header = merged;
-                (block.body.clone(), block.pending_links.clone())
-            } else {
-                (text_body, Vec::new())
-            }
-        };
-    Ok(ContentBlock::Text {
-        chunk_id: Some(chunk_id),
-        header,
-        body,
-        pending_links,
-    })
-}
-
 fn decode_figure_block(
-    chunk_id: u64,
-    map: &std::collections::BTreeMap<String, String>,
+    map: &BTreeMap<String, String>,
     body: &str,
     line_no: usize,
 ) -> Result<ContentBlock> {
@@ -305,7 +313,7 @@ fn decode_figure_block(
     let (alt_text, img_from_md) = parse_figure_markdown(body, line_no)?;
     let image_chunk_id = img_from_md.unwrap_or(image_chunk_id);
     Ok(ContentBlock::Figure {
-        chunk_id: Some(chunk_id),
+        chunk_id: None,
         figure: FigureRef {
             image_chunk_id,
             alt_text,
@@ -315,15 +323,11 @@ fn decode_figure_block(
     })
 }
 
-fn decode_cite_block(
-    chunk_id: u64,
-    map: &std::collections::BTreeMap<String, String>,
-    body: &str,
-) -> ContentBlock {
+fn decode_cite_block(map: &BTreeMap<String, String>, body: &str) -> ContentBlock {
     ContentBlock::Cite {
-        chunk_id: Some(chunk_id),
+        chunk_id: None,
         cite: CitePayload {
-            quote: body.to_owned(),
+            quote: strip_quote_body(body),
             target_doc_id: map.get("target_doc").cloned().filter(|s| !s.is_empty()),
             target_chunk_id: optional_u64(map, "target_chunk"),
             target_byte_start: None,
@@ -335,11 +339,7 @@ fn decode_cite_block(
     }
 }
 
-fn decode_slide_block(
-    chunk_id: u64,
-    map: &std::collections::BTreeMap<String, String>,
-    line_no: usize,
-) -> Result<ContentBlock> {
+fn decode_slide_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
     let layout_id = map
         .get("layout")
         .cloned()
@@ -347,16 +347,12 @@ fn decode_slide_block(
         .ok_or_else(|| parse_err(line_no, 1, "slide requires layout=…"))?;
     let regions = parse_slide_regions(map.get("regions").map_or("", String::as_str), line_no)?;
     Ok(ContentBlock::Slide {
-        chunk_id: Some(chunk_id),
+        chunk_id: None,
         slide: SlidePayload { layout_id, regions },
     })
 }
 
-fn decode_attachment_block(
-    chunk_id: u64,
-    map: &std::collections::BTreeMap<String, String>,
-    line_no: usize,
-) -> Result<ContentBlock> {
+fn decode_attachment_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
     let filename = map
         .get("filename")
         .cloned()
@@ -373,7 +369,7 @@ fn decode_attachment_block(
         .filter(|s| !s.is_empty())
         .ok_or_else(|| parse_err(line_no, 1, "attachment requires sha256=…"))?;
     Ok(ContentBlock::Attachment {
-        chunk_id: Some(chunk_id),
+        chunk_id: None,
         filename,
         media_type,
         caption: map.get("caption").cloned().filter(|s| !s.is_empty()),
@@ -381,44 +377,38 @@ fn decode_attachment_block(
     })
 }
 
-/// Encode typed content blocks as Tessprek (optional `source-hash` in the header).
+/// Encode typed content blocks as Tessprek v2 (optional `source-hash`).
 ///
-/// Used by [`normalize_tessprek`] and tests; does not require an open [`TesFile`].
+/// `links` resolves `InlineKind::Link` spans on blocks whose `pending_links`
+/// is empty (e.g. blocks freshly decoded from a `.tes` file); pass `&[]` when
+/// blocks already carry `pending_links` (normalize / typed ops).
+///
+/// Used by [`normalize_tessprek`], [`encode_tessprek`], and tests.
 #[must_use]
-pub fn encode_content_blocks(source_hash: Option<&str>, blocks: &[ContentBlock]) -> String {
+pub fn encode_content_blocks(
+    source_hash: Option<&str>,
+    blocks: &[ContentBlock],
+    links: &[crate::catalog::LinkEntry],
+) -> String {
     let mut out = String::new();
-    match source_hash {
-        Some(hash) if !hash.is_empty() => {
-            let _ = writeln!(
-                out,
-                "{HEADER_PREFIX} format={FORMAT} version={VERSION} source-hash={hash}{COMMENT_SUFFIX}"
-            );
-        }
-        _ => {
-            let _ = writeln!(
-                out,
-                "{HEADER_PREFIX} format={FORMAT} version={VERSION}{COMMENT_SUFFIX}"
-            );
-        }
-    }
+    write_header(&mut out, source_hash);
+    write_ids(&mut out, blocks);
     out.push('\n');
 
     for block in blocks {
         match block {
             ContentBlock::Text {
-                chunk_id,
                 header,
                 body,
                 pending_links,
+                ..
             } => {
-                let id = chunk_id.unwrap_or(0);
-                write_text_directive(&mut out, id, header);
-                out.push_str(render_text_with_pending(header, body, pending_links).trim_end());
+                write_text_directive(&mut out, header);
+                out.push_str(render_text_body(header, body, pending_links, links).trim_end());
                 out.push_str("\n\n");
             }
-            ContentBlock::Figure { chunk_id, figure } => {
-                let id = chunk_id.unwrap_or(0);
-                write_figure_directive(&mut out, id, figure);
+            ContentBlock::Figure { figure, .. } => {
+                write_figure_directive(&mut out, figure);
                 let _ = writeln!(
                     out,
                     "![{}](media:chunk-{})",
@@ -427,28 +417,24 @@ pub fn encode_content_blocks(source_hash: Option<&str>, blocks: &[ContentBlock])
                 );
                 out.push('\n');
             }
-            ContentBlock::Cite { chunk_id, cite } => {
-                let id = chunk_id.unwrap_or(0);
-                write_cite_directive(&mut out, id, cite);
-                out.push_str(cite.quote.trim_end());
+            ContentBlock::Cite { cite, .. } => {
+                write_cite_directive(&mut out, cite);
+                out.push_str(&render_quote_body(&cite.quote));
                 out.push_str("\n\n");
             }
-            ContentBlock::Slide { chunk_id, slide } => {
-                let id = chunk_id.unwrap_or(0);
-                write_slide_directive(&mut out, id, slide);
+            ContentBlock::Slide { slide, .. } => {
+                write_slide_directive(&mut out, slide);
                 out.push('\n');
             }
             ContentBlock::Attachment {
-                chunk_id,
                 filename,
                 media_type,
                 caption,
                 sha256,
+                ..
             } => {
-                let id = chunk_id.unwrap_or(0);
                 write_attachment_directive(
                     &mut out,
-                    id,
                     &AttachmentPayload {
                         filename: filename.clone(),
                         media_type: media_type.clone(),
@@ -465,23 +451,45 @@ pub fn encode_content_blocks(source_hash: Option<&str>, blocks: &[ContentBlock])
     out
 }
 
-fn render_text_with_pending(
+fn write_brace_line(out: &mut String, prefix: &str, parts: &[String]) {
+    let _ = writeln!(out, "{prefix}{}{BRACE_SUFFIX}", parts.join(" "));
+}
+
+fn write_header(out: &mut String, source_hash: Option<&str>) {
+    let mut parts = vec![format!("format={FORMAT}"), format!("version={VERSION}")];
+    if let Some(hash) = source_hash.filter(|h| !h.is_empty()) {
+        parts.push(format!("source-hash={hash}"));
+    }
+    write_brace_line(out, TESSERA_PREFIX, &parts);
+}
+
+fn write_ids(out: &mut String, blocks: &[ContentBlock]) {
+    let ids = blocks
+        .iter()
+        .map(|b| b.chunk_id().unwrap_or(0).to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    write_brace_line(out, IDS_PREFIX, &[ids]);
+}
+
+fn render_text_body(
     header: &TextHeader,
     body: &str,
     pending_links: &[crate::catalog::OutboundLink],
+    links: &[crate::catalog::LinkEntry],
 ) -> String {
     use crate::catalog::{InlineKind, InlineSpan, LinkKind};
 
     if pending_links.is_empty() {
-        return header.render_markdown(body);
+        return header.render_markdown_with_links(body, links);
     }
 
     let mut header = header.clone();
-    let mut links = Vec::new();
+    let mut synthetic_links = Vec::new();
     for link in pending_links {
-        let link_id = u64::try_from(links.len()).unwrap_or(u64::MAX);
+        let link_id = u64::try_from(synthetic_links.len()).unwrap_or(u64::MAX);
         if let Ok(entry) = link.clone().into_entry(0, LinkKind::Wiki) {
-            links.push(entry);
+            synthetic_links.push(entry);
             header.spans.push(InlineSpan {
                 start: link.start,
                 end: link.end,
@@ -489,106 +497,86 @@ fn render_text_with_pending(
             });
         }
     }
-    header.render_markdown_with_links(body, &links)
+    header.render_markdown_with_links(body, &synthetic_links)
 }
 
-pub(super) fn write_text_directive(out: &mut String, chunk_id: u64, header: &TextHeader) {
-    let _ = write!(
-        out,
-        "{CHUNK_PREFIX}chunk={chunk_id} role={}",
-        header.role.as_str()
-    );
-    if let Some(level) = header.level {
-        let _ = write!(out, " level={level}");
+/// Write `\text{class=… lang=… align=…}` when the header carries attrs that
+/// cannot live in plain Markdown. Emits nothing otherwise.
+fn write_text_directive(out: &mut String, header: &TextHeader) {
+    if header.classes.is_empty() && header.lang.is_none() && header.align.is_none() {
+        return;
     }
-    if let Some(list) = header.list_kind {
-        let kind = match list {
-            ListKind::Bullet => "bullet",
-            ListKind::Ordered => "ordered",
-        };
-        let _ = write!(out, " list={kind}");
-    }
-    if header.role == TextRole::ListItem {
-        let depth = header.list_depth_or_default();
-        if depth > 1 {
-            let _ = write!(out, " depth={depth}");
-        }
+    let mut parts = Vec::new();
+    if !header.classes.is_empty() {
+        parts.push(format!("class=\"{}\"", header.classes.join(" ")));
     }
     if let Some(lang) = header.lang.as_deref() {
-        let _ = write!(out, " lang={}", attr_token(lang));
+        parts.push(format!("lang={}", attr_token(lang)));
     }
     if let Some(align) = header.align {
-        let _ = write!(out, " align={}", align.as_str());
+        parts.push(format!("align={}", align.as_str()));
     }
-    if let Some(code_lang) = header.code_lang.as_deref() {
-        let _ = write!(out, " code_lang={}", attr_token(code_lang));
-    }
-    if !header.classes.is_empty() {
-        let _ = write!(out, " class=\"{}\"", header.classes.join(" "));
-    }
-    let _ = writeln!(out, "{COMMENT_SUFFIX}");
+    write_brace_line(out, TEXT_PREFIX, &parts);
 }
 
-fn write_figure_directive(out: &mut String, chunk_id: u64, figure: &FigureRef) {
-    let _ = write!(
-        out,
-        "{CHUNK_PREFIX}chunk={chunk_id} type=figure image={} placement={}",
-        figure.image_chunk_id,
-        figure.placement.as_str()
-    );
+fn write_figure_directive(out: &mut String, figure: &FigureRef) {
+    let mut parts = vec![
+        format!("image={}", figure.image_chunk_id),
+        format!("placement={}", figure.placement.as_str()),
+    ];
     if let ImagePlacement::Region { name } = &figure.placement {
-        let _ = write!(out, " region=\"{}\"", escape_attr(name));
+        parts.push(format!("region=\"{}\"", escape_attr(name)));
     }
     if let Some(caption) = figure.caption.as_deref() {
-        let _ = write!(out, " caption=\"{}\"", escape_attr(caption));
+        parts.push(format!("caption=\"{}\"", escape_attr(caption)));
     }
-    let _ = writeln!(out, "{COMMENT_SUFFIX}");
+    write_brace_line(out, FIGURE_PREFIX, &parts);
 }
 
-fn write_cite_directive(out: &mut String, chunk_id: u64, cite: &CitePayload) {
-    let _ = write!(out, "{CHUNK_PREFIX}chunk={chunk_id} type=cite");
+fn write_cite_directive(out: &mut String, cite: &CitePayload) {
+    let mut parts = Vec::new();
     if let Some(label) = cite.label.as_deref() {
-        let _ = write!(out, " label={}", attr_token(label));
+        parts.push(format!("label={}", attr_token(label)));
     }
     if let Some(doc) = cite.target_doc_id.as_deref() {
-        let _ = write!(out, " target_doc={doc}");
+        parts.push(format!("target_doc={doc}"));
     }
     if let Some(chunk) = cite.target_chunk_id {
-        let _ = write!(out, " target_chunk={chunk}");
+        parts.push(format!("target_chunk={chunk}"));
     }
     if let Some(page) = cite.page {
-        let _ = write!(out, " page={page}");
+        parts.push(format!("page={page}"));
     }
-    let _ = writeln!(out, "{COMMENT_SUFFIX}");
+    write_brace_line(out, CITE_PREFIX, &parts);
 }
 
-fn write_slide_directive(out: &mut String, chunk_id: u64, slide: &SlidePayload) {
+fn write_slide_directive(out: &mut String, slide: &SlidePayload) {
     let regions = slide
         .regions
         .iter()
         .map(|r| format!("{}:{}", r.name, r.chunk_id))
         .collect::<Vec<_>>()
         .join(",");
-    let _ = writeln!(
+    write_brace_line(
         out,
-        "{CHUNK_PREFIX}chunk={chunk_id} type=slide layout={} regions=\"{}\"{COMMENT_SUFFIX}",
-        attr_token(&slide.layout_id),
-        escape_attr(&regions)
+        SLIDE_PREFIX,
+        &[
+            format!("layout={}", attr_token(&slide.layout_id)),
+            format!("regions=\"{}\"", escape_attr(&regions)),
+        ],
     );
 }
 
-fn write_attachment_directive(out: &mut String, chunk_id: u64, att: &AttachmentPayload) {
-    let _ = write!(
-        out,
-        "{CHUNK_PREFIX}chunk={chunk_id} type=attachment filename=\"{}\" media_type={} sha256={}",
-        escape_attr(&att.filename),
-        attr_token(&att.media_type),
-        att.sha256
-    );
+fn write_attachment_directive(out: &mut String, att: &AttachmentPayload) {
+    let mut parts = vec![
+        format!("filename=\"{}\"", escape_attr(&att.filename)),
+        format!("media_type={}", attr_token(&att.media_type)),
+        format!("sha256={}", att.sha256),
+    ];
     if let Some(caption) = att.caption.as_deref() {
-        let _ = write!(out, " caption=\"{}\"", escape_attr(caption));
+        parts.push(format!("caption=\"{}\"", escape_attr(caption)));
     }
-    let _ = writeln!(out, "{COMMENT_SUFFIX}");
+    write_brace_line(out, ATTACH_PREFIX, &parts);
 }
 
 fn parse_slide_regions(raw: &str, line_no: usize) -> Result<Vec<SlideRegion>> {
@@ -618,124 +606,35 @@ fn parse_slide_regions(raw: &str, line_no: usize) -> Result<Vec<SlideRegion>> {
     Ok(regions)
 }
 
-fn strip_markdown_wrapper(header: &TextHeader, body: &str) -> String {
-    let body = body.trim();
-    match header.role {
-        TextRole::Heading => {
-            let trimmed = body.trim_start_matches('#').trim_start();
-            trimmed.to_owned()
-        }
-        TextRole::ListItem => {
-            let t = body.trim_start();
-            if let Some(rest) = t.strip_prefix("- ") {
-                rest.to_owned()
-            } else if let Some(rest) = t.strip_prefix("* ") {
-                rest.to_owned()
-            } else {
-                // Ordered: "N. rest"
-                let digits = t.chars().take_while(char::is_ascii_digit).count();
-                if digits > 0 {
-                    let after = &t[digits..];
-                    if let Some(rest) = after.strip_prefix(". ") {
-                        rest.to_owned()
-                    } else if let Some(rest) = after.strip_prefix('.') {
-                        rest.trim_start().to_owned()
-                    } else {
-                        body.to_owned()
-                    }
-                } else {
-                    body.to_owned()
-                }
-            }
-        }
-        TextRole::Blockquote => body
-            .lines()
-            .map(|line| {
-                line.strip_prefix("> ")
-                    .or_else(|| line.strip_prefix('>'))
-                    .unwrap_or(line)
-            })
-            .collect::<Vec<_>>()
-            .join("\n"),
-        TextRole::CodeBlock => strip_fence(body),
-        TextRole::Table => {
-            if body.lines().any(|l| l.trim_start().starts_with('|')) {
-                String::new()
-            } else {
-                strip_fence(body)
-            }
-        }
-        TextRole::Math => {
-            let t = body.trim();
-            let t = t.strip_prefix("$$").unwrap_or(t);
-            let t = t.strip_suffix("$$").unwrap_or(t);
-            t.trim().to_owned()
-        }
-        TextRole::Paragraph => body.to_owned(),
+/// Render a `CitePayload.quote` as a Markdown-blockquote-styled body.
+fn render_quote_body(quote: &str) -> String {
+    let trimmed = quote.trim_end();
+    if trimmed.is_empty() {
+        return String::from(">");
     }
-}
-
-fn fence_lang(body: &str) -> Option<String> {
-    let first = body.lines().next()?.trim_start();
-    let rest = first.strip_prefix("```")?;
-    let lang = rest.split_whitespace().next().unwrap_or("");
-    (!lang.is_empty()).then(|| lang.to_owned())
-}
-
-fn parse_markdown_table(body: &str) -> Option<TableData> {
-    let lines: Vec<&str> = body
+    trimmed
         .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .collect();
-    if lines.len() < 2 || !lines[0].starts_with('|') {
-        return None;
-    }
-    let mut rows = Vec::new();
-    for (i, line) in lines.iter().enumerate() {
-        if i == 1 && line.chars().all(|c| matches!(c, '|' | '-' | ':' | ' ')) {
-            continue; // separator
-        }
-        if !line.starts_with('|') {
-            continue;
-        }
-        let cells: Vec<TableCell> = line
-            .trim_matches('|')
-            .split('|')
-            .map(|c| TableCell {
-                text: c.trim().replace("\\|", "|"),
-                spans: Vec::new(),
-                align: None,
-                is_header: i == 0,
-                rowspan: None,
-                colspan: None,
-            })
-            .collect();
-        if !cells.is_empty() {
-            rows.push(TableRow { cells });
-        }
-    }
-    (!rows.is_empty()).then_some(TableData { rows })
+        .map(|l| {
+            if l.is_empty() {
+                ">".to_owned()
+            } else {
+                format!("> {l}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
-fn strip_fence(body: &str) -> String {
-    let mut lines = body.lines().peekable();
-    if lines
-        .peek()
-        .is_some_and(|l| l.trim_start().starts_with("```"))
-    {
-        let _ = lines.next();
-    }
-    let collected: Vec<&str> = lines.collect();
-    let end = if collected
-        .last()
-        .is_some_and(|l| l.trim() == "```" || l.trim_start().starts_with("```"))
-    {
-        collected.len().saturating_sub(1)
-    } else {
-        collected.len()
-    };
-    collected[..end].join("\n")
+/// Strip the `> ` blockquote styling from a `\cite{}` body.
+fn strip_quote_body(body: &str) -> String {
+    body.lines()
+        .map(|line| {
+            line.strip_prefix("> ")
+                .or_else(|| line.strip_prefix('>'))
+                .unwrap_or(line)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn parse_figure_markdown(body: &str, line_no: usize) -> Result<(String, Option<u64>)> {
@@ -760,11 +659,8 @@ fn parse_figure_markdown(body: &str, line_no: usize) -> Result<(String, Option<u
     Ok((unescape_alt(alt), image_id))
 }
 
-pub(super) fn parse_attrs(
-    attrs: &str,
-    line_no: usize,
-) -> Result<std::collections::BTreeMap<String, String>> {
-    let mut map = std::collections::BTreeMap::new();
+pub(crate) fn parse_attrs(attrs: &str, line_no: usize) -> Result<BTreeMap<String, String>> {
+    let mut map = BTreeMap::new();
     let mut rest = attrs.trim();
     while !rest.is_empty() {
         let eq = rest.find('=').ok_or_else(|| {
@@ -795,31 +691,6 @@ pub(super) fn parse_attrs(
     Ok(map)
 }
 
-fn parse_role(raw: &str, line_no: usize) -> Result<TextRole> {
-    match raw {
-        "paragraph" => Ok(TextRole::Paragraph),
-        "heading" => Ok(TextRole::Heading),
-        "list_item" => Ok(TextRole::ListItem),
-        "blockquote" => Ok(TextRole::Blockquote),
-        "code_block" => Ok(TextRole::CodeBlock),
-        "table" => Ok(TextRole::Table),
-        "math" => Ok(TextRole::Math),
-        other => Err(parse_err(line_no, 1, format!("unknown role '{other}'"))),
-    }
-}
-
-fn parse_list_kind(raw: &str, line_no: usize) -> Result<ListKind> {
-    match raw {
-        "bullet" => Ok(ListKind::Bullet),
-        "ordered" => Ok(ListKind::Ordered),
-        other => Err(parse_err(
-            line_no,
-            1,
-            format!("unknown list kind '{other}'"),
-        )),
-    }
-}
-
 fn parse_placement(raw: &str, region: Option<&str>, line_no: usize) -> Result<ImagePlacement> {
     match raw {
         "flow" => Ok(ImagePlacement::Flow),
@@ -839,19 +710,7 @@ fn parse_placement(raw: &str, region: Option<&str>, line_no: usize) -> Result<Im
     }
 }
 
-fn parse_classes(raw: Option<&str>) -> Vec<String> {
-    raw.unwrap_or("")
-        .split_whitespace()
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
-        .collect()
-}
-
-fn required_u64(
-    map: &std::collections::BTreeMap<String, String>,
-    key: &str,
-    line_no: usize,
-) -> Result<u64> {
+fn required_u64(map: &BTreeMap<String, String>, key: &str, line_no: usize) -> Result<u64> {
     let raw = map
         .get(key)
         .ok_or_else(|| parse_err(line_no, 1, format!("missing required attribute '{key}'")))?;
@@ -859,23 +718,11 @@ fn required_u64(
         .map_err(|_| parse_err(line_no, 1, format!("invalid {key} value '{raw}'")))
 }
 
-fn required_u32(
-    map: &std::collections::BTreeMap<String, String>,
-    key: &str,
-    line_no: usize,
-) -> Result<u32> {
-    let raw = map
-        .get(key)
-        .ok_or_else(|| parse_err(line_no, 1, format!("missing required attribute '{key}'")))?;
-    raw.parse::<u32>()
-        .map_err(|_| parse_err(line_no, 1, format!("invalid {key} value '{raw}'")))
-}
-
-fn optional_u64(map: &std::collections::BTreeMap<String, String>, key: &str) -> Option<u64> {
+fn optional_u64(map: &BTreeMap<String, String>, key: &str) -> Option<u64> {
     map.get(key)?.parse().ok()
 }
 
-fn optional_u32(map: &std::collections::BTreeMap<String, String>, key: &str) -> Option<u32> {
+fn optional_u32(map: &BTreeMap<String, String>, key: &str) -> Option<u32> {
     map.get(key)?.parse().ok()
 }
 
@@ -926,6 +773,7 @@ fn parse_err(line: usize, column: usize, message: impl Into<String>) -> TesError
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::catalog::chunk::TextRole;
     use crate::catalog::{DocumentCatalog, TesWriterSession};
     use crate::layout::DocKind;
     use tempfile::tempdir;
@@ -954,7 +802,9 @@ mod tests {
 
         let file = TesFile::open(&path).unwrap();
         let text = encode_tessprek(&file, "abc").unwrap();
-        assert!(text.contains("class=\"lead\""));
+        assert!(text.contains("\\tessera{format=tessprek version=2 source-hash=abc}"));
+        assert!(text.contains("\\text{class=\"lead\"}"), "{text}");
+        assert!(text.contains("# Hello"), "{text}");
         let blocks = decode_tessprek(&text).unwrap();
         assert_eq!(blocks.len(), 2);
         match &blocks[0] {
@@ -964,6 +814,100 @@ mod tests {
                 assert_eq!(body, "Hello");
             }
             _ => panic!("expected text"),
+        }
+    }
+
+    #[test]
+    fn round_trip_figure_cite_slide_attachment() {
+        let blocks = vec![
+            ContentBlock::Text {
+                chunk_id: Some(1),
+                header: TextHeader::heading(1),
+                body: "Doc".into(),
+                pending_links: Vec::new(),
+            },
+            ContentBlock::Figure {
+                chunk_id: Some(2),
+                figure: FigureRef {
+                    image_chunk_id: 3,
+                    alt_text: "A photo".into(),
+                    caption: Some("Cap".into()),
+                    placement: ImagePlacement::Flow,
+                },
+            },
+            ContentBlock::Cite {
+                chunk_id: Some(4),
+                cite: CitePayload {
+                    quote: "Some quoted text".into(),
+                    target_doc_id: None,
+                    target_chunk_id: Some(1),
+                    target_byte_start: None,
+                    target_byte_end: None,
+                    label: Some("Smith2024".into()),
+                    page: None,
+                    source: None,
+                },
+            },
+            ContentBlock::Slide {
+                chunk_id: Some(5),
+                slide: SlidePayload {
+                    layout_id: "title".into(),
+                    regions: vec![SlideRegion {
+                        name: "body".into(),
+                        chunk_id: 1,
+                    }],
+                },
+            },
+            ContentBlock::Attachment {
+                chunk_id: Some(6),
+                filename: "notes.pdf".into(),
+                media_type: "application/pdf".into(),
+                caption: Some("Handout".into()),
+                sha256: "deadbeef".into(),
+            },
+        ];
+        let text = encode_content_blocks(None, &blocks, &[]);
+        assert!(text.contains("\\ids{1,2,4,5,6}"), "{text}");
+        assert!(text.contains("\\figure{"), "{text}");
+        assert!(text.contains("\\cite{"), "{text}");
+        assert!(text.contains("> Some quoted text"), "{text}");
+        assert!(text.contains("\\slide{"), "{text}");
+        assert!(text.contains("\\attach{"), "{text}");
+        let decoded = decode_tessprek(&text).unwrap();
+        assert_eq!(decoded, blocks);
+    }
+
+    #[test]
+    fn decode_rejects_missing_header() {
+        let err = decode_tessprek("# Title\n").unwrap_err();
+        assert!(matches!(err, TesError::EditParse { .. }));
+    }
+
+    #[test]
+    fn decode_rejects_id_count_mismatch() {
+        let text = "\\tessera{format=tessprek version=2}\n\\ids{1,2}\n\n# Title\n";
+        let err = decode_tessprek(text).unwrap_err();
+        match err {
+            TesError::EditParse { message, .. } => {
+                assert!(message.contains("id(s)"), "{message}");
+                assert!(
+                    message.contains("TesseraFormat") || message.contains("tes format"),
+                    "{message}"
+                );
+            }
+            other => panic!("expected EditParse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decode_rejects_v1_version() {
+        let text = "\\tessera{format=tessprek version=1}\n\\ids{}\n";
+        let err = decode_tessprek(text).unwrap_err();
+        match err {
+            TesError::EditParse { message, .. } => {
+                assert!(message.contains("v1"), "{message}");
+            }
+            other => panic!("expected EditParse, got {other:?}"),
         }
     }
 }

@@ -12,7 +12,7 @@ Logs go to **stderr** only — stdout is the LSP wire.
 | --- | --- |
 | Language id | `tessprek` (client-side; server keys by URI) |
 | On-disk file | `.tes` |
-| Editor buffer | Tessprek (HTML-comment directives + Markdown bodies) |
+| Editor buffer | Tessprek v2 (hybrid Markdown + LaTeX-lite brace commands; [docs/tessprek.md](tessprek.md)) |
 | Open | `edit_read` → buffer = Tessprek; stash `source_hash` |
 | Change | `didChange` updates the in-memory Tessprek string only |
 | Write-back | `tessera.write` / `willSave` → `edit_write` with stored hash |
@@ -30,7 +30,7 @@ Logs go to **stderr** only — stdout is the LSP wire.
 | `textDocument/publishDiagnostics` | Buffer `decode_tessprek` (`edit-parse`, ranged) + on-disk `verify_*` + source-hash |
 | `textDocument/willSave` | Triggers write-back |
 | `workspace/executeCommand` | `tessera.write` |
-| `textDocument/hover` | Tessprek header + `<!-- tes chunk=… -->` markers |
+| `textDocument/hover` | Tessprek `\tessera{}` / `\ids{}` / brace-command lines only (not prose). Neovim plugin binds `K`. |
 
 ### `tessera.write`
 
@@ -44,10 +44,11 @@ conflict: `ok: false`, `code: "source-hash"`.
 
 ### Hover
 
-Hovering an HTML comment marker shows parsed attrs:
+Hovering a Tessprek brace-command marker shows its parsed attrs:
 
-- `<!-- tessera: … -->` — format / version / truncated source-hash
-- `<!-- tes chunk=N role=… -->` (or `type=figure|cite|…`) — chunk id + fields
+- `\tessera{…}` — format / version / truncated source-hash
+- `\ids{…}` — the reading-order id list
+- `\text{…}` / `\figure{…}` / `\cite{…}` / `\slide{…}` / `\attach{…}` — parsed attrs
 
 ## Launch
 

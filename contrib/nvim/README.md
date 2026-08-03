@@ -26,8 +26,8 @@ save — never dumping Tessprek text onto the binary `.tes` path.
   opts = {
     -- cmd = { "/abs/path/to/tes-lsp" },
     -- project = true,          -- Tessprek via edit-read (default)
-    -- format_on_save = false,  -- run `tes format` before write-back
-    -- conceal_directives = false, -- hide <!-- tes … --> lines while editing
+    -- format_on_save = true,   -- default: refresh \ids{} before write
+    -- conceal_directives = false, -- hide \tessera{}/\ids{}/brace-command lines while editing
     -- autostart = true,
   },
 }
@@ -51,23 +51,34 @@ require("tessera").setup()
 
 ### Authoring without hand-writing every directive
 
-Tessprek is a lossless wire: one `<!-- tes chunk=… -->` per chunk. While editing
-you can write Markdown-shaped bodies (`#`, `-`, fenced code, …) — including
-pasting free Markdown with no directives — then run **`:TesseraFormat`**. That
+Tessprek is a hybrid wire: plain Markdown for heading/paragraph/list/quote/
+table/math/code, plus LaTeX-lite brace commands (`\figure{}`, `\cite{}`,
+`\slide{}`, `\attach{}`) for structured chunks, with a `\tessera{}` / `\ids{}`
+header (see [docs/tessprek.md](../../docs/tessprek.md)). While editing you can
+write Markdown-shaped bodies (`#`, `-`, fenced code, …) — including pasting
+free Markdown with no header at all — then run **`:TesseraFormat`**. That
 calls `tes format`, which reuses the same CommonMark inference as
-`tes import --markdown` (roles, list depth, fence language) and reuses `chunk=`
-ids when possible.
+`tes import --markdown` (roles, list depth, fence language) and reuses
+`\ids{}` entries when possible.
 
 ```vim
 :TesseraFormat
 ```
 
-Optional: `format_on_save = true` in setup. Optional: `conceal_directives = true`
-to hide directive / header comment lines (`conceallevel=2`).
+Optional: `format_on_save = true` (default) so `:w` refreshes `\ids{}` before
+write-back. Toggle live with **`:TesseraFormatOnSave`** (or `on` / `off`);
+it notifies the new state — useful when testing the write refuse path.
+Optional: `conceal_directives = true` to hide directive / header
+brace-command lines (`conceallevel=2`).
+
+Hover (`K` in the plugin): only on `\tessera{…}` / `\ids{…}` / `\figure{…}` /
+`\cite{…}` / `\slide{…}` / `\attach{…}` / `\text{…}` lines — not on prose.
 
 ## Commands
 
+- `:TesseraHover` / `K` — hover marker under cursor (explains if LSP missing / wrong line)
 - `:TesseraFormat` — normalize Tessprek via `tes format`
+- `:TesseraFormatOnSave` `[on|off|toggle]` — toggle format-before-write (notifies)
 - `:TesseraLspRestart` — restart `tes-lsp` on the current buffer
 - `:TesseraProject` — re-run `edit-read` (discards unsaved buffer edits)
 - `:TesseraLspInfo` — show resolved binaries / client status

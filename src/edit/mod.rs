@@ -769,14 +769,14 @@ fn hex_encode(bytes: &[u8]) -> String {
 fn normalize_tessprek_for_diff(text: &str) -> String {
     text.lines()
         .map(|line| {
-            if line.starts_with(markers::HEADER_PREFIX) && line.contains("source-hash=") {
+            if line.starts_with(markers::TESSERA_PREFIX) && line.contains("source-hash=") {
                 // Ignore hash churn from re-encoding into a temp file.
                 format!(
-                    "{} format={} version={} source-hash=<hash>{}",
-                    markers::HEADER_PREFIX,
+                    "{}format={} version={} source-hash=<hash>{}",
+                    markers::TESSERA_PREFIX,
                     markers::FORMAT,
                     markers::VERSION,
-                    markers::COMMENT_SUFFIX,
+                    markers::BRACE_SUFFIX,
                 )
             } else {
                 line.to_owned()
@@ -857,6 +857,7 @@ mod tests {
         .unwrap()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn assert_meta(
         aliases: &[String],
         slug: &Option<String>,
@@ -1019,6 +1020,27 @@ mod tests {
         assert_eq!(cat.title, "Tagged note");
     }
 
+    /// Append `extra` chunk ids to the `\ids{…}` header line (v2 has no
+    /// per-block ids; new appended blocks must be declared there).
+    fn with_extra_ids(tessprek: &str, extra: &[u64]) -> String {
+        let idx = tessprek.find("\\ids{").expect("ids line");
+        let start = idx + "\\ids{".len();
+        let end = start + tessprek[start..].find('}').expect("ids close");
+        let mut ids: Vec<String> = tessprek[start..end]
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .collect();
+        ids.extend(extra.iter().map(u64::to_string));
+        format!(
+            "{}{}{}",
+            &tessprek[..start],
+            ids.join(","),
+            &tessprek[end..]
+        )
+    }
+
     #[test]
     fn edit_write_with_media_injects_image_and_attachment() {
         let dir = tempdir().unwrap();
@@ -1039,9 +1061,9 @@ mod tests {
         )
         .unwrap();
 
+        let base = with_extra_ids(read.tessprek.trim_end(), &[10, 11]);
         let tessprek = format!(
-            "{}\n<!-- tes chunk=10 type=figure image=900001 placement=flow caption=\"Shot\" -->\n![Injected](media:chunk-900001)\n\n<!-- tes chunk=11 type=attachment filename=\"notes.pdf\" media_type=application/pdf sha256={} caption=\"Handout\" -->\n",
-            read.tessprek.trim_end(),
+            "{base}\n\\figure{{image=900001 placement=flow caption=\"Shot\"}}\n![Injected](media:chunk-900001)\n\n\\attach{{filename=\"notes.pdf\" media_type=application/pdf sha256={} caption=\"Handout\"}}\n",
             att.sha256,
         );
         let media = EditMediaBag {
@@ -1095,9 +1117,9 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = sample_note(dir.path());
         let read = edit_read(&path).unwrap();
+        let base = with_extra_ids(read.tessprek.trim_end(), &[10]);
         let tessprek = format!(
-            "{}\n<!-- tes chunk=10 type=figure image=900001 placement=flow -->\n![Missing](media:chunk-900001)\n",
-            read.tessprek.trim_end(),
+            "{base}\n\\figure{{image=900001 placement=flow}}\n![Missing](media:chunk-900001)\n"
         );
         let err = edit_write_with_media(
             &path,

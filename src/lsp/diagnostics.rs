@@ -199,19 +199,24 @@ mod tests {
     #[test]
     fn buffer_parse_error_is_ranged_on_offending_line() {
         let text = "\
-<!-- tessera: format=tessprek version=1 -->\n\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
 \n\
-<!-- tes chunk=1 role=not-a-real-role -->\n\
-body\n\
+\\figure{placement=flow}\n\
+![alt](media:chunk-1)\n\
 ";
         let diags = collect_buffer_diagnostics(text);
         assert_eq!(diags.len(), 1, "{diags:?}");
         let d = &diags[0];
         assert_eq!(d.severity, Some(DiagnosticSeverity::ERROR));
         assert_eq!(d.code, Some(NumberOrString::String("edit-parse".into())));
-        assert!(d.message.contains("unknown role"), "{}", d.message);
-        // Directive is on 1-based line 3 → LSP line 2; whole-line highlight.
-        assert_eq!(d.range.start.line, 2);
+        assert!(
+            d.message.contains("missing required attribute"),
+            "{}",
+            d.message
+        );
+        // Directive is on 1-based line 4 → LSP line 3; whole-line highlight.
+        assert_eq!(d.range.start.line, 3);
         assert_eq!(d.range.start.character, 0);
         assert!(d.range.end.character > 1, "{:?}", d.range);
     }
@@ -219,9 +224,9 @@ body\n\
     #[test]
     fn buffer_parse_clean_empty() {
         let text = "\
-<!-- tessera: format=tessprek version=1 -->\n\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
 \n\
-<!-- tes chunk=1 role=paragraph -->\n\
 Hello\n\
 ";
         assert!(collect_buffer_diagnostics(text).is_empty());

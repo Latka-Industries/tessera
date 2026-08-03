@@ -25,7 +25,7 @@ MARKER='<!-- tessera-tes-preview -->'
 
 normalize_tessprek() {
   # Match src/edit/mod.rs::normalize_tessprek_for_diff — ignore source-hash churn.
-  sed -E 's/(<!-- tessera:.*source-hash=)[^[:space:]]+([[:space:]]*-->)/\1<hash>\2/'
+  sed -E 's/(\\tessera\{.*source-hash=)[^[:space:]}]+/\1<hash>/'
 }
 
 textconv_blob() {

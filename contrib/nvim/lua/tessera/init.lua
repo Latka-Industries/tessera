@@ -8,8 +8,8 @@ local M = {}
 ---@field root_markers? string[] Markers for workspace root (default: { ".git" })
 ---@field autostart? boolean Attach on FileType / *.tes (default: true)
 ---@field project? boolean Replace `.tes` buffer with Tessprek via `tes edit-read` (default: true)
----@field format_on_save? boolean Run `tes format` before write-back (default: false)
----@field conceal_directives? boolean Conceal `<!-- tes … -->` / header lines (default: false)
+---@field format_on_save? boolean Run `tes format` before write-back (default: true — keeps `\ids{}` in sync)
+---@field conceal_directives? boolean Conceal `\tessera{}` / `\ids{}` / brace-command lines (default: false)
 
 ---@type tessera.Config
 local defaults = {
@@ -17,7 +17,7 @@ local defaults = {
   root_markers = { ".git" },
   autostart = true,
   project = true,
-  format_on_save = false,
+  format_on_save = true,
   conceal_directives = false,
 }
 
@@ -30,21 +30,10 @@ local function resolve_cmd()
   if M.config.cmd and #M.config.cmd > 0 then
     return M.config.cmd
   end
-
-  local src = debug.getinfo(1, "S").source:sub(2)
-  local nvim_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(src)))
-  local repo_root = vim.fs.dirname(vim.fs.dirname(nvim_root))
-  for _, rel in ipairs({ "target/debug/tes-lsp", "target/release/tes-lsp" }) do
-    local candidate = vim.fs.joinpath(repo_root, rel)
-    if vim.fn.executable(candidate) == 1 then
-      return { candidate }
-    end
+  local bin = buffer.resolve_repo_bin("tes-lsp")
+  if bin then
+    return { bin }
   end
-
-  if vim.fn.executable("tes-lsp") == 1 then
-    return { "tes-lsp" }
-  end
-
   return nil
 end
 
@@ -121,8 +110,48 @@ function M.start(bufnr)
       "tessera.nvim: vim.lsp.start failed for " .. table.concat(cmd, " "),
       vim.log.levels.ERROR
     )
+    return nil
   end
+
+  -- Hover only on `\tessera` / `\ids` / brace-command lines (not prose).
+  -- Wrapper notifies when LSP is missing or the cursor isn't on a marker.
+  vim.keymap.set("n", "K", function()
+    M.hover(bufnr)
+  end, {
+    buffer = bufnr,
+    silent = true,
+    desc = "Tessprek LSP hover (brace commands / header)",
+  })
   return id
+end
+
+---Hover Tessprek markers; explain why when nothing shows.
+---@param bufnr? integer
+function M.hover(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ bufnr = bufnr, name = "tes-lsp" })
+  if #clients == 0 then
+    vim.notify(
+      "tessera.nvim: no tes-lsp on this buffer — :TesseraLspInfo / :TesseraLspRestart\n"
+        .. "Also: cargo build --bin tes-lsp",
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
+  local line = vim.api.nvim_get_current_line()
+  local trimmed = vim.trim(line)
+  local is_marker = trimmed:match("^\\[a-z]+%{.*%}$") ~= nil
+  if not is_marker then
+    vim.notify(
+      "tessera.nvim: hover only works on marker lines — move to "
+        .. "`\\tessera{…}` / `\\ids{…}` / `\\figure{…}` (line 1–2 of a projected file)",
+      vim.log.levels.WARN
+    )
+    return
+  end
+
+  vim.lsp.buf.hover()
 end
 
 ---Stop tes-lsp clients attached to `bufnr`, then start again.
@@ -156,6 +185,32 @@ function M.format(bufnr)
   return buffer.format(bufnr)
 end
 
+---Toggle or set `format_on_save`, with a notify of the new state.
+---@param mode? "toggle"|"on"|"off"|boolean
+---@return boolean enabled
+function M.format_on_save(mode)
+  if mode == nil or mode == "toggle" then
+    M.config.format_on_save = not M.config.format_on_save
+  elseif mode == true or mode == "on" then
+    M.config.format_on_save = true
+  elseif mode == false or mode == "off" then
+    M.config.format_on_save = false
+  else
+    vim.notify(
+      "tessera.nvim: format_on_save expects on|off|toggle (got " .. tostring(mode) .. ")",
+      vim.log.levels.ERROR
+    )
+    return M.config.format_on_save
+  end
+
+  local enabled = M.config.format_on_save and true or false
+  vim.notify(
+    "tessera.nvim: format_on_save " .. (enabled and "ON" or "OFF"),
+    vim.log.levels.INFO
+  )
+  return enabled
+end
+
 ---@param bufnr integer
 local function apply_conceal(bufnr)
   if M.config.conceal_directives == false then
@@ -164,7 +219,7 @@ local function apply_conceal(bufnr)
   vim.api.nvim_buf_call(bufnr, function()
     vim.opt_local.conceallevel = 2
     vim.opt_local.concealcursor = "nvic"
-    pcall(vim.cmd, [[syntax match TesseraDirective /<!--\s*tes\%(sera:\)\?\_.\{-}-->/ conceal]])
+    pcall(vim.cmd, [[syntax match TesseraDirective /^\\[a-z]\+{.\{-}}$/ conceal]])
     pcall(vim.cmd, "highlight default link TesseraDirective Comment")
   end)
 end
@@ -173,24 +228,46 @@ end
 function M.setup(opts)
   if vim.g.tessera_setup_done then
     M.config = vim.tbl_deep_extend("force", M.config, opts or {})
-    return
+  else
+    vim.g.tessera_setup_done = true
+    M.config = vim.tbl_deep_extend("force", defaults, opts or {})
   end
-  vim.g.tessera_setup_done = true
-  M.config = vim.tbl_deep_extend("force", defaults, opts or {})
 
-  vim.api.nvim_create_user_command("TesseraLspRestart", function()
+  ---@param name string
+  ---@param fn fun(cmd_opts: { args: string })
+  ---@param cmd_opts? table
+  local function user_cmd(name, fn, cmd_opts)
+    vim.api.nvim_create_user_command(name, fn, cmd_opts or {})
+  end
+
+  user_cmd("TesseraLspRestart", function()
     M.restart()
   end, { desc = "Restart tes-lsp for the current buffer" })
 
-  vim.api.nvim_create_user_command("TesseraProject", function()
+  user_cmd("TesseraProject", function()
     M.project()
   end, { desc = "Reload Tessprek projection via tes edit-read" })
 
-  vim.api.nvim_create_user_command("TesseraFormat", function()
+  user_cmd("TesseraFormat", function()
     M.format()
   end, { desc = "Normalize Tessprek directives via tes format" })
 
-  vim.api.nvim_create_user_command("TesseraLspInfo", function()
+  user_cmd("TesseraFormatOnSave", function(cmd_opts)
+    local arg = cmd_opts.args
+    M.format_on_save(arg ~= "" and arg or "toggle")
+  end, {
+    desc = "Toggle or set format-before-write (on|off|toggle)",
+    nargs = "?",
+    complete = function()
+      return { "on", "off", "toggle" }
+    end,
+  })
+
+  user_cmd("TesseraHover", function()
+    M.hover()
+  end, { desc = "Hover Tessprek marker under cursor (or explain why not)" })
+
+  user_cmd("TesseraLspInfo", function()
     local cmd = resolve_cmd()
     local clients = vim.lsp.get_clients({ name = "tes-lsp" })
     local lines = {
@@ -208,9 +285,10 @@ function M.setup(opts)
     vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
   end, { desc = "Show tessera.nvim / tes-lsp status" })
 
-  if M.config.autostart == false then
+  if vim.g.tessera_autocmds_done or M.config.autostart == false then
     return
   end
+  vim.g.tessera_autocmds_done = true
 
   local group = vim.api.nvim_create_augroup("tessera.lsp", { clear = true })
 

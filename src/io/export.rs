@@ -2138,7 +2138,7 @@ mod tests {
         assert!(!html.contains("data:application/pdf"));
 
         let read = edit_read(&path).unwrap();
-        assert!(read.tessprek.contains("type=attachment"));
+        assert!(read.tessprek.contains("\\attach{"));
         assert!(read.tessprek.contains("filename=\"notes.pdf\""));
         edit_write(
             &path,

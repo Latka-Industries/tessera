@@ -246,10 +246,10 @@ def case_did_change(bin_path: Path) -> None:
 def case_ranged_parse_diagnostics(bin_path: Path) -> None:
     """Invalid Tessprek on didChange should publish a ranged edit-parse diag."""
     bad = (
-        "<!-- tessera: format=tessprek version=1 -->\n"
-        "\n"
-        "<!-- tes chunk=1 role=not-a-real-role -->\n"
-        "body\n"
+        "\\tessera{format=tessprek version=2}\n"
+        "\\ids{1}\n"
+        "\\figure{placement=flow}\n"
+        "![alt](media:chunk-1)\n"
     )
     s = open_session(bin_path)
     try:
@@ -351,13 +351,13 @@ def case_write_round_trip(bin_path: Path) -> None:
 
     bodies = {
         "string": (
-            "<!-- tessera: format=tessprek version=1 -->\n\n"
-            "<!-- tes chunk=1 role=paragraph -->\n"
+            "\\tessera{format=tessprek version=2}\n"
+            "\\ids{1}\n\n"
             "Hallo from Tessera — use `tes textconv` for readable diffs.\n"
         ),
         "object": (
-            "<!-- tessera: format=tessprek version=1 -->\n\n"
-            "<!-- tes chunk=1 role=paragraph -->\n"
+            "\\tessera{format=tessprek version=2}\n"
+            "\\ids{1}\n\n"
             "Hallo again from Tessera — use `tes textconv` for readable diffs.\n"
         ),
     }
@@ -421,7 +421,7 @@ def case_hover_chunk_marker(bin_path: Path) -> None:
         handshake(s)
         did_open(s, CLEAN)
         uri = CLEAN.resolve().as_uri()
-        # note_one_chunk Tessprek: line 0 header, 1 blank, 2 chunk marker
+        # note_one_chunk Tessprek: line 0 header, line 1 `\ids{1}`
         s.send(
             {
                 "jsonrpc": "2.0",
@@ -429,7 +429,7 @@ def case_hover_chunk_marker(bin_path: Path) -> None:
                 "method": "textDocument/hover",
                 "params": {
                     "textDocument": {"uri": uri},
-                    "position": {"line": 2, "character": 12},
+                    "position": {"line": 1, "character": 3},
                 },
             }
         )
@@ -444,9 +444,9 @@ def case_hover_chunk_marker(bin_path: Path) -> None:
         assert result is not None, "no hover result"
         contents = result.get("contents") or {}
         value = contents.get("value") if isinstance(contents, dict) else str(contents)
-        assert value and "chunk" in value.lower(), result
-        assert "1" in value and "paragraph" in value, result
-        print("ok  hover chunk marker")
+        assert value and "reading order" in value.lower(), result
+        assert "1" in value, result
+        print("ok  hover ids marker")
 
         s.send(
             {

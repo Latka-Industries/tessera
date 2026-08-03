@@ -155,6 +155,13 @@ Layout v1 uses Tessera Markdown (working nickname: Tessprek): Markdown plus
 narrow attributes/directives that losslessly preserve ids, spans, placement,
 citations, and other enum-backed fields for editor round trips.
 
+**Tessprek v2 (THI-318):** superseded the v1 `<!-- tessera: … -->` /
+`<!-- tes chunk=N … -->` HTML-comment directives with plain Markdown for
+heading/paragraph/list/quote/table/math/code, plus LaTeX-lite brace commands
+(`\figure{}`, `\cite{}`, `\slide{}`, `\attach{}`, optional `\text{}`) for
+structured chunks and a document-level `\tessera{}` + `\ids{}` header. No
+per-block ids, no dual-read with v1. Full grammar: [tessprek.md](tessprek.md).
+
 ---
 
 ## PDF import
@@ -306,3 +313,4 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D19 | Tessera Markdown virtual editing + typed AI ops | Accepted direction |
 | D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
 | D21 | Print IR + `ariadnes-weave` own native PDF; HTML is preview | Accepted direction |
+| D22 | Tessprek v2: brace commands + `\tessera{}`/`\ids{}` header replace v1 HTML comments | Accepted (THI-318 shipped) |

@@ -36,6 +36,16 @@ use self::write::{WriteBackError, parse_write_uri, write_back_document};
 
 pub use self::write::COMMAND_WRITE;
 
+fn paths_match(a: &Path, b: &Path) -> bool {
+    if a == b {
+        return true;
+    }
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(ca), Ok(cb)) => ca == cb,
+        _ => false,
+    }
+}
+
 /// LSP backend for Tessprek ↔ `.tes`.
 #[derive(Debug)]
 struct Backend {
@@ -289,7 +299,13 @@ impl LanguageServer for Backend {
             .unwrap_or_else(|e| Err(format!("join error: {e}")));
 
         match opened {
-            Ok(doc) => {
+            Ok(mut doc) => {
+                // Prefer the editor buffer (already projected by the client) so
+                // hover/diagnostics match what the user sees.
+                let client_text = params.text_document.text;
+                if !client_text.is_empty() {
+                    doc.tessprek = client_text;
+                }
                 let msg = format!(
                     "tes-lsp: opened {} source-hash={} tessprek-bytes={}",
                     doc.path.display(),
@@ -407,9 +423,20 @@ impl LanguageServer for Backend {
         let position = params.text_document_position_params.position;
         let tessprek = {
             let docs = self.documents.lock().expect("documents lock");
-            docs.get(&uri).map(|d| d.tessprek.clone())
+            if let Some(doc) = docs.get(&uri) {
+                Some(doc.tessprek.clone())
+            } else if let Some(path) = uri_to_path(&uri) {
+                // Clients sometimes reopen with a different file:// spelling
+                // (symlink vs realpath); fall back to path match.
+                docs.values()
+                    .find(|d| paths_match(&d.path, &path))
+                    .map(|d| d.tessprek.clone())
+            } else {
+                None
+            }
         };
         let Some(text) = tessprek else {
+            eprintln!("tes-lsp: hover for unknown URI: {uri}");
             return Ok(None);
         };
         Ok(hover_at(&text, position))

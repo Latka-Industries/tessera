@@ -353,33 +353,36 @@ tes apply paper.tes --patch change.tessprek --source-hash HASH
 ```
 
 `edit-read` prints Tessera Markdown (Tessprek) to stdout and the SHA-256
-`source-hash=…` on stderr. Directives look like:
+`source-hash=…` on stderr. Tessprek v2 is a hybrid: plain Markdown for
+heading/paragraph/list/quote/table/math/fenced-code, plus LaTeX-lite brace
+commands for structured chunks. Full grammar: [docs/tessprek.md](tessprek.md).
 
 ```text
-<!-- tessera: format=tessprek version=1 source-hash=… -->
+\tessera{format=tessprek version=2 source-hash=…}
+\ids{1,2,3}
 
-<!-- tes chunk=1 role=heading level=1 class="lead" -->
 # Title
 
-<!-- tes chunk=2 type=figure image=3 placement=flow caption="…" -->
+\figure{image=3 placement=flow caption="…"}
 ![alt](media:chunk-3)
 ```
 
 `tes format` normalizes a Tessprek buffer: Markdown-shaped bodies get correct
-`role` / `level` / `list` / `depth` / `code_lang`, multi-block bodies are split
-into one directive per chunk (same inference as `tes import --markdown`), and
-`chunk=` ids are reused when possible. Free Markdown gaps (no directive) are
-accepted. `--check` exits non-zero when the input is not already normalized.
-`edit-write` and `apply` acquire an advisory per-file lock, re-check the source
-hash, compile to a sibling temporary file, deep-verify, and atomically replace.
-`--dry-run` stops before replace and prints a line diff. Vim/Neovim integrations
-are thin adapters over these commands (CLI today; LSP below as it lands).
+role / list depth / fence language purely from their Markdown shape (same
+inference as `tes import --markdown`), multi-block bodies are split into one
+block per chunk, and `\ids{}` is reused positionally when possible. Free
+Markdown (no `\text{}`) is accepted. `--check` exits non-zero when the input is
+not already normalized. `edit-write` and `apply` acquire an advisory per-file
+lock, re-check the source hash, compile to a sibling temporary file,
+deep-verify, and atomically replace. `--dry-run` stops before replace and
+prints a line diff. Vim/Neovim integrations are thin adapters over these
+commands (CLI today; LSP below as it lands).
 
 Library callers can inject **new** image/attachment bytes via
-`edit_write_with_media` / `EditWriteOptions.media` (`EditMediaBag`): Tessprek
-figure `image=` / `media:chunk-N` and attachment `chunk=` ids resolve from the
-bag when absent from the source `.tes` (THI-233). CLI `edit-write` remains
-source-copy only for media today.
+`edit_write_with_media` / `EditWriteOptions.media` (`EditMediaBag`): a new
+`\figure{image=…}` / `media:chunk-N` or `\attach{}` chunk's id (from its
+position in `\ids{}`) resolves from the bag when absent from the source `.tes`
+(THI-233). CLI `edit-write` remains source-copy only for media today.
 
 Typed ops (`--ops`) are a JSON array of closed `TesOp` variants: `set_title`,
 `set_aliases`, `set_tags`, `set_slug`, `set_category`, `set_section`, `set_text`,

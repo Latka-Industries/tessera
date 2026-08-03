@@ -98,7 +98,7 @@ mod tests {
         assert_eq!(doc.path, path);
         assert_eq!(doc.source_hash.len(), 64);
         assert!(
-            doc.tessprek.contains("tessprek") || doc.tessprek.contains("tes chunk"),
+            doc.tessprek.contains("\\tessera{") || doc.tessprek.contains("tessprek"),
             "expected Tessprek markers, got: {}",
             &doc.tessprek[..doc.tessprek.len().min(200)]
         );

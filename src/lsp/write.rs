@@ -146,10 +146,11 @@ mod tests {
         std::fs::copy(fixture_tes(), &path).unwrap();
         let mut doc = load_open_document(path).unwrap();
         doc.tessprek = "\
-<!-- tessera: format=tessprek version=1 -->\n\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
 \n\
-<!-- tes chunk=1 role=not-a-real-role -->\n\
-body\n\
+\\figure{placement=flow}\n\
+![alt](media:chunk-1)\n\
 "
         .into();
         let err = write_back_document(&mut doc).unwrap_err();
@@ -159,9 +160,9 @@ body\n\
                 column,
                 message,
             } => {
-                assert_eq!(line, 3);
+                assert_eq!(line, 4);
                 assert_eq!(column, 1);
-                assert!(message.contains("unknown role"), "{message}");
+                assert!(message.contains("missing required attribute"), "{message}");
             }
             other => panic!("expected Parse, got {other:?}"),
         }
