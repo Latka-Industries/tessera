@@ -20,11 +20,12 @@ use crate::io::import::parse_markdown_blocks;
 
 use super::super::ContentBlock;
 use super::{
-    decode_named_directive, encode_content_blocks, markers, parse_attrs, set_chunk_id,
+    TessprekDocMeta, decode_named_directive, encode_content_blocks, markers, parse_attrs,
+    set_chunk_id, skip_blank_lines, take_leading_tessera_header, take_tessera_header,
     trim_block_body,
 };
 
-use markers::{IDS_PREFIX, TESSERA_PREFIX, parse_brace_command};
+use markers::{IDS_PREFIX, parse_brace_command};
 
 /// Normalize a Tessprek buffer: infer text roles from Markdown shape, split
 /// multi-block bodies, allocate/reuse `\ids{}` positionally, and re-emit
@@ -39,7 +40,6 @@ use markers::{IDS_PREFIX, TESSERA_PREFIX, parse_brace_command};
 /// Returns [`TesError::EditParse`] for malformed directives.
 pub fn normalize_tessprek(input: &str) -> Result<String> {
     let lines: Vec<&str> = input.lines().collect();
-    let source_hash = extract_source_hash(&lines);
     let declared_ids = extract_declared_ids(&lines);
     let mut blocks = build_content_blocks(&lines)?;
 
@@ -50,7 +50,8 @@ pub fn normalize_tessprek(input: &str) -> Result<String> {
         set_chunk_id(block, id);
     }
 
-    Ok(encode_content_blocks(source_hash.as_deref(), &blocks, &[]))
+    let meta = extract_doc_meta(&lines);
+    Ok(encode_content_blocks(&meta, &blocks, &[]))
 }
 
 /// True when `normalize_tessprek(input)` would change the buffer (ignoring a
@@ -320,19 +321,14 @@ impl IdAllocator {
     }
 }
 
-fn extract_source_hash(lines: &[&str]) -> Option<String> {
-    for line in lines {
-        let Some(("tessera", attrs)) = parse_brace_command(line.trim(), true) else {
-            continue;
-        };
-        let Ok(map) = parse_attrs(attrs, 1) else {
-            continue;
-        };
-        if let Some(hash) = map.get("source-hash").filter(|s| !s.is_empty()) {
-            return Some(hash.clone());
-        }
-    }
-    None
+fn extract_doc_meta(lines: &[&str]) -> TessprekDocMeta {
+    let Ok((attrs, _, _)) = take_leading_tessera_header(lines) else {
+        return TessprekDocMeta::default();
+    };
+    let Ok(map) = parse_attrs(&attrs, 1) else {
+        return TessprekDocMeta::default();
+    };
+    TessprekDocMeta::from_attrs(&map)
 }
 
 /// Lenient scan for the first `\ids{…}` list anywhere in the buffer.
@@ -572,18 +568,18 @@ fn apply_preserved_attrs(
 }
 
 fn skip_header_and_blanks(lines: &[&str], mut i: usize) -> usize {
-    while i < lines.len() {
-        let trimmed = lines[i].trim();
-        if trimmed.is_empty()
-            || trimmed.starts_with(TESSERA_PREFIX)
-            || trimmed.starts_with(IDS_PREFIX)
-        {
-            i += 1;
-            continue;
-        }
-        break;
+    i = skip_blank_lines(lines, i);
+    if let Ok((_, end)) = take_tessera_header(lines, i) {
+        i = end;
     }
-    i
+    i = skip_blank_lines(lines, i);
+    if lines
+        .get(i)
+        .is_some_and(|l| l.trim().starts_with(IDS_PREFIX))
+    {
+        i += 1;
+    }
+    skip_blank_lines(lines, i)
 }
 
 fn next_boundary(lines: &[&str], mut i: usize) -> usize {
@@ -620,10 +616,9 @@ mod tests {
     fn splits_free_markdown_and_assigns_sequential_ids() {
         let input = "# Title\n\n- one\n- two\n";
         let out = normalize_tessprek(input).unwrap();
-        assert!(
-            out.contains("\\tessera{format=tessprek version=2}"),
-            "{out}"
-        );
+        assert!(out.contains("\\tessera{"), "{out}");
+        assert!(out.contains("format=tessprek"), "{out}");
+        assert!(out.contains("version=2"), "{out}");
         assert!(out.contains("\\ids{1,2,3}"), "{out}");
         assert!(out.contains("# Title"), "{out}");
         assert!(out.contains("- one"), "{out}");
@@ -657,6 +652,27 @@ mod tests {
         assert!(out.contains("```rust"), "{out}");
         assert!(out.contains("fn x() {}"), "{out}");
         assert!(out.contains("\\ids{9}"), "{out}");
+    }
+
+    #[test]
+    fn preserves_rich_tessera_doc_meta() {
+        let input = "\
+\\tessera{format=tessprek version=2 source-hash=abc doc_id=550e8400-e29b-41d4-a716-446655440099 doc_kind=note title=\"Text roles\" language=en cite_style_id=numeric}\n\
+\\ids{1}\n\
+\n\
+Hi\n\
+";
+        let out = normalize_tessprek(input).unwrap();
+        assert!(out.contains("source-hash=abc"), "{out}");
+        assert!(
+            out.contains("doc_id=550e8400-e29b-41d4-a716-446655440099"),
+            "{out}"
+        );
+        assert!(out.contains("doc_kind=note"), "{out}");
+        assert!(out.contains("title=\"Text roles\""), "{out}");
+        assert!(out.contains("language=en"), "{out}");
+        assert!(out.contains("cite_style_id=numeric"), "{out}");
+        assert!(out.contains("\\ids{1}"), "{out}");
     }
 
     #[test]

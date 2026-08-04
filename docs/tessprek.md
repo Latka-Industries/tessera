@@ -22,7 +22,7 @@ Markdown has no syntax for.
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
 | Figure, cite (block), slide, attachment | `\figure{…}` / `\cite{…}` / `\slide{…}` / `\attach{…}` + body |
 | Text attrs that can't live in Markdown (`class` / `lang` / `align`) | Optional `\text{…}` immediately before the Markdown block |
-| Document header | `\tessera{format=tessprek version=2 source-hash=…}` |
+| Document header | `\tessera{format=tessprek version=2 source-hash=… [doc meta…]}` |
 | Reading order | `\ids{1,2,3,6,7}` (flat list, regenerated on every encode) |
 
 There is **no** per-block `\id{N}`, **no** HTML comments, and **no** YAML
@@ -33,7 +33,13 @@ retired — `decode_tessprek` rejects anything that isn't
 ### Example
 
 ```text
-\tessera{format=tessprek version=2 source-hash=9f2c…}
+\tessera{
+  format=tessprek
+  version=2
+  source-hash=9f2c…
+  doc_kind=note
+  title="Meeting notes"
+}
 \ids{1,2,3,4}
 
 # Meeting notes
@@ -58,14 +64,51 @@ Chunk 5 (the `Image` payload the figure references) does not itself appear in
 ### Header
 
 ```text
-\tessera{format=tessprek version=2 [source-hash=HEX]}
+\tessera{format=tessprek version=2 [source-hash=HEX] [doc_id=UUID]
+         [doc_kind=note] [title="…"] [language=en] [cite_style_id=…]
+         [theme_id=…] [template_id=…] [slug=…]}
 \ids{ID[,ID…]}
 ```
 
-Both lines are **required** for `decode_tessprek` (strict): the header must be
-the first non-blank line, `\ids{}` must immediately follow (blank lines
-allowed between). `tes format` / `normalize_tessprek` is lenient — it accepts
-free Markdown with no header at all and synthesizes one.
+`format` + `version=2` are required. Everything else is optional:
+
+| Key | Source | Notes |
+| --- | --- | --- |
+| `source-hash` | on-disk `.tes` SHA-256 | mutation gate (`edit_write`) |
+| `doc_id` | catalog | UUID string |
+| `doc_kind` | catalog | e.g. `note` |
+| `title` | catalog | quoted when it contains spaces |
+| `language` | catalog | BCP-47 |
+| `cite_style_id` | catalog | display/export hint |
+| `theme_id` / `template_id` | catalog | export/GUI hints |
+| `slug` | catalog | vault-unique handle |
+
+Encode (`edit_read` / `encode_tessprek`) projects these from the catalog when
+present. Decode accepts known keys for editors/LSP (hover shows the fields) but
+does **not** silently write them back into the `.tes` catalog — the sealed
+catalog remains canonical. **Unknown keys** are an error in tes-lsp and
+**refuse write** (so they are not silently dropped on round-trip). The header
+may be **one line** or **multiline** (encode prefers multiline, one
+`key=value` per indented line):
+
+```text
+\tessera{
+  format=tessprek
+  version=2
+  source-hash=…
+  doc_id=…
+  title="…"
+}
+```
+
+No YAML front matter. `tags` / `aliases` / `section` stay out of `\tessera{…}`.
+
+Both `\tessera{…}` and `\ids{…}` are **required** for `decode_tessprek`
+(strict): the tessera header must be the first non-blank content (one line or
+a multiline block), and `\ids{}` must immediately follow (blank lines allowed
+between). `tes format` / `normalize_tessprek` is lenient — it accepts free
+Markdown with no header at all and synthesizes one (preserving known
+`\tessera{…}` identity keys when they were already present).
 
 ### Chunk = Markdown block, not line
 
@@ -126,7 +169,9 @@ No body; attachment bytes are never projected into Tessprek (inert — see
 
 **Encode** (`encode_tessprek` / `encode_content_blocks`):
 
-1. Write `\tessera{format=tessprek version=2 source-hash=…}`.
+1. Write a multiline `\tessera{…}` header from [`TessprekDocMeta`] / catalog
+   (`format`, `version`, `source-hash`, `doc_id`, `title`, …). Single-line
+   headers remain accepted on decode.
 2. Collect the reading-order chunk ids → `\ids{…}`.
 3. Per chunk: text → optional `\text{…}` + Markdown via
    `OrderedListNumbering` + `TextHeader::render_markdown_with_links_indexed`
@@ -137,7 +182,9 @@ No body; attachment bytes are never projected into Tessprek (inert — see
 
 **Decode** (`decode_tessprek`, strict):
 
-1. Require `\tessera{…version=2…}` as the first non-blank line.
+1. Require `\tessera{…version=2…}` as the first non-blank header block
+   (one line or multiline; extra catalog keys accepted for display; not
+   applied to the sealed catalog).
 2. Parse `\ids{…}`.
 3. Scan the rest: brace commands vs. free Markdown runs (up to the next
    `\cmd{`).

@@ -8,41 +8,72 @@ use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Posi
 use crate::catalog::chunk::TextRole;
 use crate::edit::ContentBlock;
 use crate::edit::markers::parse_brace_command;
-use crate::edit::tessprek::{decode_tessprek_with_spans, parse_attrs};
+use crate::edit::tessprek::{decode_tessprek_with_spans, parse_attrs, take_leading_tessera_header};
 
 use super::position::{nth_line, utf16_len};
 
 /// Hover for a Tessprek marker or body line at `position`, if any.
 pub(super) fn hover_at(text: &str, position: Position) -> Option<Hover> {
     let (line_idx, line) = nth_line(text, position.line)?;
+    let line_usize = line_idx as usize;
+
+    if let Some(hover) = tessera_header_hover(text, line_usize) {
+        return Some(hover);
+    }
+
     let trimmed = line.trim();
     let trim_start = line.find(trimmed).unwrap_or(0);
 
     if let Some((kind, attrs)) = parse_brace_command(trimmed, true) {
-        let marker_start = utf16_len(&line[..trim_start]);
-        let marker_end = marker_start + utf16_len(trimmed);
-        let map = parse_attrs(attrs, 1).unwrap_or_default();
-        let markdown = match kind {
-            "tessera" => format_header_hover(&map),
-            "ids" => format_ids_hover(attrs),
-            other => format_command_hover(other, &map),
-        };
-        return Some(markup_hover(
-            markdown,
-            Range {
-                start: Position {
-                    line: line_idx,
-                    character: marker_start,
+        if kind == "tessera" {
+            // Leading header handled above; ignore stray single-line `\tessera`.
+        } else {
+            let marker_start = utf16_len(&line[..trim_start]);
+            let marker_end = marker_start + utf16_len(trimmed);
+            let map = parse_attrs(attrs, 1).unwrap_or_default();
+            let markdown = match kind {
+                "ids" => format_ids_hover(attrs),
+                other => format_command_hover(other, &map),
+            };
+            return Some(markup_hover(
+                markdown,
+                Range {
+                    start: Position {
+                        line: line_idx,
+                        character: marker_start,
+                    },
+                    end: Position {
+                        line: line_idx,
+                        character: marker_end,
+                    },
                 },
-                end: Position {
-                    line: line_idx,
-                    character: marker_end,
-                },
-            },
-        ));
+            ));
+        }
     }
 
     body_hover(text, position.line)
+}
+
+fn tessera_header_hover(text: &str, line: usize) -> Option<Hover> {
+    let lines: Vec<&str> = text.lines().collect();
+    let (attrs, start, end) = take_leading_tessera_header(&lines).ok()?;
+    if line < start || line >= end {
+        return None;
+    }
+    let map = parse_attrs(&attrs, 1).unwrap_or_default();
+    Some(markup_hover(
+        format_header_hover(&map),
+        Range {
+            start: Position {
+                line: start as u32,
+                character: 0,
+            },
+            end: Position {
+                line: end.saturating_sub(1).max(start) as u32,
+                character: 0,
+            },
+        },
+    ))
 }
 
 fn body_hover(text: &str, line: u32) -> Option<Hover> {
@@ -176,14 +207,26 @@ fn format_ids_hover(attrs: &str) -> String {
 }
 
 fn format_header_hover(map: &BTreeMap<String, String>) -> String {
+    use crate::edit::markers::TESSERA_HEADER_KEYS;
+
     let mut out = String::from("**Tessprek document header**\n");
+    let mut seen = std::collections::BTreeSet::new();
+    for key in TESSERA_HEADER_KEYS {
+        if let Some(v) = map.get(*key) {
+            seen.insert(*key);
+            let display = if *key == "source-hash" && v.len() > 12 {
+                format!("{}…", &v[..12])
+            } else {
+                v.clone()
+            };
+            push_field(&mut out, key, &display);
+        }
+    }
     for (k, v) in map {
-        let display = if k == "source-hash" && v.len() > 12 {
-            format!("{}…", &v[..12])
-        } else {
-            v.clone()
-        };
-        push_field(&mut out, k, &display);
+        if seen.contains(k.as_str()) {
+            continue;
+        }
+        push_field(&mut out, k, v);
     }
     out
 }
@@ -215,7 +258,7 @@ mod tests {
     use super::*;
 
     const SAMPLE: &str = "\
-\\tessera{format=tessprek version=2 source-hash=abc123def456}\n\
+\\tessera{format=tessprek version=2 source-hash=abc123def456 doc_id=550e8400-e29b-41d4-a716-446655440000 doc_kind=note title=\"Demo note\" language=en}\n\
 \\ids{1,2}\n\
 \n\
 Hello\n\
@@ -223,6 +266,31 @@ Hello\n\
 \\figure{image=3 placement=flow caption=\"A cap\"}\n\
 ![alt](media:chunk-3)\n\
 ";
+
+    #[test]
+    fn hover_multiline_header_attr_line() {
+        let text = "\
+\\tessera{\n\
+  format=tessprek\n\
+  version=2\n\
+  title=\"Demo note\"\n\
+}\n\
+\\ids{1}\n\
+\n\
+Hello\n\
+";
+        let h = hover_at(
+            text,
+            Position {
+                line: 3,
+                character: 4,
+            },
+        )
+        .expect("hover");
+        let plain = hover_plain(&h);
+        assert!(plain.contains("header"), "{plain}");
+        assert!(plain.contains("Demo note"), "{plain}");
+    }
 
     #[test]
     fn hover_header_source_hash() {
@@ -238,6 +306,8 @@ Hello\n\
         assert!(text.contains("header"), "{text}");
         assert!(text.contains("tessprek"), "{text}");
         assert!(text.contains("abc123def456"), "{text}");
+        assert!(text.contains("Demo note"), "{text}");
+        assert!(text.contains("doc_id"), "{text}");
     }
 
     #[test]

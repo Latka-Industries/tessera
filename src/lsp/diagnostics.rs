@@ -4,6 +4,7 @@ use std::path::Path;
 
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range};
 
+use crate::edit::tessprek::TessprekDocMeta;
 use crate::edit::{decode_tessprek, file_source_hash};
 use crate::error::TesError;
 use crate::verify::{Finding, Severity, verify_tes_file};
@@ -66,8 +67,9 @@ fn finding_to_diagnostic(finding: &Finding) -> Diagnostic {
 }
 
 /// Parse the in-memory Tessprek buffer; emit a ranged `edit-parse` on failure.
+/// Unknown `\tessera{…}` keys become warnings (ignored on decode).
 pub(super) fn collect_buffer_diagnostics(tessprek: &str) -> Vec<Diagnostic> {
-    match decode_tessprek(tessprek) {
+    let mut out = match decode_tessprek(tessprek) {
         Ok(_) => Vec::new(),
         Err(TesError::EditParse {
             line,
@@ -83,7 +85,27 @@ pub(super) fn collect_buffer_diagnostics(tessprek: &str) -> Vec<Diagnostic> {
                 format!("Tessprek parse failed: {err}"),
             )]
         }
-    }
+    };
+    out.extend(unknown_header_key_warnings(tessprek));
+    out
+}
+
+fn unknown_header_key_warnings(tessprek: &str) -> Vec<Diagnostic> {
+    let Some((line, keys)) = TessprekDocMeta::unknown_keys_in_buffer(tessprek) else {
+        return Vec::new();
+    };
+    keys.into_iter()
+        .map(|key| Diagnostic {
+            range: line_column_range(tessprek, line, 1),
+            severity: Some(DiagnosticSeverity::ERROR),
+            code: Some(NumberOrString::String("tessera-unknown-key".into())),
+            source: Some("tes-lsp".into()),
+            message: format!(
+                "unknown `\\tessera{{}}` key `{key}` — remove it before write (does not update catalog)"
+            ),
+            ..Default::default()
+        })
+        .collect()
 }
 
 /// Build diagnostics from `verify_*` plus an optional source-hash expectation.
@@ -230,5 +252,24 @@ mod tests {
 Hello\n\
 ";
         assert!(collect_buffer_diagnostics(text).is_empty());
+    }
+
+    #[test]
+    fn buffer_warns_on_unknown_tessera_key() {
+        let text = "\
+\\tessera{format=tessprek version=2 tags=nope}\n\
+\\ids{1}\n\
+\n\
+Hello\n\
+";
+        let diags = collect_buffer_diagnostics(text);
+        assert!(
+            diags.iter().any(|d| {
+                d.severity == Some(DiagnosticSeverity::ERROR)
+                    && d.code == Some(NumberOrString::String("tessera-unknown-key".into()))
+                    && d.message.contains("tags")
+            }),
+            "{diags:?}"
+        );
     }
 }

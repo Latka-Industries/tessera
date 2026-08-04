@@ -24,9 +24,9 @@ use tower_lsp::lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DiagnosticSeverity,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     ExecuteCommandOptions, ExecuteCommandParams, Hover, HoverParams, HoverProviderCapability,
-    InitializeParams, InitializeResult, InitializedParams, MessageType, ServerCapabilities,
-    ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, Url, WillSaveTextDocumentParams,
+    InitializeParams, InitializeResult, InitializedParams, MessageType, NumberOrString,
+    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, Url, WillSaveTextDocumentParams,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -142,6 +142,9 @@ impl Backend {
                 self.write_parse_failed(uri, &path, line, column, message)
                     .await
             }
+            Err(WriteBackError::UnknownHeaderKeys { line, keys }) => {
+                self.write_unknown_header_keys(uri, &path, line, keys).await
+            }
             Err(WriteBackError::Other(err)) => self.write_other_failed(uri, &path, err).await,
         }
     }
@@ -235,6 +238,45 @@ impl Backend {
             "code": "edit-parse",
             "line": line,
             "column": column,
+            "error": message,
+        }))
+    }
+
+    async fn write_unknown_header_keys(
+        &self,
+        uri: &Url,
+        path: &Path,
+        line: usize,
+        keys: Vec<String>,
+    ) -> Result<Value> {
+        let tessprek = {
+            let docs = self.documents.lock().expect("documents lock");
+            docs.get(uri)
+                .map(|d| d.tessprek.clone())
+                .unwrap_or_default()
+        };
+        let joined = keys.join(", ");
+        let message = format!(
+            "unknown `\\tessera{{}}` key(s): {joined} — remove before write (does not update catalog)"
+        );
+        let diag = parse_diagnostic(&tessprek, line, 1, message.clone());
+        // Keep code as tessera-unknown-key for client matching.
+        let mut diag = diag;
+        diag.code = Some(NumberOrString::String("tessera-unknown-key".into()));
+        self.client
+            .publish_diagnostics(uri.clone(), vec![diag], None)
+            .await;
+        let msg = format!(
+            "tes-lsp: write refused (tessera-unknown-key) for {}: {joined}",
+            path.display()
+        );
+        eprintln!("{msg}");
+        self.client.log_message(MessageType::ERROR, msg).await;
+        Ok(serde_json::json!({
+            "ok": false,
+            "code": "tessera-unknown-key",
+            "line": line,
+            "keys": keys,
             "error": message,
         }))
     }

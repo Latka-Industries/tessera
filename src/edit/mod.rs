@@ -28,7 +28,7 @@ use crate::verify::{TesVerifyReport, verify_bytes, verify_tes_file};
 pub use ops::{CatalogPatch, TesOp, apply_ops_to_blocks, parse_ops_json};
 pub use tessprek::markers;
 pub use tessprek::{
-    decode_tessprek, encode_content_blocks, encode_tessprek, normalize_tessprek,
+    TessprekDocMeta, decode_tessprek, encode_content_blocks, encode_tessprek, normalize_tessprek,
     tessprek_needs_format,
 };
 

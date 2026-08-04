@@ -15,6 +15,7 @@ use std::fmt::Write as _;
 
 use crate::catalog::TesFile;
 use crate::catalog::chunk::{CitePayload, OrderedListNumbering, TextHeader, decode_text_payload};
+use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::ChunkType;
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
@@ -23,6 +24,126 @@ use crate::error::{Result, TesError};
 use super::ContentBlock;
 
 pub use format::{normalize_tessprek, tessprek_needs_format};
+
+/// Optional document-identity fields projected into `\tessera{…}`.
+///
+/// Encode fills these from [`DocumentCatalog`]; decode/normalize accept them for
+/// display/LSP only — they do **not** silently overwrite the `.tes` catalog on
+/// write-back.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TessprekDocMeta {
+    /// Hex SHA-256 of the on-disk `.tes` (mutation gate).
+    pub source_hash: Option<String>,
+    /// Catalog `doc_id`.
+    pub doc_id: Option<String>,
+    /// Catalog `doc_kind` (e.g. `note`).
+    pub doc_kind: Option<String>,
+    /// Catalog `title`.
+    pub title: Option<String>,
+    /// Catalog BCP-47 `language`.
+    pub language: Option<String>,
+    /// Catalog `cite_style_id`.
+    pub cite_style_id: Option<String>,
+    /// Catalog `theme_id`.
+    pub theme_id: Option<String>,
+    /// Catalog `template_id`.
+    pub template_id: Option<String>,
+    /// Catalog `slug`.
+    pub slug: Option<String>,
+}
+
+impl TessprekDocMeta {
+    /// Project catalog fields (plus optional `source_hash`) into Tessprek meta.
+    #[must_use]
+    pub fn from_catalog(catalog: &DocumentCatalog, source_hash: Option<&str>) -> Self {
+        Self {
+            source_hash: nonempty_owned(source_hash),
+            doc_id: nonempty_owned(Some(catalog.doc_id.as_str())),
+            doc_kind: nonempty_owned(Some(catalog.doc_kind.as_str())),
+            title: nonempty_owned(Some(catalog.title.as_str())),
+            language: nonempty_owned(catalog.language.as_deref()),
+            cite_style_id: nonempty_owned(catalog.cite_style_id.as_deref()),
+            theme_id: nonempty_owned(catalog.theme_id.as_deref()),
+            template_id: nonempty_owned(catalog.template_id.as_deref()),
+            slug: nonempty_owned(catalog.slug.as_deref()),
+        }
+    }
+
+    /// Read known identity keys from a parsed `\tessera{…}` attr map.
+    #[must_use]
+    pub fn from_attrs(map: &BTreeMap<String, String>) -> Self {
+        Self {
+            source_hash: map_get(map, "source-hash"),
+            doc_id: map_get(map, "doc_id"),
+            doc_kind: map_get(map, "doc_kind"),
+            title: map_get(map, "title"),
+            language: map_get(map, "language"),
+            cite_style_id: map_get(map, "cite_style_id"),
+            theme_id: map_get(map, "theme_id"),
+            template_id: map_get(map, "template_id"),
+            slug: map_get(map, "slug"),
+        }
+    }
+
+    /// Keys in `map` that are not in [`markers::TESSERA_HEADER_KEYS`].
+    #[must_use]
+    pub fn unknown_keys(map: &BTreeMap<String, String>) -> Vec<String> {
+        map.keys()
+            .filter(|k| !markers::TESSERA_HEADER_KEYS.contains(&k.as_str()))
+            .cloned()
+            .collect()
+    }
+
+    /// Unknown `\tessera{…}` keys in a Tessprek buffer, if any.
+    ///
+    /// Returns `(1-based header start line, unknown keys)` when the leading
+    /// header parses and contains unknown keys.
+    #[must_use]
+    pub fn unknown_keys_in_buffer(tessprek: &str) -> Option<(usize, Vec<String>)> {
+        let lines: Vec<&str> = tessprek.lines().collect();
+        let (attrs, start, _) = take_leading_tessera_header(&lines).ok()?;
+        let map = parse_attrs(&attrs, start + 1).ok()?;
+        let unknown = Self::unknown_keys(&map);
+        if unknown.is_empty() {
+            None
+        } else {
+            Some((start + 1, unknown))
+        }
+    }
+
+    fn push_parts(&self, parts: &mut Vec<String>) {
+        push_plain(parts, "source-hash", self.source_hash.as_deref());
+        push_plain(parts, "doc_id", self.doc_id.as_deref());
+        push_plain(parts, "doc_kind", self.doc_kind.as_deref());
+        push_plain(parts, "title", self.title.as_deref());
+        push_plain(parts, "language", self.language.as_deref());
+        push_plain(parts, "cite_style_id", self.cite_style_id.as_deref());
+        push_plain(parts, "theme_id", self.theme_id.as_deref());
+        push_plain(parts, "template_id", self.template_id.as_deref());
+        push_plain(parts, "slug", self.slug.as_deref());
+    }
+}
+
+fn nonempty_owned(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+
+fn map_get(map: &BTreeMap<String, String>, key: &str) -> Option<String> {
+    map.get(key)
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+
+fn push_plain(parts: &mut Vec<String>, key: &str, value: Option<&str>) {
+    if let Some(v) = value.filter(|s| !s.is_empty()) {
+        parts.push(format!("{key}={}", attr_token(v)));
+    }
+}
 
 /// Tessprek v2 wire markers: `\tessera{}` header + `\ids{}` reading order,
 /// LaTeX-lite brace commands for structured chunks. Shared by encode/decode
@@ -33,8 +154,22 @@ pub mod markers {
     pub const FORMAT: &str = "tessprek";
     /// `version=` value stamped in the document header.
     pub const VERSION: &str = "2";
-    /// Document header: `\tessera{format=… version=… source-hash=…}`.
+    /// Document header: `\tessera{format=… version=2 source-hash=… [doc meta…]}`.
     pub const TESSERA_PREFIX: &str = "\\tessera{";
+    /// Known `\tessera{…}` attribute keys (wire + projected catalog fields).
+    pub const TESSERA_HEADER_KEYS: &[&str] = &[
+        "format",
+        "version",
+        "source-hash",
+        "doc_id",
+        "doc_kind",
+        "title",
+        "language",
+        "cite_style_id",
+        "theme_id",
+        "template_id",
+        "slug",
+    ];
     /// Reading-order chunk id list: `\ids{1,2,3,…}`.
     pub const IDS_PREFIX: &str = "\\ids{";
     /// Optional preserved-attrs directive before a Markdown block.
@@ -74,6 +209,9 @@ pub mod markers {
     ///
     /// When `include_header` is true, also matches `\tessera{…}` / `\ids{…}`
     /// (LSP hover). Format/decode body scans use `include_header = false`.
+    ///
+    /// Single-line only. For a possibly multiline `\tessera{…}` header use
+    /// [`super::take_tessera_header`].
     #[must_use]
     pub fn parse_brace_command(
         trimmed: &str,
@@ -98,6 +236,107 @@ pub mod markers {
         }
         None
     }
+}
+
+/// Parse a `\tessera{…}` header starting at `lines[start]` (0-based).
+///
+/// Accepts a single-line `\tessera{…}` or a multiline form:
+///
+/// ```text
+/// \tessera{
+///   format=tessprek
+///   version=2
+///   title="…"
+/// }
+/// ```
+///
+/// Returns `(inner attrs, end_line_exclusive)`.
+///
+/// # Errors
+///
+/// Returns [`TesError::EditParse`] when the opener is missing or `}` is never
+/// closed (respecting quoted attribute values).
+pub(crate) fn take_tessera_header(lines: &[&str], start: usize) -> Result<(String, usize)> {
+    let header_line_no = start.saturating_add(1);
+    let first = lines.get(start).map_or("", |l| l.trim());
+    if !first.starts_with(TESSERA_PREFIX) {
+        return Err(parse_err(
+            header_line_no,
+            1,
+            format!("expected `{TESSERA_PREFIX}...{BRACE_SUFFIX}` document header, found: {first}"),
+        ));
+    }
+
+    let mut buf = String::new();
+    let mut end = start;
+    while end < lines.len() {
+        let piece = lines[end].trim();
+        if end > start {
+            buf.push(' ');
+        }
+        buf.push_str(piece);
+        let after = buf
+            .strip_prefix(TESSERA_PREFIX)
+            .expect("prefix checked on first line");
+        if let Some(close) = find_unquoted_close_brace(after) {
+            let trailing = after[close + 1..].trim();
+            if !trailing.is_empty() {
+                return Err(parse_err(
+                    end + 1,
+                    1,
+                    format!("trailing junk after `{BRACE_SUFFIX}` in tessera header: {trailing}"),
+                ));
+            }
+            return Ok((after[..close].to_owned(), end + 1));
+        }
+        end += 1;
+    }
+    Err(parse_err(
+        header_line_no,
+        1,
+        format!("unterminated `{TESSERA_PREFIX}` header (missing `{BRACE_SUFFIX}`)"),
+    ))
+}
+
+/// Skip leading blank lines; return the first non-blank index (or `lines.len()`).
+#[must_use]
+pub(crate) fn skip_blank_lines(lines: &[&str], mut i: usize) -> usize {
+    while i < lines.len() && lines[i].trim().is_empty() {
+        i += 1;
+    }
+    i
+}
+
+/// Parse the leading `\tessera{…}` header after optional blanks.
+///
+/// Returns `(attrs, start_line, end_line_exclusive)` where `start_line` is the
+/// first header line (0-based).
+///
+/// # Errors
+///
+/// Same as [`take_tessera_header`].
+pub(crate) fn take_leading_tessera_header(lines: &[&str]) -> Result<(String, usize, usize)> {
+    let start = skip_blank_lines(lines, 0);
+    let (attrs, end) = take_tessera_header(lines, start)?;
+    Ok((attrs, start, end))
+}
+
+fn find_unquoted_close_brace(s: &str) -> Option<usize> {
+    let mut in_quote = false;
+    let mut escape = false;
+    for (i, ch) in s.char_indices() {
+        if escape {
+            escape = false;
+            continue;
+        }
+        match ch {
+            '\\' if in_quote => escape = true,
+            '"' => in_quote = !in_quote,
+            '}' if !in_quote => return Some(i),
+            _ => {}
+        }
+    }
+    None
 }
 
 use markers::{
@@ -165,7 +404,13 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
         blocks.push(block);
     }
     Ok(encode_content_blocks(
-        Some(source_hash),
+        &file.catalog().map_or_else(
+            || TessprekDocMeta {
+                source_hash: Some(source_hash.to_owned()),
+                ..TessprekDocMeta::default()
+            },
+            |catalog| TessprekDocMeta::from_catalog(catalog, Some(source_hash)),
+        ),
         &blocks,
         file.links(),
     ))
@@ -196,22 +441,9 @@ pub fn decode_tessprek(input: &str) -> Result<Vec<ContentBlock>> {
 pub(crate) fn decode_tessprek_with_spans(input: &str) -> Result<Vec<(usize, usize, ContentBlock)>> {
     let lines: Vec<&str> = input.lines().collect();
 
-    let mut i = 0;
-    while i < lines.len() && lines[i].trim().is_empty() {
-        i += 1;
-    }
-    let header_line_no = i + 1;
-    let header_trimmed = lines.get(i).map_or("", |l| l.trim());
-    let Some(("tessera", header_inner)) = markers::parse_brace_command(header_trimmed, true) else {
-        return Err(parse_err(
-            header_line_no,
-            1,
-            format!(
-                "expected `{TESSERA_PREFIX}...{BRACE_SUFFIX}` document header, found: {header_trimmed}"
-            ),
-        ));
-    };
-    let header_attrs = parse_attrs(header_inner, header_line_no)?;
+    let (header_inner, header_start, header_end) = take_leading_tessera_header(&lines)?;
+    let header_line_no = header_start + 1;
+    let header_attrs = parse_attrs(&header_inner, header_line_no)?;
     if header_attrs.get("format").map(String::as_str) != Some(FORMAT) {
         return Err(parse_err(
             header_line_no,
@@ -228,10 +460,7 @@ pub(crate) fn decode_tessprek_with_spans(input: &str) -> Result<Vec<(usize, usiz
             ),
         ));
     }
-    i += 1;
-    while i < lines.len() && lines[i].trim().is_empty() {
-        i += 1;
-    }
+    let i = skip_blank_lines(&lines, header_end);
     let ids_line_no = i + 1;
     let ids_trimmed = lines.get(i).map_or("", |l| l.trim());
     let Some(("ids", ids_inner)) = markers::parse_brace_command(ids_trimmed, true) else {
@@ -395,21 +624,23 @@ fn decode_attachment_block(map: &BTreeMap<String, String>, line_no: usize) -> Re
     })
 }
 
-/// Encode typed content blocks as Tessprek v2 (optional `source-hash`).
+/// Encode typed content blocks as Tessprek v2.
 ///
-/// `links` resolves `InlineKind::Link` spans on blocks whose `pending_links`
-/// is empty (e.g. blocks freshly decoded from a `.tes` file); pass `&[]` when
-/// blocks already carry `pending_links` (normalize / typed ops).
+/// `meta` supplies `source-hash` and optional catalog identity fields for the
+/// `\tessera{…}` header (encode prefers a multiline block). `links` resolves
+/// `InlineKind::Link` spans on blocks whose `pending_links` is empty (e.g.
+/// blocks freshly decoded from a `.tes` file); pass `&[]` when blocks already
+/// carry `pending_links` (normalize / typed ops).
 ///
 /// Used by [`normalize_tessprek`], [`encode_tessprek`], and tests.
 #[must_use]
 pub fn encode_content_blocks(
-    source_hash: Option<&str>,
+    meta: &TessprekDocMeta,
     blocks: &[ContentBlock],
     links: &[crate::catalog::LinkEntry],
 ) -> String {
     let mut out = String::new();
-    write_header(&mut out, source_hash);
+    write_header(&mut out, meta);
     write_ids(&mut out, blocks);
     out.push('\n');
 
@@ -492,12 +723,15 @@ fn write_brace_line(out: &mut String, prefix: &str, parts: &[String]) {
     let _ = writeln!(out, "{prefix}{}{BRACE_SUFFIX}", parts.join(" "));
 }
 
-fn write_header(out: &mut String, source_hash: Option<&str>) {
+fn write_header(out: &mut String, meta: &TessprekDocMeta) {
     let mut parts = vec![format!("format={FORMAT}"), format!("version={VERSION}")];
-    if let Some(hash) = source_hash.filter(|h| !h.is_empty()) {
-        parts.push(format!("source-hash={hash}"));
+    meta.push_parts(&mut parts);
+    // Multiline so long identity keys stay readable (single-line still accepted).
+    let _ = writeln!(out, "{TESSERA_PREFIX}");
+    for part in &parts {
+        let _ = writeln!(out, "  {part}");
     }
-    write_brace_line(out, TESSERA_PREFIX, &parts);
+    let _ = writeln!(out, "{BRACE_SUFFIX}");
 }
 
 fn write_ids(out: &mut String, blocks: &[ContentBlock]) {
@@ -840,7 +1074,17 @@ mod tests {
 
         let file = TesFile::open(&path).unwrap();
         let text = encode_tessprek(&file, "abc").unwrap();
-        assert!(text.contains("\\tessera{format=tessprek version=2 source-hash=abc}"));
+        assert!(text.contains("format=tessprek"), "{text}");
+        assert!(text.contains("version=2"), "{text}");
+        assert!(text.contains("source-hash=abc"), "{text}");
+        assert!(
+            text.contains("doc_id=550e8400-e29b-41d4-a716-446655440000"),
+            "{text}"
+        );
+        assert!(
+            text.contains("title=Demo") || text.contains("title=\"Demo\""),
+            "{text}"
+        );
         assert!(text.contains("\\text{class=\"lead\"}"), "{text}");
         assert!(text.contains("# Hello"), "{text}");
         let blocks = decode_tessprek(&text).unwrap();
@@ -904,7 +1148,7 @@ mod tests {
                 sha256: "deadbeef".into(),
             },
         ];
-        let text = encode_content_blocks(None, &blocks, &[]);
+        let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[]);
         assert!(text.contains("\\ids{1,2,4,5,6}"), "{text}");
         assert!(text.contains("\\figure{"), "{text}");
         assert!(text.contains("\\cite{"), "{text}");
@@ -913,6 +1157,82 @@ mod tests {
         assert!(text.contains("\\attach{"), "{text}");
         let decoded = decode_tessprek(&text).unwrap();
         assert_eq!(decoded, blocks);
+    }
+
+    #[test]
+    fn encode_projects_catalog_meta_into_header() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("meta.tes");
+        let mut session = TesWriterSession::create(&path, DocKind::Note);
+        let mut catalog = DocumentCatalog::new(
+            "550e8400-e29b-41d4-a716-446655440099",
+            "Text roles tour",
+            "2026-07-27T00:00:00Z",
+            "2026-07-27T00:00:00Z",
+            DocKind::Note,
+        );
+        catalog.language = Some("en".into());
+        catalog.cite_style_id = Some("numeric".into());
+        catalog.theme_id = Some("default".into());
+        catalog.template_id = Some("article".into());
+        catalog.slug = Some("text-roles".into());
+        session.set_catalog(catalog).unwrap();
+        session
+            .add_text_chunk(&TextHeader::paragraph(), "Hi")
+            .unwrap();
+        session.commit().unwrap();
+
+        let file = TesFile::open(&path).unwrap();
+        let text = encode_tessprek(&file, "deadbeef").unwrap();
+        assert!(text.contains("\\tessera{\n"), "{text}");
+        assert!(text.contains("  format=tessprek\n"), "{text}");
+        assert!(text.contains("  version=2\n"), "{text}");
+        assert!(text.contains("  source-hash=deadbeef\n"), "{text}");
+        assert!(
+            text.contains("  doc_id=550e8400-e29b-41d4-a716-446655440099\n"),
+            "{text}"
+        );
+        assert!(text.contains("  doc_kind=note\n"), "{text}");
+        assert!(text.contains("  title=\"Text roles tour\"\n"), "{text}");
+        assert!(text.contains("  language=en\n"), "{text}");
+        assert!(text.contains("  cite_style_id=numeric\n"), "{text}");
+        assert!(text.contains("  theme_id=default\n"), "{text}");
+        assert!(text.contains("  template_id=article\n"), "{text}");
+        assert!(text.contains("  slug=text-roles\n"), "{text}");
+        assert!(text.contains("}\n\\ids{"), "{text}");
+        assert_eq!(decode_tessprek(&text).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn decode_accepts_multiline_and_single_line_header() {
+        let multi = "\
+\\tessera{\n\
+  format=tessprek\n\
+  version=2\n\
+  title=\"Hello\"\n\
+}\n\
+\\ids{1}\n\
+\n\
+# Hello\n\
+";
+        assert_eq!(decode_tessprek(multi).unwrap().len(), 1);
+        let single = "\
+\\tessera{format=tessprek version=2 title=\"Hello\"}\n\
+\\ids{1}\n\
+\n\
+# Hello\n\
+";
+        assert_eq!(decode_tessprek(single).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn unknown_header_keys_are_listed() {
+        let mut map = BTreeMap::new();
+        map.insert("format".into(), "tessprek".into());
+        map.insert("bogus".into(), "x".into());
+        map.insert("tags".into(), "a,b".into());
+        let unknown = TessprekDocMeta::unknown_keys(&map);
+        assert_eq!(unknown, vec!["bogus".to_string(), "tags".to_string()]);
     }
 
     #[test]

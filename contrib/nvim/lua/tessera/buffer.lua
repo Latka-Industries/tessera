@@ -199,6 +199,16 @@ function M.write(bufnr)
     return false
   end
 
+  if code == "tessera-unknown-key" then
+    local hint = "Remove unknown `\\tessera{}` keys (e.g. tags=…), then :w again."
+    notify_detail(
+      "tessera.nvim: write refused (tessera-unknown-key)",
+      detail and (tostring(detail) .. "\n" .. hint) or hint,
+      vim.log.levels.ERROR
+    )
+    return false
+  end
+
   notify_detail(
     "tessera.nvim: write refused (" .. tostring(code) .. ")",
     detail,

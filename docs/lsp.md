@@ -18,6 +18,7 @@ Logs go to **stderr** only — stdout is the LSP wire.
 | Write-back | `tessera.write` / `willSave` → `edit_write` with stored hash |
 | Success | Refresh stored hash from `EditWriteReport` |
 | Hash conflict | `source-hash` diagnostic; **never** silent overwrite |
+| Unknown `\tessera{…}` key | `tessera-unknown-key` error; **write refused** until removed |
 | Parse error | Ranged `edit-parse` on the offending Tessprek line (buffer) |
 
 ## Capabilities
@@ -27,10 +28,10 @@ Logs go to **stderr** only — stdout is the LSP wire.
 | `initialize` / `shutdown` | Yes |
 | `textDocument/didOpen` / `didClose` | `.tes` only; open runs `edit_read` |
 | `textDocument/didChange` | Full (and incremental) apply to in-memory Tessprek |
-| `textDocument/publishDiagnostics` | Buffer `decode_tessprek` (`edit-parse`, ranged) + on-disk `verify_*` + source-hash |
+| `textDocument/publishDiagnostics` | Buffer `decode_tessprek` (`edit-parse`, ranged) + unknown `\tessera{…}` key warnings + on-disk `verify_*` + source-hash |
 | `textDocument/willSave` | Triggers write-back |
 | `workspace/executeCommand` | `tessera.write` |
-| `textDocument/hover` | Tessprek brace-command markers **and** body lines (chunk id / role / cite fields). Neovim binds `K` like other LSP clients. |
+| `textDocument/hover` | Tessprek brace-command markers **and** body lines (chunk id / role / cite fields). Header hover shows projected catalog fields (`doc_id`, `title`, …). Neovim binds `K` like other LSP clients. |
 | `textDocument/completion` | Brace commands (`\figure` …) + attribute keys inside `{…}`; triggers on `\`, `{`, space |
 
 ### `tessera.write`
@@ -48,7 +49,9 @@ conflict: `ok: false`, `code: "source-hash"`.
 Hover uses the standard LSP `textDocument/hover` method (Neovim: `K`, same as
 other language servers; VS Code / other clients: editor hover).
 
-- Brace-command lines (`\tessera{…}` / `\ids{…}` / `\figure{…}` / …) — parsed attrs
+- Brace commands (`\tessera{…}` / `\ids{…}` / `\figure{…}` / …) — parsed attrs;
+  `\tessera{…}` may be multiline (hover works on any line of the block) and
+  shows projected catalog fields (`doc_id`, `title`, …)
 - Body lines (prose, quote, figure markdown, …) — **chunk id**, role/type, and
   cite/source fields when present
 

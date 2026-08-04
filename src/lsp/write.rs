@@ -3,6 +3,7 @@
 use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::{ExecuteCommandParams, Url};
 
+use crate::edit::TessprekDocMeta;
 use crate::edit::{EditWriteOptions, edit_write};
 use crate::error::TesError;
 
@@ -22,6 +23,11 @@ pub(super) enum WriteBackError {
         column: usize,
         message: String,
     },
+    /// Unknown `\tessera{…}` keys — refuse so they are not silently dropped.
+    UnknownHeaderKeys {
+        line: usize,
+        keys: Vec<String>,
+    },
     Other(String),
 }
 
@@ -29,6 +35,9 @@ pub(super) enum WriteBackError {
 pub(super) fn write_back_document(
     doc: &mut OpenDocument,
 ) -> std::result::Result<String, WriteBackError> {
+    if let Some((line, keys)) = TessprekDocMeta::unknown_keys_in_buffer(&doc.tessprek) {
+        return Err(WriteBackError::UnknownHeaderKeys { line, keys });
+    }
     let report = edit_write(
         &doc.path,
         &doc.tessprek,
@@ -165,6 +174,28 @@ mod tests {
                 assert!(message.contains("missing required attribute"), "{message}");
             }
             other => panic!("expected Parse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn write_back_refuses_unknown_tessera_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.tes");
+        std::fs::copy(fixture_tes(), &path).unwrap();
+        let mut doc = load_open_document(path).unwrap();
+        doc.tessprek = "\
+\\tessera{format=tessprek version=2 tags=nope}\n\
+\\ids{1}\n\
+\n\
+Hello\n\
+"
+        .into();
+        let err = write_back_document(&mut doc).unwrap_err();
+        match err {
+            WriteBackError::UnknownHeaderKeys { keys, .. } => {
+                assert_eq!(keys, vec!["tags".to_string()]);
+            }
+            other => panic!("expected UnknownHeaderKeys, got {other:?}"),
         }
     }
 }
