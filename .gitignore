@@ -13,3 +13,6 @@ fuzz/coverage/
 fuzz/corpus/**/*
 !fuzz/corpus/**/
 !fuzz/corpus/**/*.tes
+
+# Local Dropbox cloud vault symlink (do not commit)
+test-data-cloud
