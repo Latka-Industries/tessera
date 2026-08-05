@@ -5,7 +5,7 @@ use tower_lsp::lsp_types::{
     InsertTextFormat, MarkupContent, MarkupKind, Position, Range, TextEdit,
 };
 
-use crate::edit::markers::{BODY_COMMANDS, HEADER_COMMANDS, TESSERA_HEADER_KEYS, surface_name};
+use crate::edit::markers::{BODY_COMMANDS, HEADER_COMMANDS, command_attr_keys, surface_name};
 
 use super::position::{nth_line, utf16_len, utf16_prefix};
 
@@ -152,16 +152,7 @@ fn open_brace_context(prefix: &str) -> Option<(&str, &str)> {
 }
 
 fn attr_keys_for(cmd: &str) -> Option<&'static [&'static str]> {
-    Some(match cmd {
-        "tessera" => TESSERA_HEADER_KEYS,
-        "text" => &["title", "caption", "class", "lang", "align", "code_lang"],
-        "figure" => &["image", "placement", "alt", "region", "title", "caption"],
-        "cite" => &["label", "key", "target_doc", "target_chunk", "page"],
-        "slide" => &["layout", "regions"],
-        "attach" => &["filename", "media_type", "sha256", "caption"],
-        "media" => &["id", "media_type", "sha256", "width", "height"],
-        _ => return None,
-    })
+    command_attr_keys(cmd)
 }
 
 #[cfg(test)]

@@ -298,7 +298,7 @@ pub mod markers {
     pub const TEXT_PREFIX: &str = "\\text{";
     /// Figure directive: `\figure{image=… placement=… alt=…}` (no Markdown body).
     pub const FIGURE_PREFIX: &str = "\\figure{";
-    /// Cite directive: `\cite{label=… target_chunk=…}` + quote body.
+    /// Cite directive: `\cite{label=… target_chunk=… [target_byte_start=…] …}` + quote body.
     pub const CITE_PREFIX: &str = "\\cite{";
     /// Slide directive: `\slide{layout=… regions=…}`.
     pub const SLIDE_PREFIX: &str = "\\slide{";
@@ -306,6 +306,44 @@ pub mod markers {
     pub const ATTACH_PREFIX: &str = "\\attach{";
     /// Closing delimiter for every brace command.
     pub const BRACE_SUFFIX: &str = "}";
+
+    /// Preferred attribute keys for `\text{…}` (completion + hover order).
+    pub const TEXT_ATTR_KEYS: &[&str] =
+        &["title", "caption", "class", "lang", "align", "code_lang"];
+    /// Preferred attribute keys for `\figure{…}`.
+    pub const FIGURE_ATTR_KEYS: &[&str] =
+        &["image", "placement", "alt", "region", "title", "caption"];
+    /// Preferred attribute keys for `\cite{…}` (includes ranged target spans).
+    pub const CITE_ATTR_KEYS: &[&str] = &[
+        "label",
+        "key",
+        "target_doc",
+        "target_chunk",
+        "target_byte_start",
+        "target_byte_end",
+        "page",
+    ];
+    /// Preferred attribute keys for `\slide{…}`.
+    pub const SLIDE_ATTR_KEYS: &[&str] = &["layout", "regions"];
+    /// Preferred attribute keys for `\attach{…}`.
+    pub const ATTACH_ATTR_KEYS: &[&str] = &["filename", "media_type", "sha256", "caption"];
+    /// Preferred attribute keys for `\media{…}` header rows.
+    pub const MEDIA_ATTR_KEYS: &[&str] = &["id", "media_type", "sha256", "width", "height"];
+
+    /// Attribute keys for a Tessprek command kind (`text`, `cite`, `attach`, …).
+    #[must_use]
+    pub fn command_attr_keys(kind: &str) -> Option<&'static [&'static str]> {
+        Some(match kind {
+            "tessera" => TESSERA_HEADER_KEYS,
+            "text" => TEXT_ATTR_KEYS,
+            "figure" => FIGURE_ATTR_KEYS,
+            "cite" => CITE_ATTR_KEYS,
+            "slide" => SLIDE_ATTR_KEYS,
+            "attach" | "attachment" => ATTACH_ATTR_KEYS,
+            "media" => MEDIA_ATTR_KEYS,
+            _ => return None,
+        })
+    }
 
     /// Header-only brace lines (`\tessera` / `\ids` / `\media`).
     pub const HEADER_COMMANDS: &[(&str, &str)] = &[
@@ -774,8 +812,8 @@ fn decode_cite_block(map: &BTreeMap<String, String>, body: &str) -> ContentBlock
             quote: strip_quote_body(body),
             target_doc_id: map.get("target_doc").cloned().filter(|s| !s.is_empty()),
             target_chunk_id: optional_u64(map, "target_chunk"),
-            target_byte_start: None,
-            target_byte_end: None,
+            target_byte_start: optional_u32(map, "target_byte_start"),
+            target_byte_end: optional_u32(map, "target_byte_end"),
             label: map.get("label").cloned().filter(|s| !s.is_empty()),
             page: optional_u32(map, "page"),
             source: None,
@@ -1080,6 +1118,12 @@ fn write_cite_directive(out: &mut String, cite: &CitePayload) {
     if let Some(chunk) = cite.target_chunk_id {
         parts.push(format!("target_chunk={chunk}"));
     }
+    if let Some(start) = cite.target_byte_start {
+        parts.push(format!("target_byte_start={start}"));
+    }
+    if let Some(end) = cite.target_byte_end {
+        parts.push(format!("target_byte_end={end}"));
+    }
     if let Some(page) = cite.page {
         parts.push(format!("page={page}"));
     }
@@ -1380,8 +1424,8 @@ mod tests {
                     quote: "Some quoted text".into(),
                     target_doc_id: None,
                     target_chunk_id: Some(1),
-                    target_byte_start: None,
-                    target_byte_end: None,
+                    target_byte_start: Some(0),
+                    target_byte_end: Some(4),
                     label: Some("Smith2024".into()),
                     page: None,
                     source: None,
@@ -1411,6 +1455,8 @@ mod tests {
         assert!(text.contains("\\media{\n"), "{text}");
         assert!(text.contains("\\figure{"), "{text}");
         assert!(text.contains("\\cite{"), "{text}");
+        assert!(text.contains("target_byte_start=0"), "{text}");
+        assert!(text.contains("target_byte_end=4"), "{text}");
         assert!(text.contains("> Some quoted text"), "{text}");
         assert!(text.contains("\\slide{"), "{text}");
         assert!(text.contains("\\attach{"), "{text}");

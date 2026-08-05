@@ -39,6 +39,10 @@ struct ChunkJsonlRow<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     target_chunk_id: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    target_byte_start: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    target_byte_end: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     label: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     resolved_text: Option<&'a str>,
@@ -133,6 +137,8 @@ impl<'a> ChunkJsonlRow<'a> {
             quote: None,
             target_doc_id: None,
             target_chunk_id: None,
+            target_byte_start: None,
+            target_byte_end: None,
             label: None,
             resolved_text: None,
             image_chunk_id: None,
@@ -208,6 +214,8 @@ fn append_jsonl_cite(
     row.quote = Some(cite.quote.as_str());
     row.target_doc_id = cite.target_doc_id.as_deref();
     row.target_chunk_id = cite.target_chunk_id;
+    row.target_byte_start = cite.target_byte_start;
+    row.target_byte_end = cite.target_byte_end;
     row.label = cite.label.as_deref();
     row.resolved_text = resolved;
     push_jsonl_row(out, &row)

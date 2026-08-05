@@ -62,7 +62,7 @@ retired — `decode_tessprek` rejects anything that isn't
   caption="Whiteboard"
 }
 
-\cite{label=Smith2024 target_chunk=2}
+\cite{label=Smith2024 target_chunk=2 target_byte_start=0 target_byte_end=42}
 > The whiteboard sketch matches the locked design.
 ```
 
@@ -210,16 +210,19 @@ below (as `figcaption`). Multiline brace form is preferred on encode.
 Legacy buffers with a following `![alt](media:N)` body are still accepted; the
 Markdown alt/id win if present. New encodes do not emit that line.
 
-### `\cite{[label=…] [target_doc=UUID] [target_chunk=N] [page=N]}`
+### `\cite{[label=…] [target_doc=UUID] [target_chunk=N] [target_byte_start=N] [target_byte_end=N] [page=N]}`
 
 Followed by the quoted text rendered blockquote-style (`> …`, one `>` per
-line) — a `CitePayload` chunk. Block cites are lossless.
+line) — a `CitePayload` chunk. Block cites are lossless, including optional
+`target_byte_start` / `target_byte_end` (half-open UTF-8 byte range on the
+target chunk body). Same-doc cites may omit `target_doc`.
 
 **Inline** `\cite{key}` spans (citation markers inside a paragraph, as
 opposed to a standalone quote chunk) are **best-effort and not implemented in
 this pass**: `InlineKind::Citation` spans still render as their plain
-underlying text (matching v1). This is an intentionally deferred piece — see
-THI-318 notes — and does not block v2 landing.
+underlying text (matching v1). Deferred to cite/biblio follow-ups
+([THI-321](https://linear.app/thicclatka/issue/THI-321)); does not block
+ranged block cites ([THI-320](https://linear.app/thicclatka/issue/THI-320)).
 
 ### `\slide{layout=ID regions="name:chunk_id[,name:chunk_id…]"}`
 
@@ -272,7 +275,7 @@ declared id) — see `src/edit/tessprek/format.rs`.
 ## Known limitations (locked-sketch scope)
 
 - **Inline `\cite{}` spans** are not encoded/decoded specially yet (see
-  above) — deferred, tracked under THI-318 follow-up.
+  above) — deferred under biblio / inline-cite follow-ups (THI-321+).
 - **Legacy TSV-bodied tables** (`role = table` with no structured `TableData`,
   a v0 read-compat path) round-trip through v2 as a `tsv`-tagged code fence,
   not a table — extremely rare in practice since the writer always populates

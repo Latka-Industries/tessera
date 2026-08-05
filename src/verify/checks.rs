@@ -75,6 +75,7 @@ pub fn verify_bytes(path: &Path, bytes: &[u8], deep: bool) -> TesVerifyReport {
     verify_figure_targets(&mut findings, &entries, bytes);
     verify_slide_targets(&mut findings, &entries, bytes);
     verify_cite_mirrors(&mut findings, &entries, &superblock, bytes);
+    verify_cite_ranges(&mut findings, &entries, &superblock, bytes);
     verify_attachment_limits(&mut findings, &entries, bytes, deep);
     verify_history_footer(&mut findings, &superblock, bytes, file_len);
 
@@ -469,6 +470,107 @@ fn verify_cite_mirrors(
             ));
         }
     }
+}
+
+/// Warn when a same-file cite byte range is out of bounds or not on a char boundary.
+fn verify_cite_ranges(
+    findings: &mut Vec<Finding>,
+    entries: &[ChunkIndexEntry],
+    superblock: &crate::layout::SuperblockV0,
+    bytes: &[u8],
+) {
+    use crate::catalog::chunk::{CitePayload, decode_text_payload};
+    use crate::catalog::index::ChunkType;
+    use std::collections::HashMap;
+
+    let catalog_doc_id = if superblock.catalog.is_present() {
+        superblock
+            .catalog
+            .slice(bytes, "catalog")
+            .ok()
+            .and_then(|raw| DocumentCatalog::from_bytes(raw).ok())
+            .map(|c| c.doc_id)
+    } else {
+        None
+    };
+
+    let by_id: HashMap<u64, &ChunkIndexEntry> = entries.iter().map(|e| (e.chunk_id, e)).collect();
+
+    for entry in entries {
+        if entry.chunk_type != ChunkType::Cite {
+            continue;
+        }
+        let Some(payload) = payload_slice(entry, bytes) else {
+            continue;
+        };
+        let Ok(cite) = CitePayload::from_bytes(payload) else {
+            continue;
+        };
+        let (Some(start), Some(end)) = (cite.target_byte_start, cite.target_byte_end) else {
+            continue;
+        };
+        let Some(target_id) = cite.target_chunk_id else {
+            continue;
+        };
+        if let Some(target_doc) = cite.target_doc_id.as_deref()
+            && catalog_doc_id.as_deref() != Some(target_doc)
+        {
+            // Cross-doc range — cannot resolve against this file's payloads.
+            continue;
+        }
+        let Some(target) = by_id.get(&target_id) else {
+            warn_cite_range(
+                findings,
+                format!(
+                    "cite {} targets missing chunk {target_id} for byte range {start}..{end}",
+                    entry.chunk_id
+                ),
+            );
+            continue;
+        };
+        if target.chunk_type != ChunkType::Text {
+            warn_cite_range(
+                findings,
+                format!(
+                    "cite {} byte range {start}..{end} targets non-text chunk {target_id}",
+                    entry.chunk_id
+                ),
+            );
+            continue;
+        }
+        let Some(target_payload) = payload_slice(target, bytes) else {
+            continue;
+        };
+        let Ok((_header, body)) = decode_text_payload(target_payload) else {
+            continue;
+        };
+        let body_len = body.len() as u32;
+        if end > body_len {
+            warn_cite_range(
+                findings,
+                format!(
+                    "cite {} byte range {start}..{end} exceeds target chunk {target_id} length {body_len}",
+                    entry.chunk_id
+                ),
+            );
+            continue;
+        }
+        let start_usize = start as usize;
+        let end_usize = end as usize;
+        if !body.is_char_boundary(start_usize) || !body.is_char_boundary(end_usize) {
+            warn_cite_range(
+                findings,
+                format!(
+                    "cite {} byte range {start}..{end} is not on a UTF-8 char boundary in chunk {target_id}",
+                    entry.chunk_id
+                ),
+            );
+        }
+    }
+}
+
+fn warn_cite_range(findings: &mut Vec<Finding>, message: String) {
+    findings.push(Finding::warning("cite.range", message));
 }
 
 fn verify_slide_targets(findings: &mut Vec<Finding>, entries: &[ChunkIndexEntry], bytes: &[u8]) {

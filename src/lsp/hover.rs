@@ -7,7 +7,9 @@ use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Posi
 
 use crate::catalog::chunk::TextRole;
 use crate::edit::ContentBlock;
-use crate::edit::markers::{BODY_COMMANDS, HEADER_COMMANDS, parse_brace_command};
+use crate::edit::markers::{
+    BODY_COMMANDS, HEADER_COMMANDS, command_attr_keys, parse_brace_command,
+};
 use crate::edit::tessprek::{
     parse_attrs, parse_media_header, take_brace_command, take_leading_tessera_header,
 };
@@ -217,12 +219,10 @@ fn format_block_hover(block: &ContentBlock) -> String {
             let mut out = chunk_title(&id, "cite");
             push_opt_field(&mut out, "label", cite.label.as_deref());
             push_opt_field(&mut out, "target_doc", cite.target_doc_id.as_deref());
-            if let Some(chunk) = cite.target_chunk_id {
-                push_field(&mut out, "target_chunk", &chunk.to_string());
-            }
-            if let Some(page) = cite.page {
-                push_field(&mut out, "page", &page.to_string());
-            }
+            push_opt_num(&mut out, "target_chunk", cite.target_chunk_id);
+            push_opt_num(&mut out, "target_byte_start", cite.target_byte_start);
+            push_opt_num(&mut out, "target_byte_end", cite.target_byte_end);
+            push_opt_num(&mut out, "page", cite.page);
             out
         }
         ContentBlock::Slide { slide, .. } => {
@@ -261,17 +261,16 @@ fn push_opt_field(out: &mut String, key: &str, value: Option<&str>) {
     }
 }
 
+fn push_opt_num(out: &mut String, key: &str, value: Option<impl ToString>) {
+    if let Some(v) = value {
+        push_field(out, key, &v.to_string());
+    }
+}
+
 fn format_command_hover(kind: &str, map: &BTreeMap<String, String>) -> String {
     let mut out = format!("**Tessprek `\\{kind}{{}}`**\n");
     // Prefer a stable key order for known commands.
-    let preferred: &[&str] = match kind {
-        "text" => &["title", "caption", "class", "lang", "align", "code_lang"],
-        "figure" => &["image", "placement", "alt", "region", "title", "caption"],
-        "cite" => &["label", "key", "target_doc", "target_chunk", "page"],
-        "slide" => &["layout", "regions"],
-        "attach" => &["filename", "media_type", "sha256", "caption"],
-        _ => &[],
-    };
+    let preferred = command_attr_keys(kind).unwrap_or(&[]);
     let mut seen = std::collections::BTreeSet::new();
     for key in preferred {
         if let Some(v) = map.get(*key) {

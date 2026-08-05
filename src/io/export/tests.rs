@@ -437,8 +437,16 @@ fn research_cites_mirror_tlnk_and_export() {
 
     let html = export_view(&path, ExportView::Html, &ExportOptions::default()).unwrap();
     assert!(html.contains("class=\"citation\""));
+    assert!(html.contains("data-target-doc=\"770e8400-e29b-41d4-a716-446655440099\""));
+    assert!(html.contains("data-target-chunk=\"1\""));
+    assert!(html.contains("data-byte-start=\"0\""));
+    assert!(html.contains("data-byte-end=\"12\""));
     assert!(html.contains("class=\"bibliography\""));
     assert!(html.contains("[1]"));
+
+    let jsonl = export_view(&path, ExportView::ChunksJsonl, &ExportOptions::default()).unwrap();
+    assert!(jsonl.contains("\"target_byte_start\":0"));
+    assert!(jsonl.contains("\"target_byte_end\":12"));
 
     let bibtex = export_bibliography(&path, BibFormat::Bibtex).unwrap();
     assert!(bibtex.contains("@article{keller2020chunking,"));

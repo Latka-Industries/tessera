@@ -461,18 +461,29 @@ fn append_cite_html(
         .unwrap_or(bib.cite_key.as_str());
     let label = if label.is_empty() { "unknown" } else { label };
     let marker = format_numeric_marker(n);
+    let mut attrs = format!("data-chunk-id=\"{}\" class=\"citation\"", entry.chunk_id);
+    if let Some(doc) = cite.target_doc_id.as_deref() {
+        let _ = write!(attrs, " data-target-doc=\"{}\"", escape_html(doc));
+    }
+    if let Some(chunk) = cite.target_chunk_id {
+        let _ = write!(attrs, " data-target-chunk=\"{chunk}\"");
+    }
+    if let Some(start) = cite.target_byte_start {
+        let _ = write!(attrs, " data-byte-start=\"{start}\"");
+    }
+    if let Some(end) = cite.target_byte_end {
+        let _ = write!(attrs, " data-byte-end=\"{end}\"");
+    }
     if cite.quote.trim().is_empty() {
         let _ = writeln!(
             article,
-            "  <p data-chunk-id=\"{}\" class=\"citation\"><a href=\"#ref-{n}\"><cite>{marker}</cite></a> <span class=\"cite-label\">{}</span></p>",
-            entry.chunk_id,
+            "  <p {attrs}><a href=\"#ref-{n}\"><cite>{marker}</cite></a> <span class=\"cite-label\">{}</span></p>",
             escape_html(label)
         );
     } else {
         let _ = writeln!(
             article,
-            "  <p data-chunk-id=\"{}\" class=\"citation\"><a href=\"#ref-{n}\"><cite>{marker}</cite></a> {}</p>",
-            entry.chunk_id,
+            "  <p {attrs}><a href=\"#ref-{n}\"><cite>{marker}</cite></a> {}</p>",
             escape_html(cite.quote.trim())
         );
     }

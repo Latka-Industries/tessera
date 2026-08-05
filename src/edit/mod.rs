@@ -649,23 +649,24 @@ fn write_cite_block(
         let raw = source.decode_payload(entry)?;
         let mut full = CitePayload::from_bytes(raw.as_ref())?;
         full.quote.clone_from(&cite.quote);
-        if cite.label.is_some() {
-            full.label.clone_from(&cite.label);
-        }
-        if cite.target_doc_id.is_some() {
-            full.target_doc_id.clone_from(&cite.target_doc_id);
-        }
-        if cite.target_chunk_id.is_some() {
-            full.target_chunk_id = cite.target_chunk_id;
-        }
-        if cite.page.is_some() {
-            full.page = cite.page;
-        }
+        merge_opt(&mut full.label, cite.label.as_ref());
+        merge_opt(&mut full.target_doc_id, cite.target_doc_id.as_ref());
+        merge_opt(&mut full.target_chunk_id, cite.target_chunk_id.as_ref());
+        merge_opt(&mut full.target_byte_start, cite.target_byte_start.as_ref());
+        merge_opt(&mut full.target_byte_end, cite.target_byte_end.as_ref());
+        merge_opt(&mut full.page, cite.page.as_ref());
         session.add_cite_chunk(&full)?;
         return Ok(());
     }
     session.add_cite_chunk(cite)?;
     Ok(())
+}
+
+/// Copy `src` over `dst` when Tessprek provided a value (omit → keep source).
+fn merge_opt<T: Clone>(dst: &mut Option<T>, src: Option<&T>) {
+    if let Some(value) = src {
+        *dst = Some(value.clone());
+    }
 }
 
 fn write_attachment_block(
@@ -831,6 +832,7 @@ mod tests {
     use super::*;
     use crate::catalog::chunk::TextHeader;
     use crate::catalog::index::ChunkType;
+    use crate::catalog::{CitePayload, TesFile};
     use crate::layout::DocKind;
     use tempfile::tempdir;
 
@@ -883,6 +885,32 @@ mod tests {
         assert_eq!(section.as_deref(), want_section);
     }
 
+    fn sample_cite_doc(
+        dir: &Path,
+        name: &str,
+        title: &str,
+        body: &str,
+        cite: CitePayload,
+    ) -> PathBuf {
+        let path = dir.join(name);
+        let mut session = TesWriterSession::create(&path, DocKind::Research);
+        session
+            .set_catalog(DocumentCatalog::new(
+                "550e8400-e29b-41d4-a716-446655440000",
+                title,
+                "2026-08-04T00:00:00Z",
+                "2026-08-04T00:00:00Z",
+                DocKind::Research,
+            ))
+            .unwrap();
+        session
+            .add_text_chunk(&TextHeader::paragraph(), body)
+            .unwrap();
+        session.add_cite_chunk(&cite).unwrap();
+        session.commit().unwrap();
+        path
+    }
+
     #[test]
     fn edit_read_write_round_trip() {
         let dir = tempdir().unwrap();
@@ -903,6 +931,95 @@ mod tests {
         let again = edit_read(&path).unwrap();
         assert!(again.tessprek.contains("Ship edit protocol"));
         assert_ne!(again.source_hash, read.source_hash);
+    }
+
+    #[test]
+    fn edit_read_write_preserves_cite_byte_ranges() {
+        let dir = tempdir().unwrap();
+        let path = sample_cite_doc(
+            dir.path(),
+            "cite.tes",
+            "Cite ranges",
+            "ABCDEFGHIJ",
+            CitePayload {
+                quote: "ABCD".into(),
+                target_doc_id: None,
+                target_chunk_id: Some(1),
+                target_byte_start: Some(0),
+                target_byte_end: Some(4),
+                label: Some("local".into()),
+                page: None,
+                source: None,
+            },
+        );
+
+        let read = edit_read(&path).unwrap();
+        assert!(
+            read.tessprek.contains("target_byte_start=0"),
+            "{}",
+            read.tessprek
+        );
+        assert!(
+            read.tessprek.contains("target_byte_end=4"),
+            "{}",
+            read.tessprek
+        );
+
+        let report = edit_write(
+            &path,
+            &read.tessprek,
+            &EditWriteOptions::new(read.source_hash.clone(), false),
+        )
+        .unwrap();
+        assert!(report.replaced);
+
+        let file = TesFile::open(&path).unwrap();
+        let cite_entry = file
+            .reading_order_chunks()
+            .into_iter()
+            .find(|c| c.chunk_type == ChunkType::Cite)
+            .expect("cite chunk");
+        let raw = file.decode_payload(cite_entry).unwrap();
+        let cite = CitePayload::from_bytes(raw.as_ref()).unwrap();
+        assert_eq!(cite.target_byte_start, Some(0));
+        assert_eq!(cite.target_byte_end, Some(4));
+        assert_eq!(cite.target_chunk_id, Some(1));
+
+        let report = verify_tes_file(&path, true).unwrap();
+        assert!(report.ok, "{:?}", report.findings);
+        assert!(
+            !report.findings.iter().any(|f| f.check == "cite.range"),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn verify_warns_on_cite_byte_range_oob() {
+        let dir = tempdir().unwrap();
+        let path = sample_cite_doc(
+            dir.path(),
+            "cite_oob.tes",
+            "Cite OOB",
+            "short",
+            CitePayload {
+                quote: "too long".into(),
+                target_doc_id: None,
+                target_chunk_id: Some(1),
+                target_byte_start: Some(0),
+                target_byte_end: Some(99),
+                label: Some("oob".into()),
+                page: None,
+                source: None,
+            },
+        );
+
+        let report = verify_tes_file(&path, true).unwrap();
+        assert!(
+            report.findings.iter().any(|f| f.check == "cite.range"),
+            "{:?}",
+            report.findings
+        );
     }
 
     #[test]

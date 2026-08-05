@@ -179,9 +179,14 @@ One JSON object per line — **one row per index entry** with `chunk_flags & 1` 
   "quote": "We measured …",
   "target_doc_id": "...",
   "target_chunk_id": 12,
+  "target_byte_start": 0,
+  "target_byte_end": 42,
   "resolved_text": "We measured temperature …"
 }
 ```
+
+Optional `target_byte_start` / `target_byte_end` are half-open UTF-8 offsets on
+the target chunk body when the cite has a ranged span.
 
 | Flag | Behavior |
 | --- | --- |
@@ -237,6 +242,10 @@ Generated **DOM-like** HTML5 fragment + linked theme CSS.
 | `--embed-css` | Inline theme for single-file share |
 
 **Mapping:** chunk `role` → element name; `class` from header JSON → `class` attribute. Presentation from theme only — **no inline styles** from exporter.
+
+**Cite markers:** block cites emit
+`<p data-chunk-id="…" class="citation" [data-target-doc] [data-target-chunk] [data-byte-start] [data-byte-end]>`
+so tooling can recover the ranged target without parsing the quote body.
 
 **Phase:** implemented in Phase 6.
 
