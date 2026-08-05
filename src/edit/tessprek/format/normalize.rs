@@ -15,8 +15,9 @@ use crate::edit::ContentBlock;
 /// canonical Tessprek.
 ///
 /// Free Markdown (no preceding `\text{}`) is accepted. Brace-command
-/// directives (`\figure{}` / `\cite{}` / `\slide{}` / `\attach{}`) are
-/// preserved.
+/// Brace-command directives (`\figure{}` / `\cite{}` / `\quote{}` / `\ref{}` /
+/// `\slide{}` / `\attach{}`) are preserved. Bibliography `\cite` stubs are
+/// moved to the end of the document.
 ///
 /// # Errors
 ///
@@ -25,6 +26,7 @@ pub fn normalize_tessprek(input: &str) -> Result<String> {
     let lines: Vec<&str> = input.lines().collect();
     let declared_ids = extract_declared_ids(&lines);
     let mut blocks = build_content_blocks(&lines)?;
+    park_biblio_cites_at_end(&mut blocks);
 
     let mut ids = IdAllocator::new(declared_ids.iter().copied().collect());
     for (idx, block) in blocks.iter_mut().enumerate() {
@@ -36,6 +38,18 @@ pub fn normalize_tessprek(input: &str) -> Result<String> {
     let meta = extract_doc_meta(&lines);
     let media = extract_media_entries(&lines, &blocks);
     Ok(encode_content_blocks(&meta, &blocks, &[], &media))
+}
+
+/// Move bibliography `\cite` stubs after all other blocks (stable within each group).
+fn park_biblio_cites_at_end(blocks: &mut Vec<ContentBlock>) {
+    let (biblio, rest): (Vec<_>, Vec<_>) = std::mem::take(blocks).into_iter().partition(|b| {
+        matches!(
+            b,
+            ContentBlock::Cite { cite, .. } if crate::io::cite::is_biblio_cite(cite)
+        )
+    });
+    blocks.extend(rest);
+    blocks.extend(biblio);
 }
 
 /// True when `normalize_tessprek(input)` would change the buffer (ignoring a

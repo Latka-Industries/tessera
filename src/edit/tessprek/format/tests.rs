@@ -220,3 +220,31 @@ fn normalize_preserves_two_media_entries() {
     assert!(out.contains("sha256=bbb"), "{out}");
     assert!(out.contains("image/jpeg"), "{out}");
 }
+
+#[test]
+fn parks_biblio_cites_after_prose_and_quotes() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2,3}\n\
+\n\
+\\cite{label=mid author=\"Ada\" title=\"Paper\" year=2020}\n\
+\n\
+Hello world.\n\
+\n\
+\\quote{target_chunk=9 quote=\"excerpt\"}\n\
+";
+    let out = normalize_tessprek(input).unwrap();
+    let hello = out
+        .find("Hello world.")
+        .unwrap_or_else(|| panic!("missing Hello world: {out}"));
+    let quote = out
+        .find("\\quote{")
+        .unwrap_or_else(|| panic!("missing quote: {out}"));
+    let cite = out
+        .find("\\cite{")
+        .unwrap_or_else(|| panic!("missing cite: {out}"));
+    assert!(hello < quote, "{out}");
+    assert!(quote < cite, "{out}");
+    assert!(out.contains("label=mid"), "{out}");
+    assert!(out.contains("\\ids{"), "{out}");
+}
