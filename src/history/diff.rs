@@ -1,3 +1,5 @@
+//! Structural revision diff and changelog formatting.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::Path;

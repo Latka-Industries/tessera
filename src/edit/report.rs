@@ -1,3 +1,5 @@
+//! Edit-read / edit-write option and report types.
+
 use std::path::PathBuf;
 
 use crate::verify::TesVerifyReport;

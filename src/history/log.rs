@@ -1,3 +1,5 @@
+//! Read and format the THST revision log (`tes log`).
+
 use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;

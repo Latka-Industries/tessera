@@ -1,3 +1,5 @@
+//! Materialize / export / checkout a historical revision.
+
 use std::fs;
 use std::path::Path;
 

@@ -1,3 +1,5 @@
+//! Reading-order Tessprek blocks ([`ContentBlock`]).
+
 use crate::catalog::OutboundLink;
 use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
 use crate::catalog::media::FigureRef;
@@ -28,7 +30,7 @@ pub enum ContentBlock {
         /// Figure metadata + alt.
         figure: FigureRef,
     },
-    /// Cite chunk.
+    /// Cite chunk (Tessprek `\cite` / `\quote` / `\ref` via [`crate::io::cite::classify_cite`]).
     Cite {
         /// Optional stable id from the source projection.
         chunk_id: Option<u64>,

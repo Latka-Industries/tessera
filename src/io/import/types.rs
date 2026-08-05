@@ -1,3 +1,5 @@
+//! Markdown import options, reports, and intermediate blocks.
+
 use std::path::PathBuf;
 
 use crate::catalog::{OutboundLink, TextHeader};

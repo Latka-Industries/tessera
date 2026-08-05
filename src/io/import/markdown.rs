@@ -1,3 +1,5 @@
+//! Markdown → sealed `.tes` import (`import_markdown_v0`).
+
 use std::path::Path;
 
 use time::OffsetDateTime;

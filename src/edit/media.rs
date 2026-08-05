@@ -1,3 +1,5 @@
+//! Injected image / attachment payloads for [`crate::edit::edit_write_with_media`].
+
 use crate::catalog::media::{AttachmentPayload, ImagePayload};
 use crate::error::{Result, TesError};
 

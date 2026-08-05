@@ -1,3 +1,5 @@
+//! Append content-addressed revisions (`tes save`).
+
 use std::fs;
 use std::path::{Path, PathBuf};
 

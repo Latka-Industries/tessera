@@ -1,7 +1,9 @@
 //! Cite-key indexing + inline citation projection under [`crate::io`].
 //!
-//! Canonical biblio data still lives on type-`4` cite chunks ([`CitePayload`]).
-//! Tessprek `\cite{key}` extraction lives in [`crate::edit::tessprek`] (THI-321).
+//! Canonical data still lives on type-`4` cite chunks ([`CitePayload`]). Tessprek
+//! commands split that payload into bibliography (`\cite`), passage (`\quote`),
+//! and pointer (`\ref`) via [`classify_cite`]. Inline `\cite{key}` extraction
+//! lives in [`crate::edit::tessprek`].
 
 use std::collections::{BTreeMap, HashMap};
 

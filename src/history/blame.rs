@@ -1,3 +1,5 @@
+//! Per-chunk / per-line blame over THST ancestry.
+
 use std::fmt::Write as _;
 use std::path::Path;
 

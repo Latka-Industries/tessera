@@ -1,3 +1,5 @@
+//! Source-hash helpers for the edit-write optimistic concurrency gate.
+
 use std::fs;
 use std::path::Path;
 

@@ -1,3 +1,5 @@
+//! Obsidian-style YAML front matter for Markdown import.
+
 use super::MarkdownFrontMatter;
 
 /// Split Obsidian-style YAML front matter from the Markdown body.

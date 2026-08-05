@@ -1,3 +1,5 @@
+//! Tessprek text diff for edit-write reports.
+
 use std::fmt::Write as _;
 
 use super::markers;

@@ -1,3 +1,5 @@
+//! Compile Tessprek [`ContentBlock`]s back into sealed `.tes` bytes.
+
 use std::path::PathBuf;
 
 use time::OffsetDateTime;
@@ -23,6 +25,11 @@ pub(super) fn seal_with_history(source: &TesFile, body: Vec<u8>) -> Result<Vec<u
     }
 }
 
+/// Encode reading-order blocks (plus catalog/media) into a sealed `.tes` body.
+///
+/// # Errors
+///
+/// Returns decode/encode errors from payloads, catalog, or the writer session.
 pub(super) fn compile_blocks_to_bytes(
     source: &TesFile,
     blocks: &[ContentBlock],
@@ -231,6 +238,8 @@ fn text_outbound_links(
         .collect()
 }
 
+/// Persist a cite block, preferring Tessprek-provided biblio `source` over a
+/// stale on-disk payload reused by chunk id.
 fn write_cite_block(
     session: &mut TesWriterSession,
     source: &TesFile,

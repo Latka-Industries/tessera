@@ -1,3 +1,5 @@
+//! `[[wikilink]]` scan / rewrite helpers for vault import.
+
 /// One `[[target]]` / `[[target|label]]` span in Markdown source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WikilinkSpan<'a> {

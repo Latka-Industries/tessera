@@ -1,3 +1,5 @@
+//! Public edit-read / edit-write / apply gate (lock → hash → verify → replace).
+
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
