@@ -421,7 +421,8 @@ def case_hover_chunk_marker(bin_path: Path) -> None:
         handshake(s)
         did_open(s, CLEAN)
         uri = CLEAN.resolve().as_uri()
-        # note_one_chunk Tessprek: line 0 header, line 1 `\ids{1}`
+        # note_one_chunk Tessprek (multiline `\tessera{…}` after THI-341):
+        #   lines 0–7 header, line 8 `\ids{1}`, line 10 prose body
         s.send(
             {
                 "jsonrpc": "2.0",
@@ -429,7 +430,7 @@ def case_hover_chunk_marker(bin_path: Path) -> None:
                 "method": "textDocument/hover",
                 "params": {
                     "textDocument": {"uri": uri},
-                    "position": {"line": 1, "character": 3},
+                    "position": {"line": 8, "character": 3},
                 },
             }
         )
@@ -478,7 +479,7 @@ def case_hover_chunk_marker(bin_path: Path) -> None:
                 "method": "textDocument/hover",
                 "params": {
                     "textDocument": {"uri": uri},
-                    "position": {"line": 3, "character": 0},
+                    "position": {"line": 10, "character": 0},
                 },
             }
         )
