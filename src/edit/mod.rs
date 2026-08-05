@@ -695,7 +695,13 @@ fn write_cite_block(
     block: &ContentBlock,
     cite: &CitePayload,
 ) -> Result<u64> {
-    // Prefer full cite payload from source when id matches (keeps `source` bib).
+    // Quote/ref and biblio stubs that carry `source` from Tessprek attrs are
+    // authoritative — do not keep a stale BibEntry from a reused chunk id.
+    if !crate::io::cite::is_biblio_cite(cite) || cite.source.is_some() {
+        return session.add_cite_chunk(cite);
+    }
+    // Label-only biblio `\cite{label=…}`: merge onto the on-disk cite so an
+    // attrs-free rename does not wipe `source`.
     if let Some(id) = block.chunk_id()
         && let Ok(entry) = source.chunk_by_id(id)
         && entry.chunk_type == ChunkType::Cite
@@ -983,6 +989,80 @@ mod tests {
         let again = edit_read(&path).unwrap();
         assert!(again.tessprek.contains("Ship edit protocol"));
         assert_ne!(again.source_hash, read.source_hash);
+    }
+
+    #[test]
+    fn edit_write_applies_biblio_source_attrs_not_stale_chunk() {
+        use crate::io::bib::BibEntry;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("refs.tes");
+        let mut session = TesWriterSession::create(&path, DocKind::Research);
+        session
+            .set_catalog(DocumentCatalog::new(
+                "550e8400-e29b-41d4-a716-446655440099",
+                "Bibliography",
+                "2026-08-05T00:00:00Z",
+                "2026-08-05T00:00:00Z",
+                DocKind::Research,
+            ))
+            .unwrap();
+        session
+            .add_cite_chunk(&CitePayload {
+                quote: String::new(),
+                target_doc_id: None,
+                target_chunk_id: None,
+                target_byte_start: None,
+                target_byte_end: None,
+                label: Some("stale".into()),
+                page: None,
+                source: Some(BibEntry {
+                    cite_key: "stale".into(),
+                    entry_type: "article".into(),
+                    author: Some("Old, Author".into()),
+                    title: Some("Stale title".into()),
+                    year: Some("1999".into()),
+                    ..BibEntry::default()
+                }),
+            })
+            .unwrap();
+        session.commit().unwrap();
+
+        let read = edit_read(&path).unwrap();
+        let tessprek = "\
+\\tessera{format=tessprek version=2 cite_style_id=numeric}\n\
+\\ids{1}\n\
+\n\
+\\cite{\n\
+  label=Duque-Quintero2022\n\
+  entry_type=article\n\
+  author=\"Duque-Quintero, Mariana\"\n\
+  title=\"ELA meta-analysis\"\n\
+  year=2022\n\
+}\n\
+";
+        edit_write(
+            &path,
+            tessprek,
+            &EditWriteOptions::new(read.source_hash, false),
+        )
+        .unwrap();
+        let again = edit_read(&path).unwrap();
+        assert!(
+            again.tessprek.contains("Duque-Quintero2022"),
+            "{}",
+            again.tessprek
+        );
+        assert!(
+            again.tessprek.contains("ELA meta-analysis"),
+            "{}",
+            again.tessprek
+        );
+        assert!(
+            !again.tessprek.contains("Stale title"),
+            "must not keep on-disk BibEntry when Tessprek supplies source attrs: {}",
+            again.tessprek
+        );
     }
 
     #[test]

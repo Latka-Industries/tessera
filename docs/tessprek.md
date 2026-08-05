@@ -62,8 +62,19 @@ retired — `decode_tessprek` rejects anything that isn't
   caption="Whiteboard"
 }
 
-\cite{label=Smith2024 target_chunk=2 target_byte_start=0 target_byte_end=42}
-> The whiteboard sketch matches the locked design.
+\cite{
+  label=Smith2024
+  author="Ada Keller"
+  title="Chunk-Oriented Document Containers"
+  year=2020
+}
+
+\quote{
+  target_chunk=2
+  target_byte_start=0
+  target_byte_end=42
+  quote="The whiteboard sketch matches the locked design."
+}
 ```
 
 Chunk 5 (the `Image` payload the figure references) does not appear in
@@ -210,17 +221,26 @@ below (as `figcaption`). Multiline brace form is preferred on encode.
 Legacy buffers with a following `![alt](media:N)` body are still accepted; the
 Markdown alt/id win if present. New encodes do not emit that line.
 
-### `\cite{[label=…] [target_doc=UUID] [target_chunk=N] [target_byte_start=N] [target_byte_end=N] [page=N]}`
+### `\cite{[label=…] [author="…"] [title="…"] [year=…] …}`
 
-Followed by the quoted text rendered blockquote-style (`> …`, one `>` per
-line) — a `CitePayload` chunk. Block cites are lossless, including optional
-`target_byte_start` / `target_byte_end` (half-open UTF-8 byte range on the
-target chunk body). Same-doc cites may omit `target_doc`.
+Bibliography stub only (attrs; **no** `>` body, **no** `target_*`). Carries
+`label` / BibTeX-shaped fields that seal into `CitePayload.source`. Import from
+`.bib` produces these. `tes format` parks biblio stubs at the **end** of the
+document.
 
-**Inline** `\cite{key}` citation markers inside a paragraph resolve to a cite
-chunk by `label` / `source.cite_key`, store as `InlineKind::Citation`, and
-export as numbered markers (`[1]`) or Pandoc `[@key]` per catalog
-`cite_style_id` ([THI-321](https://linear.app/thicclatka/issue/THI-321)).
+**Inline** `\cite{key}` in prose resolves to a biblio cite chunk by `label` /
+`source.cite_key`, stores `InlineKind::Citation`, and exports as `[1]` or
+`[@key]` per catalog `cite_style_id`.
+
+### `\quote{[label=…] target_doc=UUID target_chunk=N [target_byte_start=N] [target_byte_end=N] [page=N] quote="…"}`
+
+Passage from another (or the same) `.tes` — targets + excerpt in the `quote=`
+attr. Same underlying cite chunk type; Tessprek command is `\quote`, not
+`\cite`.
+
+### `\ref{[label=…] target_doc=UUID target_chunk=N …}`
+
+Pointer to a doc/chunk **without** an excerpt (empty `quote` on the payload).
 
 ### `\slide{layout=ID regions="name:chunk_id[,name:chunk_id…]"}`
 

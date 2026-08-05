@@ -11,7 +11,7 @@ use super::format;
 use super::markers::{self, BRACE_SUFFIX, FORMAT, IDS_PREFIX, VERSION};
 use super::util::{
     optional_u32, optional_u64, parse_attrs, parse_err, parse_figure_markdown, parse_placement,
-    parse_slide_regions, required_u64, strip_quote_body,
+    parse_slide_regions, required_u64,
 };
 
 /// Parse Tessprek v2 into typed content blocks.
@@ -121,7 +121,7 @@ pub(crate) fn set_chunk_id(block: &mut ContentBlock, id: u64) {
     }
 }
 
-/// Dispatch a brace-command body (`figure` / `cite` / `slide` / `attachment`)
+/// Dispatch a brace-command body (`figure` / `cite` / `quote` / `ref` / …)
 /// to its typed decoder. `kind` comes from which prefix matched during
 /// scanning (see [`markers::parse_brace_command`]), not from a `type=` attribute.
 pub(crate) fn decode_named_directive(
@@ -132,7 +132,9 @@ pub(crate) fn decode_named_directive(
 ) -> Result<ContentBlock> {
     match kind {
         "figure" => decode_figure_block(map, body, line_no),
-        "cite" => Ok(decode_cite_block(map, body)),
+        "cite" => decode_cite_block(map, line_no),
+        "quote" => decode_quote_block(map, line_no),
+        "ref" => decode_ref_block(map, line_no),
         "slide" => decode_slide_block(map, line_no),
         "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
@@ -184,11 +186,59 @@ fn decode_figure_block(
     })
 }
 
-fn decode_cite_block(map: &BTreeMap<String, String>, body: &str) -> ContentBlock {
-    ContentBlock::Cite {
+fn decode_cite_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
+    if map_has_targets(map) {
+        return Err(parse_err(
+            line_no,
+            1,
+            "bibliography \\cite{…} cannot include target_*; use \\quote{…} or \\ref{…}",
+        ));
+    }
+    let label = map
+        .get("label")
+        .or_else(|| map.get("key"))
+        .cloned()
+        .filter(|s| !s.is_empty());
+    let source = bib_entry_from_attrs(map, label.as_deref());
+    Ok(ContentBlock::Cite {
         chunk_id: None,
         cite: CitePayload {
-            quote: strip_quote_body(body),
+            quote: String::new(),
+            target_doc_id: None,
+            target_chunk_id: None,
+            target_byte_start: None,
+            target_byte_end: None,
+            label,
+            page: optional_u32(map, "page"),
+            source,
+        },
+    })
+}
+
+fn decode_quote_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
+    if !map_has_targets(map) {
+        return Err(parse_err(
+            line_no,
+            1,
+            "\\quote{…} requires target_doc= and/or target_chunk=",
+        ));
+    }
+    let quote = map
+        .get("quote")
+        .cloned()
+        .unwrap_or_default()
+        .replace("\\n", "\n");
+    if quote.trim().is_empty() {
+        return Err(parse_err(
+            line_no,
+            1,
+            "\\quote{…} requires quote=\"…\" (use \\ref{…} for a pointer without excerpt)",
+        ));
+    }
+    Ok(ContentBlock::Cite {
+        chunk_id: None,
+        cite: CitePayload {
+            quote,
             target_doc_id: map.get("target_doc").cloned().filter(|s| !s.is_empty()),
             target_chunk_id: optional_u64(map, "target_chunk"),
             target_byte_start: optional_u32(map, "target_byte_start"),
@@ -197,7 +247,82 @@ fn decode_cite_block(map: &BTreeMap<String, String>, body: &str) -> ContentBlock
             page: optional_u32(map, "page"),
             source: None,
         },
+    })
+}
+
+fn decode_ref_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
+    if !map_has_targets(map) {
+        return Err(parse_err(
+            line_no,
+            1,
+            "\\ref{…} requires target_doc= and/or target_chunk=",
+        ));
     }
+    Ok(ContentBlock::Cite {
+        chunk_id: None,
+        cite: CitePayload {
+            quote: String::new(),
+            target_doc_id: map.get("target_doc").cloned().filter(|s| !s.is_empty()),
+            target_chunk_id: optional_u64(map, "target_chunk"),
+            target_byte_start: optional_u32(map, "target_byte_start"),
+            target_byte_end: optional_u32(map, "target_byte_end"),
+            label: map.get("label").cloned().filter(|s| !s.is_empty()),
+            page: optional_u32(map, "page"),
+            source: None,
+        },
+    })
+}
+
+fn map_has_targets(map: &BTreeMap<String, String>) -> bool {
+    map.contains_key("target_doc")
+        || map.contains_key("target_chunk")
+        || map.contains_key("target_byte_start")
+        || map.contains_key("target_byte_end")
+}
+
+fn bib_entry_from_attrs(
+    map: &BTreeMap<String, String>,
+    label: Option<&str>,
+) -> Option<crate::io::bib::BibEntry> {
+    let cite_key = label
+        .map(str::to_owned)
+        .or_else(|| map.get("key").cloned())
+        .filter(|s| !s.is_empty())?;
+    let mut entry = crate::io::bib::BibEntry {
+        cite_key,
+        entry_type: map
+            .get("entry_type")
+            .cloned()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "misc".into()),
+        ..crate::io::bib::BibEntry::default()
+    };
+    entry.author = map.get("author").cloned().filter(|s| !s.is_empty());
+    entry.title = map.get("title").cloned().filter(|s| !s.is_empty());
+    entry.journal = map.get("journal").cloned().filter(|s| !s.is_empty());
+    entry.year = map.get("year").cloned().filter(|s| !s.is_empty());
+    entry.volume = map.get("volume").cloned().filter(|s| !s.is_empty());
+    entry.number = map.get("number").cloned().filter(|s| !s.is_empty());
+    entry.pages = map.get("pages").cloned().filter(|s| !s.is_empty());
+    entry.doi = map.get("doi").cloned().filter(|s| !s.is_empty());
+    entry.publisher = map.get("publisher").cloned().filter(|s| !s.is_empty());
+    entry.note = map.get("note").cloned().filter(|s| !s.is_empty());
+    entry.howpublished = map.get("howpublished").cloned().filter(|s| !s.is_empty());
+    entry.url = map.get("url").cloned().filter(|s| !s.is_empty());
+    let has_fields = entry.author.is_some()
+        || entry.title.is_some()
+        || entry.journal.is_some()
+        || entry.year.is_some()
+        || entry.volume.is_some()
+        || entry.number.is_some()
+        || entry.pages.is_some()
+        || entry.doi.is_some()
+        || entry.publisher.is_some()
+        || entry.note.is_some()
+        || entry.howpublished.is_some()
+        || entry.url.is_some()
+        || entry.entry_type != "misc";
+    has_fields.then_some(entry)
 }
 
 fn decode_slide_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {

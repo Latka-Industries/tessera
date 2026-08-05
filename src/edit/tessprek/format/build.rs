@@ -185,7 +185,15 @@ fn block_anchor_line(block: &ContentBlock) -> String {
             .map_or_else(|| first_nonempty_line(body), |c| format!("| {} ", c.text)),
         ContentBlock::Text { body, .. } => first_nonempty_line(body),
         ContentBlock::Figure { figure, .. } => first_nonempty_line(&figure.alt_text),
-        ContentBlock::Cite { cite, .. } => first_nonempty_line(&cite.quote),
+        ContentBlock::Cite { cite, .. } => {
+            cite.label.as_deref().filter(|s| !s.is_empty()).map_or_else(
+                || {
+                    let q = first_nonempty_line(&cite.quote);
+                    if q.is_empty() { "cite".into() } else { q }
+                },
+                str::to_owned,
+            )
+        }
         ContentBlock::Slide { slide, .. } => slide.layout_id.clone(),
         ContentBlock::Attachment { filename, .. } => filename.clone(),
     }

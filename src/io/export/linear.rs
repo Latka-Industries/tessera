@@ -11,8 +11,8 @@ use crate::io::bib::{BibEntry, format_numeric_marker, format_numeric_reference};
 
 use super::ExportOptions;
 use super::common::{
-    cite_number_map, decode_attachment_entry, decode_figure_entry, decode_numbered_cite,
-    decode_slide_entry, decode_text_entry, selected_content_entries,
+    cite_number_map, decode_attachment_entry, decode_cite_entry, decode_figure_entry,
+    decode_numbered_cite, decode_slide_entry, decode_text_entry, selected_content_entries,
 };
 
 pub(super) fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -36,14 +36,38 @@ pub(super) fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<S
                         append_linear_figure(&mut out, &figure);
                     }
                     ChunkType::Cite if !options.no_cites => {
-                        let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
-                        let marker = format_numeric_marker(n);
-                        if cite.quote.trim().is_empty() {
-                            let _ = writeln!(out, "{marker}");
-                        } else {
-                            let _ = writeln!(out, "{marker} {}", cite.quote.trim());
+                        let cite = decode_cite_entry(file, entry)?;
+                        match crate::io::cite::classify_cite(&cite) {
+                            crate::io::cite::CiteTessprekKind::Biblio => {
+                                let (n, cite, bib) =
+                                    decode_numbered_cite(file, entry, &cite_numbers)?;
+                                let marker = format_numeric_marker(n);
+                                if cite.quote.trim().is_empty() {
+                                    let _ = writeln!(out, "{marker}");
+                                } else {
+                                    let _ = writeln!(out, "{marker} {}", cite.quote.trim());
+                                }
+                                bib_items.push((n, bib));
+                            }
+                            crate::io::cite::CiteTessprekKind::Quote => {
+                                for line in cite.quote.lines() {
+                                    if line.is_empty() {
+                                        out.push('>');
+                                    } else {
+                                        let _ = write!(out, "> {line}");
+                                    }
+                                    out.push('\n');
+                                }
+                            }
+                            crate::io::cite::CiteTessprekKind::Ref => {
+                                let label = cite
+                                    .label
+                                    .as_deref()
+                                    .filter(|s| !s.is_empty())
+                                    .unwrap_or("ref");
+                                let _ = writeln!(out, "[{label}]");
+                            }
                         }
-                        bib_items.push((n, bib));
                     }
                     ChunkType::Slide => {
                         let slide = decode_slide_entry(file, entry)?;

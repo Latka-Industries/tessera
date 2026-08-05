@@ -184,7 +184,10 @@ pub fn parse_bibtex(input: &str) -> Result<Vec<BibEntry>> {
                 break;
             }
             let field_start = i;
-            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+            // Allow hyphens for Bookends/Mendeley extras (bdsk-url-1, date-added, …).
+            while i < bytes.len()
+                && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' || bytes[i] == b'-')
+            {
                 i += 1;
             }
             let field = input[field_start..i].to_ascii_lowercase();
@@ -341,7 +344,7 @@ pub fn import_bibliography(
     session.set_catalog(catalog)?;
     for entry in &entries {
         let cite = CitePayload {
-            quote: entry.title.clone().unwrap_or_default(),
+            quote: String::new(),
             target_doc_id: None,
             target_chunk_id: None,
             target_byte_start: None,
@@ -688,6 +691,24 @@ mod tests {
         );
         assert_eq!(entries[1].cite_key, "latka2026tessera");
         assert_eq!(entries[2].cite_key, "picsum2026");
+    }
+
+    #[test]
+    fn parses_hyphenated_unknown_fields() {
+        let text = "\
+@article{Hurowitz-2024,
+  author = {Hurowitz, Alexander},
+  title = {{Test}},
+  year = {2026},
+  date-added = {2024-10-09 20:35:37 -0400},
+  bdsk-url-1 = {https://example.com}
+}
+";
+        let entries = parse_bibtex(text).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].cite_key, "Hurowitz-2024");
+        assert_eq!(entries[0].author.as_deref(), Some("Hurowitz, Alexander"));
+        assert_eq!(entries[0].year.as_deref(), Some("2026"));
     }
 
     #[test]

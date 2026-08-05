@@ -14,8 +14,9 @@ use crate::io::cite::{self, CiteProj};
 
 use super::ExportOptions;
 use super::common::{
-    cite_number_map, decode_attachment_entry, decode_figure_entry, decode_numbered_cite,
-    decode_slide_entry, decode_text_entry, markdown_escape_alt, selected_content_entries,
+    cite_number_map, decode_attachment_entry, decode_cite_entry, decode_figure_entry,
+    decode_numbered_cite, decode_slide_entry, decode_text_entry, markdown_escape_alt,
+    selected_content_entries,
 };
 
 pub(super) fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -79,9 +80,20 @@ fn push_markdown_non_text(
             parts.push(markdown_figure_block(&decode_figure_entry(file, entry)?));
         }
         ChunkType::Cite if !options.no_cites => {
-            let (n, cite, bib) = decode_numbered_cite(file, entry, cite_numbers)?;
-            parts.push(markdown_cite_block(&cite, &bib));
-            bib_items.push((n, bib));
+            let cite = decode_cite_entry(file, entry)?;
+            match crate::io::cite::classify_cite(&cite) {
+                crate::io::cite::CiteTessprekKind::Biblio => {
+                    let (n, cite, bib) = decode_numbered_cite(file, entry, cite_numbers)?;
+                    parts.push(markdown_cite_block(&cite, &bib));
+                    bib_items.push((n, bib));
+                }
+                crate::io::cite::CiteTessprekKind::Quote => {
+                    parts.push(markdown_quote_block(&cite));
+                }
+                crate::io::cite::CiteTessprekKind::Ref => {
+                    parts.push(markdown_ref_block(&cite));
+                }
+            }
         }
         ChunkType::Slide => {
             parts.push(markdown_slide_block(&decode_slide_entry(file, entry)?));
@@ -179,14 +191,34 @@ fn markdown_cite_block(cite: &CitePayload, bib: &BibEntry) -> String {
         .filter(|s| !s.is_empty())
         .unwrap_or(bib.cite_key.as_str());
     let label = if label.is_empty() { "unknown" } else { label };
-    let mut block = format_pandoc_cite(label);
-    if !cite.quote.trim().is_empty() {
-        block.push(' ');
-        block.push('"');
-        block.push_str(cite.quote.trim());
-        block.push('"');
+    format_pandoc_cite(label)
+}
+
+fn markdown_quote_block(cite: &CitePayload) -> String {
+    let mut block = String::new();
+    for line in cite.quote.lines() {
+        if line.is_empty() {
+            block.push('>');
+        } else {
+            let _ = write!(block, "> {line}");
+        }
+        block.push('\n');
     }
-    block
+    block.trim_end().to_owned()
+}
+
+fn markdown_ref_block(cite: &CitePayload) -> String {
+    let mut parts = Vec::new();
+    if let Some(label) = cite.label.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(label.to_owned());
+    }
+    if let Some(doc) = cite.target_doc_id.as_deref() {
+        parts.push(format!("doc:{doc}"));
+    }
+    if let Some(chunk) = cite.target_chunk_id {
+        parts.push(format!("chunk:{chunk}"));
+    }
+    format!("[ref: {}]", parts.join(" "))
 }
 
 fn markdown_slide_block(slide: &SlidePayload) -> String {

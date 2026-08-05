@@ -58,6 +58,46 @@ pub fn cite_key_from_payload(cite: &CitePayload) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// Whether this payload points at another doc/chunk span.
+#[must_use]
+pub fn cite_has_targets(cite: &CitePayload) -> bool {
+    cite.target_doc_id.is_some()
+        || cite.target_chunk_id.is_some()
+        || cite.target_byte_start.is_some()
+        || cite.target_byte_end.is_some()
+}
+
+/// Tessprek command class for a sealed cite chunk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CiteTessprekKind {
+    /// Bibliography stub (`\cite{…}` attrs only).
+    Biblio,
+    /// Passage excerpt (`\quote{…}`).
+    Quote,
+    /// Pointer without excerpt (`\ref{…}`).
+    Ref,
+}
+
+/// Classify a cite payload for Tessprek encode / export filtering.
+#[must_use]
+pub fn classify_cite(cite: &CitePayload) -> CiteTessprekKind {
+    if cite_has_targets(cite) {
+        if cite.quote.trim().is_empty() {
+            CiteTessprekKind::Ref
+        } else {
+            CiteTessprekKind::Quote
+        }
+    } else {
+        CiteTessprekKind::Biblio
+    }
+}
+
+/// True when this chunk should appear in bibliography / References lists.
+#[must_use]
+pub fn is_biblio_cite(cite: &CitePayload) -> bool {
+    matches!(classify_cite(cite), CiteTessprekKind::Biblio)
+}
+
 /// Insert `key → chunk_id`; duplicate keys with different ids error.
 ///
 /// # Errors

@@ -216,13 +216,23 @@ fn format_block_hover(block: &ContentBlock) -> String {
             out
         }
         ContentBlock::Cite { cite, .. } => {
-            let mut out = chunk_title(&id, "cite");
+            let kind = crate::io::cite::classify_cite(cite);
+            let title = match kind {
+                crate::io::cite::CiteTessprekKind::Biblio => "cite",
+                crate::io::cite::CiteTessprekKind::Quote => "quote",
+                crate::io::cite::CiteTessprekKind::Ref => "ref",
+            };
+            let mut out = chunk_title(&id, title);
             push_opt_field(&mut out, "label", cite.label.as_deref());
             push_opt_field(&mut out, "target_doc", cite.target_doc_id.as_deref());
             push_opt_num(&mut out, "target_chunk", cite.target_chunk_id);
             push_opt_num(&mut out, "target_byte_start", cite.target_byte_start);
             push_opt_num(&mut out, "target_byte_end", cite.target_byte_end);
             push_opt_num(&mut out, "page", cite.page);
+            if matches!(kind, crate::io::cite::CiteTessprekKind::Quote) && !cite.quote.is_empty() {
+                let preview: String = cite.quote.chars().take(80).collect();
+                push_opt_field(&mut out, "quote", Some(preview.as_str()));
+            }
             out
         }
         ContentBlock::Slide { slide, .. } => {
