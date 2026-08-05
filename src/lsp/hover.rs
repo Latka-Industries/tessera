@@ -321,10 +321,10 @@ fn format_media_hover(attrs: &str) -> String {
     );
     if entries.is_empty() {
         let trimmed = attrs.trim();
-        if !trimmed.is_empty() {
-            let _ = write!(out, "\n\n`{trimmed}`");
-        } else {
+        if trimmed.is_empty() {
             out.push_str("\n\n_(no payloads)_");
+        } else {
+            let _ = write!(out, "\n\n`{trimmed}`");
         }
         return out;
     }
