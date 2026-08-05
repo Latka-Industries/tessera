@@ -236,6 +236,99 @@ quality: THI-256 / THI-291+.
 
 ---
 
+## Pack authoring surface (vs LaTeX macros)
+
+**Decision (D23):** Layout and authoring shortcuts stay in **external versioned
+packs** and a **closed Tessprek vocabulary**. Documents do **not** embed
+programmable macros (`\newcommand`). CSS never drives native PDF knobs (D21).
+
+### Parallel sinks (sparse pack)
+
+```text
+pack/
+  manifest.json       # id, version, cite_style_id, themes, optional weave path
+  themes/*.css        # HTML / Chromium preview only
+  weave.toml          # optional overlay on ariadnes-weave LayoutKnobs
+  aliases.toml        # optional fixed string shortcuts
+  phrases.toml        # optional parameterized boilerplate
+  typography.toml     # optional substitutions (... → …, -> → →)
+```
+
+Typical packs stay small: omit overlay files until needed. Bundled weave
+defaults remain the baseline; overlays are sparse key overrides.
+
+| File | Owns |
+| --- | --- |
+| `weave.toml` | Native spacing + closed aesthetics (indent, italic quote, optional hex colors, cite/bib paint) |
+| `themes/*.css` | Browser look only |
+| `cite_style_id` / cite-style pack | Marker form `[1]` / `[@key]`, References **text** projection |
+| Tessprek | Structure + closed commands that seal to chunks/spans |
+
+**Manifest** stays pointers + identity (not layout data). Proposed optional
+field: `weave` → path to `weave.toml`.
+
+### Dynamics without `\newcommand` (use each where it fits)
+
+| Kind | Mechanism | Example (Eleatic Zone) |
+| --- | --- | --- |
+| Fixed strings | `aliases.toml` | `\maryamlatin` → literal |
+| Glyph shortcuts | `typography.toml` substitutions at format/compile | `...` → `…` (not `\ldots` Tessprek) |
+| Wrap arg in face/style | Closed `\face{id}{…}` → IR span + pinned face | `\arm` snippet → `\face{armenian}{…}` |
+| Parameterized boilerplate | Pack phrase + one `\phrase{id}{opt}` | `\yegourdoon` |
+| Layout widget | Real Tessprek/block when shipped | `\progress{n}` |
+
+Tessprek / Tesscriptor / LSP are **front ends** on the same pack + vocabulary.
+Tesscriptor uses UI (phrase picker, face mark), not a second macro language.
+Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macros.
+
+### Settled open points (2026-08-05)
+
+1. **Phrase seal (v1):** expand on compile/format to ordinary styled prose
+   (emphasis etc.). No live phrase id in the sealed wire. Round-trip as
+   `\phrase` is **lossy** in v1 (re-insert via Tesscriptor picker / snippets).
+   A `phrase_id` span is a later option if re-edit becomes painful.
+2. **Tessprek syntax:**
+   - Phrases: `\phrase{key}` and `\phrase{key}{arg}` (optional second brace).
+   - Faces: generic `\face{face_id}{…}` where `face_id` is pack-pinned (e.g.
+     `armenian`). Language-specific `\arm` is a **snippet/alias** that inserts
+     `\face{armenian}{…}`, not a core Tessprek command.
+3. **First color cut (weave):** optional hex on `[text]` (global default),
+   `[quote]`, and `[cite]` only. No per-heading or bibliography color until a
+   later knob bump.
+4. **Sequencing:** does **not** block [THI-344](https://linear.app/thicclatka/issue/THI-344).
+   D23 impl rides **THI-324 dogfood** / pack work. Exception: weave vanilla
+   quote-italic is a small **ariadnes-weave** change that can land anytime.
+5. **Quote italic ownership:** **ariadnes-weave** applies body italic when
+   `[quote] italic = true` (default on). Tessera does not stamp `emphasis` on
+   every quote run for vanilla; packs override via `weave.toml`.
+
+### Weave aesthetics (direction)
+
+- Vanilla quote body **italic by default**; `[quote] italic = true` overridable.
+- Grow knobs as **typography policy** (faces, italic, optional hex color,
+  cite underline), not a CSS clone.
+- Optional `[text].color` with per-category overrides (`[quote]`, `[cite]`, …).
+- Bibliography **look** (hanging indent, gaps, cite color) in weave; bibliography
+  **wording/order/marker syntax** stays Tessera cite-style.
+
+### Explicitly rejected
+
+- Document-defined macros / TeX-like expansion languages in `.tes`
+- CSS → knobs
+- Tessprek commands for every glyph (`\ldots`, arrows, …)
+- Full CSL formatting inside weave TOML
+
+### Ship order (product)
+
+1. Typography substitutions + aliases  
+2. Phrase templates + `\phrase`  
+3. Face wraps actually needed (`\arm`)  
+4. Weave quote italic default + sparse aesthetic knobs  
+5. Tessera: pack `weave.toml` → `EmitOptions`  
+6. Widgets (`\progress`) only when dogfood forces  
+
+---
+
 ## Page tensors (vision models)
 
 **Decision:** **Out of v0**. Text + images + slides first; page-as-tensor (`[H,W,C]`) is Phase 9+ research.
@@ -314,3 +407,4 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
 | D21 | Print IR + `ariadnes-weave` own native PDF; HTML is preview | Accepted direction |
 | D22 | Tessprek v2: brace commands + `\tessera{}`/`\ids{}` header replace v1 HTML comments | Accepted (THI-318 shipped) |
+| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography | Accepted direction (2026-08-05) |
