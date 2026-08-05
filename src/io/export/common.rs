@@ -169,7 +169,7 @@ pub(super) fn is_content_export_type(chunk_type: ChunkType) -> bool {
     )
 }
 
-pub(super) fn cite_number_map(
+pub(crate) fn cite_number_map(
     file: &TesFile,
     entries: &[&ChunkIndexEntry],
 ) -> Result<std::collections::HashMap<u64, usize>> {
@@ -189,7 +189,7 @@ pub(super) fn cite_number_map(
     Ok(map)
 }
 
-pub(super) fn decode_cite_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<CitePayload> {
+pub(crate) fn decode_cite_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<CitePayload> {
     let raw = file.decode_payload(entry)?;
     CitePayload::from_bytes(&raw).map_err(|e| TesError::Decode {
         chunk_id: entry.chunk_id,
@@ -197,7 +197,7 @@ pub(super) fn decode_cite_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Resu
     })
 }
 
-pub(super) fn decode_numbered_cite(
+pub(crate) fn decode_numbered_cite(
     file: &TesFile,
     entry: &ChunkIndexEntry,
     numbers: &std::collections::HashMap<u64, usize>,
