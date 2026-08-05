@@ -212,7 +212,8 @@ CLI native path calls `emit_pdf` only. No `--pin-face` / wire face ids yet
 | Figure + image | `Figure` (IR mapped; float/placement THI-291) |
 | Math role / inline math | `Math { latex }` (IR mapped; real math layout THI-291) |
 | Slide chunk | `Slide` (IR mapped; richer regions THI-293) |
-| Cite / quote / ref chunks | **Skipped** in native print MVP (Chromium HTML path still renders); map when dogfooding research PDF |
+| Cite / quote / ref chunks | Mapped (THI-348): `\quote` → `Quote`; biblio stub → numbered `Paragraph`; `\ref` → short `Paragraph`; trailing `References` when biblio stubs exist |
+| Inline `Citation` spans | Rewritten to `[n]` / `[@key]` with `style.cite` (same numbering as HTML/Markdown) |
 | Attachment chunks | Skipped (not prose) |
 | THST / pending | Ignored for print body (sealed body only) |
 

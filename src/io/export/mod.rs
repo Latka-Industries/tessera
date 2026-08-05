@@ -21,8 +21,8 @@ use crate::catalog::file::TesFile;
 use crate::error::Result;
 
 pub use ai::{AiPart, export_ai_parts};
-pub(crate) use common::chapter_slice;
 pub use common::export_attachment_bytes;
+pub(crate) use common::{chapter_slice, cite_number_map, decode_cite_entry, decode_numbered_cite};
 
 /// Which decoded view to emit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

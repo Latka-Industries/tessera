@@ -11,13 +11,15 @@ use ariadnes_weave::{
     PrintMeta, PrintProfileId, SlideRegionContent, TableRow, TextRun,
 };
 
-use crate::catalog::chunk::{InlineKind, InlineSpan, ListKind, TextHeader, TextRole};
+use crate::catalog::chunk::{CitePayload, InlineKind, InlineSpan, ListKind, TextHeader, TextRole};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
 use crate::catalog::media::{FigureRef, ImagePayload, ImagePlacement};
 use crate::catalog::{SlidePayload, decode_text_payload};
 use crate::error::{Result, TesError};
-use crate::io::export::chapter_slice;
+use crate::io::bib::{BibEntry, format_numeric_marker, format_reference_body};
+use crate::io::cite::{CiteProj, CiteTessprekKind, classify_cite, projection_maps};
+use crate::io::export::{chapter_slice, cite_number_map, decode_cite_entry, decode_numbered_cite};
 use crate::layout::DocKind;
 
 /// Options for building a [`PrintDocument`] from a `.tes` file.
@@ -96,15 +98,24 @@ fn map_entries(
     entries: &[&ChunkIndexEntry],
     profile: &PrintProfileId,
 ) -> Result<Vec<PrintBlock>> {
+    let cite_numbers = cite_number_map(file, entries)?;
+    let (cite_keys, cite_style) = projection_maps(file);
+    let cite = CiteProj {
+        numbers: &cite_numbers,
+        keys: &cite_keys,
+        style: cite_style,
+    };
+
     let mut blocks = Vec::new();
     let mut list_buf: Vec<PendingListItem> = Vec::new();
+    let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
 
     for entry in entries {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
                 if header.role == TextRole::ListItem {
-                    push_list_item(&mut blocks, &mut list_buf, &header, &body);
+                    push_list_item(&mut blocks, &mut list_buf, &header, &body, cite);
                 } else {
                     flush_list(&mut blocks, &mut list_buf);
                     if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
@@ -112,7 +123,7 @@ fn map_entries(
                             runs: vec![TextRun::plain(title)],
                         });
                     }
-                    blocks.push(map_text_block(&header, &body, profile));
+                    blocks.push(map_text_block(&header, &body, profile, cite));
                     if let Some(caption) = header.caption.as_deref().filter(|s| !s.is_empty()) {
                         // Weave IR has no dedicated caption block yet; muted via theme later.
                         blocks.push(PrintBlock::Paragraph {
@@ -129,15 +140,116 @@ fn map_entries(
                 flush_list(&mut blocks, &mut list_buf);
                 blocks.push(map_slide(file, entry)?);
             }
-            ChunkType::Cite | ChunkType::Attachment => {
-                // Cite markers / attachments are not prose print blocks for MVP.
+            ChunkType::Cite => {
+                flush_list(&mut blocks, &mut list_buf);
+                push_cite_block(file, entry, &cite_numbers, &mut blocks, &mut bib_items)?;
+            }
+            ChunkType::Attachment => {
+                // Attachments are not prose print blocks.
                 flush_list(&mut blocks, &mut list_buf);
             }
             _ => {}
         }
     }
     flush_list(&mut blocks, &mut list_buf);
+    append_print_references(&mut blocks, &mut bib_items);
     Ok(blocks)
+}
+
+fn push_cite_block(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    cite_numbers: &std::collections::HashMap<u64, usize>,
+    blocks: &mut Vec<PrintBlock>,
+    bib_items: &mut Vec<(usize, BibEntry)>,
+) -> Result<()> {
+    let cite = decode_cite_entry(file, entry)?;
+    match classify_cite(&cite) {
+        CiteTessprekKind::Biblio => {
+            let (n, cite, bib) = decode_numbered_cite(file, entry, cite_numbers)?;
+            let label = cite_stub_label(&cite, &bib);
+            let marker = format_numeric_marker(n);
+            blocks.push(PrintBlock::Paragraph {
+                runs: vec![
+                    TextRun {
+                        text: marker,
+                        style: InlineStyle {
+                            cite: true,
+                            ..Default::default()
+                        },
+                        face: None,
+                    },
+                    TextRun::plain(format!(" {label}")),
+                ],
+            });
+            bib_items.push((n, bib));
+        }
+        CiteTessprekKind::Quote => {
+            let quote = cite.quote.trim();
+            if !quote.is_empty() {
+                blocks.push(PrintBlock::Quote {
+                    runs: vec![TextRun::plain(quote)],
+                });
+            }
+        }
+        CiteTessprekKind::Ref => {
+            blocks.push(PrintBlock::Paragraph {
+                runs: vec![TextRun::plain(ref_marker_text(&cite))],
+            });
+        }
+    }
+    Ok(())
+}
+
+fn cite_stub_label(cite: &CitePayload, bib: &BibEntry) -> String {
+    let label = cite
+        .label
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(bib.cite_key.as_str());
+    if label.is_empty() {
+        "unknown".into()
+    } else {
+        label.to_owned()
+    }
+}
+
+fn ref_marker_text(cite: &CitePayload) -> String {
+    let mut parts = Vec::new();
+    if let Some(label) = cite.label.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(label.to_owned());
+    }
+    if let Some(doc) = cite.target_doc_id.as_deref() {
+        parts.push(format!("doc:{doc}"));
+    }
+    if let Some(chunk) = cite.target_chunk_id {
+        parts.push(format!("chunk:{chunk}"));
+    }
+    if parts.is_empty() {
+        "ref".into()
+    } else {
+        format!("[ref: {}]", parts.join(" "))
+    }
+}
+
+fn append_print_references(blocks: &mut Vec<PrintBlock>, bib_items: &mut [(usize, BibEntry)]) {
+    if bib_items.is_empty() {
+        return;
+    }
+    bib_items.sort_by_key(|(n, _)| *n);
+    blocks.push(PrintBlock::Heading {
+        level: 2,
+        runs: vec![TextRun::plain("References")],
+        break_before: BreakHint::KeepWithNext,
+    });
+    for (n, entry) in bib_items.iter() {
+        blocks.push(PrintBlock::Paragraph {
+            runs: vec![TextRun::plain(format!(
+                "{n}. {}",
+                format_reference_body(entry)
+            ))],
+        });
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -152,6 +264,7 @@ fn push_list_item(
     list_buf: &mut Vec<PendingListItem>,
     header: &TextHeader,
     body: &str,
+    cite: CiteProj<'_>,
 ) {
     let kind = header.list_kind.unwrap_or(ListKind::Bullet);
     let depth = header.list_depth_or_default();
@@ -164,7 +277,7 @@ fn push_list_item(
     list_buf.push(PendingListItem {
         depth,
         kind,
-        runs: body_to_runs(body, &header.spans),
+        runs: body_to_runs(body, &header.spans, Some(cite)),
     });
 }
 
@@ -243,23 +356,28 @@ fn child_lists(items: &[PendingListItem], depth: u32) -> Vec<PrintBlock> {
     out
 }
 
-fn map_text_block(header: &TextHeader, body: &str, profile: &PrintProfileId) -> PrintBlock {
+fn map_text_block(
+    header: &TextHeader,
+    body: &str,
+    profile: &PrintProfileId,
+    cite: CiteProj<'_>,
+) -> PrintBlock {
     match header.role {
         TextRole::Heading => {
             let level = u8::try_from(header.level.unwrap_or(1).clamp(1, 6)).unwrap_or(1);
             let break_before = heading_break(level, profile);
             PrintBlock::Heading {
                 level,
-                runs: body_to_runs(body, &header.spans),
+                runs: body_to_runs(body, &header.spans, Some(cite)),
                 break_before,
             }
         }
         // ListItem: isolated items should have been coalesced; paragraph fallback.
         TextRole::Paragraph | TextRole::ListItem => PrintBlock::Paragraph {
-            runs: body_to_runs(body, &header.spans),
+            runs: body_to_runs(body, &header.spans, Some(cite)),
         },
         TextRole::Blockquote => PrintBlock::Quote {
-            runs: body_to_runs(body, &header.spans),
+            runs: body_to_runs(body, &header.spans, Some(cite)),
         },
         TextRole::CodeBlock => PrintBlock::Code {
             lang: header.code_lang.clone(),
@@ -381,7 +499,75 @@ fn slide_region_text(file: &TesFile, chunk_id: u64) -> Result<String> {
 }
 
 /// Split body into styled runs using half-open UTF-8 span ranges.
-fn body_to_runs(body: &str, spans: &[InlineSpan]) -> Vec<TextRun> {
+///
+/// Inline [`InlineKind::Citation`] spans are rewritten to `[n]` / `[@key]`
+/// (same projection as HTML/Markdown export) and keep `style.cite`.
+fn body_to_runs(body: &str, spans: &[InlineSpan], cite: Option<CiteProj<'_>>) -> Vec<TextRun> {
+    let (body, spans) = project_inline_citations(body, spans, cite);
+    body_to_runs_projected(&body, &spans)
+}
+
+fn project_inline_citations(
+    body: &str,
+    spans: &[InlineSpan],
+    cite: Option<CiteProj<'_>>,
+) -> (String, Vec<InlineSpan>) {
+    let Some(cite) = cite else {
+        return (body.to_owned(), spans.to_vec());
+    };
+
+    let mut body = body.to_owned();
+    let mut spans = spans.to_vec();
+    let mut cite_spans: Vec<_> = spans
+        .iter()
+        .filter(|s| matches!(s.kind, InlineKind::Citation { .. }))
+        .cloned()
+        .collect();
+    cite_spans.sort_by_key(|s| std::cmp::Reverse(s.start));
+
+    let mut marker_spans = Vec::new();
+    for span in cite_spans {
+        let InlineKind::Citation { cite_chunk_id } = span.kind else {
+            continue;
+        };
+        let start = span.start as usize;
+        let end = span.end as usize;
+        if end > body.len() || start > end {
+            continue;
+        }
+        if !body.is_char_boundary(start) || !body.is_char_boundary(end) {
+            continue;
+        }
+        let marker = cite.marker(cite_chunk_id);
+        let old_len = end - start;
+        let new_len = marker.len();
+        let delta = new_len as i64 - old_len as i64;
+        body.replace_range(start..end, &marker);
+
+        for other in &mut spans {
+            if matches!(other.kind, InlineKind::Citation { .. }) {
+                continue;
+            }
+            if (other.start as usize) >= end {
+                other.start = u32::try_from(i64::from(other.start) + delta).unwrap_or(other.start);
+                other.end = u32::try_from(i64::from(other.end) + delta).unwrap_or(other.end);
+            }
+        }
+        marker_spans.push(InlineSpan {
+            start: span.start,
+            end: span
+                .start
+                .saturating_add(u32::try_from(new_len).unwrap_or(u32::MAX)),
+            kind: InlineKind::Citation { cite_chunk_id },
+        });
+    }
+
+    spans.retain(|s| !matches!(s.kind, InlineKind::Citation { .. }));
+    spans.extend(marker_spans);
+    (body, spans)
+}
+
+fn body_to_runs_projected(body: &str, spans: &[InlineSpan]) -> Vec<TextRun> {
     if body.is_empty() {
         return Vec::new();
     }
@@ -463,8 +649,14 @@ fn decode_slide_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<SlidePa
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::catalog::DocumentCatalog;
+    use crate::catalog::chunk::{CitePayload, InlineKind, InlineSpan, TextHeader};
+    use crate::catalog::session::TesWriterSession;
     use crate::fixtures::samples::encode_manuscript_chapters;
-    use crate::fixtures::v0::{encode_note_one_chunk, encode_note_three_chunks};
+    use crate::fixtures::v0::{
+        encode_note_one_chunk, encode_note_three_chunks, encode_research_cite,
+    };
+    use crate::io::bib::BibEntry;
     use std::path::PathBuf;
 
     fn open_bytes(name: &str, bytes: Vec<u8>) -> TesFile {
@@ -572,5 +764,174 @@ mod tests {
         let doc = build_print_document_from_path(&path, &PrintBuildOptions::default()).unwrap();
         assert_eq!(doc.blocks.len(), 1);
         assert!(matches!(doc.blocks[0], PrintBlock::Paragraph { .. }));
+    }
+
+    #[test]
+    fn research_cite_quote_maps_to_print_quote() {
+        let file = open_bytes("research_cite.tes", encode_research_cite());
+        let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+        assert!(
+            doc.blocks
+                .iter()
+                .any(|b| matches!(b, PrintBlock::Paragraph { .. })),
+            "expected prose paragraph: {doc:?}"
+        );
+        match doc
+            .blocks
+            .iter()
+            .find(|b| matches!(b, PrintBlock::Quote { .. }))
+        {
+            Some(PrintBlock::Quote { runs }) => {
+                let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+                assert!(text.contains("We measured"), "{text}");
+            }
+            other => panic!("expected Quote block for ranged cite, got {other:?}"),
+        }
+        assert!(
+            !doc.blocks.iter().any(|b| matches!(
+                b,
+                PrintBlock::Heading {
+                    level: 2,
+                    runs,
+                    ..
+                } if runs.iter().any(|r| r.text == "References")
+            )),
+            "quote-only fixture should not emit References"
+        );
+    }
+
+    #[test]
+    fn cite_quote_ref_biblio_and_inline_markers() {
+        let mut catalog = DocumentCatalog::new(
+            "990e8400-e29b-41d4-a716-446655440099",
+            "Print cite specimen",
+            "2026-08-05T00:00:00Z",
+            "2026-08-05T00:00:00Z",
+            DocKind::Research,
+        );
+        catalog.cite_style_id = Some("numeric".into());
+        let mut session = TesWriterSession::create("print_cites.tes", DocKind::Research);
+        session.set_catalog(catalog).unwrap();
+
+        let bib_id = session
+            .add_cite_chunk(&CitePayload {
+                quote: String::new(),
+                target_doc_id: None,
+                target_chunk_id: None,
+                target_byte_start: None,
+                target_byte_end: None,
+                label: Some("keller2020".into()),
+                page: None,
+                source: Some(BibEntry {
+                    cite_key: "keller2020".into(),
+                    entry_type: "article".into(),
+                    author: Some("Keller, Ada".into()),
+                    title: Some("Chunk Containers".into()),
+                    year: Some("2020".into()),
+                    ..BibEntry::default()
+                }),
+            })
+            .unwrap();
+
+        let body = "See keller2020 for context.";
+        let key_start = body.find("keller2020").unwrap() as u32;
+        let key_end = key_start + "keller2020".len() as u32;
+        let mut para = TextHeader::paragraph();
+        para.spans = vec![InlineSpan {
+            start: key_start,
+            end: key_end,
+            kind: InlineKind::Citation {
+                cite_chunk_id: bib_id,
+            },
+        }];
+        session.add_text_chunk(&para, body).unwrap();
+
+        session
+            .add_cite_chunk(&CitePayload {
+                quote: "Quoted passage.".into(),
+                target_doc_id: Some("aa0e8400-e29b-41d4-a716-446655440001".into()),
+                target_chunk_id: Some(1),
+                target_byte_start: Some(0),
+                target_byte_end: Some(15),
+                label: Some("keller2020".into()),
+                page: Some(2),
+                source: None,
+            })
+            .unwrap();
+
+        session
+            .add_cite_chunk(&CitePayload {
+                quote: String::new(),
+                target_doc_id: Some("aa0e8400-e29b-41d4-a716-446655440001".into()),
+                target_chunk_id: Some(3),
+                target_byte_start: None,
+                target_byte_end: None,
+                label: Some("see-also".into()),
+                page: None,
+                source: None,
+            })
+            .unwrap();
+
+        let bytes = session.encode_file().unwrap();
+        let file = open_bytes("print_cites.tes", bytes);
+        let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+
+        // Biblio stub: "[1] keller2020"
+        let stub = doc.blocks.iter().find_map(|b| match b {
+            PrintBlock::Paragraph { runs }
+                if runs.iter().any(|r| r.style.cite && r.text == "[1]") =>
+            {
+                Some(runs.iter().map(|r| r.text.as_str()).collect::<String>())
+            }
+            _ => None,
+        });
+        assert_eq!(stub.as_deref(), Some("[1] keller2020"));
+
+        // Inline rewrite in prose
+        let prose = doc.blocks.iter().find_map(|b| match b {
+            PrintBlock::Paragraph { runs }
+                if runs.iter().any(|r| r.text.starts_with("See "))
+                    && runs.iter().any(|r| r.style.cite && r.text == "[1]") =>
+            {
+                Some(runs.iter().map(|r| r.text.as_str()).collect::<String>())
+            }
+            _ => None,
+        });
+        assert_eq!(prose.as_deref(), Some("See [1] for context."));
+
+        assert!(
+            doc.blocks.iter().any(|b| matches!(
+                b,
+                PrintBlock::Quote { runs } if runs.iter().any(|r| r.text.contains("Quoted passage"))
+            )),
+            "expected quote block: {doc:?}"
+        );
+        assert!(
+            doc.blocks.iter().any(|b| matches!(
+                b,
+                PrintBlock::Paragraph { runs }
+                    if runs.iter().any(|r| r.text.contains("[ref:") && r.text.contains("see-also"))
+            )),
+            "expected ref paragraph: {doc:?}"
+        );
+        assert!(
+            doc.blocks.iter().any(|b| matches!(
+                b,
+                PrintBlock::Heading {
+                    level: 2,
+                    runs,
+                    ..
+                } if runs.iter().any(|r| r.text == "References")
+            )),
+            "expected References heading: {doc:?}"
+        );
+        assert!(
+            doc.blocks.iter().any(|b| matches!(
+                b,
+                PrintBlock::Paragraph { runs }
+                    if runs.iter().any(|r| r.text.contains("1. Keller") && r.text.contains("Chunk Containers"))
+            )),
+            "expected bibliography line: {doc:?}"
+        );
     }
 }
