@@ -224,8 +224,7 @@ mod tests {
 \\tessera{format=tessprek version=2}\n\
 \\ids{1}\n\
 \n\
-\\figure{placement=flow}\n\
-![alt](media:chunk-1)\n\
+\\figure{placement=flow alt=\"x\"}\n\
 ";
         let diags = collect_buffer_diagnostics(text);
         assert_eq!(diags.len(), 1, "{diags:?}");

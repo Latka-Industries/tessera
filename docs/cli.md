@@ -360,11 +360,22 @@ commands for structured chunks. Full grammar: [docs/tessprek.md](tessprek.md).
 ```text
 \tessera{format=tessprek version=2 source-hash=…}
 \ids{1,2,3}
+\media{
+  id=4
+  media_type=image/png
+  sha256=…
+  width=1
+  height=1
+}
 
 # Title
 
-\figure{image=3 placement=flow caption="…"}
-![alt](media:chunk-3)
+\figure{
+  image=4
+  placement=flow
+  alt="…"
+  caption="…"
+}
 ```
 
 `tes format` normalizes a Tessprek buffer: Markdown-shaped bodies get correct
@@ -380,7 +391,7 @@ commands (CLI today; LSP below as it lands).
 
 Library callers can inject **new** image/attachment bytes via
 `edit_write_with_media` / `EditWriteOptions.media` (`EditMediaBag`): a new
-`\figure{image=…}` / `media:chunk-N` or `\attach{}` chunk's id (from its
+`\figure{image=… alt=…}` / `media:N` or `\attach{}` chunk's id (from its
 position in `\ids{}`) resolves from the bag when absent from the source `.tes`
 (THI-233). CLI `edit-write` remains source-copy only for media today.
 

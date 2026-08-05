@@ -222,7 +222,10 @@ pub struct FigureRef {
     pub image_chunk_id: u64,
     /// Required alternative text.
     pub alt_text: String,
-    /// Optional caption shown with the figure.
+    /// Optional title shown above the figure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Optional caption shown under the figure.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub caption: Option<String>,
     /// Semantic placement hint for themes.
@@ -254,11 +257,18 @@ impl FigureRef {
                 message: format!("alt_text exceeds {IMAGE_STRING_MAX} bytes"),
             });
         }
-        if let Some(caption) = &self.caption
-            && caption.len() > IMAGE_STRING_MAX
+        if let Some(title) = &self.title
+            && (title.is_empty() || title.len() > IMAGE_STRING_MAX)
         {
             return Err(TesError::InvalidFigure {
-                message: format!("caption exceeds {IMAGE_STRING_MAX} bytes"),
+                message: format!("title must be non-empty and within {IMAGE_STRING_MAX} bytes"),
+            });
+        }
+        if let Some(caption) = &self.caption
+            && (caption.is_empty() || caption.len() > IMAGE_STRING_MAX)
+        {
+            return Err(TesError::InvalidFigure {
+                message: format!("caption must be non-empty and within {IMAGE_STRING_MAX} bytes"),
             });
         }
         if let ImagePlacement::Region { name } = &self.placement
@@ -663,6 +673,7 @@ mod tests {
         let figure = FigureRef {
             image_chunk_id: 3,
             alt_text: "Forest trail".into(),
+            title: None,
             caption: Some("Morning light".into()),
             placement: ImagePlacement::FullWidth,
         };
@@ -673,6 +684,7 @@ mod tests {
         let bad = FigureRef {
             image_chunk_id: 3,
             alt_text: "   ".into(),
+            title: None,
             caption: None,
             placement: ImagePlacement::Flow,
         };

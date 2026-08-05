@@ -10,4 +10,18 @@ $$
 fn main() {}
 ```
 
-A short paragraph after the code fence.
+```mermaid
+flowchart LR
+    A[Author] --> B[.tes]
+```
+
+| Feature | Id |
+| --- | --- |
+| Text spans | text_spans |
+| Block captions | caption |
+
+A short paragraph after the table.
+
+> Note: Markdown import does not yet map title/caption onto the text header.
+> Use Tessprek `\text{title="…" caption="…"}` (see `fixtures/samples/block_captions.tes`)
+> or the golden `layout_v1_text.tes` encoder for round-trips.

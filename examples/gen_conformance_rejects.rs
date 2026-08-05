@@ -105,6 +105,15 @@ fn main() {
         ),
     );
 
+    // Captions are only valid on table / math / code_block.
+    write_reject(
+        "caption_on_paragraph.tes",
+        "Reject: caption on paragraph",
+        ChunkType::Text,
+        chunk_flags::READING_ORDER,
+        encode_u32_prefixed(br#"{"role":"paragraph","caption":"nope"}"#, b"hello"),
+    );
+
     let oversized = oversized_table_header_json();
     write_reject(
         "oversized_text_header.tes",

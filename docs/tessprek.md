@@ -20,10 +20,11 @@ Markdown has no syntax for.
 | Content | Wire form |
 | --- | --- |
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
-| Figure, cite (block), slide, attachment | `\figure{…}` / `\cite{…}` / `\slide{…}` / `\attach{…}` + body |
+| Figure, cite (block), slide, attachment | `\figure{…}` (attrs-only) / `\cite{…}`+quote / `\slide{…}` / `\attach{…}` |
 | Text attrs that can't live in Markdown (`class` / `lang` / `align`) | Optional `\text{…}` immediately before the Markdown block |
 | Document header | `\tessera{format=tessprek version=2 source-hash=… [doc meta…]}` |
 | Reading order | `\ids{1,2,3,6,7}` (flat list, regenerated on every encode) |
+| Media payloads | `\media{…}` multiline (id / media_type / sha256 / width / height) |
 
 There is **no** per-block `\id{N}`, **no** HTML comments, and **no** YAML
 front matter. v1 (`<!-- tessera: … -->` / `<!-- tes chunk=N … -->`) is
@@ -41,23 +42,35 @@ retired — `decode_tessprek` rejects anything that isn't
   title="Meeting notes"
 }
 \ids{1,2,3,4}
+\media{
+  id=5
+  media_type=image/png
+  sha256=9f2c…
+  width=1600
+  height=900
+}
 
 # Meeting notes
 
 - Ship Tessprek v2
 - Update docs
 
-\figure{image=5 placement=flow caption="Whiteboard"}
-![Whiteboard photo](media:chunk-5)
+\figure{
+  image=5
+  placement=flow
+  alt="Whiteboard photo"
+  caption="Whiteboard"
+}
 
 \cite{label=Smith2024 target_chunk=2}
 > The whiteboard sketch matches the locked design.
 ```
 
-Chunk 5 (the `Image` payload the figure references) does not itself appear in
+Chunk 5 (the `Image` payload the figure references) does not appear in
 `\ids{}` — only the five projected reading-order chunk types
-(text/figure/cite/slide/attachment) get an id slot; `\ids{}` mirrors
-`file.reading_order_chunks()` filtered to those types.
+(text/figure/cite/slide/attachment) get an id slot. It is listed in
+`\media{…}` with type/hash/dimensions so `media:5` is inspectable without
+embedding bytes.
 
 ## Grammar
 
@@ -68,6 +81,7 @@ Chunk 5 (the `Image` payload the figure references) does not itself appear in
          [doc_kind=note] [title="…"] [language=en] [cite_style_id=…]
          [theme_id=…] [template_id=…] [slug=…]}
 \ids{ID[,ID…]}
+[\media{ id=ID [media_type=…] [sha256=…] [width=N] [height=N] }]
 ```
 
 `format` + `version=2` are required. Everything else is optional:
@@ -106,9 +120,10 @@ No YAML front matter. `tags` / `aliases` / `section` stay out of `\tessera{…}`
 Both `\tessera{…}` and `\ids{…}` are **required** for `decode_tessprek`
 (strict): the tessera header must be the first non-blank content (one line or
 a multiline block), and `\ids{}` must immediately follow (blank lines allowed
-between). `tes format` / `normalize_tessprek` is lenient — it accepts free
-Markdown with no header at all and synthesizes one (preserving known
-`\tessera{…}` identity keys when they were already present).
+between). Optional `\media{…}` may follow `\ids{}` when the doc has figures.
+`tes format` / `normalize_tessprek` is lenient — it accepts free Markdown with
+no header at all and synthesizes one (preserving known `\tessera{…}` identity
+keys when they were already present).
 
 ### Chunk = Markdown block, not line
 
@@ -122,28 +137,78 @@ the "wrong" role — it's always inferred straight from the Markdown shape.
 
 ### `\ids{…}`
 
-A flat, comma-separated, reading-order list of the **actual** `.tes` chunk
-ids for every block in the document, one per block. It is always **freshly
-regenerated** on encode (never hand-preserved) and validated strictly on
-decode: `decode_tessprek` errors if the count doesn't match the number of
-parsed blocks.
+A flat, comma-separated, **reading-order** list of chunk ids for every body
+block (text, figure *refs*, cites, slides, attachments) — one per block. Not
+every chunk in the file: image *payloads* are omitted here. Freshly regenerated
+on encode; decode errors if the count doesn't match the number of parsed blocks.
 
-### `\text{class="…" lang=… align=…}`
+### `\media{…}`
+
+Metadata for **image payload** chunks referenced by figures (not reading-order;
+never in `\ids{}`). Same multiline shape as `\figure` / `\attach`: one attr per
+line; a blank line between payloads when there are several:
+
+```text
+\media{
+  id=7
+  media_type=image/png
+  sha256=…
+  width=1
+  height=1
+
+  id=12
+  media_type=image/jpeg
+  sha256=…
+  width=800
+  height=600
+}
+```
+
+| Key | Notes |
+| --- | --- |
+| `id` | Image chunk id — target of `media:N` / `\figure{image=N}` |
+| `media_type` | IANA type from the sealed payload |
+| `sha256` | Hex digest of the image bytes (bytes themselves stay in `.tes`) |
+| `width` / `height` | Intrinsic pixels when known |
+
+Emitted when the document has figures; ignored on decode (regenerated from the
+`.tes` on `edit-read`). `tes format` preserves declared attrs when open as a
+buffer only. Legacy `\media{7}` / packed one-line entries still skip cleanly.
+
+### `\text{title="…" caption="…" class="…" lang=… align=…}`
 
 Optional, immediately before a Markdown block, for the few `TextHeader`
-attributes Markdown can't express (CSS-ish theme classes, a BCP-47 language
-override, or semantic alignment). Everything else — role, heading level, list
-kind/depth, code fence language, table structure — comes straight from the
-Markdown syntax itself, so `\text{}` is rare in practice. When a `\text{}`
-precedes a Markdown run that expands into multiple blocks (e.g. `# Title`
-followed by list items with no blank line), the attrs apply to **at least the
+attributes Markdown can't express. Prefer the multiline form (same shape as
+`\tessera{…}`):
+
+````text
+\text{
+  title="Listing 1"
+  caption="Prints hello"
+}
+```rust
+fn main() {}
+```
+````
+
+- `title` renders **above** the block
+- `caption` renders **below** the block
+- Both are valid only on `table`, `math`, and `code_block` (mermaid = fenced
+  code with language `mermaid` plus this directive)
+
+Also accepted: `class`, `lang`, `align`. Everything else — role, heading level,
+list kind/depth, fence language, table structure — comes from Markdown. When a
+`\text{}` precedes a multi-block Markdown run, attrs apply to **at least the
 first** resulting block.
 
-### `\figure{image=N placement=… [region="…"] [caption="…"]}`
+### `\figure{image=N placement=… alt="…" [region="…"] [title="…"] [caption="…"]}`
 
-Followed by a single Markdown image line: `![alt](media:chunk-N)`. The image
-id in the Markdown link wins over the `image=` attr if they disagree (matches
-`tes import --html` figure handling).
+Attrs-only (same shape as `\attach{…}`): `image` points at a `\media{…}` /
+`media:N` payload; `alt` is required. `title` renders above the image; `caption`
+below (as `figcaption`). Multiline brace form is preferred on encode.
+
+Legacy buffers with a following `![alt](media:N)` body are still accepted; the
+Markdown alt/id win if present. New encodes do not emit that line.
 
 ### `\cite{[label=…] [target_doc=UUID] [target_chunk=N] [page=N]}`
 
@@ -173,7 +238,9 @@ No body; attachment bytes are never projected into Tessprek (inert — see
    (`format`, `version`, `source-hash`, `doc_id`, `title`, …). Single-line
    headers remain accepted on decode.
 2. Collect the reading-order chunk ids → `\ids{…}`.
-3. Per chunk: text → optional `\text{…}` + Markdown via
+3. Collect figure image payloads → `\media{…}` rows with type/hash/size (omit if
+   none).
+4. Per chunk: text → optional `\text{…}` + Markdown via
    `OrderedListNumbering` + `TextHeader::render_markdown_with_links_indexed`
    (contiguous ordered items become `1.` / `2.` / …; nested depths restart;
    consecutive list items stay tight — one `\n`, not a blank line);
@@ -185,7 +252,8 @@ No body; attachment bytes are never projected into Tessprek (inert — see
 1. Require `\tessera{…version=2…}` as the first non-blank header block
    (one line or multiline; extra catalog keys accepted for display; not
    applied to the sealed catalog).
-2. Parse `\ids{…}`.
+2. Parse `\ids{…}`; skip optional `\media{…}` (informational; regenerated
+   on encode).
 3. Scan the rest: brace commands vs. free Markdown runs (up to the next
    `\cmd{`).
 4. Free Markdown → `parse_markdown_blocks` (plus a small pipe-table splitter

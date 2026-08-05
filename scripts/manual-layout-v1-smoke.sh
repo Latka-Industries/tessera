@@ -32,8 +32,18 @@ for f in fixtures/conformance/reject/*.tes; do
 done
 [[ "$failed" -eq 0 ]]
 
-echo "=== layout_v1_text textconv (expect math + rust + table) ==="
-"$TES" textconv fixtures/v0/layout_v1_text.tes
+echo "=== layout_v1_text textconv (expect math + rust + mermaid + table + captions) ==="
+"$TES" textconv fixtures/v0/layout_v1_text.tes | tee /tmp/tessera-layout-v1-textconv.txt
+grep -q 'title="Relativity"' /tmp/tessera-layout-v1-textconv.txt
+grep -q 'caption="Mass–energy equivalence"' /tmp/tessera-layout-v1-textconv.txt
+grep -q 'title="Listing 1"' /tmp/tessera-layout-v1-textconv.txt
+grep -q 'caption="Hello Tessera"' /tmp/tessera-layout-v1-textconv.txt
+grep -q 'title="Pipeline"' /tmp/tessera-layout-v1-textconv.txt
+grep -q 'caption="Authoring flow"' /tmp/tessera-layout-v1-textconv.txt
+grep -q 'title="Features"' /tmp/tessera-layout-v1-textconv.txt
+grep -q 'caption="Layout feature ids"' /tmp/tessera-layout-v1-textconv.txt
+grep -q '```mermaid' /tmp/tessera-layout-v1-textconv.txt
+grep -q '\\text{' /tmp/tessera-layout-v1-textconv.txt
 
 echo "=== import layout_v1_sample.md ==="
 WORKDIR="$(mktemp -d /tmp/tessera-layout-XXXXXX)"

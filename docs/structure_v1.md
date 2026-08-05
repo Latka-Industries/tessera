@@ -42,6 +42,7 @@ re-printing HTML/CSS. HTML remains the preview/interchange sink (D21).
 | Math | `TextRole::Math` + inline math spans | LaTeX source for math only | shipped (additive header) |
 | Tables | Structured `table` on text header (TSV fallback) | Structured rows and cells | shipped (additive header) |
 | Code language | Optional `code_lang` on code blocks | Optional `lang` on code blocks | shipped (additive header) |
+| Block captions | Optional `caption` on table / math / code_block (+ figure/attach) | Caption-sized HTML / print | shipped (additive header) |
 | Document language | Catalog `language` + block `lang` | BCP-47 catalog value + block override | shipped (additive header) |
 | Internal links | Implemented (`TLNK`) | Typed link targets | shipped |
 | External links | Discarded | Variable-length external URI target | shipped (TLNK v1 + URI heap) |
@@ -309,7 +310,7 @@ Known optional feature ids in this build (all on `layout_version = 0`):
 
 | Id | Meaning |
 | --- | --- |
-| `text_spans` | Layout-v1 text header fields (spans, table, math, lang, align, code_lang, list_depth) |
+| `text_spans` | Layout-v1 text header fields (spans, table, math, lang, align, code_lang, caption, list_depth) |
 | `attachments` | Inert `ChunkType::Attachment` payloads |
 | `external_uris` | TLNK v1 external URI heap |
 | `citations` | Cite chunks and/or citation link edges |

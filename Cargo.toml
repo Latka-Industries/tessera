@@ -3,6 +3,7 @@ name = "tessera-doc"
 version = "0.2.2"
 edition = "2024"
 rust-version = "1.95"
+default-run = "tes"
 authors = ["AHurowitz <latkaindustries@gmail.com>"]
 description = "Open document format (.tes): mmap-friendly chunked binary for notes, wikis, manuscripts, and slides — AI-friendly text exports, tes CLI"
 license = "MIT OR Apache-2.0"

@@ -14,6 +14,9 @@ use argus::{LeReader, LeWriter};
 /// Maximum text-chunk semantic header size (4 KiB).
 pub const TEXT_HEADER_MAX_BYTES: usize = 4 * 1024;
 
+/// Max UTF-8 bytes for optional title / caption on table / math / `code_block`.
+pub const TEXT_CAPTION_MAX: usize = 1024;
+
 /// Semantic role of a text chunk body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -217,6 +220,12 @@ pub struct TextHeader {
     /// Optional programming language when `role` is [`TextRole::CodeBlock`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code_lang: Option<String>,
+    /// Optional title above a table, math, or code block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Optional caption under a table, math, or code block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caption: Option<String>,
     /// Structured table when `role` is [`TextRole::Table`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub table: Option<TableData>,
@@ -285,6 +294,8 @@ impl TextHeader {
             lang: None,
             align: None,
             code_lang: None,
+            title: None,
+            caption: None,
             table: None,
         }
     }
@@ -302,6 +313,8 @@ impl TextHeader {
             || self.lang.is_some()
             || self.align.is_some()
             || self.code_lang.is_some()
+            || self.title.is_some()
+            || self.caption.is_some()
             || self.table.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
             || matches!(self.role, TextRole::Table | TextRole::Math)
@@ -375,6 +388,31 @@ impl TextHeader {
         h
     }
 
+    fn validate_block_label(&self, name: &str, value: Option<&str>) -> Result<()> {
+        let Some(value) = value else {
+            return Ok(());
+        };
+        if value.is_empty() {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("{name} must be non-empty when set"),
+            });
+        }
+        if value.len() > TEXT_CAPTION_MAX {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("{name} exceeds {TEXT_CAPTION_MAX} bytes"),
+            });
+        }
+        if !matches!(
+            self.role,
+            TextRole::Table | TextRole::Math | TextRole::CodeBlock
+        ) {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("{name} is only valid on table, math, or code_block"),
+            });
+        }
+        Ok(())
+    }
+
     /// Validate spans/table fields against `body`.
     ///
     /// # Errors
@@ -411,6 +449,8 @@ impl TextHeader {
                 message: "code_lang is only valid on code_block".into(),
             });
         }
+        self.validate_block_label("title", self.title.as_deref())?;
+        self.validate_block_label("caption", self.caption.as_deref())?;
         if self.role == TextRole::Heading
             && let Some(level) = self.level
             && !(1..=6).contains(&level)
@@ -942,6 +982,23 @@ mod tests {
             end: 99,
             kind: InlineKind::Strong,
         }];
+        assert!(encode_text_payload(&header, "hi").is_err());
+    }
+
+    #[test]
+    fn caption_round_trip_on_math() {
+        let mut header = TextHeader::math();
+        header.caption = Some("Einstein".into());
+        let bytes = encode_text_payload(&header, "E = mc^2").unwrap();
+        let (h, body) = decode_text_payload(&bytes).unwrap();
+        assert_eq!(h.caption.as_deref(), Some("Einstein"));
+        assert_eq!(body, "E = mc^2");
+    }
+
+    #[test]
+    fn caption_rejected_on_paragraph() {
+        let mut header = TextHeader::paragraph();
+        header.caption = Some("nope".into());
         assert!(encode_text_payload(&header, "hi").is_err());
     }
 

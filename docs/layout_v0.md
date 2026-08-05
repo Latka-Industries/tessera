@@ -278,6 +278,8 @@ Wire layout:
   "lang": "en",
   "align": "start",
   "code_lang": "rust",
+  "title": "Listing 1",
+  "caption": "Prints hello",
   "table": { "rows": [{ "cells": [{ "text": "A", "is_header": true }] }] }
 }
 ```
@@ -288,14 +290,16 @@ Wire layout:
 | `heading` | `level` 1–6 |
 | `list_item` | `list_kind`: `bullet` \| `ordered` |
 | `blockquote` | Pull quote / block quote |
-| `code_block` | Monospace block; optional `code_lang` |
-| `table` | Prefer structured `table` field; v0 TSV body remains accepted |
-| `math` | Display math; body is LaTeX |
+| `code_block` | Monospace block; optional `code_lang`; optional `title` / `caption` |
+| `table` | Prefer structured `table` field; v0 TSV body remains accepted; optional `title` / `caption` |
+| `math` | Display math; body is LaTeX; optional `title` / `caption` |
 
-Additive optional fields (`spans`, `lang`, `align`, `code_lang`, `table`) are
-layout-v1 text structure on `layout_version = 0`. Readers that ignore unknown
-JSON keys remain compatible; writers that emit these fields must validate
-span bounds and nesting. Catalog may also carry optional BCP-47 `language`.
+Additive optional fields (`spans`, `lang`, `align`, `code_lang`, `title`,
+`caption`, `table`) are layout-v1 text structure on `layout_version = 0`.
+Readers that ignore unknown JSON keys remain compatible; writers that emit these
+fields must validate span bounds and nesting. `title` / `caption` are allowed
+only on `table`, `math`, and `code_block` (max 1024 bytes each; title above,
+caption below). Catalog may also carry optional BCP-47 `language`.
 
 **Default codec:** raw (`codec = 0`); text chunks are **uncompressed UTF-8** unless body &gt; 64 KiB (reference writer may zstd at `codec = 1`).
 
@@ -437,7 +441,7 @@ Exit code **1** on failure (CI-friendly). See [cli.md](cli.md).
 | `fixtures/v0/note_three_chunks.tes` | Agenda covering flags / PR preview / vault TOC |
 | `fixtures/v0/hub_links.tes` | Hub doc + link table |
 | `fixtures/v0/external_links.tes` | `TLNK` v1 https/mailto heap + mixed internal |
-| `fixtures/v0/layout_v1_text.tes` | Spans, math, code lang, structured table |
+| `fixtures/v0/layout_v1_text.tes` | Spans, captioned math/code/mermaid/table |
 | `fixtures/v0/slide_deck.tes` | Two region-based slides |
 | `fixtures/v0/research_cite.tes` | Cite chunk + citation link |
 | `fixtures/v0/figure_sample.tes` | Image + figure |

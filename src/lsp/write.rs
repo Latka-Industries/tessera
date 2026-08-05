@@ -158,8 +158,7 @@ mod tests {
 \\tessera{format=tessprek version=2}\n\
 \\ids{1}\n\
 \n\
-\\figure{placement=flow}\n\
-![alt](media:chunk-1)\n\
+\\figure{placement=flow alt=\"x\"}\n\
 "
         .into();
         let err = write_back_document(&mut doc).unwrap_err();

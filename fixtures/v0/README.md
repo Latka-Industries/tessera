@@ -9,7 +9,7 @@ Byte-exact containers for layout / writer / verify tests.
 | `note_three_chunks.tes` | Agenda covering flags / PR preview / vault TOC |
 | `hub_links.tes` | Hub doc linking to `note_one_chunk.tes` through `TLNK` |
 | `external_links.tes` | `TLNK` v1: https + mailto URI heap + mixed internal edge |
-| `layout_v1_text.tes` | Spans (strong/em/code), math, code block, feature-id table |
+| `layout_v1_text.tes` | Spans (strong/em/code), captioned math / rust / mermaid / feature-id table |
 | `slide_deck.tes` | Two `title_body` slides (intro + feature flags) |
 | `research_cite.tes` | Research doc with cite chunk + citation `TLNK` |
 | `figure_sample.tes` | 1×1 PNG image + figure ref |

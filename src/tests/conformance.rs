@@ -89,7 +89,43 @@ fn layout_v1_text_markdown_export_snapshot() {
         "expected code block, got:\n{out}"
     );
     assert!(
+        out.contains("mermaid") || out.contains("flowchart"),
+        "expected mermaid code block, got:\n{out}"
+    );
+    assert!(
         out.contains('|') || out.contains("A"),
         "expected table projection, got:\n{out}"
+    );
+    assert!(
+        out.contains("**Relativity**")
+            && out.contains("**Listing 1**")
+            && out.contains("**Pipeline**")
+            && out.contains("**Features**"),
+        "expected bold title lines above blocks, got:\n{out}"
+    );
+    assert!(
+        out.contains("*Mass–energy equivalence*")
+            && out.contains("*Hello Tessera*")
+            && out.contains("*Authoring flow*")
+            && out.contains("*Layout feature ids*"),
+        "expected italic caption lines under blocks, got:\n{out}"
+    );
+}
+
+#[test]
+fn layout_v1_text_html_export_captions() {
+    let path = conformance_root().join("accept/layout_v1_text.tes");
+    let out = export_view(&path, ExportView::Html, &ExportOptions::default()).unwrap();
+    assert!(
+        out.contains("<p class=\"tes-title\">Features</p>")
+            && out.contains("<p class=\"tes-caption\">Layout feature ids</p>"),
+        "expected table title above + caption below, got:\n{out}"
+    );
+    assert!(
+        out.contains("<p class=\"tes-title\">Relativity</p>")
+            && out.contains("<p class=\"tes-caption\">Mass–energy equivalence</p>")
+            && out.contains("<p class=\"tes-title\">Listing 1</p>")
+            && out.contains("<p class=\"tes-caption\">Hello Tessera</p>"),
+        "expected math/code titles above + captions below, got:\n{out}"
     );
 }

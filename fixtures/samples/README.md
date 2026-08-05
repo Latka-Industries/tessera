@@ -5,9 +5,10 @@ Hand-built multi-role `.tes` files for exploring Tessprek in Neovim / CLI.
 
 | File | What you see |
 | --- | --- |
-| `text_roles.tes` | heading / paragraph / bullet + ordered `list_item` (incl. `depth`) / blockquote / code / math / table |
-| `field_notes.tes` | longer research note: lists, quote, scorecard table, math, cite chunk |
+| `text_roles.tes` | heading / paragraph / bullet + ordered `list_item` (incl. `depth`) / blockquote / captioned code+mermaid+math+table |
+| `field_notes.tes` | longer research note: lists, quote, captioned scorecard/math/code, cite chunk |
 | `studio_brief.tes` | deck with slides + figure + attachment + external/internal links |
+| `block_captions.tes` | every caption surface: table / math / code / mermaid / figure / attachment |
 | `manuscript_chapters.tes` | fiction draft (`doc_kind = manuscript`): front matter + 3 H1 chapters / H2 scene — for `--chapter N` + `manuscript` theme |
 
 ```bash

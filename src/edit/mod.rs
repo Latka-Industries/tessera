@@ -28,8 +28,8 @@ use crate::verify::{TesVerifyReport, verify_bytes, verify_tes_file};
 pub use ops::{CatalogPatch, TesOp, apply_ops_to_blocks, parse_ops_json};
 pub use tessprek::markers;
 pub use tessprek::{
-    TessprekDocMeta, decode_tessprek, encode_content_blocks, encode_tessprek, normalize_tessprek,
-    tessprek_needs_format,
+    TessprekDocMeta, TessprekMediaEntry, decode_tessprek, encode_content_blocks, encode_tessprek,
+    normalize_tessprek, tessprek_needs_format,
 };
 
 /// One reading-order block in a Tessprek projection.
@@ -121,7 +121,7 @@ pub struct EditReadReport {
 /// the source `.tes`. Those ids are resolved from this bag when compiling.
 #[derive(Debug, Clone, Default)]
 pub struct EditMediaBag {
-    /// Temporary image chunk id → payload (figure `image=` / `media:chunk-N`).
+    /// Temporary image chunk id → payload (figure `image=` / `media:N`).
     pub images: Vec<(u64, ImagePayload)>,
     /// Temporary attachment chunk id → payload (attachment `chunk=`).
     pub attachments: Vec<(u64, AttachmentPayload)>,
@@ -250,7 +250,7 @@ pub fn edit_write(
 
 /// Like [`edit_write`], with an explicit media bag for newly injected payloads.
 ///
-/// Temporary ids referenced by figure `image=` / `media:chunk-N` or attachment
+/// Temporary ids referenced by figure `image=` / `media:N` or attachment
 /// `chunk=` are resolved from `media` when absent from the source file.
 ///
 /// # Errors
@@ -1072,7 +1072,7 @@ mod tests {
 
         let base = with_extra_ids(read.tessprek.trim_end(), &[10, 11]);
         let tessprek = format!(
-            "{base}\n\\figure{{image=900001 placement=flow caption=\"Shot\"}}\n![Injected](media:chunk-900001)\n\n\\attach{{filename=\"notes.pdf\" media_type=application/pdf sha256={} caption=\"Handout\"}}\n",
+            "{base}\n\\figure{{image=900001 placement=flow alt=\"Injected\" caption=\"Shot\"}}\n\n\\attach{{filename=\"notes.pdf\" media_type=application/pdf sha256={} caption=\"Handout\"}}\n",
             att.sha256,
         );
         let media = EditMediaBag {
@@ -1127,9 +1127,7 @@ mod tests {
         let path = sample_note(dir.path());
         let read = edit_read(&path).unwrap();
         let base = with_extra_ids(read.tessprek.trim_end(), &[10]);
-        let tessprek = format!(
-            "{base}\n\\figure{{image=900001 placement=flow}}\n![Missing](media:chunk-900001)\n"
-        );
+        let tessprek = format!("{base}\n\\figure{{image=900001 placement=flow alt=\"Missing\"}}\n");
         let err = edit_write_with_media(
             &path,
             &tessprek,

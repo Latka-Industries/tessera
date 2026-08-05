@@ -164,7 +164,7 @@ pub fn encode_hub_links() -> Vec<u8> {
     session.encode_file().expect("hub_links")
 }
 
-/// Spans / math / code / table (`layout_v1_text.tes`).
+/// Spans / math / code / mermaid / table + captions (`layout_v1_text.tes`).
 ///
 /// # Panics
 ///
@@ -178,7 +178,7 @@ pub fn encode_layout_v1_text() -> Vec<u8> {
         "2026-07-28T00:00:00Z",
         "2026-07-28T00:00:00Z",
         DocKind::Note,
-        &["layout", "spans"],
+        &["layout", "spans", "captions"],
     );
     cat.language = Some("en".into());
     session.set_catalog(cat).expect("catalog");
@@ -189,18 +189,33 @@ pub fn encode_layout_v1_text() -> Vec<u8> {
     session
         .add_text_chunk(&layout_v1_span_paragraph(), "Strong emphasis and code.")
         .expect("spans");
+
+    let mut math = TextHeader::math();
+    math.title = Some("Relativity".into());
+    math.caption = Some("Mass–energy equivalence".into());
+    session.add_text_chunk(&math, r"E = mc^2").expect("math");
+
+    let mut code = TextHeader::code_block(Some("rust"));
+    code.title = Some("Listing 1".into());
+    code.caption = Some("Hello Tessera".into());
     session
-        .add_text_chunk(&TextHeader::math(), r"E = mc^2")
-        .expect("math");
+        .add_text_chunk(&code, "fn main() {\n    println!(\"tessera\");\n}")
+        .expect("code");
+
+    let mut mermaid = TextHeader::code_block(Some("mermaid"));
+    mermaid.title = Some("Pipeline".into());
+    mermaid.caption = Some("Authoring flow".into());
     session
         .add_text_chunk(
-            &TextHeader::code_block(Some("rust")),
-            "fn main() {\n    println!(\"tessera\");\n}",
+            &mermaid,
+            "flowchart LR\n    A[Author] --> B[.tes]\n    B --> C[Export]",
         )
-        .expect("code");
-    session
-        .add_text_chunk(&TextHeader::table(layout_v1_feature_table()), "")
-        .expect("table");
+        .expect("mermaid");
+
+    let mut table = TextHeader::table(layout_v1_feature_table());
+    table.title = Some("Features".into());
+    table.caption = Some("Layout feature ids".into());
+    session.add_text_chunk(&table, "").expect("table");
 
     session.encode_file().expect("layout_v1_text")
 }
@@ -260,6 +275,12 @@ fn layout_v1_feature_table() -> TableData {
                 cells: vec![
                     layout_cell("External URIs", false, None),
                     layout_cell("external_uris", false, None),
+                ],
+            },
+            TableRow {
+                cells: vec![
+                    layout_cell("Block captions", false, None),
+                    layout_cell("caption", false, None),
                 ],
             },
         ],
@@ -407,6 +428,7 @@ pub fn encode_figure_sample() -> Vec<u8> {
         .add_figure(&FigureRef {
             image_chunk_id: image_id,
             alt_text: "One red pixel".into(),
+            title: None,
             caption: Some("Fixture PNG used by figure + features.figures stamp.".into()),
             placement: ImagePlacement::Flow,
         })

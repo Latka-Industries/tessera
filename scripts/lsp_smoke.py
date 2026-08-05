@@ -249,8 +249,7 @@ def case_ranged_parse_diagnostics(bin_path: Path) -> None:
     bad = (
         "\\tessera{format=tessprek version=2}\n"
         "\\ids{1}\n"
-        "\\figure{placement=flow}\n"
-        "![alt](media:chunk-1)\n"
+        "\\figure{placement=flow alt=\"x\"}\n"
     )
     s = open_session(bin_path)
     try:

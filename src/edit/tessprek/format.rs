@@ -20,12 +20,12 @@ use crate::io::import::parse_markdown_blocks;
 
 use super::super::ContentBlock;
 use super::{
-    TessprekDocMeta, decode_named_directive, encode_content_blocks, markers, parse_attrs,
-    set_chunk_id, skip_blank_lines, take_leading_tessera_header, take_tessera_header,
-    trim_block_body,
+    TessprekDocMeta, TessprekMediaEntry, decode_named_directive, encode_content_blocks, markers,
+    parse_attrs, set_chunk_id, skip_blank_lines, take_brace_command, take_leading_tessera_header,
+    take_tessera_header, trim_block_body,
 };
 
-use markers::{IDS_PREFIX, parse_brace_command};
+use markers::{IDS_PREFIX, MEDIA_PREFIX, match_body_opener, parse_brace_command};
 
 /// Normalize a Tessprek buffer: infer text roles from Markdown shape, split
 /// multi-block bodies, allocate/reuse `\ids{}` positionally, and re-emit
@@ -51,7 +51,8 @@ pub fn normalize_tessprek(input: &str) -> Result<String> {
     }
 
     let meta = extract_doc_meta(&lines);
-    Ok(encode_content_blocks(&meta, &blocks, &[]))
+    let media = extract_media_entries(&lines, &blocks);
+    Ok(encode_content_blocks(&meta, &blocks, &[], &media))
 }
 
 /// True when `normalize_tessprek(input)` would change the buffer (ignoring a
@@ -95,16 +96,18 @@ pub(crate) fn build_content_blocks_with_spans(
         match segment {
             Segment::Markdown {
                 start,
+                body_start,
                 end,
                 preserve,
             } => {
-                // `\text{…}` occupies `start`; body begins on the next line.
-                let body_start = if preserve.is_some() {
-                    start.saturating_add(1).min(end)
-                } else {
-                    start
-                };
+                let before = out.len();
                 append_mixed_markdown_spanned(&mut out, lines, body_start, end, preserve.as_ref())?;
+                // Include the `\text{…}` opener lines in the first block's hover span.
+                if preserve.is_some()
+                    && let Some((block_start, _, _)) = out.get_mut(before)
+                {
+                    *block_start = start;
+                }
             }
             Segment::Directive {
                 start,
@@ -154,6 +157,11 @@ fn append_mixed_markdown_spanned(
         if looks_like_gfm_table(&section) {
             for table in split_pipe_run_into_tables(section_lines) {
                 blocks.push(build_table_block(&table));
+            }
+            if let Some(map) = pending_preserve.take()
+                && let Some(ContentBlock::Text { header, .. }) = blocks.first_mut()
+            {
+                apply_preserved_attrs(header, map, line_no)?;
             }
         } else {
             append_markdown_blocks(&mut blocks, &section, pending_preserve.take(), line_no)?;
@@ -257,9 +265,11 @@ fn line_anchors(line: &str, needle: &str) -> bool {
 #[derive(Debug)]
 enum Segment {
     /// Free Markdown run, optionally preceded by `\text{…}` (attrs applied to
-    /// the first resulting block). Lines are 0-based half-open `[start, end)`.
+    /// the first resulting block). Lines are 0-based half-open `[start, end)`;
+    /// Markdown body begins at `body_start` (after a multiline `\text{…}`).
     Markdown {
         start: usize,
+        body_start: usize,
         end: usize,
         preserve: Option<BTreeMap<String, String>>,
     },
@@ -358,14 +368,17 @@ fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             continue;
         }
 
-        if let Some((kind, attrs)) = parse_brace_command(trimmed, false) {
-            let map = parse_attrs(attrs, line_no)?;
-            i += 1;
+        if let Some((kind, prefix)) = match_body_opener(trimmed) {
+            let (attrs, cmd_end) = take_brace_command(lines, i, prefix, kind)?;
+            let map = parse_attrs(&attrs, line_no)?;
+            i = cmd_end;
             match kind {
                 "text" => {
+                    let body_start = i;
                     i = next_boundary(lines, i);
                     segments.push(Segment::Markdown {
                         start,
+                        body_start,
                         end: i,
                         preserve: Some(map),
                     });
@@ -377,6 +390,26 @@ fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
                         kind: kind.to_owned(),
                         map,
                         body: String::new(),
+                    });
+                }
+                "figure" => {
+                    // Prefer attrs-only (`alt=`). Optional legacy Markdown body:
+                    // `![alt](media:N)` on the following lines.
+                    let mut body = String::new();
+                    let j = skip_blank_lines(lines, i);
+                    if lines
+                        .get(j)
+                        .is_some_and(|l| l.trim().starts_with("![") && l.contains("](media:"))
+                    {
+                        i = next_boundary(lines, j);
+                        body = trim_block_body(&lines[j..i]);
+                    }
+                    segments.push(Segment::Directive {
+                        start,
+                        end: i,
+                        kind: kind.to_owned(),
+                        map,
+                        body,
                     });
                 }
                 _ => {
@@ -398,6 +431,7 @@ fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             if lines[start..i].iter().any(|l| !l.trim().is_empty()) {
                 segments.push(Segment::Markdown {
                     start,
+                    body_start: start,
                     end: i,
                     preserve: None,
                 });
@@ -532,7 +566,7 @@ fn append_markdown_blocks(
     Ok(())
 }
 
-/// Apply `\text{class=… lang=… align=…}` attrs onto a Markdown-inferred header.
+/// Apply `\text{class=… lang=… align=… caption=…}` attrs onto a Markdown-inferred header.
 fn apply_preserved_attrs(
     header: &mut TextHeader,
     map: &BTreeMap<String, String>,
@@ -564,6 +598,36 @@ fn apply_preserved_attrs(
     {
         header.code_lang = Some(lang.clone());
     }
+    if header.title.is_none()
+        && let Some(title) = map.get("title").filter(|s| !s.is_empty())
+    {
+        if !matches!(
+            header.role,
+            TextRole::Table | TextRole::Math | TextRole::CodeBlock
+        ) {
+            return Err(parse_err(
+                line_no,
+                1,
+                "title is only valid on table, math, or code_block",
+            ));
+        }
+        header.title = Some(title.clone());
+    }
+    if header.caption.is_none()
+        && let Some(caption) = map.get("caption").filter(|s| !s.is_empty())
+    {
+        if !matches!(
+            header.role,
+            TextRole::Table | TextRole::Math | TextRole::CodeBlock
+        ) {
+            return Err(parse_err(
+                line_no,
+                1,
+                "caption is only valid on table, math, or code_block",
+            ));
+        }
+        header.caption = Some(caption.clone());
+    }
     Ok(())
 }
 
@@ -579,12 +643,62 @@ fn skip_header_and_blanks(lines: &[&str], mut i: usize) -> usize {
     {
         i += 1;
     }
+    i = skip_blank_lines(lines, i);
+    if lines
+        .get(i)
+        .is_some_and(|l| l.trim().starts_with(MEDIA_PREFIX))
+        && let Ok((_, end)) = take_brace_command(lines, i, MEDIA_PREFIX, "media header")
+    {
+        i = end;
+    }
     skip_blank_lines(lines, i)
+}
+
+/// Preserve `\media{…}` attrs across `tes format` when the sealed `.tes` is closed.
+fn extract_media_entries(lines: &[&str], blocks: &[ContentBlock]) -> Vec<TessprekMediaEntry> {
+    let mut declared = BTreeMap::new();
+    let mut i = skip_blank_lines(lines, 0);
+    if let Ok((_, end)) = take_tessera_header(lines, i) {
+        i = end;
+    }
+    i = skip_blank_lines(lines, i);
+    if lines
+        .get(i)
+        .is_some_and(|l| l.trim().starts_with(IDS_PREFIX))
+    {
+        i += 1;
+    }
+    i = skip_blank_lines(lines, i);
+    if let Ok((inner, _)) = take_brace_command(lines, i, MEDIA_PREFIX, "media header") {
+        for entry in parse_media_header_inner(&inner) {
+            declared.insert(entry.chunk_id, entry);
+        }
+    }
+    let mut out = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for block in blocks {
+        if let ContentBlock::Figure { figure, .. } = block {
+            let id = figure.image_chunk_id;
+            if id == 0 || !seen.insert(id) {
+                continue;
+            }
+            out.push(declared.remove(&id).unwrap_or(TessprekMediaEntry {
+                chunk_id: id,
+                ..TessprekMediaEntry::default()
+            }));
+        }
+    }
+    out
+}
+
+fn parse_media_header_inner(inner: &str) -> Vec<TessprekMediaEntry> {
+    super::parse_media_header(inner)
 }
 
 fn next_boundary(lines: &[&str], mut i: usize) -> usize {
     while i < lines.len() {
-        if parse_brace_command(lines[i].trim(), false).is_some() {
+        let trimmed = lines[i].trim();
+        if match_body_opener(trimmed).is_some() {
             break;
         }
         i += 1;
@@ -720,7 +834,115 @@ Hi\n\
     fn text_directive_preserves_class_and_align() {
         let input = "\\text{class=\"lead\" align=center}\n# Hello\n";
         let out = normalize_tessprek(input).unwrap();
-        assert!(out.contains("\\text{class=\"lead\" align=center}"), "{out}");
+        assert!(out.contains("class=\"lead\""), "{out}");
+        assert!(out.contains("align=center"), "{out}");
         assert!(out.contains("# Hello"), "{out}");
+    }
+
+    #[test]
+    fn text_directive_preserves_caption_on_table() {
+        let input = "\\text{caption=\"Results\"}\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+        let out = normalize_tessprek(input).unwrap();
+        assert!(out.contains("caption=\"Results\""), "{out}");
+        assert!(out.contains("| A | B |"), "{out}");
+    }
+
+    #[test]
+    fn text_directive_preserves_caption_on_code() {
+        let input = "\\text{caption=\"Snippet\"}\n```rust\nfn main() {}\n```\n";
+        let out = normalize_tessprek(input).unwrap();
+        assert!(out.contains("caption=\"Snippet\""), "{out}");
+        assert!(out.contains("```rust"), "{out}");
+    }
+
+    #[test]
+    fn text_directive_rejects_caption_on_heading() {
+        let input = "\\text{caption=\"Nope\"}\n# Hello\n";
+        assert!(normalize_tessprek(input).is_err());
+    }
+
+    #[test]
+    fn multiline_text_title_and_caption() {
+        let input =
+            "\\text{\n  title=\"Listing\"\n  caption=\"Says hi\"\n}\n```rust\nfn main() {}\n```\n";
+        let out = normalize_tessprek(input).unwrap();
+        assert!(out.contains("title=\"Listing\""), "{out}");
+        assert!(out.contains("caption=\"Says hi\""), "{out}");
+        assert!(out.contains("\\text{\n"), "{out}");
+        assert!(out.contains("```rust"), "{out}");
+    }
+
+    #[test]
+    fn multiline_figure_round_trip() {
+        let input = "\\figure{\n  image=3\n  placement=flow\n  alt=\"alt\"\n  title=\"Hero\"\n  caption=\"A still\"\n}\n";
+        let out = normalize_tessprek(input).unwrap();
+        assert!(out.contains("title=\"Hero\""), "{out}");
+        assert!(out.contains("caption=\"A still\""), "{out}");
+        assert!(out.contains("alt=\"alt\""), "{out}");
+        assert!(out.contains("\\figure{\n"), "{out}");
+        assert!(!out.contains("![alt](media:"), "{out}");
+        assert!(out.contains("id=3"), "{out}");
+        assert!(out.contains("\\media{\n"), "{out}");
+    }
+
+    #[test]
+    fn legacy_figure_markdown_body_still_decodes() {
+        let input = "\\figure{\n  image=3\n  placement=flow\n}\n![legacy alt](media:3)\n";
+        let out = normalize_tessprek(input).unwrap();
+        assert!(out.contains("alt=\"legacy alt\""), "{out}");
+        assert!(!out.contains("![legacy alt](media:"), "{out}");
+    }
+
+    #[test]
+    fn normalize_preserves_media_metadata() {
+        let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
+\\media{\n\
+  id=3\n\
+  media_type=image/png\n\
+  sha256=abc123\n\
+  width=2\n\
+  height=2\n\
+}\n\
+\n\
+\\figure{image=3 placement=flow alt=\"alt\"}\n\
+";
+        let out = normalize_tessprek(input).unwrap();
+        assert!(out.contains("  media_type=image/png\n"), "{out}");
+        assert!(out.contains("  sha256=abc123\n"), "{out}");
+        assert!(out.contains("  width=2\n"), "{out}");
+        assert!(out.contains("  height=2\n"), "{out}");
+    }
+
+    #[test]
+    fn normalize_preserves_two_media_entries() {
+        let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\\media{\n\
+  id=3\n\
+  media_type=image/png\n\
+  sha256=aaa\n\
+  width=1\n\
+  height=1\n\
+\n\
+  id=4\n\
+  media_type=image/jpeg\n\
+  sha256=bbb\n\
+  width=2\n\
+  height=2\n\
+}\n\
+\n\
+\\figure{image=3 placement=flow alt=\"a\"}\n\
+\n\
+\\figure{image=4 placement=flow alt=\"b\"}\n\
+";
+        let out = normalize_tessprek(input).unwrap();
+        assert!(out.contains("id=3"), "{out}");
+        assert!(out.contains("id=4"), "{out}");
+        assert!(out.contains("sha256=aaa"), "{out}");
+        assert!(out.contains("sha256=bbb"), "{out}");
+        assert!(out.contains("image/jpeg"), "{out}");
     }
 }

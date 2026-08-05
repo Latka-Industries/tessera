@@ -3,8 +3,9 @@
 //! Format (v2): hybrid plain Markdown for heading/paragraph/list/quote/table/
 //! math/fenced-code, plus LaTeX-lite brace commands for structured chunks
 //! (`\figure{}` / `\cite{}` / `\slide{}` / `\attach{}`) and an optional
-//! `\text{class=… lang=… align=…}` directive before a Markdown block when
-//! those attrs cannot live in Markdown itself. See `docs/tessprek.md`.
+//! `\text{title=… caption=… class=… …}` directive before a Markdown block when
+//! those attrs cannot live in Markdown itself. Brace commands accept the same
+//! multiline form as `\tessera{…}`. See `docs/tessprek.md`.
 //!
 //! `.tes` stays canonical; Tessprek is a lossy projection only.
 
@@ -17,7 +18,7 @@ use crate::catalog::TesFile;
 use crate::catalog::chunk::{CitePayload, OrderedListNumbering, TextHeader, decode_text_payload};
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::ChunkType;
-use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
+use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
 use crate::error::{Result, TesError};
 
@@ -145,6 +146,122 @@ fn push_plain(parts: &mut Vec<String>, key: &str, value: Option<&str>) {
     }
 }
 
+/// One image-payload row in the Tessprek `\media{…}` header (not reading-order).
+///
+/// Bytes stay in the `.tes`; this projects identity metadata so `media:N` is
+/// inspectable in the editor. Regenerated on encode from the sealed file;
+/// normalize preserves declared attrs when the `.tes` is not open.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TessprekMediaEntry {
+    /// Image chunk id (target of `media:N` / `\figure{image=N}`).
+    pub chunk_id: u64,
+    /// IANA type, e.g. `image/png`.
+    pub media_type: Option<String>,
+    /// Hex SHA-256 of the image bytes.
+    pub sha256: Option<String>,
+    /// Intrinsic width in pixels (`None` / omit when unknown).
+    pub width_px: Option<u32>,
+    /// Intrinsic height in pixels (`None` / omit when unknown).
+    pub height_px: Option<u32>,
+}
+
+impl TessprekMediaEntry {
+    /// Build a full entry from a sealed [`ImagePayload`].
+    #[must_use]
+    pub fn from_payload(chunk_id: u64, image: &ImagePayload) -> Self {
+        Self {
+            chunk_id,
+            media_type: Some(image.media_type.clone()),
+            sha256: Some(image_sha256_hex(&image.data)),
+            width_px: (image.width_px > 0).then_some(image.width_px),
+            height_px: (image.height_px > 0).then_some(image.height_px),
+        }
+    }
+
+    /// One `key=value` per line (same shape as `\figure` / `\attach`).
+    fn attr_parts(&self) -> Vec<String> {
+        let mut parts = vec![format!("id={}", self.chunk_id)];
+        if let Some(mime) = self.media_type.as_deref().filter(|s| !s.is_empty()) {
+            parts.push(format!("media_type={}", attr_token(mime)));
+        }
+        if let Some(hash) = self.sha256.as_deref().filter(|s| !s.is_empty()) {
+            parts.push(format!("sha256={hash}"));
+        }
+        if let Some(w) = self.width_px {
+            parts.push(format!("width={w}"));
+        }
+        if let Some(h) = self.height_px {
+            parts.push(format!("height={h}"));
+        }
+        parts
+    }
+}
+
+/// Parse `\media{…}` inner text into payload rows.
+///
+/// Accepts legacy `\media{7,12}`, packed one-line entries, pretty one-attr-per-line
+/// groups, and the space-flattened form produced by [`take_brace_command`].
+#[must_use]
+pub(crate) fn parse_media_header(inner: &str) -> Vec<TessprekMediaEntry> {
+    let trimmed = inner.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    // Legacy: `\media{7}` / `\media{7,12}`
+    if !trimmed.contains('=') {
+        return trimmed
+            .split(',')
+            .filter_map(|s| {
+                let id = s.trim().parse::<u64>().ok()?;
+                (id != 0).then_some(TessprekMediaEntry {
+                    chunk_id: id,
+                    ..TessprekMediaEntry::default()
+                })
+            })
+            .collect();
+    }
+
+    // Tokenize; each `id=` starts a new entry (works after brace flatten).
+    let mut chunks: Vec<String> = Vec::new();
+    let mut cur: Vec<&str> = Vec::new();
+    for tok in trimmed.split_whitespace() {
+        if tok.starts_with("id=") && !cur.is_empty() {
+            chunks.push(cur.join(" "));
+            cur.clear();
+        }
+        cur.push(tok);
+    }
+    if !cur.is_empty() {
+        chunks.push(cur.join(" "));
+    }
+    chunks
+        .iter()
+        .filter_map(|attrs| media_entry_from_attrs(attrs))
+        .collect()
+}
+
+fn media_entry_from_attrs(attrs: &str) -> Option<TessprekMediaEntry> {
+    let map = parse_attrs(attrs, 1).ok()?;
+    let chunk_id = map.get("id")?.parse::<u64>().ok()?;
+    (chunk_id != 0).then(|| TessprekMediaEntry {
+        chunk_id,
+        media_type: map.get("media_type").cloned().filter(|s| !s.is_empty()),
+        sha256: map.get("sha256").cloned().filter(|s| !s.is_empty()),
+        width_px: map.get("width").and_then(|s| s.parse().ok()),
+        height_px: map.get("height").and_then(|s| s.parse().ok()),
+    })
+}
+
+fn image_sha256_hex(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(data);
+    let mut out = String::with_capacity(64);
+    for byte in digest {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
 /// Tessprek v2 wire markers: `\tessera{}` header + `\ids{}` reading order,
 /// LaTeX-lite brace commands for structured chunks. Shared by encode/decode
 /// and LSP hover. No per-block `\id{N}`, no HTML comments, no YAML front
@@ -172,9 +289,14 @@ pub mod markers {
     ];
     /// Reading-order chunk id list: `\ids{1,2,3,…}`.
     pub const IDS_PREFIX: &str = "\\ids{";
+    /// Media (image payload) header: `\media{ id=7 media_type=… sha256=… }`.
+    ///
+    /// These are **not** in `\ids{}` (media store, not reading-order blocks).
+    /// They are what `media:N` / `\figure{image=N}` point at.
+    pub const MEDIA_PREFIX: &str = "\\media{";
     /// Optional preserved-attrs directive before a Markdown block.
     pub const TEXT_PREFIX: &str = "\\text{";
-    /// Figure directive: `\figure{image=… placement=… caption=…}`.
+    /// Figure directive: `\figure{image=… placement=… alt=…}` (no Markdown body).
     pub const FIGURE_PREFIX: &str = "\\figure{";
     /// Cite directive: `\cite{label=… target_chunk=…}` + quote body.
     pub const CITE_PREFIX: &str = "\\cite{";
@@ -185,9 +307,12 @@ pub mod markers {
     /// Closing delimiter for every brace command.
     pub const BRACE_SUFFIX: &str = "}";
 
-    /// Header-only brace lines (`\tessera` / `\ids`).
-    pub const HEADER_COMMANDS: &[(&str, &str)] =
-        &[(TESSERA_PREFIX, "tessera"), (IDS_PREFIX, "ids")];
+    /// Header-only brace lines (`\tessera` / `\ids` / `\media`).
+    pub const HEADER_COMMANDS: &[(&str, &str)] = &[
+        (TESSERA_PREFIX, "tessera"),
+        (IDS_PREFIX, "ids"),
+        (MEDIA_PREFIX, "media"),
+    ];
 
     /// Body brace lines (structured chunks + optional `\text`).
     /// Kind `attachment` matches [`super::decode_named_directive`].
@@ -205,25 +330,35 @@ pub mod markers {
         if kind == "attachment" { "attach" } else { kind }
     }
 
-    /// Parse a brace-command line → `(kind, inner attrs)`.
+    /// Parse a **single-line** closed brace command → `(kind, inner attrs)`.
     ///
     /// When `include_header` is true, also matches `\tessera{…}` / `\ids{…}`
-    /// (LSP hover). Format/decode body scans use `include_header = false`.
-    ///
-    /// Single-line only. For a possibly multiline `\tessera{…}` header use
-    /// [`super::take_tessera_header`].
+    /// (LSP hover). For multiline body/header commands use
+    /// [`super::take_brace_command`] / [`match_body_opener`].
     #[must_use]
     pub fn parse_brace_command(
         trimmed: &str,
         include_header: bool,
     ) -> Option<(&'static str, &str)> {
-        if include_header && let Some(hit) = match_brace_table(trimmed, HEADER_COMMANDS) {
+        if include_header && let Some(hit) = match_brace_closed(trimmed, HEADER_COMMANDS) {
             return Some(hit);
         }
-        match_brace_table(trimmed, BODY_COMMANDS)
+        match_brace_closed(trimmed, BODY_COMMANDS)
     }
 
-    fn match_brace_table<'a>(
+    /// Match a body command opener (`\text{`, `\figure{`, …) even when `}` is
+    /// on a later line. Returns `(kind, prefix)`.
+    #[must_use]
+    pub fn match_body_opener(trimmed: &str) -> Option<(&'static str, &'static str)> {
+        for &(prefix, kind) in BODY_COMMANDS {
+            if trimmed.starts_with(prefix) {
+                return Some((kind, prefix));
+            }
+        }
+        None
+    }
+
+    fn match_brace_closed<'a>(
         trimmed: &'a str,
         table: &'static [(&'static str, &'static str)],
     ) -> Option<(&'static str, &'a str)> {
@@ -238,15 +373,14 @@ pub mod markers {
     }
 }
 
-/// Parse a `\tessera{…}` header starting at `lines[start]` (0-based).
+/// Parse a brace command starting at `lines[start]` (0-based).
 ///
-/// Accepts a single-line `\tessera{…}` or a multiline form:
+/// Accepts a single-line `\cmd{…}` or a multiline form:
 ///
 /// ```text
-/// \tessera{
-///   format=tessprek
-///   version=2
+/// \text{
 ///   title="…"
+///   caption="…"
 /// }
 /// ```
 ///
@@ -256,14 +390,19 @@ pub mod markers {
 ///
 /// Returns [`TesError::EditParse`] when the opener is missing or `}` is never
 /// closed (respecting quoted attribute values).
-pub(crate) fn take_tessera_header(lines: &[&str], start: usize) -> Result<(String, usize)> {
+pub(crate) fn take_brace_command(
+    lines: &[&str],
+    start: usize,
+    prefix: &str,
+    label: &str,
+) -> Result<(String, usize)> {
     let header_line_no = start.saturating_add(1);
     let first = lines.get(start).map_or("", |l| l.trim());
-    if !first.starts_with(TESSERA_PREFIX) {
+    if !first.starts_with(prefix) {
         return Err(parse_err(
             header_line_no,
             1,
-            format!("expected `{TESSERA_PREFIX}...{BRACE_SUFFIX}` document header, found: {first}"),
+            format!("expected `{prefix}...{BRACE_SUFFIX}` {label}, found: {first}"),
         ));
     }
 
@@ -276,7 +415,7 @@ pub(crate) fn take_tessera_header(lines: &[&str], start: usize) -> Result<(Strin
         }
         buf.push_str(piece);
         let after = buf
-            .strip_prefix(TESSERA_PREFIX)
+            .strip_prefix(prefix)
             .expect("prefix checked on first line");
         if let Some(close) = find_unquoted_close_brace(after) {
             let trailing = after[close + 1..].trim();
@@ -284,7 +423,7 @@ pub(crate) fn take_tessera_header(lines: &[&str], start: usize) -> Result<(Strin
                 return Err(parse_err(
                     end + 1,
                     1,
-                    format!("trailing junk after `{BRACE_SUFFIX}` in tessera header: {trailing}"),
+                    format!("trailing junk after `{BRACE_SUFFIX}` in \\{label}: {trailing}"),
                 ));
             }
             return Ok((after[..close].to_owned(), end + 1));
@@ -294,8 +433,17 @@ pub(crate) fn take_tessera_header(lines: &[&str], start: usize) -> Result<(Strin
     Err(parse_err(
         header_line_no,
         1,
-        format!("unterminated `{TESSERA_PREFIX}` header (missing `{BRACE_SUFFIX}`)"),
+        format!("unterminated `{prefix}` {label} (missing `{BRACE_SUFFIX}`)"),
     ))
+}
+
+/// Parse a `\tessera{…}` header starting at `lines[start]` (0-based).
+///
+/// # Errors
+///
+/// Same as [`take_brace_command`].
+pub(crate) fn take_tessera_header(lines: &[&str], start: usize) -> Result<(String, usize)> {
+    take_brace_command(lines, start, TESSERA_PREFIX, "tessera header")
 }
 
 /// Skip leading blank lines; return the first non-blank index (or `lines.len()`).
@@ -340,8 +488,8 @@ fn find_unquoted_close_brace(s: &str) -> Option<usize> {
 }
 
 use markers::{
-    ATTACH_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX, SLIDE_PREFIX,
-    TESSERA_PREFIX, TEXT_PREFIX, VERSION,
+    ATTACH_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX, MEDIA_PREFIX,
+    SLIDE_PREFIX, TESSERA_PREFIX, TEXT_PREFIX, VERSION,
 };
 
 /// Encode a `.tes` file as Tessprek, embedding `source_hash`.
@@ -403,6 +551,7 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
         };
         blocks.push(block);
     }
+    let media = media_entries_from_file(file, &blocks);
     Ok(encode_content_blocks(
         &file.catalog().map_or_else(
             || TessprekDocMeta {
@@ -413,7 +562,39 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
         ),
         &blocks,
         file.links(),
+        &media,
     ))
+}
+
+/// Collect `\media{…}` rows for figure-referenced image payloads in `file`.
+fn media_entries_from_file(file: &TesFile, blocks: &[ContentBlock]) -> Vec<TessprekMediaEntry> {
+    let mut ids = std::collections::BTreeSet::new();
+    for block in blocks {
+        if let ContentBlock::Figure { figure, .. } = block
+            && figure.image_chunk_id != 0
+        {
+            ids.insert(figure.image_chunk_id);
+        }
+    }
+    ids.into_iter()
+        .map(|id| match file.chunk_by_id(id) {
+            Ok(entry) if entry.chunk_type == ChunkType::Image => file
+                .decode_payload(entry)
+                .ok()
+                .and_then(|raw| ImagePayload::from_bytes(raw.as_ref()).ok())
+                .map_or_else(
+                    || TessprekMediaEntry {
+                        chunk_id: id,
+                        ..TessprekMediaEntry::default()
+                    },
+                    |image| TessprekMediaEntry::from_payload(id, &image),
+                ),
+            _ => TessprekMediaEntry {
+                chunk_id: id,
+                ..TessprekMediaEntry::default()
+            },
+        })
+        .collect()
 }
 
 /// Parse Tessprek v2 into typed content blocks.
@@ -556,14 +737,30 @@ fn decode_figure_block(
         map.get("region").map(String::as_str),
         line_no,
     )?;
+    let title = map.get("title").cloned().filter(|s| !s.is_empty());
     let caption = map.get("caption").cloned().filter(|s| !s.is_empty());
-    let (alt_text, img_from_md) = parse_figure_markdown(body, line_no)?;
+    let alt_attr = map.get("alt").cloned().filter(|s| !s.is_empty());
+    // Legacy: body `![alt](media:N)` after `\figure{…}` (pre-alt-attr Tessprek).
+    let (alt_md, img_from_md) = if body.trim().is_empty() {
+        (None, None)
+    } else {
+        let (alt, id) = parse_figure_markdown(body, line_no)?;
+        (Some(alt), id)
+    };
+    let alt_text = alt_md.or(alt_attr).ok_or_else(|| {
+        parse_err(
+            line_no,
+            1,
+            "figure requires alt=\"…\" (or legacy ![alt](media:N) body)",
+        )
+    })?;
     let image_chunk_id = img_from_md.unwrap_or(image_chunk_id);
     Ok(ContentBlock::Figure {
         chunk_id: None,
         figure: FigureRef {
             image_chunk_id,
             alt_text,
+            title,
             caption,
             placement,
         },
@@ -633,15 +830,20 @@ fn decode_attachment_block(map: &BTreeMap<String, String>, line_no: usize) -> Re
 /// carry `pending_links` (normalize / typed ops).
 ///
 /// Used by [`normalize_tessprek`], [`encode_tessprek`], and tests.
+///
+/// `media` supplies `\media{…}` rows (mime / sha256 / dimensions). When empty,
+/// figure-referenced ids are still emitted as bare `id=N` rows.
 #[must_use]
 pub fn encode_content_blocks(
     meta: &TessprekDocMeta,
     blocks: &[ContentBlock],
     links: &[crate::catalog::LinkEntry],
+    media: &[TessprekMediaEntry],
 ) -> String {
     let mut out = String::new();
     write_header(&mut out, meta);
     write_ids(&mut out, blocks);
+    write_media(&mut out, blocks, media);
     out.push('\n');
 
     let mut ordered = OrderedListNumbering::default();
@@ -674,12 +876,6 @@ pub fn encode_content_blocks(
                 match other {
                     ContentBlock::Figure { figure, .. } => {
                         write_figure_directive(&mut out, figure);
-                        let _ = writeln!(
-                            out,
-                            "![{}](media:chunk-{})",
-                            escape_alt(&figure.alt_text),
-                            figure.image_chunk_id
-                        );
                         out.push('\n');
                     }
                     ContentBlock::Cite { cite, .. } => {
@@ -723,6 +919,19 @@ fn write_brace_line(out: &mut String, prefix: &str, parts: &[String]) {
     let _ = writeln!(out, "{prefix}{}{BRACE_SUFFIX}", parts.join(" "));
 }
 
+/// Prefer multiline brace blocks (same shape as `\tessera{…}`) for readability.
+fn write_brace_block(out: &mut String, prefix: &str, parts: &[String]) {
+    if parts.is_empty() {
+        let _ = writeln!(out, "{prefix}{BRACE_SUFFIX}");
+        return;
+    }
+    let _ = writeln!(out, "{prefix}");
+    for part in parts {
+        let _ = writeln!(out, "  {part}");
+    }
+    let _ = writeln!(out, "{BRACE_SUFFIX}");
+}
+
 fn write_header(out: &mut String, meta: &TessprekDocMeta) {
     let mut parts = vec![format!("format={FORMAT}"), format!("version={VERSION}")];
     meta.push_parts(&mut parts);
@@ -741,6 +950,46 @@ fn write_ids(out: &mut String, blocks: &[ContentBlock]) {
         .collect::<Vec<_>>()
         .join(",");
     write_brace_line(out, IDS_PREFIX, &[ids]);
+}
+
+/// Emit `\media{…}` for image payloads referenced by figures (sorted by id).
+///
+/// One attr per line; blank line between payloads when there are several.
+/// Omitted when the document has no figures. Prefer rows from `media`; fill
+/// missing figure targets as bare `id=N`. Regenerated on every encode.
+fn write_media(out: &mut String, blocks: &[ContentBlock], media: &[TessprekMediaEntry]) {
+    let mut by_id: BTreeMap<u64, TessprekMediaEntry> = BTreeMap::new();
+    for entry in media {
+        if entry.chunk_id != 0 {
+            by_id.insert(entry.chunk_id, entry.clone());
+        }
+    }
+    for block in blocks {
+        if let ContentBlock::Figure { figure, .. } = block {
+            let id = figure.image_chunk_id;
+            if id != 0 {
+                by_id.entry(id).or_insert(TessprekMediaEntry {
+                    chunk_id: id,
+                    ..TessprekMediaEntry::default()
+                });
+            }
+        }
+    }
+    if by_id.is_empty() {
+        return;
+    }
+    let _ = writeln!(out, "{MEDIA_PREFIX}");
+    let mut first = true;
+    for entry in by_id.values() {
+        if !first {
+            out.push('\n');
+        }
+        first = false;
+        for part in entry.attr_parts() {
+            let _ = writeln!(out, "  {part}");
+        }
+    }
+    let _ = writeln!(out, "{BRACE_SUFFIX}");
 }
 
 fn render_text_body(
@@ -772,13 +1021,24 @@ fn render_text_body(
     header.render_markdown_with_links_indexed(body, &synthetic_links, ordered_index)
 }
 
-/// Write `\text{class=… lang=… align=…}` when the header carries attrs that
-/// cannot live in plain Markdown. Emits nothing otherwise.
+/// Write `\text{title=… caption=… class=… …}` when the header carries attrs
+/// that cannot live in plain Markdown. Emits nothing otherwise.
 fn write_text_directive(out: &mut String, header: &TextHeader) {
-    if header.classes.is_empty() && header.lang.is_none() && header.align.is_none() {
+    if header.classes.is_empty()
+        && header.lang.is_none()
+        && header.align.is_none()
+        && header.title.is_none()
+        && header.caption.is_none()
+    {
         return;
     }
     let mut parts = Vec::new();
+    if let Some(title) = header.title.as_deref() {
+        parts.push(format!("title=\"{}\"", escape_attr(title)));
+    }
+    if let Some(caption) = header.caption.as_deref() {
+        parts.push(format!("caption=\"{}\"", escape_attr(caption)));
+    }
     if !header.classes.is_empty() {
         parts.push(format!("class=\"{}\"", header.classes.join(" ")));
     }
@@ -788,21 +1048,25 @@ fn write_text_directive(out: &mut String, header: &TextHeader) {
     if let Some(align) = header.align {
         parts.push(format!("align={}", align.as_str()));
     }
-    write_brace_line(out, TEXT_PREFIX, &parts);
+    write_brace_block(out, TEXT_PREFIX, &parts);
 }
 
 fn write_figure_directive(out: &mut String, figure: &FigureRef) {
     let mut parts = vec![
         format!("image={}", figure.image_chunk_id),
         format!("placement={}", figure.placement.as_str()),
+        format!("alt=\"{}\"", escape_attr(&figure.alt_text)),
     ];
     if let ImagePlacement::Region { name } = &figure.placement {
         parts.push(format!("region=\"{}\"", escape_attr(name)));
     }
+    if let Some(title) = figure.title.as_deref() {
+        parts.push(format!("title=\"{}\"", escape_attr(title)));
+    }
     if let Some(caption) = figure.caption.as_deref() {
         parts.push(format!("caption=\"{}\"", escape_attr(caption)));
     }
-    write_brace_line(out, FIGURE_PREFIX, &parts);
+    write_brace_block(out, FIGURE_PREFIX, &parts);
 }
 
 fn write_cite_directive(out: &mut String, cite: &CitePayload) {
@@ -819,7 +1083,7 @@ fn write_cite_directive(out: &mut String, cite: &CitePayload) {
     if let Some(page) = cite.page {
         parts.push(format!("page={page}"));
     }
-    write_brace_line(out, CITE_PREFIX, &parts);
+    write_brace_block(out, CITE_PREFIX, &parts);
 }
 
 fn write_slide_directive(out: &mut String, slide: &SlidePayload) {
@@ -829,7 +1093,7 @@ fn write_slide_directive(out: &mut String, slide: &SlidePayload) {
         .map(|r| format!("{}:{}", r.name, r.chunk_id))
         .collect::<Vec<_>>()
         .join(",");
-    write_brace_line(
+    write_brace_block(
         out,
         SLIDE_PREFIX,
         &[
@@ -848,7 +1112,7 @@ fn write_attachment_directive(out: &mut String, att: &AttachmentPayload) {
     if let Some(caption) = att.caption.as_deref() {
         parts.push(format!("caption=\"{}\"", escape_attr(caption)));
     }
-    write_brace_line(out, ATTACH_PREFIX, &parts);
+    write_brace_block(out, ATTACH_PREFIX, &parts);
 }
 
 fn parse_slide_regions(raw: &str, line_no: usize) -> Result<Vec<SlideRegion>> {
@@ -911,13 +1175,9 @@ fn strip_quote_body(body: &str) -> String {
 
 fn parse_figure_markdown(body: &str, line_no: usize) -> Result<(String, Option<u64>)> {
     let body = body.trim();
-    // ![alt](media:chunk-N)
+    // ![alt](media:N) — also accept legacy `media:chunk-N`
     let Some(rest) = body.strip_prefix("![") else {
-        return Err(parse_err(
-            line_no,
-            1,
-            "figure body must be ![alt](media:chunk-N)",
-        ));
+        return Err(parse_err(line_no, 1, "figure body must be ![alt](media:N)"));
     };
     let Some((alt, after_alt)) = rest.split_once("](") else {
         return Err(parse_err(line_no, 1, "figure markdown missing ']('"));
@@ -925,9 +1185,10 @@ fn parse_figure_markdown(body: &str, line_no: usize) -> Result<(String, Option<u
     let Some(url) = after_alt.strip_suffix(')') else {
         return Err(parse_err(line_no, 1, "figure markdown missing closing ')'"));
     };
-    let image_id = url
-        .strip_prefix("media:chunk-")
-        .and_then(|s| s.parse::<u64>().ok());
+    let id_str = url
+        .strip_prefix("media:")
+        .map(|s| s.strip_prefix("chunk-").unwrap_or(s));
+    let image_id = id_str.and_then(|s| s.parse::<u64>().ok());
     Ok((unescape_alt(alt), image_id))
 }
 
@@ -1022,12 +1283,6 @@ fn attr_token(s: &str) -> String {
     }
 }
 
-fn escape_alt(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('[', "\\[")
-        .replace(']', "\\]")
-}
-
 fn unescape_alt(s: &str) -> String {
     s.replace("\\[", "[")
         .replace("\\]", "]")
@@ -1085,7 +1340,8 @@ mod tests {
             text.contains("title=Demo") || text.contains("title=\"Demo\""),
             "{text}"
         );
-        assert!(text.contains("\\text{class=\"lead\"}"), "{text}");
+        assert!(text.contains("class=\"lead\""), "{text}");
+        assert!(text.contains("\\text{"), "{text}");
         assert!(text.contains("# Hello"), "{text}");
         let blocks = decode_tessprek(&text).unwrap();
         assert_eq!(blocks.len(), 2);
@@ -1113,6 +1369,7 @@ mod tests {
                 figure: FigureRef {
                     image_chunk_id: 3,
                     alt_text: "A photo".into(),
+                    title: None,
                     caption: Some("Cap".into()),
                     placement: ImagePlacement::Flow,
                 },
@@ -1148,8 +1405,10 @@ mod tests {
                 sha256: "deadbeef".into(),
             },
         ];
-        let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[]);
+        let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
         assert!(text.contains("\\ids{1,2,4,5,6}"), "{text}");
+        assert!(text.contains("id=3"), "{text}");
+        assert!(text.contains("\\media{\n"), "{text}");
         assert!(text.contains("\\figure{"), "{text}");
         assert!(text.contains("\\cite{"), "{text}");
         assert!(text.contains("> Some quoted text"), "{text}");
@@ -1157,6 +1416,87 @@ mod tests {
         assert!(text.contains("\\attach{"), "{text}");
         let decoded = decode_tessprek(&text).unwrap();
         assert_eq!(decoded, blocks);
+    }
+
+    #[test]
+    fn decode_skips_rich_media_header() {
+        let text = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\\media{\n\
+  id=9\n\
+  media_type=image/png\n\
+  sha256=deadbeef\n\
+  width=1\n\
+  height=1\n\
+}\n\
+\n\
+# Title\n\
+\n\
+\\figure{\n\
+  image=9\n\
+  placement=flow\n\
+  alt=\"alt\"\n\
+}\n\
+";
+        let blocks = decode_tessprek(text).unwrap();
+        assert_eq!(blocks.len(), 2);
+        match &blocks[1] {
+            ContentBlock::Figure { figure, .. } => {
+                assert_eq!(figure.image_chunk_id, 9);
+                assert_eq!(figure.alt_text, "alt");
+            }
+            other => panic!("expected figure, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn encode_media_blank_line_between_payloads() {
+        let blocks = vec![
+            ContentBlock::Figure {
+                chunk_id: Some(1),
+                figure: FigureRef {
+                    image_chunk_id: 2,
+                    alt_text: "a".into(),
+                    title: None,
+                    caption: None,
+                    placement: ImagePlacement::Flow,
+                },
+            },
+            ContentBlock::Figure {
+                chunk_id: Some(3),
+                figure: FigureRef {
+                    image_chunk_id: 4,
+                    alt_text: "b".into(),
+                    title: None,
+                    caption: None,
+                    placement: ImagePlacement::Flow,
+                },
+            },
+        ];
+        let media = vec![
+            TessprekMediaEntry {
+                chunk_id: 2,
+                media_type: Some("image/png".into()),
+                sha256: Some("aa".into()),
+                width_px: Some(1),
+                height_px: Some(1),
+            },
+            TessprekMediaEntry {
+                chunk_id: 4,
+                media_type: Some("image/jpeg".into()),
+                sha256: Some("bb".into()),
+                width_px: Some(2),
+                height_px: Some(2),
+            },
+        ];
+        let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &media);
+        assert!(
+            text.contains(
+                "\\media{\n  id=2\n  media_type=image/png\n  sha256=aa\n  width=1\n  height=1\n\n  id=4\n"
+            ),
+            "{text}"
+        );
     }
 
     #[test]

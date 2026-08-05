@@ -184,7 +184,16 @@ figure[data-placement="full_width"] img {
   width: 100%;
 }
 
-figcaption {
+.tes-title {
+  margin: 1em 0 0.35em;
+  font-size: 12pt;
+  font-weight: 600;
+  color: var(--tes-ink);
+  text-indent: 0;
+}
+
+figcaption,
+.tes-caption {
   margin-top: 0.5em;
   font-size: 12pt;
   color: var(--tes-muted);

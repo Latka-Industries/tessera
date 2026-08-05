@@ -107,7 +107,18 @@ fn map_entries(
                     push_list_item(&mut blocks, &mut list_buf, &header, &body);
                 } else {
                     flush_list(&mut blocks, &mut list_buf);
+                    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
+                        blocks.push(PrintBlock::Paragraph {
+                            runs: vec![TextRun::plain(title)],
+                        });
+                    }
                     blocks.push(map_text_block(&header, &body, profile));
+                    if let Some(caption) = header.caption.as_deref().filter(|s| !s.is_empty()) {
+                        // Weave IR has no dedicated caption block yet; muted via theme later.
+                        blocks.push(PrintBlock::Paragraph {
+                            runs: vec![TextRun::plain(caption)],
+                        });
+                    }
                 }
             }
             ChunkType::Figure => {

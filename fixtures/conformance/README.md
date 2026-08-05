@@ -20,11 +20,11 @@ Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 - `note_three_chunks.tes` — agenda (flags / PR preview / vault TOC)
 - `hub_links.tes` — hub with `TLNK` edges
 - `external_links.tes` — `TLNK` v1 external URI heap (+ mixed internal)
-- `layout_v1_text.tes` — spans / math / code / feature-id table / lang / align
-- `attachment_sample.tes` — inert attachment (safe basename + PDF bytes)
+- `layout_v1_text.tes` — spans / captioned math+code+mermaid+table / lang / align
+- `attachment_sample.tes` — inert attachment (safe basename + PDF bytes + caption)
 - `slide_deck.tes` — two region-based slides
 - `research_cite.tes` — cite chunk + citation link
-- `figure_sample.tes` — image + figure
+- `figure_sample.tes` — image + figure (with caption)
 - `unknown_optional_feature.tes` — catalog declares unknown **optional** feature (warn, still ok)
 
 See also `fixtures/vault/` for a sample `vault.tes` TOC (not part of the
@@ -50,6 +50,7 @@ must-accept kit).
 | `span_oob.tes` | Inline span end past body length |
 | `span_partial_overlap.tes` | Nested span escapes outer span |
 | `table_rowspan_zero.tes` | Structured table `rowspan: 0` |
+| `caption_on_paragraph.tes` | `caption` set on `paragraph` (only table/math/code_block allowed) |
 | `oversized_text_header.tes` | Text header JSON > 4 KiB |
 | `unsafe_attachment_filename.tes` | Attachment basename with `../` |
 | `unknown_required_feature.tes` | Catalog `features.required` names an unknown id |

@@ -221,6 +221,7 @@ fn append_linear_text(
             }
         }
         TextRole::CodeBlock => {
+            append_linear_title(out, header.title.as_deref());
             out.push_str("```");
             if let Some(lang) = header.code_lang.as_deref() {
                 out.push_str(lang);
@@ -228,20 +229,41 @@ fn append_linear_text(
             out.push('\n');
             out.push_str(body.trim_end());
             out.push_str("\n```\n");
+            append_linear_caption(out, header.caption.as_deref());
         }
         TextRole::Math => {
+            append_linear_title(out, header.title.as_deref());
             out.push_str("$$\n");
             out.push_str(body.trim_end());
             out.push_str("\n$$\n");
+            append_linear_caption(out, header.caption.as_deref());
         }
         TextRole::Paragraph | TextRole::Table => {
+            if header.role == TextRole::Table {
+                append_linear_title(out, header.title.as_deref());
+            }
             if header.role == TextRole::Table && header.table.is_some() {
                 out.push_str(&header.render_markdown(""));
             } else {
                 out.push_str(body.trim_end());
             }
             out.push('\n');
+            if header.role == TextRole::Table {
+                append_linear_caption(out, header.caption.as_deref());
+            }
         }
+    }
+}
+
+fn append_linear_title(out: &mut String, title: Option<&str>) {
+    if let Some(title) = title.filter(|s| !s.is_empty()) {
+        let _ = writeln!(out, "**{title}**");
+    }
+}
+
+fn append_linear_caption(out: &mut String, caption: Option<&str>) {
+    if let Some(caption) = caption.filter(|s| !s.is_empty()) {
+        let _ = writeln!(out, "*{caption}*");
     }
 }
 
@@ -280,7 +302,8 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
                 let ordered_index = ordered.take_for_text(&header);
-                parts.push(header.render_markdown_with_links_indexed(
+                parts.push(markdown_text_block(
+                    &header,
                     &body,
                     file.links(),
                     ordered_index,
@@ -288,78 +311,146 @@ fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
             }
             other => {
                 ordered.clear();
-                match other {
-                    ChunkType::Figure => {
-                        let figure = decode_figure_entry(file, entry)?;
-                        let mut block = format!(
-                            "![{}](media:chunk-{})",
-                            markdown_escape_alt(&figure.alt_text),
-                            figure.image_chunk_id
-                        );
-                        if let Some(caption) = figure.caption.as_deref() {
-                            block.push_str("\n\n*");
-                            block.push_str(caption.trim());
-                            block.push('*');
-                        }
-                        parts.push(block);
-                    }
-                    ChunkType::Cite if !options.no_cites => {
-                        let (n, cite, bib) = decode_numbered_cite(file, entry, &cite_numbers)?;
-                        let label = cite
-                            .label
-                            .as_deref()
-                            .filter(|s| !s.is_empty())
-                            .unwrap_or(bib.cite_key.as_str());
-                        let label = if label.is_empty() { "unknown" } else { label };
-                        let mut block = format_pandoc_cite(label);
-                        if !cite.quote.trim().is_empty() {
-                            block.push(' ');
-                            block.push('"');
-                            block.push_str(cite.quote.trim());
-                            block.push('"');
-                        }
-                        parts.push(block);
-                        bib_items.push((n, bib));
-                    }
-                    ChunkType::Slide => {
-                        let slide = decode_slide_entry(file, entry)?;
-                        let mut block = format!("<!-- slide layout={} -->", slide.layout_id);
-                        for region in &slide.regions {
-                            let _ = write!(block, "\n[{}]: chunk-{}", region.name, region.chunk_id);
-                        }
-                        parts.push(block);
-                    }
-                    ChunkType::Attachment => {
-                        let att = decode_attachment_entry(file, entry)?;
-                        let mut block = format!(
-                            "*Attachment:* `{}` (`{}`)",
-                            att.filename.replace('`', "'"),
-                            att.media_type
-                        );
-                        if let Some(caption) = att.caption.as_deref() {
-                            block.push_str(" — ");
-                            block.push_str(caption.trim());
-                        }
-                        parts.push(block);
-                    }
-                    _ => {}
-                }
+                push_markdown_non_text(
+                    &mut parts,
+                    &mut bib_items,
+                    file,
+                    entry,
+                    other,
+                    options,
+                    &cite_numbers,
+                )?;
             }
         }
     }
-    if !bib_items.is_empty() {
-        bib_items.sort_by_key(|(n, _)| *n);
-        let mut refs = String::from("## References\n");
-        for (n, entry) in &bib_items {
-            let _ = writeln!(refs, "{}", format_numeric_reference(*n, entry));
-        }
-        parts.push(refs.trim_end().to_owned());
-    }
+    append_markdown_references(&mut parts, &mut bib_items);
     let mut out = parts.join("\n\n");
     if !out.is_empty() {
         out.push('\n');
     }
     Ok(out)
+}
+
+fn push_markdown_non_text(
+    parts: &mut Vec<String>,
+    bib_items: &mut Vec<(usize, BibEntry)>,
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    kind: ChunkType,
+    options: &ExportOptions,
+    cite_numbers: &std::collections::HashMap<u64, usize>,
+) -> Result<()> {
+    match kind {
+        ChunkType::Figure => {
+            parts.push(markdown_figure_block(&decode_figure_entry(file, entry)?));
+        }
+        ChunkType::Cite if !options.no_cites => {
+            let (n, cite, bib) = decode_numbered_cite(file, entry, cite_numbers)?;
+            parts.push(markdown_cite_block(&cite, &bib));
+            bib_items.push((n, bib));
+        }
+        ChunkType::Slide => {
+            parts.push(markdown_slide_block(&decode_slide_entry(file, entry)?));
+        }
+        ChunkType::Attachment => {
+            parts.push(markdown_attachment_block(&decode_attachment_entry(
+                file, entry,
+            )?));
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn markdown_wrap_title_caption(title: Option<&str>, body: &str, caption: Option<&str>) -> String {
+    let mut block = String::new();
+    if let Some(title) = title.filter(|s| !s.is_empty()) {
+        block.push_str("**");
+        block.push_str(title.trim());
+        block.push_str("**\n\n");
+    }
+    block.push_str(body);
+    if let Some(caption) = caption.filter(|s| !s.is_empty()) {
+        block.push_str("\n\n*");
+        block.push_str(caption.trim());
+        block.push('*');
+    }
+    block
+}
+
+fn markdown_text_block(
+    header: &TextHeader,
+    body: &str,
+    links: &[crate::catalog::LinkEntry],
+    ordered_index: Option<u32>,
+) -> String {
+    let rendered = header.render_markdown_with_links_indexed(body, links, ordered_index);
+    markdown_wrap_title_caption(
+        header.title.as_deref(),
+        &rendered,
+        header.caption.as_deref(),
+    )
+}
+
+fn markdown_figure_block(figure: &FigureRef) -> String {
+    let mut body = String::new();
+    let _ = write!(
+        body,
+        "![{}](media:{})",
+        markdown_escape_alt(&figure.alt_text),
+        figure.image_chunk_id
+    );
+    markdown_wrap_title_caption(figure.title.as_deref(), &body, figure.caption.as_deref())
+}
+
+fn markdown_cite_block(cite: &CitePayload, bib: &BibEntry) -> String {
+    let label = cite
+        .label
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(bib.cite_key.as_str());
+    let label = if label.is_empty() { "unknown" } else { label };
+    let mut block = format_pandoc_cite(label);
+    if !cite.quote.trim().is_empty() {
+        block.push(' ');
+        block.push('"');
+        block.push_str(cite.quote.trim());
+        block.push('"');
+    }
+    block
+}
+
+fn markdown_slide_block(slide: &crate::catalog::slide::SlidePayload) -> String {
+    let mut block = format!("<!-- slide layout={} -->", slide.layout_id);
+    for region in &slide.regions {
+        let _ = write!(block, "\n[{}]: chunk-{}", region.name, region.chunk_id);
+    }
+    block
+}
+
+fn markdown_attachment_block(att: &AttachmentPayload) -> String {
+    let mut block = format!(
+        "*Attachment:* `{}` (`{}`)",
+        att.filename.replace('`', "'"),
+        att.media_type
+    );
+    if let Some(caption) = att.caption.as_deref() {
+        block.push_str(" — ");
+        block.push_str(caption.trim());
+    }
+    block
+}
+
+fn append_markdown_references(parts: &mut Vec<String>, bib_items: &mut [(usize, BibEntry)]) {
+    if bib_items.is_empty() {
+        return;
+    }
+    bib_items.sort_by_key(|(n, _)| *n);
+    let mut refs = String::from("## References\n");
+    for (n, entry) in bib_items.iter() {
+        let _ = writeln!(refs, "{}", format_numeric_reference(*n, entry));
+    }
+    parts.push(refs.trim_end().to_owned());
 }
 
 fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -562,11 +653,16 @@ fn render_text_chunk_html(
                 .as_deref()
                 .map(|l| format!(" class=\"language-{}\"", escape_html(l)))
                 .unwrap_or_default();
-            format!(
-                "  <pre data-chunk-id=\"{chunk_id}\"{class}><code{lang}>{escaped}</code></pre>\n"
-            )
+            let mut html = text_title_html(header.title.as_deref());
+            let _ = writeln!(
+                html,
+                "  <pre data-chunk-id=\"{chunk_id}\"{class}><code{lang}>{escaped}</code></pre>"
+            );
+            html.push_str(&text_caption_html(header.caption.as_deref()));
+            html
         }
         TextRole::Table => {
+            let mut html = text_title_html(header.title.as_deref());
             if let Some(table) = &header.table {
                 let mut rows = String::new();
                 for (i, row) in table.rows.iter().enumerate() {
@@ -577,9 +673,10 @@ fn render_text_chunk_html(
                     });
                     let _ = write!(rows, "<tr>{cells}</tr>");
                 }
-                format!(
-                    "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>\n"
-                )
+                let _ = writeln!(
+                    html,
+                    "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>"
+                );
             } else {
                 let rows = body.lines().fold(String::new(), |mut acc, line| {
                     let cells = line.split('\t').fold(String::new(), |mut acc, cell| {
@@ -589,13 +686,35 @@ fn render_text_chunk_html(
                     let _ = write!(acc, "<tr>{cells}</tr>");
                     acc
                 });
-                format!(
-                    "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>\n"
-                )
+                let _ = writeln!(
+                    html,
+                    "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>"
+                );
             }
+            html.push_str(&text_caption_html(header.caption.as_deref()));
+            html
         }
-        TextRole::Math => render_math_html(chunk_id, body, &class, true),
+        TextRole::Math => {
+            let mut html = text_title_html(header.title.as_deref());
+            html.push_str(&render_math_html(chunk_id, body, &class, true));
+            html.push_str(&text_caption_html(header.caption.as_deref()));
+            html
+        }
     }
+}
+
+fn text_title_html(title: Option<&str>) -> String {
+    title
+        .filter(|s| !s.is_empty())
+        .map(|t| format!("  <p class=\"tes-title\">{}</p>\n", escape_html(t)))
+        .unwrap_or_default()
+}
+
+fn text_caption_html(caption: Option<&str>) -> String {
+    caption
+        .filter(|s| !s.is_empty())
+        .map(|c| format!("  <p class=\"tes-caption\">{}</p>\n", escape_html(c)))
+        .unwrap_or_default()
 }
 
 /// Coalesce consecutive list-item chunks into real `<ul>` / `<ol>` trees.
@@ -881,10 +1000,21 @@ fn render_figure_html(
     };
 
     let mut html = format!(
-        "  <figure data-chunk-id=\"{}\" data-image-chunk=\"{}\" data-placement=\"{}\"{region}>\n    <img src=\"{}\" alt=\"{}\"{dims}>\n",
+        "  <figure data-chunk-id=\"{}\" data-image-chunk=\"{}\" data-placement=\"{}\"{region}>\n",
         entry.chunk_id,
         figure.image_chunk_id,
         figure.placement.as_str(),
+    );
+    if let Some(title) = figure.title.as_deref().filter(|s| !s.is_empty()) {
+        let _ = writeln!(
+            html,
+            "    <p class=\"tes-title\">{}</p>",
+            escape_html(title)
+        );
+    }
+    let _ = writeln!(
+        html,
+        "    <img src=\"{}\" alt=\"{}\"{dims}>",
         escape_html(&src),
         escape_html(&figure.alt_text),
     );
@@ -1034,6 +1164,8 @@ struct ChunkJsonlRow<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     alt_text: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     caption: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     placement: Option<&'a str>,
@@ -1122,6 +1254,7 @@ impl<'a> ChunkJsonlRow<'a> {
             resolved_text: None,
             image_chunk_id: None,
             alt_text: None,
+            title: None,
             caption: None,
             placement: None,
             media_type: None,
@@ -1160,6 +1293,8 @@ fn append_jsonl_text(
     }
     row.byte_len = Some(body.len());
     row.text = Some(&body);
+    row.title = header.title.as_deref();
+    row.caption = header.caption.as_deref();
     push_jsonl_row(out, &row)
 }
 
@@ -1213,6 +1348,7 @@ fn append_jsonl_figure(
     let mut row = ChunkJsonlRow::bare(doc_id, doc_title, entry.chunk_id, "figure");
     row.image_chunk_id = Some(figure.image_chunk_id);
     row.alt_text = Some(figure.alt_text.as_str());
+    row.title = figure.title.as_deref();
     row.caption = figure.caption.as_deref();
     row.placement = Some(figure.placement.as_str());
     row.media_type = media_type.as_deref();
@@ -1278,7 +1414,9 @@ pub enum AiPart {
         data: Vec<u8>,
         /// Alt text from the figure (or empty for bare image).
         alt_text: String,
-        /// Optional caption.
+        /// Optional title above the figure.
+        title: Option<String>,
+        /// Optional caption under the figure.
         caption: Option<String>,
     },
 }
@@ -1318,6 +1456,7 @@ pub fn export_ai_parts(file: &TesFile, options: &ExportOptions) -> Result<Vec<Ai
                     height_px: image.height_px,
                     data: image.data,
                     alt_text: figure.alt_text,
+                    title: figure.title,
                     caption: figure.caption,
                 });
             }
@@ -1864,6 +2003,39 @@ mod tests {
     }
 
     #[test]
+    fn html_renders_text_block_captions() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("captions.tes");
+        let mut s = TesWriterSession::create(&path, DocKind::Document);
+        s.set_catalog(DocumentCatalog::new(
+            "a90e8400-e29b-41d4-a716-4466554400aa",
+            "Captions",
+            "2026-08-04T00:00:00Z",
+            "2026-08-04T00:00:00Z",
+            DocKind::Document,
+        ))
+        .unwrap();
+        let mut code = TextHeader::code_block(Some("rust"));
+        code.caption = Some("Snippet".into());
+        s.add_text_chunk(&code, "fn main() {}").unwrap();
+        let mut math = TextHeader::math();
+        math.caption = Some("Identity".into());
+        s.add_text_chunk(&math, "a = a").unwrap();
+        s.commit().unwrap();
+
+        let file = crate::catalog::TesFile::open(&path).unwrap();
+        let html = export_file(&file, ExportView::Html, &ExportOptions::default()).unwrap();
+        assert!(
+            html.contains("<p class=\"tes-caption\">Snippet</p>"),
+            "{html}"
+        );
+        assert!(
+            html.contains("<p class=\"tes-caption\">Identity</p>"),
+            "{html}"
+        );
+    }
+
+    #[test]
     fn annotate_ai_text() {
         let dir = tempdir().unwrap();
         let path = write_note(dir.path());
@@ -1908,6 +2080,7 @@ mod tests {
         s.add_figure(&FigureRef {
             image_chunk_id: image_id,
             alt_text: "Square crop".into(),
+            title: None,
             caption: Some("First use".into()),
             placement: ImagePlacement::Flow,
         })
@@ -1915,6 +2088,7 @@ mod tests {
         s.add_figure(&FigureRef {
             image_chunk_id: image_id,
             alt_text: "Square crop again".into(),
+            title: None,
             caption: Some("Second use, full width".into()),
             placement: ImagePlacement::FullWidth,
         })
@@ -1931,8 +2105,8 @@ mod tests {
         assert_eq!(html.matches("data:image/jpeg;base64,").count(), 2);
 
         let md = export_file(&file, ExportView::Markdown, &ExportOptions::default()).unwrap();
-        assert!(md.contains("![Square crop](media:chunk-2)"));
-        assert!(md.contains("![Square crop again](media:chunk-2)"));
+        assert!(md.contains("![Square crop](media:2)"));
+        assert!(md.contains("![Square crop again](media:2)"));
 
         let parts = export_ai_parts(&file, &ExportOptions::default()).unwrap();
         assert!(matches!(parts[0], AiPart::Text(_)));

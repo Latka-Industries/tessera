@@ -179,39 +179,48 @@ fn add_text_roles_quote_code_math_table(session: &mut TesWriterSession) {
             "Tessprek is a projection wire, not the authoring UX.",
         )
         .expect("quote");
+    let mut code = TextHeader::code_block(Some("rust"));
+    code.caption = Some("Role enum sketch".into());
     session
         .add_text_chunk(
-            &TextHeader::code_block(Some("rust")),
+            &code,
             "fn chunk_roles() -> &'static [&'static str] {\n    &[\"heading\", \"paragraph\", \"list_item\"]\n}",
         )
         .expect("code");
-    session
-        .add_text_chunk(&TextHeader::math(), r"\sum_{i=1}^{n} i = \frac{n(n+1)}{2}")
-        .expect("math");
+    let mut mermaid = TextHeader::code_block(Some("mermaid"));
+    mermaid.caption = Some("Role pipeline".into());
     session
         .add_text_chunk(
-            &TextHeader::table(TableData {
-                rows: vec![
-                    TableRow {
-                        cells: vec![cell("Role", true), cell("Markdown cue", true)],
-                    },
-                    TableRow {
-                        cells: vec![cell("heading", false), cell("# Title", false)],
-                    },
-                    TableRow {
-                        cells: vec![cell("list_item", false), cell("- / 1.", false)],
-                    },
-                    TableRow {
-                        cells: vec![cell("code_block", false), cell("```lang", false)],
-                    },
-                    TableRow {
-                        cells: vec![cell("math", false), cell("$$ … $$", false)],
-                    },
-                ],
-            }),
-            "",
+            &mermaid,
+            "flowchart TD\n    MD[Markdown] --> TP[Tessprek]\n    TP --> TES[.tes]",
         )
-        .expect("table");
+        .expect("mermaid");
+    let mut math = TextHeader::math();
+    math.caption = Some("Gauss sum".into());
+    session
+        .add_text_chunk(&math, r"\sum_{i=1}^{n} i = \frac{n(n+1)}{2}")
+        .expect("math");
+    let mut table = TextHeader::table(TableData {
+        rows: vec![
+            TableRow {
+                cells: vec![cell("Role", true), cell("Markdown cue", true)],
+            },
+            TableRow {
+                cells: vec![cell("heading", false), cell("# Title", false)],
+            },
+            TableRow {
+                cells: vec![cell("list_item", false), cell("- / 1.", false)],
+            },
+            TableRow {
+                cells: vec![cell("code_block", false), cell("```lang", false)],
+            },
+            TableRow {
+                cells: vec![cell("math", false), cell("$$ … $$", false)],
+            },
+        ],
+    });
+    table.caption = Some("Role ↔ Markdown cues".into());
+    session.add_text_chunk(&table, "").expect("table");
 }
 
 /// Multi-section research-style note with cite + table (`field_notes.tes`).
@@ -312,43 +321,40 @@ fn add_field_notes_scorecard_method_cite(session: &mut TesWriterSession) {
     session
         .add_text_chunk(&TextHeader::heading(2), "Rough scorecard")
         .expect("h2t");
-    session
-        .add_text_chunk(
-            &TextHeader::table(TableData {
-                rows: vec![
-                    TableRow {
-                        cells: vec![
-                            cell("Surface", true),
-                            cell("Trials", true),
-                            cell("Next step", true),
-                        ],
-                    },
-                    TableRow {
-                        cells: vec![
-                            cell("Headings", false),
-                            cell("3", false),
-                            cell("Keep H1/H2 split", false),
-                        ],
-                    },
-                    TableRow {
-                        cells: vec![
-                            cell("Tables", false),
-                            cell("1", false),
-                            cell("Caption round-trip check", false),
-                        ],
-                    },
-                    TableRow {
-                        cells: vec![
-                            cell("Cites", false),
-                            cell("2", false),
-                            cell("Label + page stub", false),
-                        ],
-                    },
+    let mut scorecard = TextHeader::table(TableData {
+        rows: vec![
+            TableRow {
+                cells: vec![
+                    cell("Surface", true),
+                    cell("Trials", true),
+                    cell("Next step", true),
                 ],
-            }),
-            "",
-        )
-        .expect("table");
+            },
+            TableRow {
+                cells: vec![
+                    cell("Headings", false),
+                    cell("3", false),
+                    cell("Keep H1/H2 split", false),
+                ],
+            },
+            TableRow {
+                cells: vec![
+                    cell("Tables", false),
+                    cell("1", false),
+                    cell("Caption round-trip check", false),
+                ],
+            },
+            TableRow {
+                cells: vec![
+                    cell("Cites", false),
+                    cell("2", false),
+                    cell("Label + page stub", false),
+                ],
+            },
+        ],
+    });
+    scorecard.caption = Some("Week-1 encoding scorecard".into());
+    session.add_text_chunk(&scorecard, "").expect("table");
     session
         .add_text_chunk(&TextHeader::heading(2), "Method note")
         .expect("h2m");
@@ -358,15 +364,19 @@ fn add_field_notes_scorecard_method_cite(session: &mut TesWriterSession) {
             "Chunk growth vs baseline size is summarized with a simple ratio once both encodes exist:",
         )
         .expect("method");
+    let mut math = TextHeader::math();
+    math.caption = Some("Relative size delta".into());
     session
         .add_text_chunk(
-            &TextHeader::math(),
+            &math,
             r"\Delta = \frac{S_{\mathrm{after}} - S_{\mathrm{before}}}{S_{\mathrm{before}}}",
         )
         .expect("math");
+    let mut code = TextHeader::code_block(Some("bash"));
+    code.caption = Some("Export and verify".into());
     session
         .add_text_chunk(
-            &TextHeader::code_block(Some("bash")),
+            &code,
             "tes export field_notes.tes --markdown -o /tmp/field_notes.md\ntes verify --deep field_notes.tes",
         )
         .expect("code");
@@ -452,6 +462,7 @@ fn add_studio_visual_slide(session: &mut TesWriterSession) {
         .add_figure(&FigureRef {
             image_chunk_id: image_id,
             alt_text: "Placeholder hero pixel".into(),
+            title: None,
             caption: Some("Fixture PNG standing in for a hero still.".into()),
             placement: ImagePlacement::Flow,
         })
@@ -515,6 +526,123 @@ fn add_studio_assets_slide(session: &mut TesWriterSession) {
         )
         .expect("add attachment");
     session.add_slide(&title_body_slide(9, 10)).expect("slide3");
+}
+
+/// Every caption surface in one note (`block_captions.tes`).
+///
+/// Covers `\text{caption=…}` targets (table / math / code / mermaid) plus
+/// figure and attachment captions so Tessprek edit-read shows the full set.
+///
+/// # Panics
+///
+/// Panics if catalog setup or encoding fails.
+#[must_use]
+pub fn encode_block_captions() -> Vec<u8> {
+    let mut session = TesWriterSession::create("block_captions.tes", DocKind::Note);
+    let mut cat = catalog(
+        "aa0e8400-e29b-41d4-a716-446655440104",
+        "Block captions",
+        "2026-08-04T00:00:00Z",
+        "2026-08-04T00:00:00Z",
+        DocKind::Note,
+        &["sample", "captions", "browse"],
+    );
+    cat.language = Some("en".into());
+    session.set_catalog(cat).expect("catalog");
+
+    session
+        .add_text_chunk(&TextHeader::heading(1), "Block captions")
+        .expect("h1");
+    session
+        .add_text_chunk(
+            &TextHeader::paragraph(),
+            "One container for every caption-bearing chunk type: table, math, code (incl. mermaid), figure, and attachment.",
+        )
+        .expect("intro");
+
+    let mut code = TextHeader::code_block(Some("rust"));
+    code.title = Some("Listing: greet".into());
+    code.caption = Some("Prints a short hello.".into());
+    session
+        .add_text_chunk(&code, "fn greet() {\n    println!(\"hi\");\n}")
+        .expect("code");
+
+    let mut mermaid = TextHeader::code_block(Some("mermaid"));
+    mermaid.title = Some("Encode path".into());
+    mermaid.caption = Some("Author saves; Tessera returns a .tes.".into());
+    session
+        .add_text_chunk(
+            &mermaid,
+            "sequenceDiagram\n    participant A as Author\n    participant T as Tessera\n    A->>T: save\n    T-->>A: .tes",
+        )
+        .expect("mermaid");
+
+    let mut math = TextHeader::math();
+    math.title = Some("Pythagoras".into());
+    math.caption = Some("Right-triangle identity.".into());
+    session
+        .add_text_chunk(&math, r"a^2 + b^2 = c^2")
+        .expect("math");
+
+    let mut table = TextHeader::table(TableData {
+        rows: vec![
+            TableRow {
+                cells: vec![cell("Surface", true), cell("Wire", true)],
+            },
+            TableRow {
+                cells: vec![
+                    cell("table / math / code", false),
+                    cell("TextHeader.title + caption", false),
+                ],
+            },
+            TableRow {
+                cells: vec![
+                    cell("figure", false),
+                    cell("FigureRef.title + caption", false),
+                ],
+            },
+            TableRow {
+                cells: vec![
+                    cell("attachment", false),
+                    cell("AttachmentPayload.caption", false),
+                ],
+            },
+        ],
+    });
+    table.title = Some("Caption fields".into());
+    table.caption = Some("Title sits above; caption sits below.".into());
+    session.add_text_chunk(&table, "").expect("table");
+
+    let image_id = session
+        .add_image_chunk(&ImagePayload {
+            media_type: "image/png".into(),
+            width_px: 1,
+            height_px: 1,
+            data: PNG_1X1.to_vec(),
+        })
+        .expect("image");
+    session
+        .add_figure(&FigureRef {
+            image_chunk_id: image_id,
+            alt_text: "One red pixel".into(),
+            title: Some("Fixture PNG".into()),
+            caption: Some("Stands in for a figure still.".into()),
+            placement: ImagePlacement::Flow,
+        })
+        .expect("figure");
+    session
+        .add_attachment_chunk(
+            &AttachmentPayload::new(
+                "application/pdf",
+                "caption-notes.pdf",
+                b"%PDF-1.4 block captions".to_vec(),
+                Some("Attachment: sample notes".into()),
+            )
+            .expect("attachment"),
+        )
+        .expect("add attachment");
+
+    session.encode_file().expect("block_captions")
 }
 
 /// Multi-chapter manuscript for `--chapter` / beta-reader PDF (`manuscript_chapters.tes`).
@@ -595,6 +723,7 @@ pub fn write_all(dir: &Path) -> Result<()> {
         ("text_roles.tes", encode_text_roles()),
         ("field_notes.tes", encode_field_notes()),
         ("studio_brief.tes", encode_studio_brief()),
+        ("block_captions.tes", encode_block_captions()),
         ("manuscript_chapters.tes", encode_manuscript_chapters()),
     ];
     for (name, bytes) in files {

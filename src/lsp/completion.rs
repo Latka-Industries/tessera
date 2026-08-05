@@ -78,12 +78,18 @@ fn command_snippet(surface: &str) -> (String, &'static str) {
             "document header",
         ),
         "ids" => ("\\ids{${1:1}}$0".into(), "reading-order chunk ids"),
+        "media" => (
+            "\\media{\n  id=${1:1}\n  media_type=${2:image/png}\n  sha256=${3:}\n  width=${4:0}\n  height=${5:0}\n}$0"
+                .into(),
+            "media payload header (media:N targets)",
+        ),
         "text" => (
-            "\\text{${1:class=\"\"}}$0".into(),
-            "preserve class/lang/align",
+            "\\text{${1:title=\"\" caption=\"\"}}$0".into(),
+            "title/caption/class/lang/align",
         ),
         "figure" => (
-            "\\figure{image=${1:1} placement=${2:flow} caption=\"${3:}\"}$0".into(),
+            "\\figure{\n  image=${1:1}\n  placement=${2:flow}\n  alt=\"${3:}\"\n  title=\"${4:}\"\n  caption=\"${5:}\"\n}$0"
+                .into(),
             "figure directive",
         ),
         "cite" => ("\\cite{label=${1:Key}}$0".into(), "cite / quote block"),
@@ -148,11 +154,12 @@ fn open_brace_context(prefix: &str) -> Option<(&str, &str)> {
 fn attr_keys_for(cmd: &str) -> Option<&'static [&'static str]> {
     Some(match cmd {
         "tessera" => TESSERA_HEADER_KEYS,
-        "text" => &["class", "lang", "align", "code_lang"],
-        "figure" => &["image", "placement", "region", "caption"],
+        "text" => &["title", "caption", "class", "lang", "align", "code_lang"],
+        "figure" => &["image", "placement", "alt", "region", "title", "caption"],
         "cite" => &["label", "key", "target_doc", "target_chunk", "page"],
         "slide" => &["layout", "regions"],
         "attach" => &["filename", "media_type", "sha256", "caption"],
+        "media" => &["id", "media_type", "sha256", "width", "height"],
         _ => return None,
     })
 }
