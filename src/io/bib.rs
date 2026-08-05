@@ -341,7 +341,7 @@ pub fn import_bibliography(
     session.set_catalog(catalog)?;
     for entry in &entries {
         let cite = CitePayload {
-            quote: entry.title.clone().unwrap_or_default(),
+            quote: String::new(),
             target_doc_id: None,
             target_chunk_id: None,
             target_byte_start: None,

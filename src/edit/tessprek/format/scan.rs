@@ -56,7 +56,7 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
                         preserve: Some(map),
                     });
                 }
-                "slide" | "attachment" => {
+                "slide" | "attachment" | "cite" | "quote" | "ref" => {
                     segments.push(Segment::Directive {
                         start,
                         end: i,

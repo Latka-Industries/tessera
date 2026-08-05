@@ -4,37 +4,6 @@ use crate::catalog::media::ImagePlacement;
 use crate::catalog::slide::SlideRegion;
 use crate::error::{Result, TesError};
 
-/// Render a `CitePayload.quote` as a Markdown-blockquote-styled body.
-pub(super) fn render_quote_body(quote: &str) -> String {
-    let trimmed = quote.trim_end();
-    if trimmed.is_empty() {
-        return String::from(">");
-    }
-    trimmed
-        .lines()
-        .map(|l| {
-            if l.is_empty() {
-                ">".to_owned()
-            } else {
-                format!("> {l}")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// Strip the `> ` blockquote styling from a `\cite{}` body.
-pub(super) fn strip_quote_body(body: &str) -> String {
-    body.lines()
-        .map(|line| {
-            line.strip_prefix("> ")
-                .or_else(|| line.strip_prefix('>'))
-                .unwrap_or(line)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 pub(super) fn parse_figure_markdown(body: &str, line_no: usize) -> Result<(String, Option<u64>)> {
     let body = body.trim();
     // ![alt](media:N) — also accept legacy `media:chunk-N`

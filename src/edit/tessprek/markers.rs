@@ -34,8 +34,12 @@ pub const MEDIA_PREFIX: &str = "\\media{";
 pub const TEXT_PREFIX: &str = "\\text{";
 /// Figure directive: `\figure{image=… placement=… alt=…}` (no Markdown body).
 pub const FIGURE_PREFIX: &str = "\\figure{";
-/// Cite directive: `\cite{label=… target_chunk=… [target_byte_start=…] …}` + quote body.
+/// Cite directive: bibliography stub `\cite{label=… [author=…] …}` (attrs only).
 pub const CITE_PREFIX: &str = "\\cite{";
+/// Quote directive: passage from a doc/chunk `\quote{target_… quote="…"}`.
+pub const QUOTE_PREFIX: &str = "\\quote{";
+/// Ref directive: pointer to a doc/chunk `\ref{target_…}` (no excerpt).
+pub const REF_PREFIX: &str = "\\ref{";
 /// Slide directive: `\slide{layout=… regions=…}`.
 pub const SLIDE_PREFIX: &str = "\\slide{";
 /// Attachment directive: `\attach{filename=… media_type=… sha256=…}`.
@@ -47,15 +51,34 @@ pub const BRACE_SUFFIX: &str = "}";
 pub const TEXT_ATTR_KEYS: &[&str] = &["title", "caption", "class", "lang", "align", "code_lang"];
 /// Preferred attribute keys for `\figure{…}`.
 pub const FIGURE_ATTR_KEYS: &[&str] = &["image", "placement", "alt", "region", "title", "caption"];
-/// Preferred attribute keys for `\cite{…}` (includes ranged target spans).
+/// Preferred attribute keys for bibliography `\cite{…}`.
 pub const CITE_ATTR_KEYS: &[&str] = &[
     "label",
     "key",
+    "entry_type",
+    "author",
+    "title",
+    "journal",
+    "year",
+    "volume",
+    "number",
+    "pages",
+    "doi",
+    "publisher",
+    "note",
+    "howpublished",
+    "url",
+    "page",
+];
+/// Preferred attribute keys for `\quote{…}` / `\ref{…}`.
+pub const QUOTE_ATTR_KEYS: &[&str] = &[
+    "label",
     "target_doc",
     "target_chunk",
     "target_byte_start",
     "target_byte_end",
     "page",
+    "quote",
 ];
 /// Preferred attribute keys for `\slide{…}`.
 pub const SLIDE_ATTR_KEYS: &[&str] = &["layout", "regions"];
@@ -72,6 +95,7 @@ pub fn command_attr_keys(kind: &str) -> Option<&'static [&'static str]> {
         "text" => TEXT_ATTR_KEYS,
         "figure" => FIGURE_ATTR_KEYS,
         "cite" => CITE_ATTR_KEYS,
+        "quote" | "ref" => QUOTE_ATTR_KEYS,
         "slide" => SLIDE_ATTR_KEYS,
         "attach" | "attachment" => ATTACH_ATTR_KEYS,
         "media" => MEDIA_ATTR_KEYS,
@@ -92,6 +116,8 @@ pub const BODY_COMMANDS: &[(&str, &str)] = &[
     (TEXT_PREFIX, "text"),
     (FIGURE_PREFIX, "figure"),
     (CITE_PREFIX, "cite"),
+    (QUOTE_PREFIX, "quote"),
+    (REF_PREFIX, "ref"),
     (SLIDE_PREFIX, "slide"),
     (ATTACH_PREFIX, "attachment"),
 ];

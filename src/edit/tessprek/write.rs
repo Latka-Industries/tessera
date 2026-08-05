@@ -5,15 +5,17 @@ use crate::catalog::chunk::{OrderedListNumbering, TextHeader};
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::SlidePayload;
 use crate::catalog::{CitePayload, InlineKind, InlineSpan, LinkEntry, LinkKind, OutboundLink};
-use crate::io::cite::{PendingCite, cite_key_from_payload, cite_key_or_fallback};
+use crate::io::cite::{
+    CiteTessprekKind, PendingCite, cite_key_from_payload, cite_key_or_fallback, classify_cite,
+};
 
 use super::super::ContentBlock;
 use super::markers::{
     ATTACH_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX, MEDIA_PREFIX,
-    SLIDE_PREFIX, TESSERA_PREFIX, TEXT_PREFIX, VERSION,
+    QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX, TEXT_PREFIX, VERSION,
 };
 use super::types::{TessprekDocMeta, TessprekMediaEntry};
-use super::util::{kv_attr, quoted_attr, render_quote_body};
+use super::util::{kv_attr, quoted_attr};
 
 /// Encode typed content blocks as Tessprek v2.
 ///
@@ -84,9 +86,8 @@ pub fn encode_content_blocks(
                         out.push('\n');
                     }
                     ContentBlock::Cite { cite, .. } => {
-                        write_cite_directive(&mut out, cite);
-                        out.push_str(&render_quote_body(&cite.quote));
-                        out.push_str("\n\n");
+                        write_cite_family(&mut out, cite);
+                        out.push('\n');
                     }
                     ContentBlock::Slide { slide, .. } => {
                         write_slide_directive(&mut out, slide);
@@ -331,7 +332,53 @@ fn write_figure_directive(out: &mut String, figure: &FigureRef) {
     write_brace_block(out, FIGURE_PREFIX, &parts);
 }
 
-fn write_cite_directive(out: &mut String, cite: &CitePayload) {
+fn write_cite_family(out: &mut String, cite: &CitePayload) {
+    match classify_cite(cite) {
+        CiteTessprekKind::Biblio => write_brace_block(out, CITE_PREFIX, &biblio_attr_parts(cite)),
+        CiteTessprekKind::Quote => write_brace_block(out, QUOTE_PREFIX, &quote_attr_parts(cite)),
+        CiteTessprekKind::Ref => write_brace_block(out, REF_PREFIX, &target_attr_parts(cite)),
+    }
+}
+
+fn biblio_attr_parts(cite: &CitePayload) -> Vec<String> {
+    let mut parts = Vec::new();
+    if let Some(label) = cite.label.as_deref() {
+        parts.push(kv_attr("label", label));
+    } else if let Some(key) = cite.source.as_ref().map(|s| s.cite_key.as_str()) {
+        parts.push(kv_attr("label", key));
+    }
+    if let Some(source) = &cite.source {
+        if source.entry_type != "misc" && !source.entry_type.is_empty() {
+            parts.push(kv_attr("entry_type", &source.entry_type));
+        }
+        push_opt_quoted(&mut parts, "author", source.author.as_deref());
+        push_opt_quoted(&mut parts, "title", source.title.as_deref());
+        push_opt_quoted(&mut parts, "journal", source.journal.as_deref());
+        push_opt(&mut parts, "year", source.year.as_deref());
+        push_opt(&mut parts, "volume", source.volume.as_deref());
+        push_opt(&mut parts, "number", source.number.as_deref());
+        push_opt_quoted(&mut parts, "pages", source.pages.as_deref());
+        push_opt(&mut parts, "doi", source.doi.as_deref());
+        push_opt_quoted(&mut parts, "publisher", source.publisher.as_deref());
+        push_opt_quoted(&mut parts, "note", source.note.as_deref());
+        push_opt_quoted(&mut parts, "howpublished", source.howpublished.as_deref());
+        push_opt_quoted(&mut parts, "url", source.url.as_deref());
+    }
+    if let Some(page) = cite.page {
+        parts.push(format!("page={page}"));
+    }
+    parts
+}
+
+fn quote_attr_parts(cite: &CitePayload) -> Vec<String> {
+    let mut parts = target_attr_parts(cite);
+    if !cite.quote.is_empty() {
+        parts.push(quoted_attr("quote", &cite.quote.replace('\n', "\\n")));
+    }
+    parts
+}
+
+fn target_attr_parts(cite: &CitePayload) -> Vec<String> {
     let mut parts = Vec::new();
     if let Some(label) = cite.label.as_deref() {
         parts.push(kv_attr("label", label));
@@ -351,7 +398,19 @@ fn write_cite_directive(out: &mut String, cite: &CitePayload) {
     if let Some(page) = cite.page {
         parts.push(format!("page={page}"));
     }
-    write_brace_block(out, CITE_PREFIX, &parts);
+    parts
+}
+
+fn push_opt(parts: &mut Vec<String>, key: &str, value: Option<&str>) {
+    if let Some(v) = value.filter(|s| !s.is_empty()) {
+        parts.push(kv_attr(key, v));
+    }
+}
+
+fn push_opt_quoted(parts: &mut Vec<String>, key: &str, value: Option<&str>) {
+    if let Some(v) = value.filter(|s| !s.is_empty()) {
+        parts.push(quoted_attr(key, v));
+    }
 }
 
 fn write_slide_directive(out: &mut String, slide: &SlidePayload) {

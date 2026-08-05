@@ -117,10 +117,11 @@ fn round_trip_figure_cite_slide_attachment() {
     assert!(text.contains("id=3"), "{text}");
     assert!(text.contains("\\media{\n"), "{text}");
     assert!(text.contains("\\figure{"), "{text}");
-    assert!(text.contains("\\cite{"), "{text}");
+    assert!(text.contains("\\quote{"), "{text}");
     assert!(text.contains("target_byte_start=0"), "{text}");
     assert!(text.contains("target_byte_end=4"), "{text}");
-    assert!(text.contains("> Some quoted text"), "{text}");
+    assert!(text.contains("quote=\"Some quoted text\""), "{text}");
+    assert!(!text.contains("> Some quoted text"), "{text}");
     assert!(text.contains("\\slide{"), "{text}");
     assert!(text.contains("\\attach{"), "{text}");
     let decoded = decode_tessprek(&text).unwrap();
@@ -326,8 +327,7 @@ fn inline_cite_key_round_trips_in_tessprek() {
 \n\
 Prior work \\cite{keller2020} established the baseline.\n\
 \n\
-\\cite{label=keller2020}\n\
-> Chunk-oriented containers help.\n\
+\\cite{label=keller2020}
 ";
     let blocks = decode_tessprek(input).unwrap();
     assert_eq!(blocks.len(), 2);
@@ -347,6 +347,8 @@ Prior work \\cite{keller2020} established the baseline.\n\
     match &blocks[1] {
         ContentBlock::Cite { cite, .. } => {
             assert_eq!(cite.label.as_deref(), Some("keller2020"));
+            assert!(cite.quote.is_empty(), "{:?}", cite.quote);
+            assert!(cite.target_chunk_id.is_none());
         }
         other => panic!("expected cite, got {other:?}"),
     }
@@ -359,6 +361,52 @@ Prior work \\cite{keller2020} established the baseline.\n\
         &[],
         &[],
     );
-    assert!(out.contains("\\cite{keller2020}"), "{out}");
+    assert!(
+        out.contains("\\cite{keller2020}") || out.contains("label=keller2020"),
+        "{out}"
+    );
     assert!(out.contains("Prior work"), "{out}");
+    assert!(!out.contains("\\quote{"), "{out}");
+}
+
+#[test]
+fn quote_and_ref_round_trip_in_tessprek() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\quote{\n\
+  label=Smith2024\n\
+  target_chunk=3\n\
+  target_byte_start=0\n\
+  target_byte_end=12\n\
+  quote=\"Hello world\"\n\
+}\n\
+\n\
+\\ref{\n\
+  target_doc=550e8400-e29b-41d4-a716-446655440040\n\
+  target_chunk=1\n\
+}\n\
+";
+    let blocks = decode_tessprek(input).unwrap();
+    assert_eq!(blocks.len(), 2);
+    match &blocks[0] {
+        ContentBlock::Cite { cite, .. } => {
+            assert_eq!(cite.quote, "Hello world");
+            assert_eq!(cite.target_chunk_id, Some(3));
+        }
+        other => panic!("expected quote cite, got {other:?}"),
+    }
+    match &blocks[1] {
+        ContentBlock::Cite { cite, .. } => {
+            assert!(cite.quote.is_empty());
+            assert_eq!(cite.target_chunk_id, Some(1));
+        }
+        other => panic!("expected ref cite, got {other:?}"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\quote{"), "{out}");
+    assert!(out.contains("\\ref{"), "{out}");
+    assert!(out.contains("quote=\"Hello world\""), "{out}");
+    assert!(!out.contains("> Hello"), "{out}");
 }
