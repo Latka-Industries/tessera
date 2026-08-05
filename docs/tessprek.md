@@ -20,7 +20,8 @@ Markdown has no syntax for.
 | Content | Wire form |
 | --- | --- |
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
-| Figure, cite (block), slide, attachment | `\figure{…}` (attrs-only) / `\cite{…}`+quote / `\slide{…}` / `\attach{…}` |
+| Figure, biblio cite, quote, ref, slide, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\attach{…}` |
+| Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Text attrs that can't live in Markdown (`class` / `lang` / `align`) | Optional `\text{…}` immediately before the Markdown block |
 | Document header | `\tessera{format=tessprek version=2 source-hash=… [doc meta…]}` |
 | Reading order | `\ids{1,2,3,6,7}` (flat list, regenerated on every encode) |
@@ -265,8 +266,9 @@ No body; attachment bytes are never projected into Tessprek (inert — see
    `OrderedListNumbering` + `TextHeader::render_markdown_with_links_indexed`
    (contiguous ordered items become `1.` / `2.` / …; nested depths restart;
    consecutive list items stay tight — one `\n`, not a blank line);
-   figure/cite/slide/attachment → brace command + body as above (no `chunk=`
-   attr on the command itself — the id lives only in `\ids{}`).
+   figure/cite/quote/ref/slide/attachment → brace command (+ body where
+   required; no `chunk=` attr on the command itself — the id lives only in
+   `\ids{}`).
 
 **Decode** (`decode_tessprek`, strict):
 
@@ -292,8 +294,10 @@ declared id) — see `src/edit/tessprek/format.rs`.
 
 ## Known limitations (locked-sketch scope)
 
-- **Inline `\cite{}` spans** are not encoded/decoded specially yet (see
-  above) — deferred under biblio / inline-cite follow-ups (THI-321+).
+- **Native PDF cite/quote/ref blocks** are still skipped in the print IR
+  builder (`ChunkType::Cite`); Chromium HTML-print shows them. Track under
+  template/print dogfood ([THI-324](https://linear.app/thicclatka/issue/THI-324))
+  or a small print-IR child — not a Tessprek codec gap.
 - **Legacy TSV-bodied tables** (`role = table` with no structured `TableData`,
   a v0 read-compat path) round-trip through v2 as a `tsv`-tagged code fence,
   not a table — extremely rare in practice since the writer always populates

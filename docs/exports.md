@@ -243,9 +243,10 @@ Generated **DOM-like** HTML5 fragment + linked theme CSS.
 
 **Mapping:** chunk `role` → element name; `class` from header JSON → `class` attribute. Presentation from theme only — **no inline styles** from exporter.
 
-**Cite markers:** block cites emit
-`<p data-chunk-id="…" class="citation" [data-target-doc] [data-target-chunk] [data-byte-start] [data-byte-end]>`
-so tooling can recover the ranged target without parsing the quote body.
+**Cite markers:** `\quote` / ranged cite blocks emit
+`<p data-chunk-id="…" class="citation" [data-target-doc] [data-target-chunk] [data-byte-start] [data-byte-end]>`;
+biblio stubs and inline `\cite{key}` use numeric / `[@key]` markers plus the
+bibliography section. Native PDF still skips cite chunks (see [print_ir.md](print_ir.md)).
 
 **Phase:** implemented in Phase 6.
 

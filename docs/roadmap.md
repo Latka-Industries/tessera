@@ -1,6 +1,8 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.2.1** continues the native-print era.
+**Status:** M0–M11 shipped; crate **0.2.4** (document-depth wire: Tessprek v2,
+captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering). Native-print
+continues via **`ariadnes-weave`**; Chromium remains the default PDF backend.
 M10 history tools (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/
 `textconv`/`blame`/`pending`/`merge-file`), layout-v1 **text wire**
 (spans/math/tables/lang), **inert attachments**, and **typed TLNK targets**
@@ -12,8 +14,9 @@ and `TesOp::SetTags` are in. **0.1.12** added parser hygiene (THI-296..299).
 **0.2.0** wires print IR → **`ariadnes-weave`** (`tes export --pdf --backend
 native`; Chromium remains default) — THI-290 / THI-294 under epic THI-256.
 **0.2.1** requires `ariadnes-weave` 0.2.2 (`TextRun.face` / pinned faces).
-Richer native layout (tables/math/decks, OS fonts) continues on that track.
-This is an implementation plan, not a release schedule.
+Richer native layout (tables/math/decks, OS fonts; cite/quote print blocks)
+continues on that track / template dogfood. This is an implementation plan,
+not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
