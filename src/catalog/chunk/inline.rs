@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::catalog::LinkEntry;
 use crate::error::{Result, TesError};
 
 /// Semantic horizontal alignment (never physical left/right).
@@ -154,7 +155,7 @@ pub(super) fn validate_spans(body: &str, spans: &[InlineSpan]) -> Result<()> {
 pub(super) fn apply_spans_markdown(
     body: &str,
     spans: &[InlineSpan],
-    links: &[crate::catalog::LinkEntry],
+    links: &[LinkEntry],
 ) -> String {
     if spans.is_empty() {
         return body.to_owned();
@@ -183,7 +184,12 @@ pub(super) fn apply_spans_markdown(
                 }
                 None => inner,
             },
-            InlineKind::Citation { .. } => inner,
+            InlineKind::Citation { cite_chunk_id } => {
+                // Placeholder — exporters that care pass a cite-aware applicator.
+                // Default: keep inner key text.
+                let _ = cite_chunk_id;
+                inner
+            }
         };
         out.replace_range(start..end, &wrapped);
     }

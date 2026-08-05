@@ -217,12 +217,10 @@ line) — a `CitePayload` chunk. Block cites are lossless, including optional
 `target_byte_start` / `target_byte_end` (half-open UTF-8 byte range on the
 target chunk body). Same-doc cites may omit `target_doc`.
 
-**Inline** `\cite{key}` spans (citation markers inside a paragraph, as
-opposed to a standalone quote chunk) are **best-effort and not implemented in
-this pass**: `InlineKind::Citation` spans still render as their plain
-underlying text (matching v1). Deferred to cite/biblio follow-ups
-([THI-321](https://linear.app/thicclatka/issue/THI-321)); does not block
-ranged block cites ([THI-320](https://linear.app/thicclatka/issue/THI-320)).
+**Inline** `\cite{key}` citation markers inside a paragraph resolve to a cite
+chunk by `label` / `source.cite_key`, store as `InlineKind::Citation`, and
+export as numbered markers (`[1]`) or Pandoc `[@key]` per catalog
+`cite_style_id` ([THI-321](https://linear.app/thicclatka/issue/THI-321)).
 
 ### `\slide{layout=ID regions="name:chunk_id[,name:chunk_id…]"}`
 

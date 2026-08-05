@@ -6,8 +6,11 @@ use crate::catalog::chunk::{CitePayload, OrderedListNumbering, TextHeader};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
 use crate::catalog::media::{AttachmentPayload, FigureRef};
+use crate::catalog::slide::SlidePayload;
+use crate::catalog::{InlineKind, LinkEntry};
 use crate::error::Result;
 use crate::io::bib::{BibEntry, format_numeric_reference, format_pandoc_cite};
+use crate::io::cite::{self, CiteProj};
 
 use super::ExportOptions;
 use super::common::{
@@ -18,6 +21,12 @@ use super::common::{
 pub(super) fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
     let entries = selected_content_entries(file, options)?;
     let cite_numbers = cite_number_map(file, &entries)?;
+    let (cite_keys, style) = cite::projection_maps(file);
+    let cite = CiteProj {
+        numbers: &cite_numbers,
+        keys: &cite_keys,
+        style,
+    };
     let mut parts = Vec::with_capacity(entries.len());
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
     let mut ordered = OrderedListNumbering::default();
@@ -31,6 +40,7 @@ pub(super) fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result
                     &body,
                     file.links(),
                     ordered_index,
+                    cite,
                 ));
             }
             other => {
@@ -105,15 +115,50 @@ fn markdown_wrap_title_caption(title: Option<&str>, body: &str, caption: Option<
 fn markdown_text_block(
     header: &TextHeader,
     body: &str,
-    links: &[crate::catalog::LinkEntry],
+    links: &[LinkEntry],
     ordered_index: Option<u32>,
+    cite: CiteProj<'_>,
 ) -> String {
-    let rendered = header.render_markdown_with_links_indexed(body, links, ordered_index);
+    let rendered = render_markdown_with_cites(header, body, links, ordered_index, cite);
     markdown_wrap_title_caption(
         header.title.as_deref(),
         &rendered,
         header.caption.as_deref(),
     )
+}
+
+fn render_markdown_with_cites(
+    header: &TextHeader,
+    body: &str,
+    links: &[LinkEntry],
+    ordered_index: Option<u32>,
+    cite: CiteProj<'_>,
+) -> String {
+    let mut header = header.clone();
+    let mut body = body.to_owned();
+    let mut cite_spans: Vec<_> = header
+        .spans
+        .iter()
+        .filter(|s| matches!(s.kind, InlineKind::Citation { .. }))
+        .cloned()
+        .collect();
+    cite_spans.sort_by_key(|s| std::cmp::Reverse(s.start));
+    for span in cite_spans {
+        let InlineKind::Citation { cite_chunk_id } = span.kind else {
+            continue;
+        };
+        let start = span.start as usize;
+        let end = span.end as usize;
+        if end > body.len() || start > end {
+            continue;
+        }
+        let marker = cite.marker(cite_chunk_id);
+        body.replace_range(start..end, &marker);
+    }
+    header
+        .spans
+        .retain(|s| !matches!(s.kind, InlineKind::Citation { .. }));
+    header.render_markdown_with_links_indexed(&body, links, ordered_index)
 }
 
 fn markdown_figure_block(figure: &FigureRef) -> String {
@@ -144,7 +189,7 @@ fn markdown_cite_block(cite: &CitePayload, bib: &BibEntry) -> String {
     block
 }
 
-fn markdown_slide_block(slide: &crate::catalog::slide::SlidePayload) -> String {
+fn markdown_slide_block(slide: &SlidePayload) -> String {
     let mut block = format!("<!-- slide layout={} -->", slide.layout_id);
     for region in &slide.regions {
         let _ = write!(block, "\n[{}]: chunk-{}", region.name, region.chunk_id);

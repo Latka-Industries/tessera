@@ -69,6 +69,7 @@ fn round_trip_figure_cite_slide_attachment() {
             header: TextHeader::heading(1),
             body: "Doc".into(),
             pending_links: Vec::new(),
+            pending_cites: Vec::new(),
         },
         ContentBlock::Figure {
             chunk_id: Some(2),
@@ -315,4 +316,49 @@ fn decode_rejects_v1_version() {
         }
         other => panic!("expected EditParse, got {other:?}"),
     }
+}
+
+#[test]
+fn inline_cite_key_round_trips_in_tessprek() {
+    let input = "\
+\\tessera{format=tessprek version=2 cite_style_id=numeric}\n\
+\\ids{1,2}\n\
+\n\
+Prior work \\cite{keller2020} established the baseline.\n\
+\n\
+\\cite{label=keller2020}\n\
+> Chunk-oriented containers help.\n\
+";
+    let blocks = decode_tessprek(input).unwrap();
+    assert_eq!(blocks.len(), 2);
+    match &blocks[0] {
+        ContentBlock::Text {
+            body,
+            pending_cites,
+            ..
+        } => {
+            assert!(body.contains("keller2020"), "{body}");
+            assert!(!body.contains("\\cite{"), "{body}");
+            assert_eq!(pending_cites.len(), 1);
+            assert_eq!(pending_cites[0].key, "keller2020");
+        }
+        other => panic!("expected text, got {other:?}"),
+    }
+    match &blocks[1] {
+        ContentBlock::Cite { cite, .. } => {
+            assert_eq!(cite.label.as_deref(), Some("keller2020"));
+        }
+        other => panic!("expected cite, got {other:?}"),
+    }
+    let out = encode_content_blocks(
+        &TessprekDocMeta {
+            cite_style_id: Some("numeric".into()),
+            ..TessprekDocMeta::default()
+        },
+        &blocks,
+        &[],
+        &[],
+    );
+    assert!(out.contains("\\cite{keller2020}"), "{out}");
+    assert!(out.contains("Prior work"), "{out}");
 }

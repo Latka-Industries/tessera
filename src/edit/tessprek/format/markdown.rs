@@ -1,11 +1,13 @@
 use std::collections::BTreeMap;
 
+use crate::catalog::OutboundLink;
 use crate::catalog::chunk::{TextAlign, TextHeader, TextRole};
+use crate::edit::ContentBlock;
 use crate::error::Result;
 use crate::io::import::parse_markdown_blocks;
 
+use super::super::inline_cite::extract_inline_cites;
 use super::parse_err;
-use crate::edit::ContentBlock;
 
 pub(super) fn looks_like_gfm_table(body: &str) -> bool {
     table_header_and_sep(&nonempty_trimmed_lines_str(body))
@@ -68,26 +70,16 @@ pub(super) fn split_pipe_run_into_tables(lines: &[&str]) -> Vec<String> {
     tables
 }
 
-pub(super) fn build_table_block(table_md: &str) -> ContentBlock {
+pub(super) fn build_table_block(table_md: &str) -> Result<ContentBlock> {
     let parsed = parse_markdown_blocks(table_md);
     if let Some(block) = parsed
         .into_iter()
         .find(|b| b.header.role == TextRole::Table)
     {
-        return ContentBlock::Text {
-            chunk_id: None,
-            header: block.header,
-            body: block.body,
-            pending_links: block.pending_links,
-        };
+        return text_block(None, block.header, &block.body, block.pending_links);
     }
     // Fallback: shouldn't happen since `looks_like_gfm_table` gated this call.
-    ContentBlock::Text {
-        chunk_id: None,
-        header: TextHeader::paragraph(),
-        body: table_md.trim().to_owned(),
-        pending_links: Vec::new(),
-    }
+    text_block(None, TextHeader::paragraph(), table_md.trim(), Vec::new())
 }
 
 pub(super) fn append_markdown_blocks(
@@ -105,12 +97,7 @@ pub(super) fn append_markdown_blocks(
         if let Some(map) = preserve {
             apply_preserved_attrs(&mut header, map, line_no)?;
         }
-        out.push(ContentBlock::Text {
-            chunk_id: None,
-            header,
-            body: markdown.trim().to_owned(),
-            pending_links: Vec::new(),
-        });
+        out.push(text_block(None, header, markdown.trim(), Vec::new())?);
         return Ok(());
     }
 
@@ -121,14 +108,25 @@ pub(super) fn append_markdown_blocks(
         {
             apply_preserved_attrs(&mut header, map, line_no)?;
         }
-        out.push(ContentBlock::Text {
-            chunk_id: None,
-            header,
-            body: block.body,
-            pending_links: block.pending_links,
-        });
+        out.push(text_block(None, header, &block.body, block.pending_links)?);
     }
     Ok(())
+}
+
+fn text_block(
+    chunk_id: Option<u64>,
+    header: TextHeader,
+    body: &str,
+    pending_links: Vec<OutboundLink>,
+) -> Result<ContentBlock> {
+    let (body, pending_cites) = extract_inline_cites(body)?;
+    Ok(ContentBlock::Text {
+        chunk_id,
+        header,
+        body,
+        pending_links,
+        pending_cites,
+    })
 }
 
 /// Apply `\text{class=… lang=… align=… caption=…}` attrs onto a Markdown-inferred header.

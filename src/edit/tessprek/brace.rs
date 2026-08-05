@@ -137,7 +137,9 @@ pub(crate) fn take_leading_tessera_header(lines: &[&str]) -> Result<(String, usi
     Ok((attrs, start, end))
 }
 
-fn find_unquoted_close_brace(s: &str) -> Option<usize> {
+/// Byte offset of the first `}` not inside a double-quoted attr value.
+#[must_use]
+pub(crate) fn find_unquoted_close_brace(s: &str) -> Option<usize> {
     let mut in_quote = false;
     let mut escape = false;
     for (i, ch) in s.char_indices() {

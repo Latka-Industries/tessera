@@ -13,6 +13,7 @@ mod brace;
 mod decode;
 mod encode;
 mod format;
+mod inline_cite;
 pub mod markers;
 mod types;
 mod util;

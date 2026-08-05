@@ -5,9 +5,11 @@ use std::fmt::Write as _;
 use crate::catalog::chunk::{ListKind, TextHeader, TextRole};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
-use crate::catalog::media::ImagePayload;
+use crate::catalog::media::{ImagePayload, ImagePlacement};
+use crate::catalog::{InlineKind, InlineSpan, LinkEntry};
 use crate::error::{Result, TesError};
 use crate::io::bib::{BibEntry, format_numeric_marker, format_reference_body};
+use crate::io::cite::{self, CiteProj, CiteStyle, format_inline_cite};
 
 use super::ExportOptions;
 use super::common::{
@@ -23,6 +25,12 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
 
     let entries = selected_content_entries(file, options)?;
     let cite_numbers = cite_number_map(file, &entries)?;
+    let (cite_keys, style) = cite::projection_maps(file);
+    let cite = CiteProj {
+        numbers: &cite_numbers,
+        keys: &cite_keys,
+        style,
+    };
     let doc_id = file.catalog().map_or("", |catalog| catalog.doc_id.as_str());
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
@@ -40,6 +48,7 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
                         &header,
                         &body,
                         file.links(),
+                        Some(cite),
                     );
                 } else {
                     close_all_lists(&mut article, &mut list_stack);
@@ -48,6 +57,7 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
                         &header,
                         &body,
                         file.links(),
+                        Some(cite),
                     ));
                 }
             }
@@ -152,6 +162,7 @@ fn render_region_chunk_html(
                 &header,
                 &body,
                 file.links(),
+                None,
             ))
         }
         ChunkType::Figure => render_figure_html(file, entry, options),
@@ -164,7 +175,7 @@ fn render_region_chunk_html(
         }
         ChunkType::Image => {
             let raw = file.decode_payload(entry)?;
-            let image = crate::catalog::ImagePayload::from_bytes(raw.as_ref())?;
+            let image = ImagePayload::from_bytes(raw.as_ref())?;
             let src = image_src(options, entry.chunk_id, &image.media_type, &image.data);
             Ok(format!(
                 "      <img data-chunk-id=\"{}\" src=\"{}\" alt=\"\">\n",
@@ -186,9 +197,10 @@ fn render_text_chunk_html(
     chunk_id: u64,
     header: &TextHeader,
     body: &str,
-    links: &[crate::catalog::LinkEntry],
+    links: &[LinkEntry],
+    cite: Option<CiteProj<'_>>,
 ) -> String {
-    let inner = apply_spans_html(body, &header.spans, links);
+    let inner = apply_spans_html(body, &header.spans, links, cite);
     let class = html_class_attr(&header.classes);
     match header.role {
         TextRole::Heading => {
@@ -202,7 +214,7 @@ fn render_text_chunk_html(
             // Isolated list items (e.g. slide regions) still need a wrapping list.
             let mut out = String::new();
             let mut stack = Vec::new();
-            append_list_item_html(&mut out, &mut stack, chunk_id, header, body, links);
+            append_list_item_html(&mut out, &mut stack, chunk_id, header, body, links, cite);
             close_all_lists(&mut out, &mut stack);
             out
         }
@@ -290,11 +302,12 @@ fn append_list_item_html(
     chunk_id: u64,
     header: &TextHeader,
     body: &str,
-    links: &[crate::catalog::LinkEntry],
+    links: &[LinkEntry],
+    cite: Option<CiteProj<'_>>,
 ) {
     let kind = header.list_kind.unwrap_or(ListKind::Bullet);
     let depth = header.list_depth_or_default();
-    let inner = apply_spans_html(body, &header.spans, links);
+    let inner = apply_spans_html(body, &header.spans, links, cite);
     let class = html_class_attr(&header.classes);
 
     // Close deeper nested lists.
@@ -384,16 +397,16 @@ fn render_latex_mathml(tex: &str, display: bool) -> std::result::Result<String, 
 
 fn apply_spans_html(
     body: &str,
-    spans: &[crate::catalog::InlineSpan],
-    links: &[crate::catalog::LinkEntry],
+    spans: &[InlineSpan],
+    links: &[LinkEntry],
+    cite: Option<CiteProj<'_>>,
 ) -> String {
-    use crate::catalog::InlineKind;
     if spans.is_empty() {
         return escape_html(body);
     }
 
     // Replace from the end so earlier byte offsets stay valid (non-overlapping spans).
-    let mut ordered: Vec<&crate::catalog::InlineSpan> = spans.iter().collect();
+    let mut ordered: Vec<&InlineSpan> = spans.iter().collect();
     ordered.sort_by_key(|s| std::cmp::Reverse(s.start));
     let mut work = body.to_owned();
     let mut replacements: Vec<(String, String)> = Vec::new();
@@ -434,7 +447,21 @@ fn apply_spans_html(
                 ),
                 None => escape_html(&inner),
             },
-            InlineKind::Citation { .. } => escape_html(&inner),
+            InlineKind::Citation { cite_chunk_id } => {
+                let n = cite.map_or(0, |c| c.number(*cite_chunk_id));
+                let marker = cite.map_or_else(
+                    || format_inline_cite(CiteStyle::Numeric, 0, &format!("chunk-{cite_chunk_id}")),
+                    |c| c.marker(*cite_chunk_id),
+                );
+                if n > 0 {
+                    format!(
+                        "<a href=\"#ref-{n}\"><cite>{}</cite></a>",
+                        escape_html(&marker)
+                    )
+                } else {
+                    format!("<cite>{}</cite>", escape_html(&marker))
+                }
+            }
         };
         replacements.push((token.clone(), html));
         work.replace_range(start..end, &token);
@@ -567,7 +594,7 @@ fn render_figure_html(
     }
 
     let region = match &figure.placement {
-        crate::catalog::media::ImagePlacement::Region { name } => {
+        ImagePlacement::Region { name } => {
             format!(" data-region=\"{}\"", escape_html(name))
         }
         _ => String::new(),

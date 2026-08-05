@@ -2,11 +2,14 @@
 //!
 //! Entry points: [`verify_tes_file`], [`verify_tes_file_with`], and [`verify_bytes`].
 
+use std::collections::HashMap;
 use std::path::Path;
 
+use crate::catalog::InlineKind;
+use crate::catalog::chunk::decode_text_payload;
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::index::{
-    ChunkIndexEntry, ChunkIndexHeader, Codec, ENTRY_LEN, HEADER_LEN, MAGIC as TIDX_MAGIC,
+    ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec, ENTRY_LEN, HEADER_LEN, MAGIC as TIDX_MAGIC,
 };
 use crate::catalog::link::read_link_table;
 use crate::error::Result;
@@ -76,6 +79,7 @@ pub fn verify_bytes(path: &Path, bytes: &[u8], deep: bool) -> TesVerifyReport {
     verify_slide_targets(&mut findings, &entries, bytes);
     verify_cite_mirrors(&mut findings, &entries, &superblock, bytes);
     verify_cite_ranges(&mut findings, &entries, &superblock, bytes);
+    verify_citation_spans(&mut findings, &entries, bytes);
     verify_attachment_limits(&mut findings, &entries, bytes, deep);
     verify_history_footer(&mut findings, &superblock, bytes, file_len);
 
@@ -468,6 +472,45 @@ fn verify_cite_mirrors(
                     entry.chunk_id, doc_id
                 ),
             ));
+        }
+    }
+}
+
+/// Error when a text span cites a missing or non-cite chunk.
+fn verify_citation_spans(findings: &mut Vec<Finding>, entries: &[ChunkIndexEntry], bytes: &[u8]) {
+    let by_id: HashMap<u64, &ChunkIndexEntry> = entries.iter().map(|e| (e.chunk_id, e)).collect();
+    for entry in entries {
+        if entry.chunk_type != ChunkType::Text {
+            continue;
+        }
+        let Some(payload) = payload_slice(entry, bytes) else {
+            continue;
+        };
+        let Ok((header, _)) = decode_text_payload(payload) else {
+            continue;
+        };
+        for span in &header.spans {
+            let InlineKind::Citation { cite_chunk_id } = span.kind else {
+                continue;
+            };
+            match by_id.get(&cite_chunk_id) {
+                Some(target) if target.chunk_type == ChunkType::Cite => {}
+                Some(target) => findings.push(Finding::error(
+                    "cite.span.type",
+                    format!(
+                        "text chunk {} citation span points at chunk {cite_chunk_id} type '{}'",
+                        entry.chunk_id,
+                        target.chunk_type.as_str()
+                    ),
+                )),
+                None => findings.push(Finding::error(
+                    "cite.span.target",
+                    format!(
+                        "text chunk {} citation span points at missing chunk {cite_chunk_id}",
+                        entry.chunk_id
+                    ),
+                )),
+            }
         }
     }
 }

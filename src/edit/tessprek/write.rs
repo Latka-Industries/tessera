@@ -4,7 +4,8 @@ use std::fmt::Write as _;
 use crate::catalog::chunk::{OrderedListNumbering, TextHeader};
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::SlidePayload;
-use crate::catalog::{CitePayload, InlineKind, InlineSpan, LinkKind};
+use crate::catalog::{CitePayload, InlineKind, InlineSpan, LinkEntry, LinkKind, OutboundLink};
+use crate::io::cite::{PendingCite, cite_key_from_payload, cite_key_or_fallback};
 
 use super::super::ContentBlock;
 use super::markers::{
@@ -30,9 +31,10 @@ use super::util::{kv_attr, quoted_attr, render_quote_body};
 pub fn encode_content_blocks(
     meta: &TessprekDocMeta,
     blocks: &[ContentBlock],
-    links: &[crate::catalog::LinkEntry],
+    links: &[LinkEntry],
     media: &[TessprekMediaEntry],
 ) -> String {
+    let cite_keys = cite_keys_from_blocks(blocks);
     let mut out = String::new();
     write_header(&mut out, meta);
     write_ids(&mut out, blocks);
@@ -47,12 +49,22 @@ pub fn encode_content_blocks(
                 header,
                 body,
                 pending_links,
+                pending_cites,
                 ..
             } => {
                 let ordered_index = ordered.take_for_text(header);
                 write_text_directive(&mut out, header);
                 out.push_str(
-                    render_text_body(header, body, pending_links, links, ordered_index).trim_end(),
+                    render_text_body(
+                        header,
+                        body,
+                        pending_links,
+                        pending_cites,
+                        links,
+                        &cite_keys,
+                        ordered_index,
+                    )
+                    .trim_end(),
                 );
                 // Tight lists: consecutive list items share a single newline
                 // (CommonMark). Blank line separates other blocks / list runs.
@@ -106,6 +118,21 @@ pub fn encode_content_blocks(
         }
     }
     out
+}
+
+fn cite_keys_from_blocks(blocks: &[ContentBlock]) -> std::collections::BTreeMap<u64, String> {
+    let mut map = std::collections::BTreeMap::new();
+    for block in blocks {
+        if let ContentBlock::Cite {
+            chunk_id: Some(id),
+            cite,
+        } = block
+            && let Some(key) = cite_key_from_payload(cite)
+        {
+            map.insert(*id, key);
+        }
+    }
+    map
 }
 
 fn write_brace_line(out: &mut String, prefix: &str, parts: &[String]) {
@@ -188,15 +215,59 @@ fn write_media(out: &mut String, blocks: &[ContentBlock], media: &[TessprekMedia
 fn render_text_body(
     header: &TextHeader,
     body: &str,
-    pending_links: &[crate::catalog::OutboundLink],
-    links: &[crate::catalog::LinkEntry],
+    pending_links: &[OutboundLink],
+    pending_cites: &[PendingCite],
+    links: &[LinkEntry],
+    cite_keys: &std::collections::BTreeMap<u64, String>,
     ordered_index: Option<u32>,
 ) -> String {
-    if pending_links.is_empty() {
-        return header.render_markdown_with_links_indexed(body, links, ordered_index);
+    let mut header = header.clone();
+    let mut body = body.to_owned();
+
+    // Prefer sealed Citation spans; else project pending_cites from Tessprek parse.
+    if header
+        .spans
+        .iter()
+        .any(|s| matches!(s.kind, InlineKind::Citation { .. }))
+    {
+        let mut cite_spans: Vec<&InlineSpan> = header
+            .spans
+            .iter()
+            .filter(|s| matches!(s.kind, InlineKind::Citation { .. }))
+            .collect();
+        cite_spans.sort_by_key(|s| std::cmp::Reverse(s.start));
+        for span in cite_spans {
+            let InlineKind::Citation { cite_chunk_id } = &span.kind else {
+                continue;
+            };
+            let start = span.start as usize;
+            let end = span.end as usize;
+            if end > body.len() || start > end {
+                continue;
+            }
+            let key = cite_key_or_fallback(cite_keys, *cite_chunk_id);
+            body.replace_range(start..end, &format!("\\cite{{{key}}}"));
+        }
+        header
+            .spans
+            .retain(|s| !matches!(s.kind, InlineKind::Citation { .. }));
+    } else if !pending_cites.is_empty() {
+        let mut cites: Vec<_> = pending_cites.iter().collect();
+        cites.sort_by_key(|c| std::cmp::Reverse(c.start));
+        for cite in cites {
+            let start = cite.start as usize;
+            let end = cite.end as usize;
+            if end > body.len() || start > end {
+                continue;
+            }
+            body.replace_range(start..end, &format!("\\cite{{{}}}", cite.key));
+        }
     }
 
-    let mut header = header.clone();
+    if pending_links.is_empty() {
+        return header.render_markdown_with_links_indexed(&body, links, ordered_index);
+    }
+
     let mut synthetic_links = Vec::new();
     for link in pending_links {
         let link_id = u64::try_from(synthetic_links.len()).unwrap_or(u64::MAX);
@@ -209,7 +280,7 @@ fn render_text_body(
             });
         }
     }
-    header.render_markdown_with_links_indexed(body, &synthetic_links, ordered_index)
+    header.render_markdown_with_links_indexed(&body, &synthetic_links, ordered_index)
 }
 
 /// Write `\text{title=… caption=… class=… …}` when the header carries attrs

@@ -15,14 +15,16 @@ use sha2::{Digest, Sha256};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use crate::catalog::OutboundLink;
 use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
 use crate::catalog::document::DocumentCatalog;
 use crate::catalog::history::attach_footer;
 use crate::catalog::index::ChunkType;
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload};
 use crate::catalog::slide::SlidePayload;
-use crate::catalog::{TesFile, TesWriterSession};
+use crate::catalog::{InlineKind, InlineSpan, TesFile, TesWriterSession};
 use crate::error::{Result, TesError};
+use crate::io::cite::{self, cite_key_from_payload, insert_cite_key};
 use crate::verify::{TesVerifyReport, verify_bytes, verify_tes_file};
 
 pub use ops::{CatalogPatch, TesOp, apply_ops_to_blocks, parse_ops_json};
@@ -45,7 +47,9 @@ pub enum ContentBlock {
         /// UTF-8 body.
         body: String,
         /// Outbound links over [`Self::Text::body`] (Tessprek / markdown).
-        pending_links: Vec<crate::catalog::OutboundLink>,
+        pending_links: Vec<OutboundLink>,
+        /// Inline `\cite{key}` spans over [`Self::Text::body`] (Tessprek).
+        pending_cites: Vec<cite::PendingCite>,
     },
     /// Figure chunk referencing an image payload.
     Figure {
@@ -499,10 +503,38 @@ fn compile_blocks_to_bytes(
         image_id_map.insert(*old_id, new_id);
     }
 
+    let cite_keys = predicted_cite_key_map(blocks, image_payloads.len() as u64)?;
+
     for block in blocks {
-        write_compiled_block(&mut session, source, block, &image_id_map, &bag_attachments)?;
+        write_compiled_block(
+            &mut session,
+            source,
+            block,
+            &image_id_map,
+            &bag_attachments,
+            &cite_keys,
+        )?;
     }
     session.encode_file()
+}
+
+/// Map cite keys → chunk ids that the upcoming reading-order write will assign
+/// (after `image_count` image payloads already queued).
+fn predicted_cite_key_map(
+    blocks: &[ContentBlock],
+    image_count: u64,
+) -> Result<std::collections::BTreeMap<String, u64>> {
+    let mut map = std::collections::BTreeMap::new();
+    let mut next = image_count.saturating_add(1);
+    for block in blocks {
+        if let ContentBlock::Cite { cite, .. } = block
+            && let Some(key) = cite_key_from_payload(cite)
+        {
+            insert_cite_key(&mut map, &key, next)?;
+        }
+        next = next.saturating_add(1);
+    }
+    Ok(map)
 }
 
 fn catalog_for_compile(source: &TesFile, patch: Option<&CatalogPatch>) -> DocumentCatalog {
@@ -577,16 +609,36 @@ fn write_compiled_block(
     block: &ContentBlock,
     image_id_map: &std::collections::HashMap<u64, u64>,
     bag_attachments: &std::collections::HashMap<u64, &AttachmentPayload>,
+    cite_keys: &std::collections::BTreeMap<String, u64>,
 ) -> Result<()> {
     match block {
         ContentBlock::Text {
             header,
             body,
             pending_links,
+            pending_cites,
             ..
         } => {
-            let outbound = text_outbound_links(source, header, pending_links);
-            session.add_text_with_outbound_links(header.clone(), body, &outbound)?;
+            let mut header = header.clone();
+            if !pending_cites.is_empty() {
+                header
+                    .spans
+                    .retain(|s| !matches!(s.kind, InlineKind::Citation { .. }));
+                for pending in pending_cites {
+                    let Some(&cite_chunk_id) = cite_keys.get(pending.key.as_str()) else {
+                        return Err(TesError::EditOp {
+                            message: format!("unknown cite key '{}'", pending.key),
+                        });
+                    };
+                    header.spans.push(InlineSpan {
+                        start: pending.start,
+                        end: pending.end,
+                        kind: InlineKind::Citation { cite_chunk_id },
+                    });
+                }
+            }
+            let outbound = text_outbound_links(source, &header, pending_links);
+            session.add_text_with_outbound_links(header, body, &outbound)?;
         }
         ContentBlock::Figure { figure, .. } => {
             let mut figure = figure.clone();
@@ -598,7 +650,9 @@ fn write_compiled_block(
             figure.image_chunk_id = new_id;
             session.add_figure(&figure)?;
         }
-        ContentBlock::Cite { cite, .. } => write_cite_block(session, source, block, cite)?,
+        ContentBlock::Cite { cite, .. } => {
+            write_cite_block(session, source, block, cite)?;
+        }
         ContentBlock::Slide { slide, .. } => {
             session.add_slide(slide)?;
         }
@@ -612,8 +666,8 @@ fn write_compiled_block(
 fn text_outbound_links(
     source: &TesFile,
     header: &TextHeader,
-    pending_links: &[crate::catalog::OutboundLink],
-) -> Vec<crate::catalog::OutboundLink> {
+    pending_links: &[OutboundLink],
+) -> Vec<OutboundLink> {
     if !pending_links.is_empty() {
         return pending_links.to_vec();
     }
@@ -622,11 +676,11 @@ fn text_outbound_links(
         .spans
         .iter()
         .filter_map(|span| {
-            let crate::catalog::InlineKind::Link { link_id } = &span.kind else {
+            let InlineKind::Link { link_id } = &span.kind else {
                 return None;
             };
             let entry = source.links().get(*link_id as usize)?;
-            Some(crate::catalog::OutboundLink {
+            Some(OutboundLink {
                 start: span.start,
                 end: span.end,
                 dest: entry.target.markdown_destination(),
@@ -640,7 +694,7 @@ fn write_cite_block(
     source: &TesFile,
     block: &ContentBlock,
     cite: &CitePayload,
-) -> Result<()> {
+) -> Result<u64> {
     // Prefer full cite payload from source when id matches (keeps `source` bib).
     if let Some(id) = block.chunk_id()
         && let Ok(entry) = source.chunk_by_id(id)
@@ -655,11 +709,9 @@ fn write_cite_block(
         merge_opt(&mut full.target_byte_start, cite.target_byte_start.as_ref());
         merge_opt(&mut full.target_byte_end, cite.target_byte_end.as_ref());
         merge_opt(&mut full.page, cite.page.as_ref());
-        session.add_cite_chunk(&full)?;
-        return Ok(());
+        return session.add_cite_chunk(&full);
     }
-    session.add_cite_chunk(cite)?;
-    Ok(())
+    session.add_cite_chunk(cite)
 }
 
 /// Copy `src` over `dst` when Tessprek provided a value (omit → keep source).

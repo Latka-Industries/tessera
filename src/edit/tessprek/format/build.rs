@@ -101,7 +101,7 @@ fn append_mixed_markdown_spanned(
         let mut blocks = Vec::new();
         if looks_like_gfm_table(&section) {
             for table in split_pipe_run_into_tables(section_lines) {
-                blocks.push(build_table_block(&table));
+                blocks.push(build_table_block(&table)?);
             }
             if let Some(map) = pending_preserve.take()
                 && let Some(ContentBlock::Text { header, .. }) = blocks.first_mut()
