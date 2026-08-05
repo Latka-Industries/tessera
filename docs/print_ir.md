@@ -195,8 +195,10 @@ Unknown pin ids fail emit (`WeaveError::Font`). Pins are stable inputs (sorted
 ids + fixed bytes), so fixtures stay deterministic — this is not OS fontconfig
 lookup (that remains later / THI-311).
 
-**Tessera today:** the print builder sets `face: None` on all prose runs; the
-CLI native path calls `emit_pdf` only. No `--pin-face` / wire face ids yet
+**Tessera today:** the print builder sets `face: None` on all prose runs. The
+CLI native path calls `emit_pdf_with` with pack layout knobs when a template
+pack is resolvable (optional `weave.toml` / manifest `weave`, D23 / THI-357);
+otherwise `EmitOptions::bundled_only()`. No `--pin-face` / wire face ids yet
 (library consumers use weave’s API directly).
 
 ---
@@ -227,9 +229,11 @@ tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
 ```
 
 Default stays `chromium` until native is promoted; both backends ship since 0.2.0
-(`ariadnes-weave` 0.2.2+ as of Tessera 0.2.1). Native CLI uses bundled faces
-only; see [Host-pinned faces](#host-pinned-faces-ariadnes-weave--022) for the
-library pin path.
+(`ariadnes-weave` **0.2.5+** for quote italic + aesthetic knobs). Native CLI uses
+bundled faces; `--template` / `--template-root` select an optional pack
+`weave.toml` overlay on `LayoutKnobs`. See
+[Host-pinned faces](#host-pinned-faces-ariadnes-weave--022) for the library pin
+path.
 
 ---
 

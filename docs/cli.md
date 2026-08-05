@@ -158,8 +158,8 @@ view to the Nth H1-bounded chapter (conflicts with `--chunk`).
 | `--bibliography`               | BibTeX / CSL-JSON from cite chunks (`--bib-format`)               |
 | `--attachment`                 | Write opaque attachment chunk bytes (requires `--chunk` and `-o`) |
 | `--bib-format`                 | `bibtex` (default) or `csl-json` with `--bibliography`            |
-| `--template ID`                | Pack id for Chromium `--pdf` (default: catalog or `minimal`)      |
-| `--template-root DIR`          | Pack root for Chromium `--pdf` (env: `TES_TEMPLATE_ROOT`)         |
+| `--template ID`                | Pack id for `--pdf` (default: catalog or `minimal`; native uses pack `weave.toml` when present) |
+| `--template-root DIR`          | Pack root for `--pdf` (env: `TES_TEMPLATE_ROOT`)                  |
 | `--theme-id ID`                | Pack theme / native profile hint (`print`, `manuscript`, …)       |
 | `--theme PATH`                 | Stylesheet path/href for `--html`                                 |
 | `--standalone`                 | Complete HTML document with `--html`                              |
