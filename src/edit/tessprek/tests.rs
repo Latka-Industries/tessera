@@ -1,0 +1,318 @@
+use std::collections::BTreeMap;
+
+use super::*;
+use crate::catalog::TesFile;
+use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
+use crate::catalog::media::{FigureRef, ImagePlacement};
+use crate::catalog::slide::{SlidePayload, SlideRegion};
+use crate::catalog::{DocumentCatalog, TesWriterSession};
+use crate::edit::ContentBlock;
+use crate::error::TesError;
+use crate::layout::DocKind;
+use tempfile::tempdir;
+
+#[test]
+fn round_trip_text_classes() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("note.tes");
+    let mut session = TesWriterSession::create(&path, DocKind::Note);
+    session
+        .set_catalog(DocumentCatalog::new(
+            "550e8400-e29b-41d4-a716-446655440000",
+            "Demo",
+            "2026-07-27T00:00:00Z",
+            "2026-07-27T00:00:00Z",
+            DocKind::Note,
+        ))
+        .unwrap();
+    let mut header = TextHeader::heading(1);
+    header.classes = vec!["lead".into()];
+    session.add_text_chunk(&header, "Hello").unwrap();
+    session
+        .add_text_chunk(&TextHeader::paragraph(), "Body")
+        .unwrap();
+    session.commit().unwrap();
+
+    let file = TesFile::open(&path).unwrap();
+    let text = encode_tessprek(&file, "abc").unwrap();
+    assert!(text.contains("format=tessprek"), "{text}");
+    assert!(text.contains("version=2"), "{text}");
+    assert!(text.contains("source-hash=abc"), "{text}");
+    assert!(
+        text.contains("doc_id=550e8400-e29b-41d4-a716-446655440000"),
+        "{text}"
+    );
+    assert!(
+        text.contains("title=Demo") || text.contains("title=\"Demo\""),
+        "{text}"
+    );
+    assert!(text.contains("class=\"lead\""), "{text}");
+    assert!(text.contains("\\text{"), "{text}");
+    assert!(text.contains("# Hello"), "{text}");
+    let blocks = decode_tessprek(&text).unwrap();
+    assert_eq!(blocks.len(), 2);
+    match &blocks[0] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Heading);
+            assert_eq!(header.classes, vec!["lead"]);
+            assert_eq!(body, "Hello");
+        }
+        _ => panic!("expected text"),
+    }
+}
+
+#[test]
+fn round_trip_figure_cite_slide_attachment() {
+    let blocks = vec![
+        ContentBlock::Text {
+            chunk_id: Some(1),
+            header: TextHeader::heading(1),
+            body: "Doc".into(),
+            pending_links: Vec::new(),
+        },
+        ContentBlock::Figure {
+            chunk_id: Some(2),
+            figure: FigureRef {
+                image_chunk_id: 3,
+                alt_text: "A photo".into(),
+                title: None,
+                caption: Some("Cap".into()),
+                placement: ImagePlacement::Flow,
+            },
+        },
+        ContentBlock::Cite {
+            chunk_id: Some(4),
+            cite: CitePayload {
+                quote: "Some quoted text".into(),
+                target_doc_id: None,
+                target_chunk_id: Some(1),
+                target_byte_start: Some(0),
+                target_byte_end: Some(4),
+                label: Some("Smith2024".into()),
+                page: None,
+                source: None,
+            },
+        },
+        ContentBlock::Slide {
+            chunk_id: Some(5),
+            slide: SlidePayload {
+                layout_id: "title".into(),
+                regions: vec![SlideRegion {
+                    name: "body".into(),
+                    chunk_id: 1,
+                }],
+            },
+        },
+        ContentBlock::Attachment {
+            chunk_id: Some(6),
+            filename: "notes.pdf".into(),
+            media_type: "application/pdf".into(),
+            caption: Some("Handout".into()),
+            sha256: "deadbeef".into(),
+        },
+    ];
+    let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(text.contains("\\ids{1,2,4,5,6}"), "{text}");
+    assert!(text.contains("id=3"), "{text}");
+    assert!(text.contains("\\media{\n"), "{text}");
+    assert!(text.contains("\\figure{"), "{text}");
+    assert!(text.contains("\\cite{"), "{text}");
+    assert!(text.contains("target_byte_start=0"), "{text}");
+    assert!(text.contains("target_byte_end=4"), "{text}");
+    assert!(text.contains("> Some quoted text"), "{text}");
+    assert!(text.contains("\\slide{"), "{text}");
+    assert!(text.contains("\\attach{"), "{text}");
+    let decoded = decode_tessprek(&text).unwrap();
+    assert_eq!(decoded, blocks);
+}
+
+#[test]
+fn decode_skips_rich_media_header() {
+    let text = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\\media{\n\
+  id=9\n\
+  media_type=image/png\n\
+  sha256=deadbeef\n\
+  width=1\n\
+  height=1\n\
+}\n\
+\n\
+# Title\n\
+\n\
+\\figure{\n\
+  image=9\n\
+  placement=flow\n\
+  alt=\"alt\"\n\
+}\n\
+";
+    let blocks = decode_tessprek(text).unwrap();
+    assert_eq!(blocks.len(), 2);
+    match &blocks[1] {
+        ContentBlock::Figure { figure, .. } => {
+            assert_eq!(figure.image_chunk_id, 9);
+            assert_eq!(figure.alt_text, "alt");
+        }
+        other => panic!("expected figure, got {other:?}"),
+    }
+}
+
+#[test]
+fn encode_media_blank_line_between_payloads() {
+    let blocks = vec![
+        ContentBlock::Figure {
+            chunk_id: Some(1),
+            figure: FigureRef {
+                image_chunk_id: 2,
+                alt_text: "a".into(),
+                title: None,
+                caption: None,
+                placement: ImagePlacement::Flow,
+            },
+        },
+        ContentBlock::Figure {
+            chunk_id: Some(3),
+            figure: FigureRef {
+                image_chunk_id: 4,
+                alt_text: "b".into(),
+                title: None,
+                caption: None,
+                placement: ImagePlacement::Flow,
+            },
+        },
+    ];
+    let media = vec![
+        TessprekMediaEntry {
+            chunk_id: 2,
+            media_type: Some("image/png".into()),
+            sha256: Some("aa".into()),
+            width_px: Some(1),
+            height_px: Some(1),
+        },
+        TessprekMediaEntry {
+            chunk_id: 4,
+            media_type: Some("image/jpeg".into()),
+            sha256: Some("bb".into()),
+            width_px: Some(2),
+            height_px: Some(2),
+        },
+    ];
+    let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &media);
+    assert!(
+        text.contains(
+            "\\media{\n  id=2\n  media_type=image/png\n  sha256=aa\n  width=1\n  height=1\n\n  id=4\n"
+        ),
+        "{text}"
+    );
+}
+
+#[test]
+fn encode_projects_catalog_meta_into_header() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("meta.tes");
+    let mut session = TesWriterSession::create(&path, DocKind::Note);
+    let mut catalog = DocumentCatalog::new(
+        "550e8400-e29b-41d4-a716-446655440099",
+        "Text roles tour",
+        "2026-07-27T00:00:00Z",
+        "2026-07-27T00:00:00Z",
+        DocKind::Note,
+    );
+    catalog.language = Some("en".into());
+    catalog.cite_style_id = Some("numeric".into());
+    catalog.theme_id = Some("default".into());
+    catalog.template_id = Some("article".into());
+    catalog.slug = Some("text-roles".into());
+    session.set_catalog(catalog).unwrap();
+    session
+        .add_text_chunk(&TextHeader::paragraph(), "Hi")
+        .unwrap();
+    session.commit().unwrap();
+
+    let file = TesFile::open(&path).unwrap();
+    let text = encode_tessprek(&file, "deadbeef").unwrap();
+    assert!(text.contains("\\tessera{\n"), "{text}");
+    assert!(text.contains("  format=tessprek\n"), "{text}");
+    assert!(text.contains("  version=2\n"), "{text}");
+    assert!(text.contains("  source-hash=deadbeef\n"), "{text}");
+    assert!(
+        text.contains("  doc_id=550e8400-e29b-41d4-a716-446655440099\n"),
+        "{text}"
+    );
+    assert!(text.contains("  doc_kind=note\n"), "{text}");
+    assert!(text.contains("  title=\"Text roles tour\"\n"), "{text}");
+    assert!(text.contains("  language=en\n"), "{text}");
+    assert!(text.contains("  cite_style_id=numeric\n"), "{text}");
+    assert!(text.contains("  theme_id=default\n"), "{text}");
+    assert!(text.contains("  template_id=article\n"), "{text}");
+    assert!(text.contains("  slug=text-roles\n"), "{text}");
+    assert!(text.contains("}\n\\ids{"), "{text}");
+    assert_eq!(decode_tessprek(&text).unwrap().len(), 1);
+}
+
+#[test]
+fn decode_accepts_multiline_and_single_line_header() {
+    let multi = "\
+\\tessera{\n\
+  format=tessprek\n\
+  version=2\n\
+  title=\"Hello\"\n\
+}\n\
+\\ids{1}\n\
+\n\
+# Hello\n\
+";
+    assert_eq!(decode_tessprek(multi).unwrap().len(), 1);
+    let single = "\
+\\tessera{format=tessprek version=2 title=\"Hello\"}\n\
+\\ids{1}\n\
+\n\
+# Hello\n\
+";
+    assert_eq!(decode_tessprek(single).unwrap().len(), 1);
+}
+
+#[test]
+fn unknown_header_keys_are_listed() {
+    let mut map = BTreeMap::new();
+    map.insert("format".into(), "tessprek".into());
+    map.insert("bogus".into(), "x".into());
+    map.insert("tags".into(), "a,b".into());
+    let unknown = TessprekDocMeta::unknown_keys(&map);
+    assert_eq!(unknown, vec!["bogus".to_string(), "tags".to_string()]);
+}
+
+#[test]
+fn decode_rejects_missing_header() {
+    let err = decode_tessprek("# Title\n").unwrap_err();
+    assert!(matches!(err, TesError::EditParse { .. }));
+}
+
+#[test]
+fn decode_rejects_id_count_mismatch() {
+    let text = "\\tessera{format=tessprek version=2}\n\\ids{1,2}\n\n# Title\n";
+    let err = decode_tessprek(text).unwrap_err();
+    match err {
+        TesError::EditParse { message, .. } => {
+            assert!(message.contains("id(s)"), "{message}");
+            assert!(
+                message.contains("TesseraFormat") || message.contains("tes format"),
+                "{message}"
+            );
+        }
+        other => panic!("expected EditParse, got {other:?}"),
+    }
+}
+
+#[test]
+fn decode_rejects_v1_version() {
+    let text = "\\tessera{format=tessprek version=1}\n\\ids{}\n";
+    let err = decode_tessprek(text).unwrap_err();
+    match err {
+        TesError::EditParse { message, .. } => {
+            assert!(message.contains("v1"), "{message}");
+        }
+        other => panic!("expected EditParse, got {other:?}"),
+    }
+}

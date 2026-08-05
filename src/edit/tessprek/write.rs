@@ -1,0 +1,313 @@
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
+
+use crate::catalog::chunk::{OrderedListNumbering, TextHeader};
+use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
+use crate::catalog::slide::SlidePayload;
+use crate::catalog::{CitePayload, InlineKind, InlineSpan, LinkKind};
+
+use super::super::ContentBlock;
+use super::markers::{
+    ATTACH_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX, MEDIA_PREFIX,
+    SLIDE_PREFIX, TESSERA_PREFIX, TEXT_PREFIX, VERSION,
+};
+use super::types::{TessprekDocMeta, TessprekMediaEntry};
+use super::util::{kv_attr, quoted_attr, render_quote_body};
+
+/// Encode typed content blocks as Tessprek v2.
+///
+/// `meta` supplies `source-hash` and optional catalog identity fields for the
+/// `\tessera{…}` header (encode prefers a multiline block). `links` resolves
+/// `InlineKind::Link` spans on blocks whose `pending_links` is empty (e.g.
+/// blocks freshly decoded from a `.tes` file); pass `&[]` when blocks already
+/// carry `pending_links` (normalize / typed ops).
+///
+/// Used by [`super::format::normalize_tessprek`], [`super::encode_tessprek`], and tests.
+///
+/// `media` supplies `\media{…}` rows (mime / sha256 / dimensions). When empty,
+/// figure-referenced ids are still emitted as bare `id=N` rows.
+#[must_use]
+pub fn encode_content_blocks(
+    meta: &TessprekDocMeta,
+    blocks: &[ContentBlock],
+    links: &[crate::catalog::LinkEntry],
+    media: &[TessprekMediaEntry],
+) -> String {
+    let mut out = String::new();
+    write_header(&mut out, meta);
+    write_ids(&mut out, blocks);
+    write_media(&mut out, blocks, media);
+    out.push('\n');
+
+    let mut ordered = OrderedListNumbering::default();
+    for (i, block) in blocks.iter().enumerate() {
+        let next = blocks.get(i + 1);
+        match block {
+            ContentBlock::Text {
+                header,
+                body,
+                pending_links,
+                ..
+            } => {
+                let ordered_index = ordered.take_for_text(header);
+                write_text_directive(&mut out, header);
+                out.push_str(
+                    render_text_body(header, body, pending_links, links, ordered_index).trim_end(),
+                );
+                // Tight lists: consecutive list items share a single newline
+                // (CommonMark). Blank line separates other blocks / list runs.
+                out.push_str(
+                    if block.is_list_item() && next.is_some_and(ContentBlock::is_list_item) {
+                        "\n"
+                    } else {
+                        "\n\n"
+                    },
+                );
+            }
+            other => {
+                ordered.clear();
+                match other {
+                    ContentBlock::Figure { figure, .. } => {
+                        write_figure_directive(&mut out, figure);
+                        out.push('\n');
+                    }
+                    ContentBlock::Cite { cite, .. } => {
+                        write_cite_directive(&mut out, cite);
+                        out.push_str(&render_quote_body(&cite.quote));
+                        out.push_str("\n\n");
+                    }
+                    ContentBlock::Slide { slide, .. } => {
+                        write_slide_directive(&mut out, slide);
+                        out.push('\n');
+                    }
+                    ContentBlock::Attachment {
+                        filename,
+                        media_type,
+                        caption,
+                        sha256,
+                        ..
+                    } => {
+                        write_attachment_directive(
+                            &mut out,
+                            &AttachmentPayload {
+                                filename: filename.clone(),
+                                media_type: media_type.clone(),
+                                caption: caption.clone(),
+                                sha256: sha256.clone(),
+                                // Bytes are not projected in Tessprek.
+                                data: Vec::new(),
+                            },
+                        );
+                        out.push('\n');
+                    }
+                    ContentBlock::Text { .. } => unreachable!("text handled above"),
+                }
+            }
+        }
+    }
+    out
+}
+
+fn write_brace_line(out: &mut String, prefix: &str, parts: &[String]) {
+    let _ = writeln!(out, "{prefix}{}{BRACE_SUFFIX}", parts.join(" "));
+}
+
+/// Prefer multiline brace blocks (same shape as `\tessera{…}`) for readability.
+fn write_brace_block(out: &mut String, prefix: &str, parts: &[String]) {
+    if parts.is_empty() {
+        let _ = writeln!(out, "{prefix}{BRACE_SUFFIX}");
+        return;
+    }
+    let _ = writeln!(out, "{prefix}");
+    for part in parts {
+        let _ = writeln!(out, "  {part}");
+    }
+    let _ = writeln!(out, "{BRACE_SUFFIX}");
+}
+
+fn write_header(out: &mut String, meta: &TessprekDocMeta) {
+    let mut parts = vec![format!("format={FORMAT}"), format!("version={VERSION}")];
+    meta.push_parts(&mut parts);
+    // Multiline so long identity keys stay readable (single-line still accepted).
+    let _ = writeln!(out, "{TESSERA_PREFIX}");
+    for part in &parts {
+        let _ = writeln!(out, "  {part}");
+    }
+    let _ = writeln!(out, "{BRACE_SUFFIX}");
+}
+
+fn write_ids(out: &mut String, blocks: &[ContentBlock]) {
+    let ids = blocks
+        .iter()
+        .map(|b| b.chunk_id().unwrap_or(0).to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    write_brace_line(out, IDS_PREFIX, &[ids]);
+}
+
+/// Emit `\media{…}` for image payloads referenced by figures (sorted by id).
+///
+/// One attr per line; blank line between payloads when there are several.
+/// Omitted when the document has no figures. Prefer rows from `media`; fill
+/// missing figure targets as bare `id=N`. Regenerated on every encode.
+fn write_media(out: &mut String, blocks: &[ContentBlock], media: &[TessprekMediaEntry]) {
+    let mut by_id: BTreeMap<u64, TessprekMediaEntry> = BTreeMap::new();
+    for entry in media {
+        if entry.chunk_id != 0 {
+            by_id.insert(entry.chunk_id, entry.clone());
+        }
+    }
+    for block in blocks {
+        if let ContentBlock::Figure { figure, .. } = block {
+            let id = figure.image_chunk_id;
+            if id != 0 {
+                by_id.entry(id).or_insert(TessprekMediaEntry {
+                    chunk_id: id,
+                    ..TessprekMediaEntry::default()
+                });
+            }
+        }
+    }
+    if by_id.is_empty() {
+        return;
+    }
+    let _ = writeln!(out, "{MEDIA_PREFIX}");
+    let mut first = true;
+    for entry in by_id.values() {
+        if !first {
+            out.push('\n');
+        }
+        first = false;
+        for part in entry.attr_parts() {
+            let _ = writeln!(out, "  {part}");
+        }
+    }
+    let _ = writeln!(out, "{BRACE_SUFFIX}");
+}
+
+fn render_text_body(
+    header: &TextHeader,
+    body: &str,
+    pending_links: &[crate::catalog::OutboundLink],
+    links: &[crate::catalog::LinkEntry],
+    ordered_index: Option<u32>,
+) -> String {
+    if pending_links.is_empty() {
+        return header.render_markdown_with_links_indexed(body, links, ordered_index);
+    }
+
+    let mut header = header.clone();
+    let mut synthetic_links = Vec::new();
+    for link in pending_links {
+        let link_id = u64::try_from(synthetic_links.len()).unwrap_or(u64::MAX);
+        if let Ok(entry) = link.clone().into_entry(0, LinkKind::Wiki) {
+            synthetic_links.push(entry);
+            header.spans.push(InlineSpan {
+                start: link.start,
+                end: link.end,
+                kind: InlineKind::Link { link_id },
+            });
+        }
+    }
+    header.render_markdown_with_links_indexed(body, &synthetic_links, ordered_index)
+}
+
+/// Write `\text{title=… caption=… class=… …}` when the header carries attrs
+/// that cannot live in plain Markdown. Emits nothing otherwise.
+fn write_text_directive(out: &mut String, header: &TextHeader) {
+    if header.classes.is_empty()
+        && header.lang.is_none()
+        && header.align.is_none()
+        && header.title.is_none()
+        && header.caption.is_none()
+    {
+        return;
+    }
+    let mut parts = Vec::new();
+    if let Some(title) = header.title.as_deref() {
+        parts.push(quoted_attr("title", title));
+    }
+    if let Some(caption) = header.caption.as_deref() {
+        parts.push(quoted_attr("caption", caption));
+    }
+    if !header.classes.is_empty() {
+        parts.push(format!("class=\"{}\"", header.classes.join(" ")));
+    }
+    if let Some(lang) = header.lang.as_deref() {
+        parts.push(kv_attr("lang", lang));
+    }
+    if let Some(align) = header.align {
+        parts.push(format!("align={}", align.as_str()));
+    }
+    write_brace_block(out, TEXT_PREFIX, &parts);
+}
+
+fn write_figure_directive(out: &mut String, figure: &FigureRef) {
+    let mut parts = vec![
+        format!("image={}", figure.image_chunk_id),
+        format!("placement={}", figure.placement.as_str()),
+        quoted_attr("alt", &figure.alt_text),
+    ];
+    if let ImagePlacement::Region { name } = &figure.placement {
+        parts.push(quoted_attr("region", name));
+    }
+    if let Some(title) = figure.title.as_deref() {
+        parts.push(quoted_attr("title", title));
+    }
+    if let Some(caption) = figure.caption.as_deref() {
+        parts.push(quoted_attr("caption", caption));
+    }
+    write_brace_block(out, FIGURE_PREFIX, &parts);
+}
+
+fn write_cite_directive(out: &mut String, cite: &CitePayload) {
+    let mut parts = Vec::new();
+    if let Some(label) = cite.label.as_deref() {
+        parts.push(kv_attr("label", label));
+    }
+    if let Some(doc) = cite.target_doc_id.as_deref() {
+        parts.push(format!("target_doc={doc}"));
+    }
+    if let Some(chunk) = cite.target_chunk_id {
+        parts.push(format!("target_chunk={chunk}"));
+    }
+    if let Some(start) = cite.target_byte_start {
+        parts.push(format!("target_byte_start={start}"));
+    }
+    if let Some(end) = cite.target_byte_end {
+        parts.push(format!("target_byte_end={end}"));
+    }
+    if let Some(page) = cite.page {
+        parts.push(format!("page={page}"));
+    }
+    write_brace_block(out, CITE_PREFIX, &parts);
+}
+
+fn write_slide_directive(out: &mut String, slide: &SlidePayload) {
+    let regions = slide
+        .regions
+        .iter()
+        .map(|r| format!("{}:{}", r.name, r.chunk_id))
+        .collect::<Vec<_>>()
+        .join(",");
+    write_brace_block(
+        out,
+        SLIDE_PREFIX,
+        &[
+            kv_attr("layout", &slide.layout_id),
+            quoted_attr("regions", &regions),
+        ],
+    );
+}
+
+fn write_attachment_directive(out: &mut String, att: &AttachmentPayload) {
+    let mut parts = vec![
+        quoted_attr("filename", &att.filename),
+        kv_attr("media_type", &att.media_type),
+        format!("sha256={}", att.sha256),
+    ];
+    if let Some(caption) = att.caption.as_deref() {
+        parts.push(quoted_attr("caption", caption));
+    }
+    write_brace_block(out, ATTACH_PREFIX, &parts);
+}
