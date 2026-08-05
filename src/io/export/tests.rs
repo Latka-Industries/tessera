@@ -432,17 +432,16 @@ fn research_cites_mirror_tlnk_and_export() {
     assert_eq!(file.links()[0].source_chunk_id, 2);
 
     let md = export_view(&path, ExportView::Markdown, &ExportOptions::default()).unwrap();
-    assert!(md.contains("[@keller2020chunking]"));
-    assert!(md.contains("## References"));
+    assert!(md.contains("> Chunk-oriented containers help."), "{md}");
+    assert!(!md.contains("## References"), "{md}");
 
     let html = export_view(&path, ExportView::Html, &ExportOptions::default()).unwrap();
-    assert!(html.contains("class=\"citation\""));
+    assert!(html.contains("class=\"quote\""), "{html}");
     assert!(html.contains("data-target-doc=\"770e8400-e29b-41d4-a716-446655440099\""));
     assert!(html.contains("data-target-chunk=\"1\""));
     assert!(html.contains("data-byte-start=\"0\""));
     assert!(html.contains("data-byte-end=\"12\""));
-    assert!(html.contains("class=\"bibliography\""));
-    assert!(html.contains("[1]"));
+    assert!(!html.contains("class=\"bibliography\""), "{html}");
 
     let jsonl = export_view(&path, ExportView::ChunksJsonl, &ExportOptions::default()).unwrap();
     assert!(jsonl.contains("\"target_byte_start\":0"));
@@ -460,6 +459,14 @@ fn research_cites_mirror_tlnk_and_export() {
             .count(),
         3
     );
+
+    let bib_md = export_view(&bib_tes, ExportView::Markdown, &ExportOptions::default()).unwrap();
+    assert!(bib_md.contains("## References"), "{bib_md}");
+    assert!(bib_md.contains("[@") || bib_md.contains("[1]"), "{bib_md}");
+
+    let bib_html = export_view(&bib_tes, ExportView::Html, &ExportOptions::default()).unwrap();
+    assert!(bib_html.contains("class=\"bibliography\""), "{bib_html}");
+    assert!(bib_html.contains("class=\"citation\""), "{bib_html}");
 
     let report = crate::verify::verify_tes_file(&path, true).unwrap();
     assert!(report.ok, "{:?}", report.findings);

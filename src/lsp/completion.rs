@@ -92,7 +92,18 @@ fn command_snippet(surface: &str) -> (String, &'static str) {
                 .into(),
             "figure directive",
         ),
-        "cite" => ("\\cite{label=${1:Key}}$0".into(), "cite / quote block"),
+        "cite" => (
+            "\\cite{label=${1:Key} author=\"${2:}\" title=\"${3:}\" year=${4:}}$0".into(),
+            "bibliography stub",
+        ),
+        "quote" => (
+            "\\quote{target_chunk=${1:1} quote=\"${2:}\"}$0".into(),
+            "quoted passage",
+        ),
+        "ref" => (
+            "\\ref{target_chunk=${1:1}}$0".into(),
+            "cross-doc / chunk pointer",
+        ),
         "slide" => (
             "\\slide{layout=${1:title_body} regions=\"${2:title:1,body:2}\"}$0".into(),
             "slide layout",

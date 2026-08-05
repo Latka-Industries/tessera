@@ -13,9 +13,9 @@ use crate::io::cite::{self, CiteProj, CiteStyle, format_inline_cite};
 
 use super::ExportOptions;
 use super::common::{
-    cite_number_map, decode_attachment_entry, decode_figure_entry, decode_numbered_cite,
-    decode_slide_entry, decode_text_entry, escape_html, html_class_attr, image_src,
-    selected_content_entries,
+    cite_number_map, decode_attachment_entry, decode_cite_entry, decode_figure_entry,
+    decode_numbered_cite, decode_slide_entry, decode_text_entry, escape_html, html_class_attr,
+    image_src, selected_content_entries,
 };
 
 pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -480,15 +480,55 @@ fn append_cite_html(
     article: &mut String,
     bib_items: &mut Vec<(usize, BibEntry)>,
 ) -> Result<()> {
-    let (n, cite, bib) = decode_numbered_cite(file, entry, cite_numbers)?;
-    let label = cite
-        .label
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(bib.cite_key.as_str());
-    let label = if label.is_empty() { "unknown" } else { label };
-    let marker = format_numeric_marker(n);
-    let mut attrs = format!("data-chunk-id=\"{}\" class=\"citation\"", entry.chunk_id);
+    use crate::io::cite::{CiteTessprekKind, classify_cite};
+
+    let cite = decode_cite_entry(file, entry)?;
+    match classify_cite(&cite) {
+        CiteTessprekKind::Biblio => {
+            let (n, cite, bib) = decode_numbered_cite(file, entry, cite_numbers)?;
+            let label = cite
+                .label
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(bib.cite_key.as_str());
+            let label = if label.is_empty() { "unknown" } else { label };
+            let marker = format_numeric_marker(n);
+            let attrs = format!("data-chunk-id=\"{}\" class=\"citation\"", entry.chunk_id);
+            let _ = writeln!(
+                article,
+                "  <p {attrs}><a href=\"#ref-{n}\"><cite>{marker}</cite></a> <span class=\"cite-label\">{}</span></p>",
+                escape_html(label)
+            );
+            bib_items.push((n, bib));
+        }
+        CiteTessprekKind::Quote => {
+            let mut attrs = format!("data-chunk-id=\"{}\" class=\"quote\"", entry.chunk_id);
+            write_target_data_attrs(&mut attrs, &cite);
+            let _ = writeln!(
+                article,
+                "  <blockquote {attrs}>{}</blockquote>",
+                escape_html(cite.quote.trim())
+            );
+        }
+        CiteTessprekKind::Ref => {
+            let mut attrs = format!("data-chunk-id=\"{}\" class=\"ref\"", entry.chunk_id);
+            write_target_data_attrs(&mut attrs, &cite);
+            let label = cite
+                .label
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or("ref");
+            let _ = writeln!(
+                article,
+                "  <p {attrs}><span class=\"ref-label\">{}</span></p>",
+                escape_html(label)
+            );
+        }
+    }
+    Ok(())
+}
+
+fn write_target_data_attrs(attrs: &mut String, cite: &crate::catalog::chunk::CitePayload) {
     if let Some(doc) = cite.target_doc_id.as_deref() {
         let _ = write!(attrs, " data-target-doc=\"{}\"", escape_html(doc));
     }
@@ -501,21 +541,6 @@ fn append_cite_html(
     if let Some(end) = cite.target_byte_end {
         let _ = write!(attrs, " data-byte-end=\"{end}\"");
     }
-    if cite.quote.trim().is_empty() {
-        let _ = writeln!(
-            article,
-            "  <p {attrs}><a href=\"#ref-{n}\"><cite>{marker}</cite></a> <span class=\"cite-label\">{}</span></p>",
-            escape_html(label)
-        );
-    } else {
-        let _ = writeln!(
-            article,
-            "  <p {attrs}><a href=\"#ref-{n}\"><cite>{marker}</cite></a> {}</p>",
-            escape_html(cite.quote.trim())
-        );
-    }
-    bib_items.push((n, bib));
-    Ok(())
 }
 
 fn append_html_bibliography(article: &mut String, bib_items: &mut [(usize, BibEntry)]) {

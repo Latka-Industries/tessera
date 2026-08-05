@@ -179,8 +179,10 @@ pub(super) fn cite_number_map(
         if entry.chunk_type != ChunkType::Cite {
             continue;
         }
-        // Ensure payload decodes so numbering stays aligned with valid cites.
-        let _ = decode_cite_entry(file, entry)?;
+        let cite = decode_cite_entry(file, entry)?;
+        if !crate::io::cite::is_biblio_cite(&cite) {
+            continue;
+        }
         n += 1;
         map.insert(entry.chunk_id, n);
     }
