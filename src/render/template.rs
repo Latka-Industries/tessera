@@ -14,6 +14,9 @@ use crate::error::{Result, TesError};
 /// Filename of a pack manifest.
 pub const MANIFEST_NAME: &str = "manifest.json";
 
+/// Convention filename for native layout knob overlay (D23).
+pub const DEFAULT_WEAVE_NAME: &str = "weave.toml";
+
 /// Built-in pack id shipped under `templates/minimal`.
 pub const DEFAULT_TEMPLATE_ID: &str = "minimal";
 
@@ -59,6 +62,11 @@ pub struct TemplateManifest {
     /// When true, pack ships JS that requires `--allow-theme-js`.
     #[serde(default)]
     pub requires_theme_js: bool,
+    /// Optional path to ariadnes-weave layout overlay relative to the pack root.
+    ///
+    /// When omitted, native emit uses [`DEFAULT_WEAVE_NAME`] if that file exists.
+    #[serde(default)]
+    pub weave: Option<String>,
 }
 
 /// A loaded pack directory + parsed manifest.
@@ -106,16 +114,13 @@ impl TemplatePack {
             // Callers that pass `--allow-theme-js` can opt in later.
         }
         for (theme_id, rel) in &manifest.themes {
-            validate_pack_relative(rel, &format!("theme '{theme_id}'"))?;
-            let css_path = root.join(rel);
-            if !css_path.is_file() {
-                return Err(TesError::InvalidTemplate {
-                    message: format!("theme '{theme_id}' CSS missing: {}", css_path.display()),
-                });
-            }
+            require_pack_relative_file(&root, rel, &format!("theme '{theme_id}' CSS"))?;
         }
         if let Some(starter) = &manifest.starter {
             validate_pack_relative(starter, "starter")?;
+        }
+        if let Some(weave) = &manifest.weave {
+            require_pack_relative_file(&root, weave, "weave overlay")?;
         }
         Ok(Self { root, manifest })
     }
@@ -169,6 +174,19 @@ impl TemplatePack {
                 theme_id: theme_id.to_string(),
             })
     }
+
+    /// Absolute path to the pack's native weave overlay, if present.
+    ///
+    /// Prefer manifest `weave` when set; otherwise use [`DEFAULT_WEAVE_NAME`] when
+    /// that file exists under the pack root.
+    #[must_use]
+    pub fn weave_path(&self) -> Option<PathBuf> {
+        if let Some(rel) = &self.manifest.weave {
+            return Some(self.root.join(rel));
+        }
+        let convention = self.root.join(DEFAULT_WEAVE_NAME);
+        convention.is_file().then_some(convention)
+    }
 }
 
 /// Default theme when the catalog or CLI does not pick one.
@@ -204,6 +222,17 @@ pub struct ResolvedPackTheme {
     pub theme_id: String,
 }
 
+/// Effective pack id: CLI override → catalog → [`DEFAULT_TEMPLATE_ID`].
+#[must_use]
+pub fn resolve_template_id<'a>(
+    template_id: Option<&'a str>,
+    catalog_template_id: Option<&'a str>,
+) -> &'a str {
+    template_id
+        .or(catalog_template_id)
+        .unwrap_or(DEFAULT_TEMPLATE_ID)
+}
+
 /// Resolve pack/theme from CLI overrides, catalog fields, and a fallback policy.
 ///
 /// Order: explicit override → catalog → fallback. Validates that the theme CSS
@@ -221,9 +250,7 @@ pub fn resolve_pack_and_theme(
     theme_id: Option<&str>,
     fallback: ThemeFallback,
 ) -> Result<ResolvedPackTheme> {
-    let template_id = template_id
-        .or(catalog_template_id)
-        .unwrap_or(DEFAULT_TEMPLATE_ID);
+    let template_id = resolve_template_id(template_id, catalog_template_id);
     let pack = TemplatePack::resolve(template_root, template_id)?;
     let theme_id = theme_id
         .map(str::to_string)
@@ -266,6 +293,17 @@ fn validate_pack_relative(rel: &str, field: &str) -> Result<()> {
     Ok(())
 }
 
+fn require_pack_relative_file(root: &Path, rel: &str, field: &str) -> Result<()> {
+    validate_pack_relative(rel, field)?;
+    let path = root.join(rel);
+    if !path.is_file() {
+        return Err(TesError::InvalidTemplate {
+            message: format!("{field} missing: {}", path.display()),
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,6 +320,8 @@ mod tests {
         assert!(draft.contains("--tes-bg"));
         let print = pack.theme_css("print").unwrap();
         assert!(print.contains("@page"));
+        let weave = pack.weave_path().expect("minimal ships weave.toml");
+        assert!(weave.ends_with(DEFAULT_WEAVE_NAME));
     }
 
     #[test]

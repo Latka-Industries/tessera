@@ -1,0 +1,10 @@
+# Sparse native layout overlay for ariadnes-weave (D23).
+# Merged onto LayoutKnobs::bundled(); CSS themes remain Chromium-only.
+#
+# Convenience prose sections may sit at the root ([quote], [text], [cite], …)
+# or under [prose.*]. Other categories use [table.*] / [deck.*] / [math.*] / [page.*].
+
+[quote]
+# Distinct from bundled indent (18) so pack overlay is easy to spot in tests.
+indent = 28.0
+italic = true

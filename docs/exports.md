@@ -296,13 +296,15 @@ Optional weave font packs: Cargo features `weave-cjk`, `weave-emoji`,
 `weave-icons` (pass-through to `ariadnes-weave`). Native CLI emit uses sealed
 faces only; library embeds can pin host TTFs via weave `EmitOptions` /
 `TextRun::face` ([print IR](print_ir.md#host-pinned-faces-ariadnes-weave--022)).
+Pack `weave.toml` (manifest `weave` or convention) sparsely overlays
+`LayoutKnobs` for `--backend native` (D23); CSS themes stay Chromium-only.
 
 | Flag | Behavior |
 | --- | --- |
 | `-o PATH` | **Required** output PDF path |
 | `--backend chromium\|native` | `chromium` (default) or `native` (ariadnes-weave; needs `native-pdf`) |
 | `--theme-id ID` | Pack theme for Chromium HTML-print; also selects native profile when set (`print` / `manuscript` / `deck`) |
-| `--template ID` / `--template-root DIR` | Template pack selection (Chromium path) |
+| `--template ID` / `--template-root DIR` | Template pack (Chromium CSS; native optional `weave.toml`) |
 | `--chapter N` | Restrict body to the Nth H1-bounded chapter (1-based; same flag on all export views) |
 
 PDF is a lossy print sink — never an editable canonical source. Browser

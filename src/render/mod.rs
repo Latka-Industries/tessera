@@ -14,3 +14,5 @@ pub mod preview;
 #[cfg(feature = "native-pdf")]
 pub mod print;
 pub mod template;
+#[cfg(feature = "native-pdf")]
+pub mod weave_pack;

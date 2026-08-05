@@ -2,7 +2,8 @@
 //!
 //! Two backends:
 //! - **Chromium** (default): semantic HTML + print-theme → headless Chromium
-//! - **Native** (THI-294, feature `native-pdf`): print IR → `ariadnes_weave::emit_pdf`
+//! - **Native** (THI-294, feature `native-pdf`): print IR → `ariadnes_weave::emit_pdf_with`
+//!   (pack `weave.toml` → [`ariadnes_weave::EmitOptions::layout`], D23 / THI-357)
 //!
 //! Browser preview (`tes serve --theme print`) still shares the HTML path with
 //! the Chromium backend. PDF is never an editable canonical source.
@@ -61,6 +62,8 @@ pub struct PdfExportOptions {
     /// Directory containing template pack folders.
     pub template_root: PathBuf,
     /// Pack id; falls back to catalog `template_id`, then [`super::template::DEFAULT_TEMPLATE_ID`].
+    ///
+    /// Used by Chromium (theme CSS) and native (optional pack `weave.toml` overlay).
     pub template_id: Option<String>,
     /// Theme id; defaults to [`THEME_PRINT`], or manuscript theme for `doc_kind = manuscript`.
     pub theme_id: Option<String>,
@@ -150,11 +153,13 @@ pub fn export_pdf(
 
 #[cfg(feature = "native-pdf")]
 fn export_pdf_native(path: &Path, output: &Path, options: &PdfExportOptions) -> Result<()> {
-    use ariadnes_weave::PrintProfileId;
+    use ariadnes_weave::{EmitOptions, PrintProfileId};
 
     use super::print::{PrintBuildOptions, build_print_document};
+    use super::weave_pack::resolve_pack_layout;
 
     let file = TesFile::open(path)?;
+    let catalog = file.catalog();
     let profile = match options.theme_id.as_deref() {
         Some("manuscript") => Some(PrintProfileId::manuscript_v0()),
         Some("deck") => Some(PrintProfileId::deck_v0()),
@@ -168,7 +173,13 @@ fn export_pdf_native(path: &Path, output: &Path, options: &PdfExportOptions) -> 
             profile,
         },
     )?;
-    let bytes = ariadnes_weave::emit_pdf(&doc).map_err(|err| TesError::PdfEngine {
+    let layout = resolve_pack_layout(
+        &options.template_root,
+        options.template_id.as_deref(),
+        catalog.and_then(|c| c.template_id.as_deref()),
+    )?;
+    let opts = EmitOptions::bundled_only().with_layout(layout);
+    let bytes = ariadnes_weave::emit_pdf_with(&doc, &opts).map_err(|err| TesError::PdfEngine {
         message: format!("ariadnes-weave emit failed: {err}"),
     })?;
     if bytes.len() < 5 || &bytes[..5] != b"%PDF-" {
@@ -447,6 +458,32 @@ mod tests {
         let bytes = fs::read(&out).unwrap();
         assert!(bytes.starts_with(b"%PDF-"));
         assert!(bytes.len() > 200);
+    }
+
+    #[cfg(feature = "native-pdf")]
+    #[test]
+    fn export_pdf_native_honors_pack_weave_toml() {
+        let dir = tempdir().unwrap();
+        let tes = dir.path().join("note.tes");
+        fs::write(&tes, crate::fixtures::v0::encode_note_three_chunks()).unwrap();
+        let out = dir.path().join("native-pack.pdf");
+        let templates = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+        export_pdf(
+            &tes,
+            &out,
+            &PdfExportOptions {
+                backend: PdfBackend::Native,
+                template_root: templates,
+                template_id: Some("minimal".into()),
+                ..PdfExportOptions::default()
+            },
+        )
+        .unwrap();
+        let bytes = fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+        assert!(bytes.len() > 200);
+        // Overlay load is covered in weave_pack tests; this asserts the CLI path
+        // resolves the pack without erroring.
     }
 
     #[cfg(feature = "native-pdf")]
