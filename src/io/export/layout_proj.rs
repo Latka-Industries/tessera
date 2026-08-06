@@ -17,7 +17,7 @@ pub(super) fn layout_html(chunk_id: u64, layout: &LayoutPayload) -> String {
                 skip,
                 content,
                 spans,
-            } => out.push_str(&place_html(skip, content, spans)),
+            } => out.push_str(&place_html(*skip, content, spans)),
             LayoutOp::Vspace { amount } => out.push_str(&vspace_html(*amount)),
             LayoutOp::Rule { width } => out.push_str(&rule_html(*width)),
         }
@@ -26,7 +26,7 @@ pub(super) fn layout_html(chunk_id: u64, layout: &LayoutPayload) -> String {
     out
 }
 
-fn place_html(skip: &PlaceSkip, content: &str, spans: &[InlineSpan]) -> String {
+fn place_html(skip: PlaceSkip, content: &str, spans: &[InlineSpan]) -> String {
     let inner = apply_place_spans_html(content, spans);
     let (extra_class, data, style) = match skip {
         PlaceSkip::Frac { frac } if frac.bps >= 10_000 => (
@@ -51,9 +51,7 @@ fn place_html(skip: &PlaceSkip, content: &str, spans: &[InlineSpan]) -> String {
             )
         }
     };
-    let style_attr = style
-        .map(|s| format!(" style=\"{s}\""))
-        .unwrap_or_default();
+    let style_attr = style.map(|s| format!(" style=\"{s}\"")).unwrap_or_default();
     format!(
         "    <div class=\"tes-layout-place{extra_class}\" {data}{style_attr}>\
          <span class=\"tes-layout-place-label\">{inner}</span></div>\n"

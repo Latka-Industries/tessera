@@ -154,11 +154,11 @@ fn map_layout_op(op: &LayoutOp) -> WeaveLayoutOp {
             content,
             spans,
         } => WeaveLayoutOp::Place {
-            skip: map_place_skip(skip),
+            skip: map_place_skip(*skip),
             runs: body_to_runs(content, spans, None),
         },
         LayoutOp::Vspace { amount } => WeaveLayoutOp::Vspace {
-            amount: map_vspace(amount),
+            amount: map_vspace(*amount),
         },
         LayoutOp::Rule { width } => WeaveLayoutOp::Rule {
             width: map_rule_width(width),
@@ -166,21 +166,21 @@ fn map_layout_op(op: &LayoutOp) -> WeaveLayoutOp {
     }
 }
 
-fn map_place_skip(skip: &PlaceSkip) -> WeavePlaceSkip {
+fn map_place_skip(skip: PlaceSkip) -> WeavePlaceSkip {
     match skip {
         PlaceSkip::Frac { frac } => WeavePlaceSkip::Frac {
-            frac: map_frac(*frac),
+            frac: map_frac(frac),
         },
-        PlaceSkip::Em { em } => WeavePlaceSkip::Em { em: map_em(*em) },
+        PlaceSkip::Em { em } => WeavePlaceSkip::Em { em: map_em(em) },
     }
 }
 
-fn map_vspace(amount: &VspaceAmount) -> WeaveVspace {
+fn map_vspace(amount: VspaceAmount) -> WeaveVspace {
     match amount {
         VspaceAmount::Small => WeaveVspace::Small,
         VspaceAmount::Med => WeaveVspace::Med,
         VspaceAmount::Big => WeaveVspace::Big,
-        VspaceAmount::Em { em } => WeaveVspace::Em { em: map_em(*em) },
+        VspaceAmount::Em { em } => WeaveVspace::Em { em: map_em(em) },
     }
 }
 
