@@ -4,13 +4,16 @@ use std::fs;
 use std::io;
 
 use crate::edit::{
-    EditWriteOptions, apply_ops, apply_patch, edit_read, edit_write, normalize_tessprek,
-    parse_ops_json, tessprek_needs_format,
+    EditWriteOptions, TessprekDocMeta, apply_ops, apply_patch, edit_read, edit_write,
+    normalize_tessprek, parse_ops_json, tessprek_needs_format,
 };
 use crate::error::TesError;
+use crate::render::pack_text::resolve_pack_text;
 
 use super::super::args::{ApplyArgs, EditReadArgs, EditWriteArgs, FormatArgs};
-use super::super::util::{print_edit_write_report, print_out, read_edit_input, require_tessprek};
+use super::super::util::{
+    print_edit_write_report, print_out, read_edit_input, require_tessprek, resolve_template_root,
+};
 
 pub(in crate::cli) fn run_edit_read(args: &EditReadArgs) -> Result<(), TesError> {
     require_tessprek(&args.format)?;
@@ -27,6 +30,15 @@ pub(in crate::cli) fn run_edit_read(args: &EditReadArgs) -> Result<(), TesError>
 pub(in crate::cli) fn run_format(args: &FormatArgs) -> Result<(), TesError> {
     require_tessprek(&args.format)?;
     let input = read_edit_input(args.stdin, args.input.as_ref())?;
+    let template_root = resolve_template_root(args.template_root.clone());
+    let header_template_id =
+        TessprekDocMeta::peek_from_tessprek(&input).and_then(|m| m.template_id);
+    let rules = resolve_pack_text(
+        &template_root,
+        args.template.as_deref(),
+        header_template_id.as_deref(),
+    )?;
+    let input = rules.apply(&input);
     if args.check {
         return if tessprek_needs_format(&input)? {
             Err(TesError::Io(io::Error::new(
@@ -49,11 +61,10 @@ pub(in crate::cli) fn run_format(args: &FormatArgs) -> Result<(), TesError> {
 pub(in crate::cli) fn run_edit_write(args: EditWriteArgs) -> Result<(), TesError> {
     require_tessprek(&args.format)?;
     let tessprek = read_edit_input(args.stdin, args.input.as_ref())?;
-    let report = edit_write(
-        &args.path,
-        &tessprek,
-        &EditWriteOptions::new(args.source_hash, args.dry_run),
-    )?;
+    let mut options = EditWriteOptions::new(args.source_hash, args.dry_run);
+    options.template_root = resolve_template_root(args.template_root);
+    options.template_id = args.template;
+    let report = edit_write(&args.path, &tessprek, &options)?;
     print_edit_write_report(&report);
     Ok(())
 }

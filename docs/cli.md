@@ -344,6 +344,7 @@ tes edit-read paper.tes --format tessprek
 tes format --stdin < buffer.tessprek
 tes format -i buffer.tessprek -o buffer.tessprek
 tes format --check --stdin < buffer.tessprek
+tes format -i buffer.tessprek --template minimal --template-root templates
 tes edit-write paper.tes --format tessprek --source-hash HASH --stdin
 tes edit-write paper.tes --source-hash HASH -i buffer.tessprek --dry-run
 
@@ -382,11 +383,15 @@ commands for structured chunks. Full grammar: [docs/tessprek.md](tessprek.md).
 role / list depth / fence language purely from their Markdown shape (same
 inference as `tes import --markdown`), multi-block bodies are split into one
 block per chunk, and `\ids{}` is reused positionally when possible. Free
-Markdown (no `\text{}`) is accepted. `--check` exits non-zero when the input is
-not already normalized. `edit-write` and `apply` acquire an advisory per-file
-lock, re-check the source hash, compile to a sibling temporary file,
-deep-verify, and atomically replace. `--dry-run` stops before replace and
-prints a line diff. Vim/Neovim integrations are thin adapters over these
+Markdown (no `\text{}`) is accepted. With `--template` / `--template-root`
+(or `TES_TEMPLATE_ROOT` + Tessprek `template_id`), pack `typography.toml` /
+`aliases.toml` expand once before normalize (D23; fenced code skipped).
+`--check` exits non-zero when the input is not already normalized.
+`edit-write` applies the same pack expansions before seal. `edit-write` and
+`apply` acquire an advisory per-file lock, re-check the source hash, compile
+to a sibling temporary file, deep-verify, and atomically replace. `--dry-run`
+stops before replace and prints a line diff. Vim/Neovim integrations are thin
+adapters over these
 commands (CLI today; LSP below as it lands).
 
 Library callers can inject **new** image/attachment bytes via

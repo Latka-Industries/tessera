@@ -85,7 +85,14 @@ fn edit_write_inner(
 
     let before = edit_read(path)?;
     let source = TesFile::open(path)?;
-    let blocks = decode_tessprek(tessprek)?;
+    let catalog_template_id = source.catalog().and_then(|c| c.template_id.as_deref());
+    let rules = crate::render::pack_text::resolve_pack_text(
+        &options.template_root,
+        options.template_id.as_deref(),
+        catalog_template_id,
+    )?;
+    let tessprek = rules.apply(tessprek);
+    let blocks = decode_tessprek(&tessprek)?;
     let compiled = seal_with_history(
         &source,
         compile_blocks_to_bytes(&source, &blocks, None, &options.media)?,

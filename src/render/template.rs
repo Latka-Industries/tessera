@@ -17,6 +17,12 @@ pub const MANIFEST_NAME: &str = "manifest.json";
 /// Convention filename for native layout knob overlay (D23).
 pub const DEFAULT_WEAVE_NAME: &str = "weave.toml";
 
+/// Convention filename for typography substitutions (D23 / THI-354).
+pub const DEFAULT_TYPOGRAPHY_NAME: &str = "typography.toml";
+
+/// Convention filename for fixed-string aliases (D23 / THI-354).
+pub const DEFAULT_ALIASES_NAME: &str = "aliases.toml";
+
 /// Built-in pack id shipped under `templates/minimal`.
 pub const DEFAULT_TEMPLATE_ID: &str = "minimal";
 
@@ -67,6 +73,16 @@ pub struct TemplateManifest {
     /// When omitted, native emit uses [`DEFAULT_WEAVE_NAME`] if that file exists.
     #[serde(default)]
     pub weave: Option<String>,
+    /// Optional path to typography substitutions relative to the pack root.
+    ///
+    /// When omitted, format/compile uses [`DEFAULT_TYPOGRAPHY_NAME`] if present.
+    #[serde(default)]
+    pub typography: Option<String>,
+    /// Optional path to fixed-string aliases relative to the pack root.
+    ///
+    /// When omitted, format/compile uses [`DEFAULT_ALIASES_NAME`] if present.
+    #[serde(default)]
+    pub aliases: Option<String>,
 }
 
 /// A loaded pack directory + parsed manifest.
@@ -121,6 +137,12 @@ impl TemplatePack {
         }
         if let Some(weave) = &manifest.weave {
             require_pack_relative_file(&root, weave, "weave overlay")?;
+        }
+        if let Some(typography) = &manifest.typography {
+            require_pack_relative_file(&root, typography, "typography overlay")?;
+        }
+        if let Some(aliases) = &manifest.aliases {
+            require_pack_relative_file(&root, aliases, "aliases overlay")?;
         }
         Ok(Self { root, manifest })
     }
@@ -181,11 +203,31 @@ impl TemplatePack {
     /// that file exists under the pack root.
     #[must_use]
     pub fn weave_path(&self) -> Option<PathBuf> {
-        if let Some(rel) = &self.manifest.weave {
+        self.optional_overlay_path(self.manifest.weave.as_deref(), DEFAULT_WEAVE_NAME)
+    }
+
+    /// Absolute path to typography substitutions, if present.
+    #[must_use]
+    pub fn typography_path(&self) -> Option<PathBuf> {
+        self.optional_overlay_path(self.manifest.typography.as_deref(), DEFAULT_TYPOGRAPHY_NAME)
+    }
+
+    /// Absolute path to fixed-string aliases, if present.
+    #[must_use]
+    pub fn aliases_path(&self) -> Option<PathBuf> {
+        self.optional_overlay_path(self.manifest.aliases.as_deref(), DEFAULT_ALIASES_NAME)
+    }
+
+    fn optional_overlay_path(
+        &self,
+        manifest_rel: Option<&str>,
+        convention: &str,
+    ) -> Option<PathBuf> {
+        if let Some(rel) = manifest_rel {
             return Some(self.root.join(rel));
         }
-        let convention = self.root.join(DEFAULT_WEAVE_NAME);
-        convention.is_file().then_some(convention)
+        let path = self.root.join(convention);
+        path.is_file().then_some(path)
     }
 }
 

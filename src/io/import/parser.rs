@@ -1,4 +1,4 @@
-//! CommonMark / GFM → [`MarkdownBlock`] parse (pulldown-cmark).
+//! `CommonMark` / GFM → [`MarkdownBlock`] parse (pulldown-cmark).
 
 use pulldown_cmark::{Alignment, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use uuid::Uuid;

@@ -1,0 +1,7 @@
+# Plain string substitutions at `tes format` / edit-write (D23 / THI-354).
+# Longest `from` wins. Fenced code bodies are skipped.
+
+[substitutions]
+"..." = "…"
+"->" = "→"
+"--" = "–"
