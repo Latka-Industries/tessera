@@ -67,6 +67,8 @@ struct ActiveBlock {
     pending_links: Vec<OutboundLink>,
     link_stack: Vec<(u32, String)>,
     underline_stack: Vec<u32>,
+    /// Open emphasis/strong markers: (kind, UTF-8 start offset in `body`).
+    style_stack: Vec<(InlineKind, u32)>,
 }
 
 impl ParseState {
@@ -124,6 +126,8 @@ impl ParseState {
                     active.link_stack.push((start, dest_url.to_string()));
                 }
             }
+            Tag::Emphasis => self.push_style_start(InlineKind::Emphasis),
+            Tag::Strong => self.push_style_start(InlineKind::Strong),
             Tag::Table(alignments) => {
                 self.finish_active();
                 self.table = Some(TableBuilder {
@@ -200,6 +204,8 @@ impl ParseState {
                     }
                 }
             }
+            TagEnd::Emphasis => self.push_style_end(InlineKind::Emphasis),
+            TagEnd::Strong => self.push_style_end(InlineKind::Strong),
             TagEnd::TableCell => self.finish_table_cell(),
             TagEnd::TableRow => self.finish_table_row(),
             TagEnd::TableHead => {
@@ -222,7 +228,38 @@ impl ParseState {
             pending_links: Vec::new(),
             link_stack: Vec::new(),
             underline_stack: Vec::new(),
+            style_stack: Vec::new(),
         });
+    }
+
+    fn push_style_start(&mut self, kind: InlineKind) {
+        if self.table.is_some() {
+            return;
+        }
+        if self.active.is_none() {
+            self.begin(TextHeader::paragraph());
+        }
+        if let Some(active) = &mut self.active {
+            let start = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
+            active.style_stack.push((kind, start));
+        }
+    }
+
+    fn push_style_end(&mut self, kind: InlineKind) {
+        if self.table.is_some() {
+            return;
+        }
+        let Some(active) = &mut self.active else {
+            return;
+        };
+        let Some(idx) = active.style_stack.iter().rposition(|(k, _)| *k == kind) else {
+            return;
+        };
+        let (_, start) = active.style_stack.remove(idx);
+        let end = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
+        if end > start {
+            active.header.spans.push(InlineSpan { start, end, kind });
+        }
     }
 
     fn push_inline_html(&mut self, html: &str) {

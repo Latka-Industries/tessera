@@ -1,7 +1,8 @@
-//! Pack `typography.toml` + `aliases.toml` → expand once into Tessprek text (D23 / THI-354).
+//! Pack `typography.toml` / `aliases.toml` / `phrases.toml` → expand into Tessprek
+//! text (D23 / THI-354 / THI-355).
 //!
 //! Applied at `tes format` / edit-write compile. Sealed `.tes` stores the expanded
-//! Unicode / strings — no live macros.
+//! Unicode / styled prose — no live macros or phrase ids.
 
 use std::fs;
 use std::path::Path;
@@ -9,7 +10,8 @@ use std::path::Path;
 use serde::Deserialize;
 
 use super::template::{
-    DEFAULT_ALIASES_NAME, DEFAULT_TYPOGRAPHY_NAME, TemplatePack, resolve_template_id,
+    DEFAULT_ALIASES_NAME, DEFAULT_PHRASES_NAME, DEFAULT_TYPOGRAPHY_NAME, TemplatePack,
+    resolve_template_id,
 };
 use crate::error::{Result, TesError};
 
@@ -20,23 +22,26 @@ pub struct PackTextRules {
     pub substitutions: Vec<(String, String)>,
     /// Named aliases expanded as `\name` → value, longest name first.
     pub aliases: Vec<(String, String)>,
+    /// Phrase templates expanded as `\phrase{key}` / `\phrase{key}{arg}`.
+    pub phrases: Vec<(String, String)>,
 }
 
 impl PackTextRules {
     /// True when no rules are loaded.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.substitutions.is_empty() && self.aliases.is_empty()
+        self.substitutions.is_empty() && self.aliases.is_empty() && self.phrases.is_empty()
     }
 
-    /// Apply aliases then typography substitutions, skipping fenced code bodies.
+    /// Apply phrases, then aliases, then typography substitutions (skip fenced code).
     #[must_use]
     pub fn apply(&self, input: &str) -> String {
         if self.is_empty() {
             return input.to_owned();
         }
         apply_outside_fences(input, |chunk| {
-            let mut s = expand_aliases(chunk, &self.aliases);
+            let mut s = expand_phrases(chunk, &self.phrases);
+            s = expand_aliases(&s, &self.aliases);
             for (from, to) in &self.substitutions {
                 if !from.is_empty() {
                     s = s.replace(from, to);
@@ -65,7 +70,7 @@ pub fn resolve_pack_text(
     }
 }
 
-/// Load typography + aliases overlays for a pack.
+/// Load typography + aliases + phrases overlays for a pack.
 ///
 /// # Errors
 ///
@@ -79,9 +84,16 @@ pub fn pack_text_rules(pack: &TemplatePack) -> Result<PackTextRules> {
     if let Some(path) = pack.aliases_path() {
         let file: AliasesFile = load_overlay_toml(pack, &path, DEFAULT_ALIASES_NAME)?;
         for name in file.aliases.keys() {
-            validate_alias_name(name)?;
+            validate_ident(name, "alias")?;
         }
         rules.aliases = sorted_pairs(file.aliases);
+    }
+    if let Some(path) = pack.phrases_path() {
+        let file: PhrasesFile = load_overlay_toml(pack, &path, DEFAULT_PHRASES_NAME)?;
+        for name in file.phrases.keys() {
+            validate_ident(name, "phrase")?;
+        }
+        rules.phrases = sorted_pairs(file.phrases);
     }
     Ok(rules)
 }
@@ -96,6 +108,12 @@ struct TypographyFile {
 struct AliasesFile {
     #[serde(default)]
     aliases: std::collections::BTreeMap<String, String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct PhrasesFile {
+    #[serde(default)]
+    phrases: std::collections::BTreeMap<String, String>,
 }
 
 fn load_overlay_toml<T: for<'de> Deserialize<'de>>(
@@ -129,7 +147,7 @@ fn sorted_pairs(map: std::collections::BTreeMap<String, String>) -> Vec<(String,
     pairs
 }
 
-fn validate_alias_name(name: &str) -> Result<()> {
+fn validate_ident(name: &str, kind: &str) -> Result<()> {
     if name.is_empty()
         || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
         || !name
@@ -138,12 +156,75 @@ fn validate_alias_name(name: &str) -> Result<()> {
             .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
     {
         return Err(TesError::InvalidTemplate {
-            message: format!(
-                "alias name must be an ASCII identifier (got {name:?}); expanded as \\{name}"
-            ),
+            message: format!("{kind} name must be an ASCII identifier (got {name:?})"),
         });
     }
     Ok(())
+}
+
+fn expand_phrases(input: &str, phrases: &[(String, String)]) -> String {
+    if phrases.is_empty() {
+        return input.to_owned();
+    }
+    let mut out = String::with_capacity(input.len());
+    let chars: Vec<char> = input.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' && match_phrase_opener(&chars, i) {
+            let key_start = i + "\\phrase{".chars().count();
+            if let Some((key_end, key)) = take_brace_inner(&chars, key_start) {
+                let mut j = key_end;
+                let mut arg = String::new();
+                if j < chars.len() && chars[j] == '{' {
+                    if let Some((arg_end, a)) = take_brace_inner(&chars, j + 1) {
+                        arg = a;
+                        j = arg_end;
+                    } else {
+                        out.push(chars[i]);
+                        i += 1;
+                        continue;
+                    }
+                }
+                if let Some((_, template)) = phrases.iter().find(|(n, _)| n == &key) {
+                    out.push_str(&substitute_arg(template, &arg));
+                    i = j;
+                    continue;
+                }
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+fn match_phrase_opener(chars: &[char], i: usize) -> bool {
+    const OPENER: &[char] = &['\\', 'p', 'h', 'r', 'a', 's', 'e', '{'];
+    chars[i..].starts_with(OPENER)
+}
+
+fn take_brace_inner(chars: &[char], start: usize) -> Option<(usize, String)> {
+    let mut depth = 1usize;
+    let mut j = start;
+    while j < chars.len() {
+        match chars[j] {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    let inner: String = chars[start..j].iter().collect();
+                    return Some((j + 1, inner));
+                }
+            }
+            _ => {}
+        }
+        j += 1;
+    }
+    None
+}
+
+fn substitute_arg(template: &str, arg: &str) -> String {
+    template.replace("{arg}", arg).replace("$1", arg)
 }
 
 fn expand_aliases(input: &str, aliases: &[(String, String)]) -> String {
@@ -244,6 +325,7 @@ mod tests {
         let rules = PackTextRules {
             substitutions: vec![("...".into(), "…".into()), ("->".into(), "→".into())],
             aliases: vec![("maryamlatin".into(), "Maryam".into())],
+            phrases: vec![],
         };
         assert_eq!(
             rules.apply("Wait... go -> \\maryamlatin now"),
@@ -252,10 +334,51 @@ mod tests {
     }
 
     #[test]
+    fn phrase_expands_with_arg() {
+        let rules = PackTextRules {
+            substitutions: vec![],
+            aliases: vec![],
+            phrases: vec![("yegourdoon".into(), "*{arg}*".into())],
+        };
+        assert_eq!(rules.apply(r"\phrase{yegourdoon}{I am Yes}"), "*I am Yes*");
+    }
+
+    #[test]
+    fn phrase_without_arg_uses_empty_slot() {
+        let rules = PackTextRules {
+            substitutions: vec![],
+            aliases: vec![],
+            phrases: vec![("greet".into(), "Hello, {arg}.".into())],
+        };
+        assert_eq!(rules.apply(r"\phrase{greet}"), "Hello, .");
+    }
+
+    #[test]
+    fn phrase_then_typography() {
+        let rules = PackTextRules {
+            substitutions: vec![("...".into(), "…".into())],
+            aliases: vec![],
+            phrases: vec![("pause".into(), "Wait...".into())],
+        };
+        assert_eq!(rules.apply(r"\phrase{pause}"), "Wait…");
+    }
+
+    #[test]
+    fn unknown_phrase_left_alone() {
+        let rules = PackTextRules {
+            substitutions: vec![],
+            aliases: vec![],
+            phrases: vec![("known".into(), "x".into())],
+        };
+        assert_eq!(rules.apply(r"\phrase{unknown}{a}"), r"\phrase{unknown}{a}");
+    }
+
+    #[test]
     fn skips_fenced_code() {
         let rules = PackTextRules {
             substitutions: vec![("...".into(), "…".into())],
             aliases: vec![],
+            phrases: vec![],
         };
         let input = "Prose...\n```\nkeep...\n```\nAfter...\n";
         assert_eq!(rules.apply(input), "Prose…\n```\nkeep...\n```\nAfter…\n");
@@ -266,16 +389,18 @@ mod tests {
         let rules = PackTextRules {
             substitutions: vec![],
             aliases: vec![("phrase".into(), "NOPE".into())],
+            phrases: vec![],
         };
         assert_eq!(rules.apply(r"\phrase{x}"), r"\phrase{x}");
     }
 
     #[test]
-    fn minimal_pack_loads_typography() {
+    fn minimal_pack_loads_phrases() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates/minimal");
         let pack = TemplatePack::load(&root).unwrap();
         let rules = pack_text_rules(&pack).unwrap();
-        assert!(!rules.substitutions.is_empty());
+        assert!(!rules.phrases.is_empty());
+        assert_eq!(rules.apply(r"\phrase{yegourdoon}{I am Yes}"), "*I am Yes*");
         assert!(rules.apply("a...b").contains('…'));
     }
 

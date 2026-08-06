@@ -41,6 +41,33 @@ fn parses_underline_html_into_inline_span() {
 }
 
 #[test]
+fn parses_emphasis_and_strong_into_inline_spans() {
+    let blocks = parse_markdown_blocks("Say *I am Yes* and **bold**.\n");
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].body, "Say I am Yes and bold.");
+    assert!(
+        blocks[0]
+            .header
+            .spans
+            .iter()
+            .any(|s| s.kind == InlineKind::Emphasis
+                && &blocks[0].body[s.start as usize..s.end as usize] == "I am Yes"),
+        "{:?}",
+        blocks[0].header.spans
+    );
+    assert!(
+        blocks[0]
+            .header
+            .spans
+            .iter()
+            .any(|s| s.kind == InlineKind::Strong
+                && &blocks[0].body[s.start as usize..s.end as usize] == "bold"),
+        "{:?}",
+        blocks[0].header.spans
+    );
+}
+
+#[test]
 fn parses_commonmark_subset_into_semantic_blocks() {
     let md = concat!(
         "# Methods\n\n",

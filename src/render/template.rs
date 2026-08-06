@@ -23,6 +23,9 @@ pub const DEFAULT_TYPOGRAPHY_NAME: &str = "typography.toml";
 /// Convention filename for fixed-string aliases (D23 / THI-354).
 pub const DEFAULT_ALIASES_NAME: &str = "aliases.toml";
 
+/// Convention filename for parameterized phrase templates (D23 / THI-355).
+pub const DEFAULT_PHRASES_NAME: &str = "phrases.toml";
+
 /// Built-in pack id shipped under `templates/minimal`.
 pub const DEFAULT_TEMPLATE_ID: &str = "minimal";
 
@@ -83,6 +86,11 @@ pub struct TemplateManifest {
     /// When omitted, format/compile uses [`DEFAULT_ALIASES_NAME`] if present.
     #[serde(default)]
     pub aliases: Option<String>,
+    /// Optional path to parameterized phrase templates relative to the pack root.
+    ///
+    /// When omitted, format/compile uses [`DEFAULT_PHRASES_NAME`] if present.
+    #[serde(default)]
+    pub phrases: Option<String>,
 }
 
 /// A loaded pack directory + parsed manifest.
@@ -143,6 +151,9 @@ impl TemplatePack {
         }
         if let Some(aliases) = &manifest.aliases {
             require_pack_relative_file(&root, aliases, "aliases overlay")?;
+        }
+        if let Some(phrases) = &manifest.phrases {
+            require_pack_relative_file(&root, phrases, "phrases overlay")?;
         }
         Ok(Self { root, manifest })
     }
@@ -216,6 +227,12 @@ impl TemplatePack {
     #[must_use]
     pub fn aliases_path(&self) -> Option<PathBuf> {
         self.optional_overlay_path(self.manifest.aliases.as_deref(), DEFAULT_ALIASES_NAME)
+    }
+
+    /// Absolute path to parameterized phrase templates, if present.
+    #[must_use]
+    pub fn phrases_path(&self) -> Option<PathBuf> {
+        self.optional_overlay_path(self.manifest.phrases.as_deref(), DEFAULT_PHRASES_NAME)
     }
 
     fn optional_overlay_path(

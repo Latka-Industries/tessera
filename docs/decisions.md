@@ -265,7 +265,8 @@ defaults remain the baseline; overlays are sparse key overrides.
 | Tessprek | Structure + closed commands that seal to chunks/spans |
 
 **Manifest** stays pointers + identity (not layout data). Optional relative
-paths: `weave`, `typography`, `aliases` (else convention filenames when present).
+paths: `weave`, `typography`, `aliases`, `phrases` (else convention filenames
+when present).
 
 ### Dynamics without `\newcommand` (use each where it fits)
 

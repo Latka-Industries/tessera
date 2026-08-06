@@ -385,7 +385,8 @@ inference as `tes import --markdown`), multi-block bodies are split into one
 block per chunk, and `\ids{}` is reused positionally when possible. Free
 Markdown (no `\text{}`) is accepted. With `--template` / `--template-root`
 (or `TES_TEMPLATE_ROOT` + Tessprek `template_id`), pack `typography.toml` /
-`aliases.toml` expand once before normalize (D23; fenced code skipped).
+`aliases.toml` / `phrases.toml` expand once before normalize (D23; fenced code
+skipped). `\phrase{key}` / `\phrase{key}{arg}` become ordinary Markdown prose.
 `--check` exits non-zero when the input is not already normalized.
 `edit-write` applies the same pack expansions before seal. `edit-write` and
 `apply` acquire an advisory per-file lock, re-check the source hash, compile
