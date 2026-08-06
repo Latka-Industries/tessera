@@ -231,9 +231,7 @@ impl LayoutPayload {
         let mut lines: Vec<String> = Vec::new();
         for op in &self.ops {
             match op {
-                LayoutOp::Place {
-                    skip, content, ..
-                } => {
+                LayoutOp::Place { skip, content, .. } => {
                     let mut line = " ".repeat(skip.lossy_leading_spaces());
                     line.push_str(content);
                     lines.push(line);

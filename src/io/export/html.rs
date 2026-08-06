@@ -14,9 +14,10 @@ use crate::io::cite::{self, CiteProj, CiteStyle, format_inline_cite};
 use super::ExportOptions;
 use super::common::{
     cite_number_map, decode_attachment_entry, decode_cite_entry, decode_figure_entry,
-    decode_numbered_cite, decode_slide_entry, decode_text_entry, escape_html, html_class_attr,
-    image_src, selected_content_entries,
+    decode_layout_entry, decode_numbered_cite, decode_slide_entry, decode_text_entry, escape_html,
+    html_class_attr, image_src, selected_content_entries,
 };
+use super::layout_proj::layout_html;
 
 pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     if options.chunk_id.is_none() && options.chapter.is_none() && file_has_slides(file) {
@@ -72,6 +73,11 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
             ChunkType::Slide => {
                 close_all_lists(&mut article, &mut list_stack);
                 article.push_str(&render_slide_html(file, entry, options)?);
+            }
+            ChunkType::Layout => {
+                close_all_lists(&mut article, &mut list_stack);
+                let layout = decode_layout_entry(file, entry)?;
+                article.push_str(&layout_html(entry.chunk_id, &layout));
             }
             ChunkType::Attachment => {
                 close_all_lists(&mut article, &mut list_stack);

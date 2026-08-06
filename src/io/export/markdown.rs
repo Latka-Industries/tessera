@@ -15,8 +15,8 @@ use crate::io::cite::{self, CiteProj};
 use super::ExportOptions;
 use super::common::{
     cite_number_map, decode_attachment_entry, decode_cite_entry, decode_figure_entry,
-    decode_numbered_cite, decode_slide_entry, decode_text_entry, markdown_escape_alt,
-    selected_content_entries,
+    decode_layout_entry, decode_numbered_cite, decode_slide_entry, decode_text_entry,
+    markdown_escape_alt, selected_content_entries,
 };
 
 pub(super) fn export_markdown(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -97,6 +97,9 @@ fn push_markdown_non_text(
         }
         ChunkType::Slide => {
             parts.push(markdown_slide_block(&decode_slide_entry(file, entry)?));
+        }
+        ChunkType::Layout => {
+            parts.push(decode_layout_entry(file, entry)?.lossy_prose());
         }
         ChunkType::Attachment => {
             parts.push(markdown_attachment_block(&decode_attachment_entry(

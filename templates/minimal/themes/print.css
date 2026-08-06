@@ -294,6 +294,39 @@ figcaption,
   color: var(--tes-muted);
 }
 
+/* —— Layout blocks (D24) —— */
+
+.tes-layout {
+  margin: 0.6em 0;
+}
+
+.tes-layout-place {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 1.1em;
+}
+
+.tes-layout-place-flush {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tes-layout-place-label {
+  white-space: pre;
+}
+
+.tes-layout-vspace {
+  width: 100%;
+}
+
+.tes-layout-rule {
+  display: block;
+  margin: 0.25em 0;
+  border: 0;
+  border-top: 0.5pt solid var(--tes-rule, currentColor);
+  max-width: 100%;
+}
+
 /* —— Citations —— */
 
 .citation {

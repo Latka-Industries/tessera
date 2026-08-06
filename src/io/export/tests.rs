@@ -585,3 +585,68 @@ fn attachment_round_trip_verify_and_inert_export() {
     let report2 = crate::verify::verify_tes_file(&path, true).unwrap();
     assert!(report2.ok, "{:?}", report2.findings);
 }
+
+#[test]
+fn layout_chunk_html_markdown_ai_export() {
+    use crate::catalog::layout::{
+        LayoutOp, LayoutPayload, MeasureFrac, PlaceSkip, RuleWidth, VspaceAmount,
+    };
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("layout_export.tes");
+    let mut s = TesWriterSession::create(&path, DocKind::Note);
+    s.set_catalog(DocumentCatalog::new(
+        "aa0e8400-e29b-41d4-a716-4466554400aa",
+        "Layout export",
+        "2026-08-06T00:00:00Z",
+        "2026-08-06T00:00:00Z",
+        DocKind::Note,
+    ))
+    .unwrap();
+    s.add_text_chunk(&TextHeader::paragraph(), "Before layout.")
+        .unwrap();
+    s.add_layout(&LayoutPayload {
+        ops: vec![
+            LayoutOp::Place {
+                skip: PlaceSkip::Frac {
+                    frac: MeasureFrac::FULL,
+                },
+                content: "▸".into(),
+                spans: vec![],
+            },
+            LayoutOp::Vspace {
+                amount: VspaceAmount::Med,
+            },
+            LayoutOp::Rule {
+                width: RuleWidth::frac(MeasureFrac::FULL),
+            },
+        ],
+    })
+    .unwrap();
+    s.add_text_chunk(&TextHeader::paragraph(), "After layout.")
+        .unwrap();
+    s.commit().unwrap();
+
+    let html = export_view(
+        &path,
+        ExportView::Html,
+        &ExportOptions {
+            standalone: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(html.contains("class=\"tes-layout\""), "{html}");
+    assert!(html.contains("tes-layout-place-flush"), "{html}");
+    assert!(html.contains('▸'), "{html}");
+    assert!(html.contains("tes-layout-rule"), "{html}");
+
+    let md = export_view(&path, ExportView::Markdown, &ExportOptions::default()).unwrap();
+    assert!(md.contains('▸'), "{md}");
+    assert!(md.contains("---"), "{md}");
+
+    let ai = export_view(&path, ExportView::AiText, &ExportOptions::default()).unwrap();
+    assert!(ai.contains('▸'), "{ai}");
+    assert!(ai.contains("Before layout."), "{ai}");
+    assert!(ai.contains("After layout."), "{ai}");
+}

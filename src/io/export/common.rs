@@ -166,6 +166,7 @@ pub(super) fn is_content_export_type(chunk_type: ChunkType) -> bool {
             | ChunkType::Cite
             | ChunkType::Slide
             | ChunkType::Attachment
+            | ChunkType::Layout
     )
 }
 

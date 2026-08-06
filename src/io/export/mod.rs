@@ -8,6 +8,7 @@ mod ai;
 mod common;
 mod html;
 mod jsonl;
+mod layout_proj;
 mod linear;
 mod markdown;
 mod raw;

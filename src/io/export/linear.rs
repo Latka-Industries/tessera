@@ -12,7 +12,8 @@ use crate::io::bib::{BibEntry, format_numeric_marker, format_numeric_reference};
 use super::ExportOptions;
 use super::common::{
     cite_number_map, decode_attachment_entry, decode_cite_entry, decode_figure_entry,
-    decode_numbered_cite, decode_slide_entry, decode_text_entry, selected_content_entries,
+    decode_layout_entry, decode_numbered_cite, decode_slide_entry, decode_text_entry,
+    selected_content_entries,
 };
 
 pub(super) fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -74,6 +75,15 @@ pub(super) fn export_linear(file: &TesFile, options: &ExportOptions) -> Result<S
                         let _ = writeln!(out, "[slide layout={}]", slide.layout_id);
                         for region in &slide.regions {
                             let _ = writeln!(out, "  {}: chunk-{}", region.name, region.chunk_id);
+                        }
+                    }
+                    ChunkType::Layout => {
+                        let text = decode_layout_entry(file, entry)?.lossy_prose();
+                        if !text.is_empty() {
+                            out.push_str(&text);
+                            if !text.ends_with('\n') {
+                                out.push('\n');
+                            }
                         }
                     }
                     ChunkType::Attachment => {
