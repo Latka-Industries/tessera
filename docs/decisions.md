@@ -264,8 +264,8 @@ defaults remain the baseline; overlays are sparse key overrides.
 | `cite_style_id` / cite-style pack | Marker form `[1]` / `[@key]`, References **text** projection |
 | Tessprek | Structure + closed commands that seal to chunks/spans |
 
-**Manifest** stays pointers + identity (not layout data). Proposed optional
-field: `weave` → path to `weave.toml`.
+**Manifest** stays pointers + identity (not layout data). Optional relative
+paths: `weave`, `typography`, `aliases` (else convention filenames when present).
 
 ### Dynamics without `\newcommand` (use each where it fits)
 

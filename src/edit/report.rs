@@ -24,16 +24,22 @@ pub struct EditWriteOptions {
     pub dry_run: bool,
     /// New media payloads referenced by temporary chunk ids in Tessprek.
     pub media: EditMediaBag,
+    /// Directory containing template packs (pack typography/aliases; D23).
+    pub template_root: PathBuf,
+    /// Pack id override; else Tessprek/`catalog` `template_id`, else `minimal`.
+    pub template_id: Option<String>,
 }
 
 impl EditWriteOptions {
-    /// Build options with an empty media bag.
+    /// Build options with an empty media bag and default template root (`templates`).
     #[must_use]
     pub fn new(source_hash: impl Into<String>, dry_run: bool) -> Self {
         Self {
             source_hash: source_hash.into(),
             dry_run,
             media: EditMediaBag::default(),
+            template_root: PathBuf::from("templates"),
+            template_id: None,
         }
     }
 }

@@ -67,6 +67,13 @@ impl TessprekDocMeta {
         }
     }
 
+    /// Best-effort parse of the leading `\tessera{…}` header (for pack resolve).
+    #[must_use]
+    pub fn peek_from_tessprek(tessprek: &str) -> Option<Self> {
+        let (map, _) = leading_attr_map(tessprek)?;
+        Some(Self::from_attrs(&map))
+    }
+
     /// Keys in `map` that are not in [`markers::TESSERA_HEADER_KEYS`].
     #[must_use]
     pub fn unknown_keys(map: &BTreeMap<String, String>) -> Vec<String> {
@@ -82,9 +89,7 @@ impl TessprekDocMeta {
     /// header parses and contains unknown keys.
     #[must_use]
     pub fn unknown_keys_in_buffer(tessprek: &str) -> Option<(usize, Vec<String>)> {
-        let lines: Vec<&str> = tessprek.lines().collect();
-        let (attrs, start, _) = take_leading_tessera_header(&lines).ok()?;
-        let map = parse_attrs(&attrs, start + 1).ok()?;
+        let (map, start) = leading_attr_map(tessprek)?;
         let unknown = Self::unknown_keys(&map);
         if unknown.is_empty() {
             None
@@ -104,6 +109,13 @@ impl TessprekDocMeta {
         push_plain(parts, "template_id", self.template_id.as_deref());
         push_plain(parts, "slug", self.slug.as_deref());
     }
+}
+
+fn leading_attr_map(tessprek: &str) -> Option<(BTreeMap<String, String>, usize)> {
+    let lines: Vec<&str> = tessprek.lines().collect();
+    let (attrs, start, _) = take_leading_tessera_header(&lines).ok()?;
+    let map = parse_attrs(&attrs, start + 1).ok()?;
+    Some((map, start))
 }
 
 fn nonempty_owned(value: Option<&str>) -> Option<String> {
