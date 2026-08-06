@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use crate::catalog::chunk::{OrderedListNumbering, TextHeader};
+use crate::catalog::layout::LayoutPayload;
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::SlidePayload;
 use crate::catalog::{CitePayload, InlineKind, InlineSpan, LinkEntry, LinkKind, OutboundLink};
@@ -11,9 +12,10 @@ use crate::io::cite::{
 use crate::io::font::PendingFont;
 
 use super::super::ContentBlock;
+use super::layout_ops::layout_op_parts;
 use super::markers::{
-    ATTACH_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX, MEDIA_PREFIX,
-    QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX, TEXT_PREFIX, VERSION,
+    ATTACH_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX, LAYOUT_PREFIX,
+    MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX, TEXT_PREFIX, VERSION,
 };
 use super::types::{TessprekDocMeta, TessprekMediaEntry};
 use super::util::{kv_attr, quoted_attr};
@@ -94,6 +96,10 @@ pub fn encode_content_blocks(
                     }
                     ContentBlock::Slide { slide, .. } => {
                         write_slide_directive(&mut out, slide);
+                        out.push('\n');
+                    }
+                    ContentBlock::Layout { layout, .. } => {
+                        write_layout_directive(&mut out, layout);
                         out.push('\n');
                     }
                     ContentBlock::Attachment {
@@ -444,6 +450,11 @@ fn write_slide_directive(out: &mut String, slide: &SlidePayload) {
             quoted_attr("regions", &regions),
         ],
     );
+}
+
+fn write_layout_directive(out: &mut String, layout: &LayoutPayload) {
+    let parts = layout_op_parts(layout);
+    write_brace_block(out, LAYOUT_PREFIX, &parts);
 }
 
 fn write_attachment_directive(out: &mut String, att: &AttachmentPayload) {

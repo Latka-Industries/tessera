@@ -66,7 +66,7 @@ katex-rs = "0.2"
 # argus-chunk = { path = "../argus-chunk" }
 # Local suite sibling (tessera-suite/ariadnes-weave → LatkaIndustries).
 # Enable while co-developing weave; leave commented to use crates.io.
-# ariadnes-weave = { path = "../ariadnes-weave" }
+ariadnes-weave = { path = "../ariadnes-weave" }
 
 [dev-dependencies]
 anyhow = "1.0.104"

@@ -404,6 +404,14 @@ fn verify_payload_decode(findings: &mut Vec<Finding>, entry: &ChunkIndexEntry, p
                 ));
             }
         }
+        ChunkType::Layout => {
+            if let Err(err) = crate::catalog::LayoutPayload::from_bytes(payload) {
+                findings.push(Finding::error(
+                    "chunk.layout_payload",
+                    format!("chunk {}: {err}", entry.chunk_id),
+                ));
+            }
+        }
         _ => {}
     }
 }

@@ -224,6 +224,9 @@ fn write_compiled_block(
         ContentBlock::Slide { slide, .. } => {
             session.add_slide(slide)?;
         }
+        ContentBlock::Layout { layout, .. } => {
+            session.add_layout(layout)?;
+        }
         ContentBlock::Attachment { .. } => {
             write_attachment_block(session, source, bag_attachments, block)?;
         }

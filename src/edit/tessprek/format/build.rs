@@ -195,6 +195,7 @@ fn block_anchor_line(block: &ContentBlock) -> String {
             )
         }
         ContentBlock::Slide { slide, .. } => slide.layout_id.clone(),
+        ContentBlock::Layout { .. } => "\\layout".into(),
         ContentBlock::Attachment { filename, .. } => filename.clone(),
     }
 }

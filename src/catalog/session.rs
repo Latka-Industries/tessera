@@ -271,6 +271,25 @@ impl TesWriterSession {
         Ok(self.chunks.len() as u64)
     }
 
+    /// Append a reading-order layout chunk (`place` / `vspace` / `rule`).
+    ///
+    /// Returns the 1-based `chunk_id` assigned on commit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TesError::SessionSealed`] if sealed, or encode/validation
+    /// errors from [`crate::catalog::LayoutPayload::to_bytes`].
+    pub fn add_layout(&mut self, layout: &crate::catalog::LayoutPayload) -> Result<u64> {
+        self.ensure_open()?;
+        let payload = layout.to_bytes()?;
+        self.chunks.push(PendingChunk {
+            chunk_type: ChunkType::Layout,
+            chunk_flags: chunk_flags::READING_ORDER,
+            payload,
+        });
+        Ok(self.chunks.len() as u64)
+    }
+
     /// Number of link-table rows queued so far (next `link_id`).
     #[must_use]
     pub fn link_count(&self) -> usize {
@@ -444,6 +463,7 @@ impl TesWriterSession {
                 ChunkType::Attachment => features.declare_optional(feature_ids::ATTACHMENTS),
                 ChunkType::Cite => features.declare_optional(feature_ids::CITATIONS),
                 ChunkType::Slide => features.declare_optional(feature_ids::SLIDES),
+                ChunkType::Layout => features.declare_optional(feature_ids::LAYOUT),
                 ChunkType::Image | ChunkType::Figure => {
                     features.declare_optional(feature_ids::FIGURES);
                 }

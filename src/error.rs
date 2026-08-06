@@ -267,6 +267,13 @@ pub enum TesError {
         message: String,
     },
 
+    /// Layout payload failed validation or decode.
+    #[error("invalid layout: {message}")]
+    InvalidLayout {
+        /// Human-readable reason.
+        message: String,
+    },
+
     /// Bibliography interchange failed.
     #[error("invalid bibliography: {message}")]
     InvalidBib {

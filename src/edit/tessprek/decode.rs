@@ -117,6 +117,7 @@ pub(crate) fn set_chunk_id(block: &mut ContentBlock, id: u64) {
         | ContentBlock::Figure { chunk_id, .. }
         | ContentBlock::Cite { chunk_id, .. }
         | ContentBlock::Slide { chunk_id, .. }
+        | ContentBlock::Layout { chunk_id, .. }
         | ContentBlock::Attachment { chunk_id, .. } => *chunk_id = Some(id),
     }
 }
@@ -136,6 +137,7 @@ pub(crate) fn decode_named_directive(
         "quote" => decode_quote_block(map, line_no),
         "ref" => decode_ref_block(map, line_no),
         "slide" => decode_slide_block(map, line_no),
+        "layout" => decode_layout_block(body, line_no),
         "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
             line_no,
@@ -335,6 +337,14 @@ fn decode_slide_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<
     Ok(ContentBlock::Slide {
         chunk_id: None,
         slide: SlidePayload { layout_id, regions },
+    })
+}
+
+fn decode_layout_block(body: &str, line_no: usize) -> Result<ContentBlock> {
+    let layout = super::layout_ops::parse_layout_inner(body, line_no)?;
+    Ok(ContentBlock::Layout {
+        chunk_id: None,
+        layout,
     })
 }
 

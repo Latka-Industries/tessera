@@ -17,6 +17,7 @@ mod encode;
 mod format;
 mod inline_cite;
 mod inline_font;
+mod layout_ops;
 pub mod markers;
 mod types;
 mod util;

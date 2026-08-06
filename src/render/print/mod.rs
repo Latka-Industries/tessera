@@ -25,7 +25,7 @@ use crate::io::cite::{CiteProj, projection_maps};
 use crate::io::export::{chapter_slice, cite_number_map, decode_text_entry};
 use crate::layout::DocKind;
 
-use blocks::{map_figure, map_slide, map_text_block};
+use blocks::{map_figure, map_layout, map_slide, map_text_block};
 use cite::{append_print_references, push_cite_block};
 use lists::{PendingListItem, flush_list, push_list_item};
 
@@ -148,6 +148,10 @@ fn map_entries(
             ChunkType::Slide => {
                 flush_list(&mut blocks, &mut list_buf);
                 blocks.push(map_slide(file, entry)?);
+            }
+            ChunkType::Layout => {
+                flush_list(&mut blocks, &mut list_buf);
+                blocks.push(map_layout(file, entry)?);
             }
             ChunkType::Cite => {
                 flush_list(&mut blocks, &mut list_buf);

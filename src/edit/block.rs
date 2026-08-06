@@ -2,6 +2,7 @@
 
 use crate::catalog::OutboundLink;
 use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
+use crate::catalog::layout::LayoutPayload;
 use crate::catalog::media::FigureRef;
 use crate::catalog::slide::SlidePayload;
 use crate::io::{cite, font};
@@ -46,6 +47,13 @@ pub enum ContentBlock {
         /// Slide payload.
         slide: SlidePayload,
     },
+    /// Layout chunk with sealed `place` / `vspace` / `rule` ops (D24).
+    Layout {
+        /// Optional stable id from the source projection.
+        chunk_id: Option<u64>,
+        /// Layout payload.
+        layout: LayoutPayload,
+    },
     /// Inert attachment chunk (metadata in Tessprek; bytes from source or media bag).
     Attachment {
         /// Source chunk id, or a temporary id resolved via [`EditMediaBag`].
@@ -70,6 +78,7 @@ impl ContentBlock {
             | Self::Figure { chunk_id, .. }
             | Self::Cite { chunk_id, .. }
             | Self::Slide { chunk_id, .. }
+            | Self::Layout { chunk_id, .. }
             | Self::Attachment { chunk_id, .. } => *chunk_id,
         }
     }

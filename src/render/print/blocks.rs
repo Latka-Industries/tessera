@@ -1,17 +1,22 @@
 //! Map text / figure / slide chunks to weave [`PrintBlock`]s.
 
 use ariadnes_weave::{
-    BreakHint, FigurePlacement, PrintBlock, PrintImage, PrintProfileId, SlideRegionContent,
-    TableRow, TextRun,
+    BreakHint, EmAmount as WeaveEm, FigurePlacement, LayoutOp as WeaveLayoutOp,
+    MeasureFrac as WeaveFrac, PlaceSkip as WeavePlaceSkip, PrintBlock, PrintImage, PrintProfileId,
+    RuleWidth as WeaveRuleWidth, SlideRegionContent, TableRow, TextRun,
+    VspaceAmount as WeaveVspace,
 };
 
 use crate::catalog::chunk::{TextHeader, TextRole};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
+use crate::catalog::layout::{EmAmount, LayoutOp, MeasureFrac, PlaceSkip, RuleWidth, VspaceAmount};
 use crate::catalog::media::{ImagePayload, ImagePlacement};
 use crate::error::{Result, TesError};
 use crate::io::cite::CiteProj;
-use crate::io::export::{decode_figure_entry, decode_slide_entry, decode_text_entry};
+use crate::io::export::{
+    decode_figure_entry, decode_layout_entry, decode_slide_entry, decode_text_entry,
+};
 
 use super::runs::body_to_runs;
 
@@ -133,6 +138,65 @@ pub(crate) fn map_slide(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Print
         layout_id: slide.layout_id,
         regions,
     })
+}
+
+pub(crate) fn map_layout(file: &TesFile, entry: &ChunkIndexEntry) -> Result<PrintBlock> {
+    let layout = decode_layout_entry(file, entry)?;
+    Ok(PrintBlock::Layout {
+        ops: layout.ops.iter().map(map_layout_op).collect(),
+    })
+}
+
+fn map_layout_op(op: &LayoutOp) -> WeaveLayoutOp {
+    match op {
+        LayoutOp::Place {
+            skip,
+            content,
+            spans,
+        } => WeaveLayoutOp::Place {
+            skip: map_place_skip(skip),
+            runs: body_to_runs(content, spans, None),
+        },
+        LayoutOp::Vspace { amount } => WeaveLayoutOp::Vspace {
+            amount: map_vspace(amount),
+        },
+        LayoutOp::Rule { width } => WeaveLayoutOp::Rule {
+            width: map_rule_width(width),
+        },
+    }
+}
+
+fn map_place_skip(skip: &PlaceSkip) -> WeavePlaceSkip {
+    match skip {
+        PlaceSkip::Frac { frac } => WeavePlaceSkip::Frac {
+            frac: map_frac(*frac),
+        },
+        PlaceSkip::Em { em } => WeavePlaceSkip::Em { em: map_em(*em) },
+    }
+}
+
+fn map_vspace(amount: &VspaceAmount) -> WeaveVspace {
+    match amount {
+        VspaceAmount::Small => WeaveVspace::Small,
+        VspaceAmount::Med => WeaveVspace::Med,
+        VspaceAmount::Big => WeaveVspace::Big,
+        VspaceAmount::Em { em } => WeaveVspace::Em { em: map_em(*em) },
+    }
+}
+
+fn map_rule_width(width: &RuleWidth) -> WeaveRuleWidth {
+    WeaveRuleWidth {
+        frac: width.frac.map(map_frac),
+        em: width.em.map(map_em),
+    }
+}
+
+fn map_frac(frac: MeasureFrac) -> WeaveFrac {
+    WeaveFrac::from_bps(frac.bps)
+}
+
+fn map_em(em: EmAmount) -> WeaveEm {
+    WeaveEm::from_milli(em.milli)
 }
 
 fn slide_region_text(file: &TesFile, chunk_id: u64) -> Result<String> {
