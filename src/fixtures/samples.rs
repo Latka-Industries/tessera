@@ -685,6 +685,7 @@ pub fn encode_tessprek_showcase() -> Vec<u8> {
 
     add_showcase_prose(&mut session);
     add_showcase_phrases(&mut session);
+    add_showcase_fonts(&mut session);
     add_showcase_captioned(&mut session);
     let (slide_title, slide_body) = add_showcase_media_and_slide(&mut session);
     add_showcase_cite_family(&mut session, intro);
@@ -713,6 +714,31 @@ fn add_showcase_phrases(session: &mut TesWriterSession) {
             "Type \\phr and complete for the LSP snippet. Companion buffer: phrases_demo.tessprek.",
         )
         .expect("phrase lsp hint");
+}
+
+/// Sealed `\font{…}{…}` span (round-trips; pack `fonts.toml` pins the TTF).
+fn add_showcase_fonts(session: &mut TesWriterSession) {
+    session
+        .add_text_chunk(&TextHeader::heading(2), "Pack fonts")
+        .expect("h2 fonts");
+    let body = "Pinned font demo: barev ashkharh.";
+    let start = u32::try_from(body.find("barev").expect("barev")).unwrap_or(0);
+    let end = u32::try_from(body.len()).unwrap_or(0);
+    let mut para = TextHeader::paragraph();
+    para.spans = vec![InlineSpan {
+        start,
+        end,
+        kind: InlineKind::Font {
+            font_id: "armenian".into(),
+        },
+    }];
+    session.add_text_chunk(&para, body).expect("font line");
+    session
+        .add_text_chunk(
+            &TextHeader::paragraph(),
+            "LSP: \\font / \\arm (snippet → \\font{armenian}{…}). Native PDF loads pack fonts.toml pins.",
+        )
+        .expect("font lsp hint");
 }
 
 fn add_showcase_prose(session: &mut TesWriterSession) {

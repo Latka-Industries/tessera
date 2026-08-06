@@ -4,7 +4,7 @@ use crate::catalog::OutboundLink;
 use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
 use crate::catalog::media::FigureRef;
 use crate::catalog::slide::SlidePayload;
-use crate::io::cite;
+use crate::io::{cite, font};
 
 /// One reading-order block in a Tessprek projection.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +22,8 @@ pub enum ContentBlock {
         pending_links: Vec<OutboundLink>,
         /// Inline `\cite{key}` spans over [`Self::Text::body`] (Tessprek).
         pending_cites: Vec<cite::PendingCite>,
+        /// Inline `\font{id}{text}` spans over [`Self::Text::body`] (Tessprek).
+        pending_fonts: Vec<font::PendingFont>,
     },
     /// Figure chunk referencing an image payload.
     Figure {

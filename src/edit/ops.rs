@@ -194,6 +194,7 @@ pub fn apply_ops_to_blocks(
                     body: body.clone(),
                     pending_links: Vec::new(),
                     pending_cites: Vec::new(),
+                    pending_fonts: Vec::new(),
                 });
             }
             TesOp::DeleteChunk { chunk_id } => {

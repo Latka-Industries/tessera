@@ -462,6 +462,11 @@ fn apply_spans_html(
                     format!("<cite>{}</cite>", escape_html(&marker))
                 }
             }
+            InlineKind::Font { font_id } => format!(
+                "<span class=\"font\" data-font=\"{}\">{}</span>",
+                escape_html(font_id),
+                escape_html(&inner)
+            ),
         };
         replacements.push((token.clone(), html));
         work.replace_range(start..end, &token);

@@ -252,6 +252,8 @@ pack/
   aliases.toml        # optional fixed string shortcuts
   phrases.toml        # optional parameterized boilerplate
   typography.toml     # optional substitutions (... → …, -> → →)
+  fonts.toml          # optional id → relative .ttf/.otf (native pin)
+  fonts/*.ttf         # pinned face bytes
 ```
 
 Typical packs stay small: omit overlay files until needed. Bundled weave
@@ -265,8 +267,8 @@ defaults remain the baseline; overlays are sparse key overrides.
 | Tessprek | Structure + closed commands that seal to chunks/spans |
 
 **Manifest** stays pointers + identity (not layout data). Optional relative
-paths: `weave`, `typography`, `aliases`, `phrases` (else convention filenames
-when present).
+paths: `weave`, `typography`, `aliases`, `phrases`, `fonts` (else convention
+filenames when present).
 
 ### Dynamics without `\newcommand` (use each where it fits)
 
@@ -274,7 +276,7 @@ when present).
 | --- | --- | --- |
 | Fixed strings | `aliases.toml` | `\maryamlatin` → literal |
 | Glyph shortcuts | `typography.toml` substitutions at format/compile | `...` → `…` (not `\ldots` Tessprek) |
-| Wrap arg in face/style | Closed `\face{id}{…}` → IR span + pinned face | `\arm` snippet → `\face{armenian}{…}` |
+| Wrap arg in face/style | Closed `\font{id}{…}` → IR span + pinned face | `\arm` snippet → `\font{armenian}{…}` |
 | Parameterized boilerplate | Pack phrase + one `\phrase{id}{opt}` | `\yegourdoon` |
 | Layout widget | Real Tessprek/block when shipped | `\progress{n}` |
 
@@ -290,9 +292,9 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
    A `phrase_id` span is a later option if re-edit becomes painful.
 2. **Tessprek syntax:**
    - Phrases: `\phrase{key}` and `\phrase{key}{arg}` (optional second brace).
-   - Faces: generic `\face{face_id}{…}` where `face_id` is pack-pinned (e.g.
+   - Fonts: generic `\font{font_id}{…}` where `font_id` is pack-pinned (e.g.
      `armenian`). Language-specific `\arm` is a **snippet/alias** that inserts
-     `\face{armenian}{…}`, not a core Tessprek command.
+     `\font{armenian}{…}`, not a core Tessprek command.
 3. **First color cut (weave):** optional hex on `[text]` (global default),
    `[quote]`, and `[cite]` only. No per-heading or bibliography color until a
    later knob bump.
@@ -306,7 +308,7 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
 ### Weave aesthetics (direction)
 
 - Vanilla quote body **italic by default**; `[quote] italic = true` overridable.
-- Grow knobs as **typography policy** (faces, italic, optional hex color,
+- Grow knobs as **typography policy** (fonts, italic, optional hex color,
   cite underline), not a CSS clone.
 - Optional `[text].color` with per-category overrides (`[quote]`, `[cite]`, …).
 - Bibliography **look** (hanging indent, gaps, cite color) in weave; bibliography
@@ -323,7 +325,7 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
 
 1. Typography substitutions + aliases  
 2. Phrase templates + `\phrase`  
-3. Face wraps actually needed (`\arm`)  
+3. Font wraps actually needed (`\arm`)  
 4. Weave quote italic default + sparse aesthetic knobs  
 5. Tessera: pack `weave.toml` → `EmitOptions`  
 6. Widgets (`\progress`) only when dogfood forces  

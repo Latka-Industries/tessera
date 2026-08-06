@@ -1,0 +1,8 @@
+# Pack-pinned fonts for native PDF (`EmitOptions::pinned_faces`, D23 / THI-356).
+# Tessprek: `\font{id}{text}` seals to InlineKind::Font; `\arm` is an LSP snippet → `\font{armenian}{…}`.
+# Weave still names the pin `TextRun.face` / `pinned_faces`.
+
+[fonts]
+test = "fonts/test-face.ttf"
+# Stand-in until a real Armenian TTF ships with dogfood packs.
+armenian = "fonts/test-face.ttf"

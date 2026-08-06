@@ -225,7 +225,7 @@ pub(crate) fn decode_numbered_cite(
     Ok((n, cite, bib))
 }
 
-pub(super) fn decode_text_entry(
+pub(crate) fn decode_text_entry(
     file: &TesFile,
     entry: &ChunkIndexEntry,
 ) -> Result<(TextHeader, String)> {
@@ -236,7 +236,7 @@ pub(super) fn decode_text_entry(
     })
 }
 
-pub(super) fn decode_figure_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<FigureRef> {
+pub(crate) fn decode_figure_entry(file: &TesFile, entry: &ChunkIndexEntry) -> Result<FigureRef> {
     let raw = file.decode_payload(entry)?;
     FigureRef::from_bytes(&raw).map_err(|e| TesError::Decode {
         chunk_id: entry.chunk_id,
@@ -273,7 +273,7 @@ pub fn export_attachment_bytes(file: &TesFile, chunk_id: u64) -> Result<Attachme
     decode_attachment_entry(file, entry)
 }
 
-pub(super) fn decode_slide_entry(
+pub(crate) fn decode_slide_entry(
     file: &TesFile,
     entry: &ChunkIndexEntry,
 ) -> Result<crate::catalog::SlidePayload> {

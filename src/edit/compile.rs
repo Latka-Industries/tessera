@@ -166,6 +166,7 @@ fn write_compiled_block(
             body,
             pending_links,
             pending_cites,
+            pending_fonts,
             ..
         } => {
             let mut header = header.clone();
@@ -183,6 +184,20 @@ fn write_compiled_block(
                         start: pending.start,
                         end: pending.end,
                         kind: InlineKind::Citation { cite_chunk_id },
+                    });
+                }
+            }
+            if !pending_fonts.is_empty() {
+                header
+                    .spans
+                    .retain(|s| !matches!(s.kind, InlineKind::Font { .. }));
+                for pending in pending_fonts {
+                    header.spans.push(InlineSpan {
+                        start: pending.start,
+                        end: pending.end,
+                        kind: InlineKind::Font {
+                            font_id: pending.font_id.clone(),
+                        },
                     });
                 }
             }

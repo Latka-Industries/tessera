@@ -155,6 +155,7 @@ pub fn export_pdf(
 fn export_pdf_native(path: &Path, output: &Path, options: &PdfExportOptions) -> Result<()> {
     use ariadnes_weave::{EmitOptions, PrintProfileId};
 
+    use super::pack_fonts::resolve_pack_fonts;
     use super::print::{PrintBuildOptions, build_print_document};
     use super::weave_pack::resolve_pack_layout;
 
@@ -173,12 +174,22 @@ fn export_pdf_native(path: &Path, output: &Path, options: &PdfExportOptions) -> 
             profile,
         },
     )?;
+    let catalog_template = catalog.and_then(|c| c.template_id.as_deref());
     let layout = resolve_pack_layout(
         &options.template_root,
         options.template_id.as_deref(),
-        catalog.and_then(|c| c.template_id.as_deref()),
+        catalog_template,
     )?;
-    let opts = EmitOptions::bundled_only().with_layout(layout);
+    let fonts = resolve_pack_fonts(
+        &options.template_root,
+        options.template_id.as_deref(),
+        catalog_template,
+    )?;
+    let mut opts = EmitOptions::bundled_only().with_layout(layout);
+    for (id, bytes) in fonts {
+        // Weave API still uses pinned_faces / TextRun.face.
+        opts = opts.with_pinned_face(id, bytes);
+    }
     let bytes = ariadnes_weave::emit_pdf_with(&doc, &opts).map_err(|err| TesError::PdfEngine {
         message: format!("ariadnes-weave emit failed: {err}"),
     })?;

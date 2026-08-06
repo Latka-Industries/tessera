@@ -170,6 +170,10 @@ fn render_markdown_with_cites(
     header
         .spans
         .retain(|s| !matches!(s.kind, InlineKind::Citation { .. }));
+    // Font is Tessprek-only; unwrap to ordinary prose in Markdown export.
+    header
+        .spans
+        .retain(|s| !matches!(s.kind, InlineKind::Font { .. }));
     header.render_markdown_with_links_indexed(&body, links, ordered_index)
 }
 

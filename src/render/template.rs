@@ -26,6 +26,9 @@ pub const DEFAULT_ALIASES_NAME: &str = "aliases.toml";
 /// Convention filename for parameterized phrase templates (D23 / THI-355).
 pub const DEFAULT_PHRASES_NAME: &str = "phrases.toml";
 
+/// Convention filename for pack-pinned font TTFs (D23 / THI-356).
+pub const DEFAULT_FONTS_NAME: &str = "fonts.toml";
+
 /// Built-in pack id shipped under `templates/minimal`.
 pub const DEFAULT_TEMPLATE_ID: &str = "minimal";
 
@@ -91,6 +94,11 @@ pub struct TemplateManifest {
     /// When omitted, format/compile uses [`DEFAULT_PHRASES_NAME`] if present.
     #[serde(default)]
     pub phrases: Option<String>,
+    /// Optional path to pack-pinned font map relative to the pack root.
+    ///
+    /// When omitted, native emit uses [`DEFAULT_FONTS_NAME`] if present.
+    #[serde(default)]
+    pub fonts: Option<String>,
 }
 
 /// A loaded pack directory + parsed manifest.
@@ -154,6 +162,9 @@ impl TemplatePack {
         }
         if let Some(phrases) = &manifest.phrases {
             require_pack_relative_file(&root, phrases, "phrases overlay")?;
+        }
+        if let Some(fonts) = &manifest.fonts {
+            require_pack_relative_file(&root, fonts, "fonts overlay")?;
         }
         Ok(Self { root, manifest })
     }
@@ -235,6 +246,12 @@ impl TemplatePack {
         self.optional_overlay_path(self.manifest.phrases.as_deref(), DEFAULT_PHRASES_NAME)
     }
 
+    /// Absolute path to pack-pinned fonts map, if present.
+    #[must_use]
+    pub fn fonts_path(&self) -> Option<PathBuf> {
+        self.optional_overlay_path(self.manifest.fonts.as_deref(), DEFAULT_FONTS_NAME)
+    }
+
     fn optional_overlay_path(
         &self,
         manifest_rel: Option<&str>,
@@ -290,6 +307,29 @@ pub fn resolve_template_id<'a>(
     template_id
         .or(catalog_template_id)
         .unwrap_or(DEFAULT_TEMPLATE_ID)
+}
+
+/// Resolve a pack and run `load`, or return `empty` when the pack is missing.
+///
+/// # Errors
+///
+/// Propagates resolve/load errors other than [`TesError::TemplateNotFound`].
+pub(crate) fn with_resolved_pack<T, F>(
+    template_root: impl AsRef<Path>,
+    template_id: Option<&str>,
+    catalog_template_id: Option<&str>,
+    empty: T,
+    load: F,
+) -> Result<T>
+where
+    F: FnOnce(&TemplatePack) -> Result<T>,
+{
+    let id = resolve_template_id(template_id, catalog_template_id);
+    match TemplatePack::resolve(template_root, id) {
+        Ok(pack) => load(&pack),
+        Err(TesError::TemplateNotFound { .. }) => Ok(empty),
+        Err(err) => Err(err),
+    }
 }
 
 /// Resolve pack/theme from CLI overrides, catalog fields, and a fallback policy.
