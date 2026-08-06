@@ -4,8 +4,10 @@
 //! math/fenced-code, plus LaTeX-lite brace commands for structured chunks
 //! (`\figure{}` / `\cite{}` / `\slide{}` / `\attach{}`) and an optional
 //! `\text{title=… caption=… class=… …}` directive before a Markdown block when
-//! those attrs cannot live in Markdown itself. Brace commands accept the same
-//! multiline form as `\tessera{…}`. See `docs/tessprek.md`.
+//! those attrs cannot live in Markdown itself. Inline pack fonts use sealed
+//! `\font{id}{text}` ([`inline_font`]); pack `\phrase` expands at format/seal
+//! (lossy). Brace commands accept the same multiline form as `\tessera{…}`.
+//! See `docs/tessprek.md`.
 //!
 //! `.tes` stays canonical; Tessprek is a lossy projection only.
 

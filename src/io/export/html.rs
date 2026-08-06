@@ -462,11 +462,14 @@ fn apply_spans_html(
                     format!("<cite>{}</cite>", escape_html(&marker))
                 }
             }
-            InlineKind::Font { font_id } => format!(
-                "<span class=\"font\" data-font=\"{}\">{}</span>",
-                escape_html(font_id),
-                escape_html(&inner)
-            ),
+            InlineKind::Font { font_id } => {
+                // HTML/serve marker only; draft CSS has no @font-face from pack pins yet.
+                format!(
+                    "<span class=\"font\" data-font=\"{}\">{}</span>",
+                    escape_html(font_id),
+                    escape_html(&inner)
+                )
+            }
         };
         replacements.push((token.clone(), html));
         work.replace_range(start..end, &token);

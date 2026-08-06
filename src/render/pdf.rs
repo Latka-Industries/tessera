@@ -3,7 +3,8 @@
 //! Two backends:
 //! - **Chromium** (default): semantic HTML + print-theme → headless Chromium
 //! - **Native** (THI-294, feature `native-pdf`): print IR → `ariadnes_weave::emit_pdf_with`
-//!   (pack `weave.toml` → [`ariadnes_weave::EmitOptions::layout`], D23 / THI-357)
+//!   with pack overlays (D23): `weave.toml` → layout knobs (THI-357),
+//!   `fonts.toml` → `EmitOptions::pinned_faces` (THI-356)
 //!
 //! Browser preview (`tes serve --theme print`) still shares the HTML path with
 //! the Chromium backend. PDF is never an editable canonical source.

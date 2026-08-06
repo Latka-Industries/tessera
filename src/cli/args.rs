@@ -355,7 +355,7 @@ pub(super) struct FormatArgs {
     /// Exit 1 if normalization would change the input (no write)
     #[arg(long)]
     pub(super) check: bool,
-    /// Template pack id for typography/aliases (default: Tessprek `template_id` or `minimal`)
+    /// Template pack id for D23 overlays (typography / aliases / phrases; default: Tessprek `template_id` or `minimal`)
     #[arg(long)]
     pub(super) template: Option<String>,
     /// Directory containing template packs (env: `TES_TEMPLATE_ROOT`)
@@ -388,7 +388,7 @@ pub(super) struct EditWriteArgs {
     /// Compile and verify without replacing
     #[arg(long)]
     pub(super) dry_run: bool,
-    /// Template pack id for typography/aliases (default: catalog / Tessprek `template_id` / `minimal`)
+    /// Template pack id for D23 overlays (typography / aliases / phrases; default: catalog / Tessprek `template_id` / `minimal`)
     #[arg(long)]
     pub(super) template: Option<String>,
     /// Directory containing template packs (env: `TES_TEMPLATE_ROOT`)

@@ -9,11 +9,11 @@
 //! - [`catalog`] — document model: index, session writer, payloads, `THST` wire.
 //! - [`verify`] — layout health findings for `tes verify`.
 //! - [`repair`] — salvage damaged containers for `tes repair` (complements verify).
-//! - [`io`] — import / export / bibliography interchange.
+//! - [`io`] — import / export / bibliography / cite projection / `\font` helpers.
 //! - [`edit`] — Tessera Markdown virtual editing (`edit-read` / `edit-write` / `apply`).
 //! - [`history`] — content-addressed drafts (`tes save` / `log` / `diff` / `changelog`).
 //! - [`vault`] — stable link resolution, backlinks, and FTS search.
-//! - [`render`] — template packs, `tes serve` preview, print IR, and PDF print.
+//! - [`render`] — template packs (D23 overlays), `tes serve`, print IR, and PDF print.
 //! - [`cli`] — `tes` command surface (`src/bin/tes.rs` → [`cli::run`]).
 //! - [`lsp`] — `tes-lsp` Tessprek language server (`src/bin/tes_lsp.rs` → [`lsp::run`]).
 //! - [`error`] — shared [`error::TesError`] / [`error::Result`].

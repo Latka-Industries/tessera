@@ -1,4 +1,7 @@
 //! Compile Tessprek [`ContentBlock`]s back into sealed `.tes` bytes.
+//!
+//! Pending cites / fonts from Tessprek parse become sealed
+//! [`InlineKind`](crate::catalog::InlineKind) spans on text headers.
 
 use std::path::PathBuf;
 
@@ -188,6 +191,7 @@ fn write_compiled_block(
                 }
             }
             if !pending_fonts.is_empty() {
+                // Seal Tessprek `\font{id}{…}` extractions as InlineKind::Font spans.
                 header
                     .spans
                     .retain(|s| !matches!(s.kind, InlineKind::Font { .. }));

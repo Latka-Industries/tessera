@@ -1,4 +1,7 @@
 //! Inline `\font{font_id}{text}` extraction for Tessprek bodies (D23 / THI-356).
+//!
+//! Rewrites macros to bare inner text + [`PendingFont`](crate::io::font::PendingFont)
+//! ranges; [`crate::edit::compile`] seals them to [`InlineKind::Font`](crate::catalog::InlineKind::Font).
 
 use crate::catalog::chunk::is_font_id;
 use crate::error::{Result, TesError};

@@ -24,7 +24,7 @@ pub struct EditWriteOptions {
     pub dry_run: bool,
     /// New media payloads referenced by temporary chunk ids in Tessprek.
     pub media: EditMediaBag,
-    /// Directory containing template packs (pack typography/aliases; D23).
+    /// Directory containing template packs (D23: typography / aliases / phrases at format/seal).
     pub template_root: PathBuf,
     /// Pack id override; else Tessprek/`catalog` `template_id`, else `minimal`.
     pub template_id: Option<String>,

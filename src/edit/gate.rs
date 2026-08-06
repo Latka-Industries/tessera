@@ -34,7 +34,9 @@ pub fn edit_read(path: impl AsRef<Path>) -> Result<EditReadReport> {
 
 /// Compile Tessera Markdown and atomically replace `path` under lock + hash check.
 ///
-/// New image/attachment bytes may be supplied via [`EditWriteOptions::media`]
+/// Applies pack text expansions (typography / aliases / phrases) from
+/// [`EditWriteOptions::template_root`] before decode/seal (D23). New
+/// image/attachment bytes may be supplied via [`EditWriteOptions::media`]
 /// (see [`edit_write_with_media`]).
 ///
 /// # Errors

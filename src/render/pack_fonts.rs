@@ -1,4 +1,8 @@
 //! Pack `fonts.toml` → pinned TTF bytes for native emit (D23 / THI-356).
+//!
+//! Ids here must match Tessprek `\font{id}{…}` / sealed [`InlineKind::Font`](crate::catalog::InlineKind::Font).
+//! Loaded into weave `EmitOptions::pinned_faces` at native PDF emit (weave still
+//! names the pin API `face`).
 
 use std::collections::BTreeMap;
 use std::fs;

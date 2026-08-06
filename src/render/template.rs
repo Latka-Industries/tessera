@@ -2,6 +2,9 @@
 //!
 //! Pack bytes stay outside `.tes`. The document catalog may reference a pack
 //! by `template_id` / `theme_id`; this module loads the folder + manifest.
+//!
+//! Optional D23 overlays (convention filenames or manifest paths): `weave.toml`,
+//! `typography.toml`, `aliases.toml`, `phrases.toml`, `fonts.toml`.
 
 use std::collections::BTreeMap;
 use std::fs;

@@ -5,7 +5,8 @@
 //! publishes verify / source-hash diagnostics (THI-244) plus ranged Tessprek
 //! parse diagnostics (THI-254), writes back via `tessera.write` / `willSave`
 //! using [`edit_write`] (THI-245), hovers Tessprek markers and body lines
-//! (THI-246 / THI-340), and completes brace commands (THI-340).
+//! (THI-246 / THI-340), and completes brace commands including `\font` / `\arm`
+//! / `\phrase` (THI-340; D23).
 
 mod completion;
 mod diagnostics;

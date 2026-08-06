@@ -2,7 +2,8 @@
 //!
 //! Safe mutation gate from `docs/security.md`:
 //! advisory lock → source-hash recheck → sibling temp compile → deep verify →
-//! atomic replace.
+//! atomic replace. Pack typography / aliases / phrases expand at format/write
+//! when a template pack is resolvable (D23).
 
 mod block;
 mod compile;
