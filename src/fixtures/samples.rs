@@ -649,8 +649,9 @@ pub fn encode_block_captions() -> Vec<u8> {
 /// Umbrella Tessprek element tour for nvim / LSP (`tessprek_showcase.tes`).
 ///
 /// Covers text roles + inline spans, captioned blocks, figure/media, biblio
-/// `\cite` / `\quote` / `\ref`, slide, attachment, and TLNK. Pack `\phrase`
-/// expansion is not sealed — see `phrases_demo.tessprek`.
+/// `\cite` / `\quote` / `\ref`, slide, attachment, TLNK, and a live
+/// `\phrase{…}` line (expands on `:TesseraFormat` / `tes format` with pack
+/// `minimal`; sealed bytes keep the macro until then).
 ///
 /// # Panics
 ///
@@ -678,11 +679,12 @@ pub fn encode_tessprek_showcase() -> Vec<u8> {
     let intro = session
         .add_text_chunk(
             &TextHeader::paragraph(),
-            "One sealed container for the usual Tessprek surfaces. Open in Neovim with tessera.nvim; use phrases_demo.tessprek for pack \\phrase expansion.",
+            "One sealed container for the usual Tessprek surfaces. Open in Neovim with tessera.nvim.",
         )
         .expect("intro");
 
     add_showcase_prose(&mut session);
+    add_showcase_phrases(&mut session);
     add_showcase_captioned(&mut session);
     let (slide_title, slide_body) = add_showcase_media_and_slide(&mut session);
     add_showcase_cite_family(&mut session, intro);
@@ -692,6 +694,25 @@ pub fn encode_tessprek_showcase() -> Vec<u8> {
         .add_slide(&title_body_slide(slide_title, slide_body))
         .expect("slide");
     session.encode_file().expect("tessprek_showcase")
+}
+
+/// Live `\phrase` macros in body text (expand at format with pack `minimal`).
+fn add_showcase_phrases(session: &mut TesWriterSession) {
+    session
+        .add_text_chunk(&TextHeader::heading(2), "Pack phrases")
+        .expect("h2 phrases");
+    session
+        .add_text_chunk(
+            &TextHeader::paragraph(),
+            "Pack expansion (D23 / THI-355): \\phrase{yegourdoon}{I am Yes} — format with template minimal turns that into italic prose.",
+        )
+        .expect("phrase line");
+    session
+        .add_text_chunk(
+            &TextHeader::paragraph(),
+            "Type \\phr and complete for the LSP snippet. Companion buffer: phrases_demo.tessprek.",
+        )
+        .expect("phrase lsp hint");
 }
 
 fn add_showcase_prose(session: &mut TesWriterSession) {
