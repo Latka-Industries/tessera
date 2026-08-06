@@ -300,6 +300,8 @@ Pack `weave.toml` (manifest `weave` or convention) sparsely overlays
 `LayoutKnobs` for `--backend native` (D23); CSS themes stay Chromium-only.
 Pack `fonts.toml` (id → relative `.ttf`/`.otf`) loads into
 `EmitOptions::pinned_faces` for sealed `\font{id}{…}` spans (D23 / THI-356).
+Category defaults (`[text|heading|quote|cite].font` = pin id) apply when a run
+has no `TextRun.face`; explicit `\font` still overrides (THI-360).
 
 | Flag | Behavior |
 | --- | --- |

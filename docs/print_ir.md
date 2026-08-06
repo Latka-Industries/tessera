@@ -3,9 +3,10 @@
 **Status (Tessera 0.2.5):** prose print-tree builder + CLI `--backend native`
 shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Requires
 **`ariadnes-weave` ≥ 0.2.5** (quote italic + aesthetic knobs; `TextRun.face`
-pins since 0.2.2). Pack `fonts.toml` → `EmitOptions::pinned_faces` and
+pins since 0.2.2; category default fonts via `[text|heading|quote|cite].font`
+in pack `weave.toml` — THI-360). Pack `fonts.toml` → `EmitOptions::pinned_faces` and
 `weave.toml` → layout knobs (D23). Layout quality beyond prose (THI-291+
-tables/math/decks; category fonts THI-360; OS fonts THI-311) continues in
+tables/math/decks; OS fonts THI-311) continues in
 **`ariadnes-weave`** under epic THI-256.
 
 Tessera builds the IR from `.tes` (`render::print`) and calls the crate
@@ -201,6 +202,9 @@ lookup (that remains later / THI-311).
 (D23 / THI-356). The CLI native path loads pack `fonts.toml` into
 weave `EmitOptions::pinned_faces` and pack `weave.toml` into layout knobs when a
 template pack is resolvable; otherwise `EmitOptions::bundled_only()`.
+Optional category defaults (`[text|heading|quote|cite].font` pin ids) apply when
+`TextRun.face` is unset; explicit `\font{id}{…}` / `TextRun.face` still wins
+(THI-360).
 
 ---
 

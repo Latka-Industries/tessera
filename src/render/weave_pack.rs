@@ -189,6 +189,32 @@ underline = true
     }
 
     #[test]
+    fn category_font_pins_merge_onto_bundled() {
+        let knobs = merge_weave_toml(
+            r#"
+[heading]
+font = "display"
+
+[text]
+font = "body"
+
+[quote]
+font = "armenian"
+
+[cite]
+font = "body"
+"#,
+        )
+        .unwrap();
+        assert_eq!(knobs.prose.heading.font.as_deref(), Some("display"));
+        assert_eq!(knobs.prose.text.font.as_deref(), Some("body"));
+        assert_eq!(knobs.prose.quote.font.as_deref(), Some("armenian"));
+        assert_eq!(knobs.prose.cite.font.as_deref(), Some("body"));
+        // Spacing defaults untouched.
+        assert!((knobs.prose.heading.gap_after - 8.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn category_rooted_overlay() {
         let knobs = merge_weave_toml(
             r#"
@@ -216,8 +242,10 @@ font_size = 11.0
         let pack = TemplatePack::load(&root).unwrap();
         let layout = pack_layout_knobs(&pack).unwrap();
         assert!((layout.prose.quote.indent - 28.0).abs() < f32::EPSILON);
+        assert_eq!(layout.prose.heading.font.as_deref(), Some("test"));
         let opts = EmitOptions::bundled_only().with_layout(layout);
         assert!((opts.layout.prose.quote.indent - 28.0).abs() < f32::EPSILON);
+        assert_eq!(opts.layout.prose.heading.font.as_deref(), Some("test"));
     }
 
     #[test]
