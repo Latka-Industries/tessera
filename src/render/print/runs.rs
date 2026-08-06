@@ -1,4 +1,4 @@
-//! Body text → styled [`TextRun`]s (inline spans, cite markers, faces).
+//! Body text → styled [`TextRun`]s (inline spans, cite markers, fonts).
 
 use std::collections::BTreeSet;
 
@@ -108,9 +108,9 @@ fn body_to_runs_projected(body: &str, spans: &[InlineSpan]) -> Vec<TextRun> {
             let end = span.end as usize;
             if start <= a && end >= b {
                 apply_inline_kind(&mut style, &span.kind);
-                if let InlineKind::Face { face_id } = &span.kind {
-                    // Innermost / last covering Face wins.
-                    face = Some(face_id.clone());
+                if let InlineKind::Font { font_id } = &span.kind {
+                    // Innermost / last covering Font wins → weave TextRun.face.
+                    face = Some(font_id.clone());
                 }
             }
         }
@@ -146,6 +146,6 @@ fn apply_inline_kind(style: &mut InlineStyle, kind: &InlineKind) {
         InlineKind::Underline
         | InlineKind::Quote
         | InlineKind::Math { .. }
-        | InlineKind::Face { .. } => {}
+        | InlineKind::Font { .. } => {}
     }
 }

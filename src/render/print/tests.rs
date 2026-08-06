@@ -38,8 +38,8 @@ fn note_one_chunk_paragraph_with_code_span() {
 }
 
 #[test]
-fn face_span_sets_text_run_face() {
-    let mut session = TesWriterSession::create("face.tes", crate::layout::DocKind::Note);
+fn font_span_sets_text_run_face() {
+    let mut session = TesWriterSession::create("font.tes", crate::layout::DocKind::Note);
     let body = "hello barev world";
     let start = body.find("barev").unwrap() as u32;
     let end = start + "barev".len() as u32;
@@ -47,12 +47,12 @@ fn face_span_sets_text_run_face() {
     para.spans = vec![InlineSpan {
         start,
         end,
-        kind: InlineKind::Face {
-            face_id: "armenian".into(),
+        kind: InlineKind::Font {
+            font_id: "armenian".into(),
         },
     }];
     session.add_text_chunk(&para, body).unwrap();
-    let file = open_bytes("face.tes", session.encode_file().unwrap());
+    let file = open_bytes("font.tes", session.encode_file().unwrap());
     let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
     let PrintBlock::Paragraph { runs } = &doc.blocks[0] else {
         panic!("expected paragraph");

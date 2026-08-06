@@ -70,7 +70,7 @@ fn round_trip_figure_cite_slide_attachment() {
             body: "Doc".into(),
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
-            pending_faces: Vec::new(),
+            pending_fonts: Vec::new(),
         },
         ContentBlock::Figure {
             chunk_id: Some(2),
@@ -321,26 +321,26 @@ fn decode_rejects_v1_version() {
 }
 
 #[test]
-fn inline_face_round_trips_in_tessprek() {
+fn inline_font_round_trips_in_tessprek() {
     let input = "\
 \\tessera{format=tessprek version=2}\n\
 \\ids{1}\n\
 \n\
-Say \\face{armenian}{barev} now.\n\
+Say \\font{armenian}{barev} now.\n\
 ";
     let blocks = decode_tessprek(input).unwrap();
     assert_eq!(blocks.len(), 1);
     match &blocks[0] {
         ContentBlock::Text {
             body,
-            pending_faces,
+            pending_fonts,
             ..
         } => {
             assert_eq!(body, "Say barev now.");
-            assert_eq!(pending_faces.len(), 1);
-            assert_eq!(pending_faces[0].face_id, "armenian");
+            assert_eq!(pending_fonts.len(), 1);
+            assert_eq!(pending_fonts[0].font_id, "armenian");
             assert_eq!(
-                &body[pending_faces[0].start as usize..pending_faces[0].end as usize],
+                &body[pending_fonts[0].start as usize..pending_fonts[0].end as usize],
                 "barev"
             );
         }
@@ -348,8 +348,8 @@ Say \\face{armenian}{barev} now.\n\
     }
     let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
     assert!(
-        out.contains("\\face{armenian}{barev}"),
-        "expected face macro in encode:\n{out}"
+        out.contains("\\font{armenian}{barev}"),
+        "expected font macro in encode:\n{out}"
     );
 }
 

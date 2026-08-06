@@ -28,7 +28,7 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
                     body,
                     pending_links: Vec::new(),
                     pending_cites: Vec::new(),
-                    pending_faces: Vec::new(),
+                    pending_fonts: Vec::new(),
                 }
             }
             ChunkType::Figure => {

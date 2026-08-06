@@ -82,10 +82,10 @@ pub enum InlineKind {
         /// Cite chunk id.
         cite_chunk_id: u64,
     },
-    /// Pack-pinned face (`\face{face_id}{…}` → `TextRun.face` / `EmitOptions::pinned_faces`).
-    Face {
-        /// Pack face id (ASCII identifier).
-        face_id: String,
+    /// Pack-pinned font (`\font{font_id}{…}` → weave `TextRun.face` / `pinned_faces`).
+    Font {
+        /// Pack font id (ASCII identifier).
+        font_id: String,
     },
 }
 
@@ -133,11 +133,11 @@ pub(super) fn validate_spans(body: &str, spans: &[InlineSpan]) -> Result<()> {
                 message: "inline math tex must be non-empty".into(),
             });
         }
-        if let InlineKind::Face { face_id } = &span.kind
-            && !is_face_id(face_id)
+        if let InlineKind::Font { font_id } = &span.kind
+            && !is_font_id(font_id)
         {
             return Err(TesError::InvalidTextHeader {
-                message: format!("invalid face id {face_id:?}"),
+                message: format!("invalid font id {font_id:?}"),
             });
         }
     }
@@ -203,14 +203,14 @@ pub(super) fn apply_spans_markdown(
                 let _ = cite_chunk_id;
                 inner
             }
-            InlineKind::Face { face_id } => format!("\\face{{{face_id}}}{{{inner}}}"),
+            InlineKind::Font { font_id } => format!("\\font{{{font_id}}}{{{inner}}}"),
         };
         out.replace_range(start..end, &wrapped);
     }
     out
 }
 
-/// ASCII identifier: `[A-Za-z_][A-Za-z0-9_]*` (aliases, phrases, face ids).
+/// ASCII identifier: `[A-Za-z_][A-Za-z0-9_]*` (aliases, phrases, font ids).
 #[must_use]
 pub fn is_ascii_ident(name: &str) -> bool {
     let mut chars = name.chars();
@@ -223,8 +223,8 @@ pub fn is_ascii_ident(name: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-/// ASCII identifier for pack face ids (`armenian`, `test`, …).
+/// ASCII identifier for pack font ids (`armenian`, `test`, …).
 #[must_use]
-pub fn is_face_id(name: &str) -> bool {
+pub fn is_font_id(name: &str) -> bool {
     is_ascii_ident(name)
 }

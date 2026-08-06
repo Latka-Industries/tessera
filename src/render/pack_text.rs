@@ -240,7 +240,7 @@ fn expand_aliases(input: &str, aliases: &[(String, String)]) -> String {
             if end > start {
                 let name: String = chars[start..end].iter().collect();
                 if let Some((_, value)) = aliases.iter().find(|(n, _)| n == &name) {
-                    // Do not treat `\name{…}` as an alias (phrase/face territory).
+                    // Do not treat `\name{…}` as an alias (phrase/font territory).
                     if end >= chars.len() || chars[end] != '{' {
                         out.push_str(value);
                         i = end;

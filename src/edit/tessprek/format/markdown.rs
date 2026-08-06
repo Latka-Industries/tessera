@@ -7,7 +7,7 @@ use crate::error::Result;
 use crate::io::import::parse_markdown_blocks;
 
 use super::super::inline_cite::extract_inline_cites;
-use super::super::inline_face::extract_inline_faces;
+use super::super::inline_font::extract_inline_fonts;
 use super::parse_err;
 
 pub(super) fn looks_like_gfm_table(body: &str) -> bool {
@@ -120,8 +120,8 @@ fn text_block(
     body: &str,
     pending_links: Vec<OutboundLink>,
 ) -> Result<ContentBlock> {
-    // Faces first so `\face{id}{\cite{key}}` keeps an extractable cite inside.
-    let (body, pending_faces) = extract_inline_faces(body)?;
+    // Fonts first so `\font{id}{\cite{key}}` keeps an extractable cite inside.
+    let (body, pending_fonts) = extract_inline_fonts(body)?;
     let (body, pending_cites) = extract_inline_cites(&body)?;
     Ok(ContentBlock::Text {
         chunk_id,
@@ -129,7 +129,7 @@ fn text_block(
         body,
         pending_links,
         pending_cites,
-        pending_faces,
+        pending_fonts,
     })
 }
 

@@ -1,5 +1,5 @@
 # Fixed-string aliases expanded as `\name` → value (D23 / THI-354).
-# Names are ASCII identifiers. `\name{…}` is left alone (phrase/face territory).
+# Names are ASCII identifiers. `\name{…}` is left alone (phrase/font territory).
 
 [aliases]
 # Example only — packs override with real shortcuts.

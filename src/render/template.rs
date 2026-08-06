@@ -26,8 +26,8 @@ pub const DEFAULT_ALIASES_NAME: &str = "aliases.toml";
 /// Convention filename for parameterized phrase templates (D23 / THI-355).
 pub const DEFAULT_PHRASES_NAME: &str = "phrases.toml";
 
-/// Convention filename for pack-pinned face TTFs (D23 / THI-356).
-pub const DEFAULT_FACES_NAME: &str = "faces.toml";
+/// Convention filename for pack-pinned font TTFs (D23 / THI-356).
+pub const DEFAULT_FONTS_NAME: &str = "fonts.toml";
 
 /// Built-in pack id shipped under `templates/minimal`.
 pub const DEFAULT_TEMPLATE_ID: &str = "minimal";
@@ -94,11 +94,11 @@ pub struct TemplateManifest {
     /// When omitted, format/compile uses [`DEFAULT_PHRASES_NAME`] if present.
     #[serde(default)]
     pub phrases: Option<String>,
-    /// Optional path to pack-pinned face map relative to the pack root.
+    /// Optional path to pack-pinned font map relative to the pack root.
     ///
-    /// When omitted, native emit uses [`DEFAULT_FACES_NAME`] if present.
+    /// When omitted, native emit uses [`DEFAULT_FONTS_NAME`] if present.
     #[serde(default)]
-    pub faces: Option<String>,
+    pub fonts: Option<String>,
 }
 
 /// A loaded pack directory + parsed manifest.
@@ -163,8 +163,8 @@ impl TemplatePack {
         if let Some(phrases) = &manifest.phrases {
             require_pack_relative_file(&root, phrases, "phrases overlay")?;
         }
-        if let Some(faces) = &manifest.faces {
-            require_pack_relative_file(&root, faces, "faces overlay")?;
+        if let Some(fonts) = &manifest.fonts {
+            require_pack_relative_file(&root, fonts, "fonts overlay")?;
         }
         Ok(Self { root, manifest })
     }
@@ -246,10 +246,10 @@ impl TemplatePack {
         self.optional_overlay_path(self.manifest.phrases.as_deref(), DEFAULT_PHRASES_NAME)
     }
 
-    /// Absolute path to pack-pinned faces map, if present.
+    /// Absolute path to pack-pinned fonts map, if present.
     #[must_use]
-    pub fn faces_path(&self) -> Option<PathBuf> {
-        self.optional_overlay_path(self.manifest.faces.as_deref(), DEFAULT_FACES_NAME)
+    pub fn fonts_path(&self) -> Option<PathBuf> {
+        self.optional_overlay_path(self.manifest.fonts.as_deref(), DEFAULT_FONTS_NAME)
     }
 
     fn optional_overlay_path(

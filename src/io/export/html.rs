@@ -462,9 +462,9 @@ fn apply_spans_html(
                     format!("<cite>{}</cite>", escape_html(&marker))
                 }
             }
-            InlineKind::Face { face_id } => format!(
-                "<span class=\"face\" data-face=\"{}\">{}</span>",
-                escape_html(face_id),
+            InlineKind::Font { font_id } => format!(
+                "<span class=\"font\" data-font=\"{}\">{}</span>",
+                escape_html(font_id),
                 escape_html(&inner)
             ),
         };

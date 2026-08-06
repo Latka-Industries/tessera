@@ -166,7 +166,7 @@ fn write_compiled_block(
             body,
             pending_links,
             pending_cites,
-            pending_faces,
+            pending_fonts,
             ..
         } => {
             let mut header = header.clone();
@@ -187,16 +187,16 @@ fn write_compiled_block(
                     });
                 }
             }
-            if !pending_faces.is_empty() {
+            if !pending_fonts.is_empty() {
                 header
                     .spans
-                    .retain(|s| !matches!(s.kind, InlineKind::Face { .. }));
-                for pending in pending_faces {
+                    .retain(|s| !matches!(s.kind, InlineKind::Font { .. }));
+                for pending in pending_fonts {
                     header.spans.push(InlineSpan {
                         start: pending.start,
                         end: pending.end,
-                        kind: InlineKind::Face {
-                            face_id: pending.face_id.clone(),
+                        kind: InlineKind::Font {
+                            font_id: pending.font_id.clone(),
                         },
                     });
                 }

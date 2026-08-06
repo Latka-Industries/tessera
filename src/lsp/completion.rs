@@ -89,43 +89,43 @@ fn command_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<Co
             ..Default::default()
         });
     }
-    // Sealed pack-pinned face (D23 / THI-356).
-    if "face".starts_with(typed) || typed.is_empty() {
+    // Sealed pack-pinned font (D23 / THI-356).
+    if "font".starts_with(typed) || typed.is_empty() {
         items.push(CompletionItem {
-            label: "\\face".into(),
+            label: "\\font".into(),
             kind: Some(CompletionItemKind::SNIPPET),
-            detail: Some("pack-pinned face (seal to InlineKind::Face)".into()),
+            detail: Some("pack-pinned font (seal to InlineKind::Font)".into()),
             documentation: Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: "Seal `\\face{face_id}{text}` → inline Face span; native PDF uses pack `faces.toml` pins (D23 / THI-356).".into(),
+                value: "Seal `\\font{font_id}{text}` → inline Font span; native PDF uses pack `fonts.toml` pins (D23 / THI-356).".into(),
             })),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             text_edit: Some(snippet_edit(
                 line,
                 replace_start,
                 character,
-                "\\face{${1:face_id}}{${2:text}}$0".into(),
+                "\\font{${1:font_id}}{${2:text}}$0".into(),
             )),
-            filter_text: Some("\\face".into()),
+            filter_text: Some("\\font".into()),
             ..Default::default()
         });
     }
-    // Snippet alias → `\face{armenian}{…}` (not a core Tessprek command).
+    // Snippet alias → `\font{armenian}{…}` (not a core Tessprek command).
     if "arm".starts_with(typed) || typed.is_empty() {
         items.push(CompletionItem {
             label: "\\arm".into(),
             kind: Some(CompletionItemKind::SNIPPET),
-            detail: Some("snippet → \\face{armenian}{…}".into()),
+            detail: Some("snippet → \\font{armenian}{…}".into()),
             documentation: Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: "Inserts `\\face{armenian}{…}` (D23). Not a sealed core command.".into(),
+                value: "Inserts `\\font{armenian}{…}` (D23). Not a sealed core command.".into(),
             })),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             text_edit: Some(snippet_edit(
                 line,
                 replace_start,
                 character,
-                "\\face{armenian}{${1:text}}$0".into(),
+                "\\font{armenian}{${1:text}}$0".into(),
             )),
             filter_text: Some("\\arm".into()),
             ..Default::default()
@@ -299,19 +299,19 @@ mod tests {
     }
 
     #[test]
-    fn completes_face_and_arm_snippets() {
-        let face = completions_at(
-            "\\fac",
+    fn completes_font_and_arm_snippets() {
+        let font = completions_at(
+            "\\fon",
             Position {
                 line: 0,
                 character: 4,
             },
         )
-        .expect("face");
-        let CompletionResponse::Array(face) = face else {
+        .expect("font");
+        let CompletionResponse::Array(font) = font else {
             panic!("expected array");
         };
-        assert!(face.iter().any(|i| i.label == "\\face"), "{face:?}");
+        assert!(font.iter().any(|i| i.label == "\\font"), "{font:?}");
 
         let arm = completions_at(
             "\\ar",

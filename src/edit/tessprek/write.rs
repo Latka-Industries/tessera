@@ -8,7 +8,7 @@ use crate::catalog::{CitePayload, InlineKind, InlineSpan, LinkEntry, LinkKind, O
 use crate::io::cite::{
     CiteTessprekKind, PendingCite, cite_key_from_payload, cite_key_or_fallback, classify_cite,
 };
-use crate::io::face::PendingFace;
+use crate::io::font::PendingFont;
 
 use super::super::ContentBlock;
 use super::markers::{
@@ -53,7 +53,7 @@ pub fn encode_content_blocks(
                 body,
                 pending_links,
                 pending_cites,
-                pending_faces,
+                pending_fonts,
                 ..
             } => {
                 let ordered_index = ordered.take_for_text(header);
@@ -64,7 +64,7 @@ pub fn encode_content_blocks(
                         body,
                         pending_links,
                         pending_cites,
-                        pending_faces,
+                        pending_fonts,
                         links,
                         &cite_keys,
                         ordered_index,
@@ -222,7 +222,7 @@ fn render_text_body(
     body: &str,
     pending_links: &[OutboundLink],
     pending_cites: &[PendingCite],
-    pending_faces: &[PendingFace],
+    pending_fonts: &[PendingFont],
     links: &[LinkEntry],
     cite_keys: &std::collections::BTreeMap<u64, String>,
     ordered_index: Option<u32>,
@@ -259,24 +259,24 @@ fn render_text_body(
         rewrite_ranges_rev(&mut body, replacements);
     }
 
-    // Pending faces (pre-seal): project macros. Sealed Face spans go through
-    // `apply_spans_markdown` as `\face{id}{…}`.
+    // Pending fonts (pre-seal): project macros. Sealed Font spans go through
+    // `apply_spans_markdown` as `\font{id}{…}`.
     if !header
         .spans
         .iter()
-        .any(|s| matches!(s.kind, InlineKind::Face { .. }))
-        && !pending_faces.is_empty()
+        .any(|s| matches!(s.kind, InlineKind::Font { .. }))
+        && !pending_fonts.is_empty()
     {
-        let mut faces: Vec<_> = pending_faces.iter().collect();
-        faces.sort_by_key(|f| std::cmp::Reverse(f.start));
-        for face in faces {
-            let Some((start, end)) = byte_range(&body, face.start, face.end) else {
+        let mut fonts: Vec<_> = pending_fonts.iter().collect();
+        fonts.sort_by_key(|f| std::cmp::Reverse(f.start));
+        for font in fonts {
+            let Some((start, end)) = byte_range(&body, font.start, font.end) else {
                 continue;
             };
             let inner = body[start..end].to_owned();
             body.replace_range(
                 start..end,
-                &format!("\\face{{{}}}{{{inner}}}", face.face_id),
+                &format!("\\font{{{}}}{{{inner}}}", font.font_id),
             );
         }
     }
