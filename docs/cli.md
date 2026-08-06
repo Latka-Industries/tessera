@@ -387,7 +387,10 @@ Markdown (no `\text{}`) is accepted. With `--template` / `--template-root`
 (or `TES_TEMPLATE_ROOT` + Tessprek `template_id`), pack `typography.toml` /
 `aliases.toml` / `phrases.toml` expand once before normalize (D23; fenced code
 skipped). `\phrase{key}` / `\phrase{key}{arg}` become ordinary Markdown prose.
-`--check` exits non-zero when the input is not already normalized.
+Sealed `\font{font_id}{text}` round-trips as `InlineKind::Font`; native PDF
+resolves `font_id` from pack `fonts.toml` pins (`--template` /
+`--template-root`). `--check` exits non-zero when the input is not already
+normalized.
 `edit-write` applies the same pack expansions before seal. `edit-write` and
 `apply` acquire an advisory per-file lock, re-check the source hash, compile
 to a sibling temporary file, deep-verify, and atomically replace. `--dry-run`

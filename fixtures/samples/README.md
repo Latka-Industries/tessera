@@ -5,8 +5,8 @@ Hand-built multi-role `.tes` files for exploring Tessprek in Neovim / CLI.
 
 | File | What you see |
 | --- | --- |
-| **`tessprek_showcase.tes`** | **Start here** — umbrella tour including a live `\phrase{yegourdoon}{I am Yes}` line (plus spans, lists, cite family, figure, slide, …) |
-| **`phrases_demo.tessprek`** | Standalone Tessprek buffer for CLI `tes format` phrase smoke (same macro) |
+| **`tessprek_showcase.tes`** | **Start here** — umbrella tour including live `\phrase{…}` and `\font{armenian}{…}` (plus spans, lists, cite family, figure, slide, …) |
+| **`phrases_demo.tessprek`** | Standalone Tessprek buffer for CLI `tes format` phrase smoke |
 | `text_roles.tes` | Focused text-role matrix (heading / list depth / blockquote / captioned blocks) |
 | `field_notes.tes` | Longer research note (quote-style cite, scorecard) |
 | `studio_brief.tes` | Deck with slides + figure + attachment + links |

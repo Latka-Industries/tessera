@@ -61,7 +61,8 @@ Terms used consistently across Tessera docs, issues, and code.
 | --- | --- |
 | **Structure** | Blocks, headings, slide order — stored in chunks. |
 | **Theme pack** | External versioned manifest + CSS/assets applied at export; referenced by id/hash, not canonical content. |
-| **Template** | Theme pack plus allowed blocks, `doc_kind` defaults, cite style, slide regions, export targets, and optional starter Tessera Markdown. |
+| **Template** | Theme pack plus allowed blocks, `doc_kind` defaults, cite style, slide regions, export targets, and optional starter Tessera Markdown. Optional sparse overlays: `weave.toml`, `typography.toml`, `aliases.toml`, `phrases.toml`, `fonts.toml` (D23). |
+| **Pack-pinned font** | Pack `fonts.toml` id → TTF/OTF bytes loaded into weave `EmitOptions::pinned_faces`; Tessprek `\font{id}{…}` seals to `InlineKind::Font`. |
 | **Export / view** | Decoded projection: `--raw`, `--ai-text`, `--html`, etc. |
 | **Parse once** | Import or save compiles markup into chunks; reads do not re-parse Markdown/HTML. |
 | **Render** | Generated HTML, PDF, deck, or AI view; never stored as canonical layout. |

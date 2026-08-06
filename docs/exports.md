@@ -298,6 +298,8 @@ faces only; library embeds can pin host TTFs via weave `EmitOptions` /
 `TextRun::face` ([print IR](print_ir.md#host-pinned-faces-ariadnes-weave--022)).
 Pack `weave.toml` (manifest `weave` or convention) sparsely overlays
 `LayoutKnobs` for `--backend native` (D23); CSS themes stay Chromium-only.
+Pack `fonts.toml` (id → relative `.ttf`/`.otf`) loads into
+`EmitOptions::pinned_faces` for sealed `\font{id}{…}` spans (D23 / THI-356).
 
 | Flag | Behavior |
 | --- | --- |

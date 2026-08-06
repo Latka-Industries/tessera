@@ -217,8 +217,10 @@ pack hashes. Pack bytes are external by default; standalone exports may embed
 CSS/assets.
 
 `tes serve` projects `.tes` to HTML and applies a draft or print theme.
-`tes export --pdf` uses the same HTML + print-theme path with a headless print
-engine. Browser preview and PDF are two sinks of one pipeline.
+`tes export --pdf` defaults to HTML + print-theme + Chromium; `--backend native`
+uses print IR → `ariadnes-weave` (optional pack `weave.toml` / `fonts.toml`).
+Browser preview and PDF are two sinks of shared `.tes` structure, not one CSS
+engine.
 
 Slides store `layout_id` plus named region slots (`title`, `body`, `media`,
 etc.) referencing text/image/cite chunks. CSS grid/flex gives the renderer

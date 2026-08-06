@@ -253,7 +253,7 @@ pack/
   phrases.toml        # optional parameterized boilerplate
   typography.toml     # optional substitutions (... → …, -> → →)
   fonts.toml          # optional id → relative .ttf/.otf (native pin)
-  fonts/*.ttf         # pinned face bytes
+  fonts/*.ttf         # pinned font bytes
 ```
 
 Typical packs stay small: omit overlay files until needed. Bundled weave
@@ -281,7 +281,7 @@ filenames when present).
 | Layout widget | Real Tessprek/block when shipped | `\progress{n}` |
 
 Tessprek / Tesscriptor / LSP are **front ends** on the same pack + vocabulary.
-Tesscriptor uses UI (phrase picker, face mark), not a second macro language.
+Tesscriptor uses UI (phrase picker, font mark), not a second macro language.
 Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macros.
 
 ### Settled open points (2026-08-05)
@@ -323,12 +323,13 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
 
 ### Ship order (product)
 
-1. Typography substitutions + aliases  
-2. Phrase templates + `\phrase`  
-3. Font wraps actually needed (`\arm`)  
-4. Weave quote italic default + sparse aesthetic knobs  
-5. Tessera: pack `weave.toml` → `EmitOptions`  
-6. Widgets (`\progress`) only when dogfood forces  
+1. Typography substitutions + aliases — **shipped** (Tessera 0.2.5 / THI-354)
+2. Phrase templates + `\phrase` — **shipped** (THI-355)
+3. Font wraps (`\font` + pack pins; `\arm` snippet) — **shipped** (THI-356)
+4. Weave quote italic default + sparse aesthetic knobs — **shipped** (weave 0.2.5 / THI-352 / THI-353)
+5. Tessera: pack `weave.toml` → `EmitOptions` — **shipped** (THI-357)
+6. Category default fonts via `weave.toml` — later (THI-360)
+7. Widgets (`\progress`) only when dogfood forces — later (THI-358)
 
 ---
 
@@ -410,4 +411,4 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
 | D21 | Print IR + `ariadnes-weave` own native PDF; HTML is preview | Accepted direction |
 | D22 | Tessprek v2: brace commands + `\tessera{}`/`\ids{}` header replace v1 HTML comments | Accepted (THI-318 shipped) |
-| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography | Accepted direction (2026-08-05) |
+| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B shipped in **0.2.5** (THI-357/354/355/356); follow-ons THI-360 / THI-358 |
