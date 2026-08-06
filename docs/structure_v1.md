@@ -201,8 +201,9 @@ A Tessera template is a folder/pack with a versioned manifest:
 - CSS themes (HTML / Chromium only) and optional fonts/assets;
 - optional `weave.toml` (or manifest `weave` path) — sparse overlay on
   ariadnes-weave `LayoutKnobs` for `--backend native` (D23);
-- optional `typography.toml` / `aliases.toml` — expand once at `tes format` /
-  edit-write (D23 / THI-354); sealed body stores results;
+- optional `typography.toml` / `aliases.toml` / `phrases.toml` — expand once at
+  `tes format` / edit-write (D23 / THI-354 / THI-355); sealed body stores
+  results (`\phrase{key}{arg}` → ordinary styled prose; lossy round-trip);
 - allowed block types and `doc_kind` defaults;
 - export targets and starter Tessera Markdown;
 - named slide regions;

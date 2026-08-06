@@ -76,9 +76,8 @@ jobs:
         run: cargo build --bin tes
 
       # Exits 1 on any corrupt fixture; --deep also decodes every payload.
-      - name: tes verify golden fixtures
-        run: ./target/debug/tes verify --deep fixtures/v0/*.tes
-
+      # accept/ is the synced copy of v0/ plus unknown_optional_feature.tes
+      # (byte goldens stay asserted in golden_v0 tests against fixtures/v0/).
       - name: tes verify conformance accept
         run: ./target/debug/tes verify --deep fixtures/conformance/accept/*.tes
 

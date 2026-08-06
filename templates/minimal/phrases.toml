@@ -1,0 +1,6 @@
+# Parameterized phrases expanded as `\phrase{key}` / `\phrase{key}{arg}` (D23 / THI-355).
+# Keys are ASCII identifiers. `{arg}` / `$1` slots receive the optional second brace.
+# Markdown in the template is fine (*emphasis*); sealed `.tes` stores ordinary prose.
+
+[phrases]
+yegourdoon = "*{arg}*"

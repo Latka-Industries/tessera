@@ -15,6 +15,9 @@ Byte-exact containers for layout / writer / verify tests.
 | `figure_sample.tes` | 1×1 PNG image + figure ref |
 | `attachment_sample.tes` | Inert PDF attachment (`notes.pdf`) + prose |
 
+**Sole golden source.** `conformance/accept/` is a generated copy (plus
+`unknown_optional_feature.tes`) — edit / regenerate here, not under `accept/`.
+
 Builders: [`src/fixtures/v0.rs`](../../src/fixtures/v0.rs). Regenerate:
 
 ```bash
@@ -24,3 +27,4 @@ cp fixtures/v0/*.tes fixtures/conformance/accept/
 ```
 
 Golden CI: `src/tests/golden_v0.rs` asserts on-disk bytes match the shared encoders.
+Deep-verify in CI runs against `conformance/accept/` (includes these files).

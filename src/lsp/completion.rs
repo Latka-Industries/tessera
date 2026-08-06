@@ -68,6 +68,27 @@ fn command_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<Co
             ..Default::default()
         });
     }
+    // Pack-expanded inline (not a sealed ContentBlock); snippet-only in v1.
+    if "phrase".starts_with(typed) || typed.is_empty() {
+        items.push(CompletionItem {
+            label: "\\phrase".into(),
+            kind: Some(CompletionItemKind::SNIPPET),
+            detail: Some("pack phrase (expand on format/seal)".into()),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "Expand pack `phrases.toml` template: `\\phrase{key}` / `\\phrase{key}{arg}` (D23 / THI-355). Lossy seal to ordinary prose.".into(),
+            })),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            text_edit: Some(snippet_edit(
+                line,
+                replace_start,
+                character,
+                "\\phrase{${1:key}}{${2:arg}}$0".into(),
+            )),
+            filter_text: Some("\\phrase".into()),
+            ..Default::default()
+        });
+    }
     if items.is_empty() { None } else { Some(items) }
 }
 
@@ -216,5 +237,22 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn completes_phrase_snippet() {
+        let text = "\\phr";
+        let items = completions_at(
+            text,
+            Position {
+                line: 0,
+                character: 4,
+            },
+        )
+        .expect("completions");
+        let CompletionResponse::Array(items) = items else {
+            panic!("expected array");
+        };
+        assert!(items.iter().any(|i| i.label == "\\phrase"), "{items:?}");
     }
 }

@@ -1,0 +1,15 @@
+\tessera{
+  format=tessprek
+  version=2
+  title="Phrase demo"
+  template_id=minimal
+}
+\ids{1}
+
+Pack expansion (D23 / THI-355): \phrase{yegourdoon}{I am Yes} — then ordinary prose.
+
+Fenced code keeps the macro literal:
+
+```
+\phrase{yegourdoon}{raw}
+```

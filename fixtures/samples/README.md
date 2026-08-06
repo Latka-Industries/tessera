@@ -5,23 +5,33 @@ Hand-built multi-role `.tes` files for exploring Tessprek in Neovim / CLI.
 
 | File | What you see |
 | --- | --- |
-| `text_roles.tes` | heading / paragraph / bullet + ordered `list_item` (incl. `depth`) / blockquote / captioned code+mermaid+math+table |
-| `field_notes.tes` | longer research note: lists, quote, captioned scorecard/math/code, cite chunk |
-| `studio_brief.tes` | deck with slides + figure + attachment + external/internal links |
-| `block_captions.tes` | every caption surface: table / math / code / mermaid / figure / attachment |
-| `manuscript_chapters.tes` | fiction draft (`doc_kind = manuscript`): front matter + 3 H1 chapters / H2 scene — for `--chapter N` + `manuscript` theme |
+| **`tessprek_showcase.tes`** | **Start here** — umbrella tour including a live `\phrase{yegourdoon}{I am Yes}` line (plus spans, lists, cite family, figure, slide, …) |
+| **`phrases_demo.tessprek`** | Standalone Tessprek buffer for CLI `tes format` phrase smoke (same macro) |
+| `text_roles.tes` | Focused text-role matrix (heading / list depth / blockquote / captioned blocks) |
+| `field_notes.tes` | Longer research note (quote-style cite, scorecard) |
+| `studio_brief.tes` | Deck with slides + figure + attachment + links |
+| `block_captions.tes` | Caption surface matrix |
+| `manuscript_chapters.tes` | Fiction draft for `--chapter N` + `manuscript` theme |
 
 ```bash
 cargo run --example gen_sample_fixtures
+# or: mise run samples
+
 cargo build --bin tes --bin tes-lsp
 # copy before write-testing — saves rewrite the sealed container
-cp fixtures/samples/field_notes.tes /tmp/field_notes.tes
+cp fixtures/samples/tessprek_showcase.tes /tmp/tessprek_showcase.tes
 nvim --clean -u NONE \
   -c "set rtp+=$PWD/contrib/nvim" \
   -c "lua require('tessera').setup()" \
-  /tmp/field_notes.tes
+  /tmp/tessprek_showcase.tes
 ```
 
-Or: `tes edit-read fixtures/samples/text_roles.tes`
+Phrase expand (CLI):
+
+```bash
+cargo run -q --bin tes -- format \
+  -i fixtures/samples/phrases_demo.tessprek \
+  --template-root templates --template minimal
+```
 
 Minimal one-chunk / empty containers stay under [`fixtures/v0/`](../v0/) for golden + conformance tests only.

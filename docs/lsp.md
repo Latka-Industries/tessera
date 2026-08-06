@@ -93,6 +93,11 @@ Opens `.tes` as Tessprek, attaches `tes-lsp`, and saves via `tessera.write`.
 
 Build the server first: `cargo build --bin tes-lsp`.
 
+For a rich Tessprek buffer, open
+[`fixtures/samples/tessprek_showcase.tes`](../fixtures/samples/tessprek_showcase.tes)
+(see [fixtures/samples/README.md](../fixtures/samples/README.md)). Pack `\phrase`
+lives in [`phrases_demo.tessprek`](../fixtures/samples/phrases_demo.tessprek).
+
 ## See also
 
 - [cli.md — Tessprek LSP](cli.md#tessprek-lsp-tes-lsp) (short pointer)
