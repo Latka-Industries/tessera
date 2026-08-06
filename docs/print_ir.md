@@ -120,8 +120,19 @@ pub enum PrintBlock {
         layout_id: String,
         regions: Vec<SlideRegionContent>,
     },
+    /// Sealed layout chunk (D24): closed `place` / `vspace` / `rule` ops.
+    Layout {
+        ops: Vec<LayoutOp>,
+    },
     /// Explicit author/export break (e.g. chapter boundary).
     Break(BreakHint),
+}
+
+/// One closed layout op inside `PrintBlock::Layout` (D24).
+pub enum LayoutOp {
+    Place { skip: PlaceSkip, runs: Vec<TextRun> },
+    Vspace { amount: VspaceAmount },
+    Rule { width: RuleWidth },
 }
 
 pub struct TextRun {
@@ -219,6 +230,7 @@ Optional category defaults (`[text|heading|quote|cite].font` pin ids) apply when
 | Figure + image | `Figure` (IR mapped; float/placement THI-291) |
 | Math role / inline math | `Math { latex }` (IR mapped; real math layout THI-291) |
 | Slide chunk | `Slide` (IR mapped; richer regions THI-293) |
+| Layout chunk (`place` / `vspace` / `rule`) | `Layout` (D24 / THI-363) — see [decisions.md — D24](decisions.md) |
 | Cite / quote / ref chunks | Mapped (THI-348): `\quote` → `Quote`; biblio stub → numbered `Paragraph`; `\ref` → short `Paragraph`; trailing `References` when biblio stubs exist |
 | Inline `Citation` spans | Rewritten to `[n]` / `[@key]` with `style.cite` (same numbering as HTML/Markdown) |
 | Attachment chunks | Skipped (not prose) |
@@ -248,4 +260,4 @@ path.
 2. Scaffold `ariadnes-weave` (THI-289) — done
 3. Tessera print-tree builder, prose (THI-290) — done (0.2.0)
 4. Pagination + CLI wiring (THI-294) — done (0.2.0, `--backend native`)
-5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360)
+5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363)

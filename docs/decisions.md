@@ -278,7 +278,7 @@ filenames when present).
 | Glyph shortcuts | `typography.toml` substitutions at format/compile | `...` → `…` (not `\ldots` Tessprek) |
 | Wrap arg in face/style | Closed `\font{id}{…}` → IR span + pinned face | `\arm` snippet → `\font{armenian}{…}` |
 | Parameterized boilerplate | Pack phrase + one `\phrase{id}{opt}` | `\yegourdoon` |
-| Layout widget | Real Tessprek/block when shipped | `\progress{n}` |
+| Layout intent | Closed `\layout{…}` ops (D24); not pack TOML | `place frac=0.875 content="87.5%"` |
 
 Tessprek / Tesscriptor / LSP are **front ends** on the same pack + vocabulary.
 Tesscriptor uses UI (phrase picker, font mark), not a second macro language.
@@ -329,7 +329,57 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
 4. Weave quote italic default + sparse aesthetic knobs — **shipped** (weave 0.2.5 / THI-352 / THI-353)
 5. Tessera: pack `weave.toml` → `EmitOptions` — **shipped** (THI-357)
 6. Category default fonts via `weave.toml` — **shipped** (Tessera 0.2.6 / weave 0.2.6 / THI-360)
-7. Widgets (`\progress`) only when dogfood forces — later (THI-358)
+7. Layout widgets as Eleatic `\progress` (THI-358) — **canceled**; use D24 `\layout` ops
+
+---
+
+## Layout blocks (`place` / `vspace` / `rule`)
+
+**Decision (D24):** A **layout block** is a sealed reading-order chunk that
+carries a short ordered list of **closed paint ops**. Tessera seals intent;
+**ariadnes-weave** paints native PDF. Packs never invent layout commands or
+ops in TOML.
+
+### Settled shape
+
+| Piece | Rule |
+| --- | --- |
+| Wire | `ChunkType::Layout` (type `9`) + JSON `LayoutPayload { ops }` |
+| Tessprek | One generic command: `\layout{…}` with op lines inside |
+| Ops (v1) | `place`, `vspace`, `rule` only — grow rarely |
+| Units | `frac` = fraction of line measure (`0..=1`); `em` = body-em distance; named `vspace` steps `small` / `med` / `big` |
+| `place` | Horizontal skip then inline content (`content="…"` or `{…}`; `\font` seals to spans). At `frac=1`, flush using leftover width after measuring content (LaTeX-style) |
+| `vspace` | Extra vertical air only (no measure-`frac`). Default gap between chunks = normal chunk spacing — omit `vspace` unless you want more air |
+| `rule` | Horizontal rule; width `frac` and/or `em` (summed when both set) |
+| Errors | Unknown op / invalid `frac` → hard error |
+| Not in v1 | Block-level `par` (chunk boundary is the break); page-break op (use existing print `Break`); pack-authored op names; core `\progress` sugar |
+
+### Example (progress-style marker)
+
+Eleatic-style `\progress{87.5}` is **not** a Tessera command. Authors compose:
+
+```text
+\layout{
+  place frac=0.875 content="87.5%"
+}
+```
+
+Optional surrounding `vspace=small` copies LaTeX `\smallskip`; omit when
+normal block spacing is enough.
+
+### Projections
+
+| Sink | Behavior |
+| --- | --- |
+| Native print | Bridge → weave `PrintBlock::Layout` |
+| HTML / `tes serve` | `.tes-layout` with place / vspace / rule hooks (theme CSS) |
+| Markdown / AI / linear | Lossy: place content (+ leading spaces as rough skip); `---` for rules |
+
+**Rejected:** inventing layout macros in pack TOML; hardcoding `\progress` /
+`gauge` as weave kinds; storing freeform `x/y/w/h` geometry.
+
+Related: [structure_v1.md](structure_v1.md), [print_ir.md](print_ir.md),
+[tessprek.md](tessprek.md). Parent issue THI-361.
 
 ---
 
@@ -411,4 +461,5 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
 | D21 | Print IR + `ariadnes-weave` own native PDF; HTML is preview | Accepted direction |
 | D22 | Tessprek v2: brace commands + `\tessera{}`/`\ids{}` header replace v1 HTML comments | Accepted (THI-318 shipped) |
-| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B **0.2.5** (THI-357/354/355/356); category fonts **0.2.6** (THI-360); follow-on THI-358 |
+| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B **0.2.5** (THI-357/354/355/356); category fonts **0.2.6** (THI-360); `\progress` widget (THI-358) **canceled** → D24 |
+| D24 | Layout blocks: sealed `place` / `vspace` / `rule` ops (not pack TOML macros) | Accepted; Tessera wire + Tessprek + exports (THI-361..365); weave paint (THI-362) |
