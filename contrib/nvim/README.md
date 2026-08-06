@@ -87,15 +87,21 @@ body lines (shows chunk id / role; cite fields when present). Completion on
 
 ## Manual smoke (repo root)
 
+Prefer browse samples over goldens:
+
 ```bash
 cargo build --bin tes --bin tes-lsp
+# copy before write-testing — avoids dirtying the sample
+cp fixtures/samples/tessprek_showcase.tes /tmp/tessprek_showcase.tes
 nvim --clean -u NONE \
   -c "set rtp+=$PWD/contrib/nvim" \
   -c "lua require('tessera').setup()" \
-  fixtures/v0/note_one_chunk.tes
+  /tmp/tessprek_showcase.tes
 ```
 
-Expect readable Tessprek (`Hello from Tessera`), not binary garbage.
+Expect readable Tessprek (headings, `\figure`, `\cite` / `\quote` / `\ref`, …), not binary garbage.
+For `\phrase` completion + pack expand, open `fixtures/samples/phrases_demo.tessprek`
+(or format it with `--template-root templates --template minimal`).
 
 ```vim
 :TesseraLspInfo
@@ -106,7 +112,7 @@ Expect readable Tessprek (`Hello from Tessera`), not binary garbage.
 CLI-only format check (no Neovim):
 
 ```bash
-cargo run -q --bin tes -- edit-read fixtures/samples/text_roles.tes 2>/dev/null \
+cargo run -q --bin tes -- edit-read fixtures/samples/tessprek_showcase.tes 2>/dev/null \
   | cargo run -q --bin tes -- format --stdin \
   | cargo run -q --bin tes -- format --check --stdin
 ```
@@ -116,10 +122,8 @@ If clients is `{}`, check `:TesseraLspInfo` — usually `tes-lsp` is missing (`c
 Edit a word, `:w`, then:
 
 ```bash
-cargo run -q --bin tes -- edit-read fixtures/v0/note_one_chunk.tes | head
+cargo run -q --bin tes -- edit-read /tmp/tessprek_showcase.tes | head
 ```
-
-(Use a **copy** of the fixture if you do not want to dirty goldens.)
 
 ## See also
 

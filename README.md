@@ -33,12 +33,15 @@ alias tes="$PWD/target/release/tes"
 # or: alias tes="$PWD/target/release-cli/tes"
 
 tes info fixtures/v0/note_one_chunk.tes
-tes verify --deep fixtures/v0/*.tes
+tes verify --deep fixtures/conformance/accept/*.tes
 tes verify --copy --deep /mnt/nfs/untrusted.tes
 tes export fixtures/v0/note_one_chunk.tes --markdown
 tes serve fixtures/v0/note_one_chunk.tes --template-root templates
 tes export fixtures/v0/note_one_chunk.tes --pdf -o /tmp/note.pdf --template-root templates
 tes export fixtures/v0/note_one_chunk.tes --pdf --backend native -o /tmp/note-native.pdf
+
+# Tessprek browse / Neovim: fixtures/samples/tessprek_showcase.tes
+# Pack phrases: fixtures/samples/phrases_demo.tessprek
 ```
 
 Cargo features (library): `native-pdf` (default), plus optional `weave-cjk` /

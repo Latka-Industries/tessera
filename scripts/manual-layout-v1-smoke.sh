@@ -13,10 +13,7 @@ if [[ ! -x "$TES" ]]; then
 fi
 
 echo "TES=$TES"
-echo "=== deep verify fixtures/v0 ==="
-"$TES" verify --deep fixtures/v0/*.tes --quiet
-
-echo "=== deep verify conformance accept ==="
+echo "=== deep verify conformance accept (includes v0 goldens + feature file) ==="
 "$TES" verify --deep fixtures/conformance/accept/*.tes --quiet
 
 echo "=== deep verify conformance reject (must fail) ==="

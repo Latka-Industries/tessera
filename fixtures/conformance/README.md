@@ -13,7 +13,13 @@ Third-party readers that claim Tessera compatibility should run the same gate
 
 ## Accept set
 
-Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
+**Do not edit by hand.** Source of truth is [`fixtures/v0/`](../v0/);
+`mise run fixtures` / `gen_v0_fixtures` + `cp` syncs goldens here (Windows-safe,
+no symlinks). Accept-only addition:
+
+- `unknown_optional_feature.tes` — catalog declares unknown **optional** feature (warn, still ok)
+
+Synced from `v0/`:
 
 - `empty.tes` — superblock-only skeleton
 - `note_one_chunk.tes` — tagged note + inline `tes textconv` span
@@ -25,7 +31,6 @@ Copied from `fixtures/v0/` goldens so Windows CI does not depend on symlinks:
 - `slide_deck.tes` — two region-based slides
 - `research_cite.tes` — cite chunk + citation link
 - `figure_sample.tes` — image + figure (with caption)
-- `unknown_optional_feature.tes` — catalog declares unknown **optional** feature (warn, still ok)
 
 See also `fixtures/vault/` for a sample `vault.tes` TOC (not part of the
 must-accept kit).
@@ -55,6 +60,17 @@ must-accept kit).
 | `unsafe_attachment_filename.tes` | Attachment basename with `../` |
 | `unknown_required_feature.tes` | Catalog `features.required` names an unknown id |
 
+### Integer overflow / fuzz seeds (hand-kept; no regen script yet)
+
+| File | Fault |
+| --- | --- |
+| `region_offset_length_overflow.tes` | Region offset + length overflows |
+| `slide_payload_len_overflow.tes` | Slide payload length overflows |
+| `tidx_entry_count_mul_overflow.tes` | `TIDX` entry-count multiply overflows |
+| `tlnk_entry_count_mul_overflow.tes` | `TLNK` entry-count multiply overflows |
+
+These are also copied into the fuzz corpus via `mise run fuzz-reseed`.
+
 ### Feature-flag accept (deep verify ok, may warn)
 
 | File | Note |
@@ -64,7 +80,7 @@ must-accept kit).
 ## Regenerate
 
 ```bash
-# Goldens + accept sync
+# Goldens + accept sync (edit v0 only)
 cargo run --example gen_v0_fixtures
 cp fixtures/v0/*.tes fixtures/conformance/accept/
 
@@ -78,4 +94,6 @@ uv run scripts/gen_structural_rejects.py
 cargo run --example gen_vault_fixtures
 ```
 
-Or: `mise run fixtures` (goldens, rejects, vault sample, layout smoke).
+Or: `mise run fixtures` (goldens, rejects, vault sample, browse samples, layout smoke).
+
+CI deep-verifies **`conformance/accept` + `reject`** (not a second pass over identical `v0/` bytes). Golden byte equality stays in `src/tests/golden_v0.rs`.
