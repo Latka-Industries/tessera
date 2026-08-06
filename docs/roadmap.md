@@ -1,8 +1,9 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.2.5** (document-depth wire: Tessprek v2,
-captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering; **D23 Phase B**
-pack authoring). Native-print continues via **`ariadnes-weave` ≥ 0.2.5**;
+**Status:** M0–M11 shipped; crate **0.2.6** (document-depth wire: Tessprek v2,
+captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering; **D23** pack
+authoring including category fonts). Native-print continues via
+**`ariadnes-weave` ≥ 0.2.6**;
 Chromium remains the default PDF backend. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
@@ -14,11 +15,11 @@ theme polish (THI-221), `tes repair` (THI-225), and `TesOp::SetTags` are in.
 **0.1.12** added parser hygiene (THI-296..299). **0.2.0** wires print IR →
 **`ariadnes-weave`** (`tes export --pdf --backend native`; Chromium remains
 default) — THI-290 / THI-294 under epic THI-256. **0.2.1** requires weave
-0.2.2 (`TextRun.face` / pinned faces). **0.2.5** lands D23 Tessera slices:
+0.2.2 (`TextRun.face` / pinned faces). **0.2.5** lands D23 Tessera Phase B:
 pack `weave.toml` → `EmitOptions` (THI-357), typography + aliases (THI-354),
-`\phrase` (THI-355), `\font` + `fonts.toml` pins (THI-356), category default
-fonts via `weave.toml` (THI-360). Optional later: `\progress` when dogfood
-forces (THI-358).
+`\phrase` (THI-355), `\font` + `fonts.toml` pins (THI-356). **0.2.6** adds
+category default fonts via `weave.toml` (THI-360; weave **0.2.6**). Optional
+later: `\progress` when dogfood forces (THI-358).
 Richer native layout (tables/math/decks, OS fonts) continues on that track /
 template dogfood. This is an implementation plan, not a release schedule.
 
@@ -280,7 +281,7 @@ freeze. CRDT/live cursors are not part of M10.
    benches continue as hygiene — see [mime.md](mime.md), [benchmarks.md](benchmarks.md).
 6. **Done in-tree:** parser hygiene 0.1.12 (THI-296..299); print bridge 0.2.0
    (THI-288..290 / THI-292 / THI-294); D23 Phase B 0.2.5 (THI-357 / 354 / 355 / 356);
-   category fonts THI-360.
+   category fonts 0.2.6 (THI-360).
 
 ---
 

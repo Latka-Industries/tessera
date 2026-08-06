@@ -328,7 +328,7 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
 3. Font wraps (`\font` + pack pins; `\arm` snippet) — **shipped** (THI-356)
 4. Weave quote italic default + sparse aesthetic knobs — **shipped** (weave 0.2.5 / THI-352 / THI-353)
 5. Tessera: pack `weave.toml` → `EmitOptions` — **shipped** (THI-357)
-6. Category default fonts via `weave.toml` — **shipped** (weave THI-360; Tessera pack overlay + docs)
+6. Category default fonts via `weave.toml` — **shipped** (Tessera 0.2.6 / weave 0.2.6 / THI-360)
 7. Widgets (`\progress`) only when dogfood forces — later (THI-358)
 
 ---
@@ -411,4 +411,4 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
 | D21 | Print IR + `ariadnes-weave` own native PDF; HTML is preview | Accepted direction |
 | D22 | Tessprek v2: brace commands + `\tessera{}`/`\ids{}` header replace v1 HTML comments | Accepted (THI-318 shipped) |
-| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B shipped in **0.2.5** (THI-357/354/355/356); category fonts THI-360; follow-on THI-358 |
+| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B **0.2.5** (THI-357/354/355/356); category fonts **0.2.6** (THI-360); follow-on THI-358 |
