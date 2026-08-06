@@ -685,6 +685,7 @@ pub fn encode_tessprek_showcase() -> Vec<u8> {
 
     add_showcase_prose(&mut session);
     add_showcase_phrases(&mut session);
+    add_showcase_faces(&mut session);
     add_showcase_captioned(&mut session);
     let (slide_title, slide_body) = add_showcase_media_and_slide(&mut session);
     add_showcase_cite_family(&mut session, intro);
@@ -713,6 +714,31 @@ fn add_showcase_phrases(session: &mut TesWriterSession) {
             "Type \\phr and complete for the LSP snippet. Companion buffer: phrases_demo.tessprek.",
         )
         .expect("phrase lsp hint");
+}
+
+/// Sealed `\face{…}{…}` span (round-trips; pack `faces.toml` pins the TTF).
+fn add_showcase_faces(session: &mut TesWriterSession) {
+    session
+        .add_text_chunk(&TextHeader::heading(2), "Pack faces")
+        .expect("h2 faces");
+    let body = "Pinned face demo: barev ashkharh.";
+    let start = u32::try_from(body.find("barev").expect("barev")).unwrap_or(0);
+    let end = u32::try_from(body.len()).unwrap_or(0);
+    let mut para = TextHeader::paragraph();
+    para.spans = vec![InlineSpan {
+        start,
+        end,
+        kind: InlineKind::Face {
+            face_id: "armenian".into(),
+        },
+    }];
+    session.add_text_chunk(&para, body).expect("face line");
+    session
+        .add_text_chunk(
+            &TextHeader::paragraph(),
+            "LSP: \\face / \\arm (snippet → \\face{armenian}{…}). Native PDF loads pack faces.toml pins.",
+        )
+        .expect("face lsp hint");
 }
 
 fn add_showcase_prose(session: &mut TesWriterSession) {

@@ -22,6 +22,8 @@ Markdown has no syntax for.
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
 | Figure, biblio cite, quote, ref, slide, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\attach{…}` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
+| Pack-pinned face | `\face{face_id}{text}` → `InlineKind::Face` (seals; `\arm` is LSP snippet → `\face{armenian}{…}`) |
+| Pack phrase (expand) | `\phrase{key}{arg}` → ordinary prose at format (lossy; not a sealed span) |
 | Text attrs that can't live in Markdown (`class` / `lang` / `align`) | Optional `\text{…}` immediately before the Markdown block |
 | Document header | `\tessera{format=tessprek version=2 source-hash=… [doc meta…]}` |
 | Reading order | `\ids{1,2,3,6,7}` (flat list, regenerated on every encode) |

@@ -78,6 +78,7 @@ pub enum InlineKind {
     Math { tex: String },
     Link { link_id: u64 },
     Citation { cite_chunk_id: u64 },
+    Face { face_id: String }, // pack-pinned TTF (D23 / THI-356)
 }
 
 pub struct InlineSpan {
@@ -204,6 +205,8 @@ A Tessera template is a folder/pack with a versioned manifest:
 - optional `typography.toml` / `aliases.toml` / `phrases.toml` — expand once at
   `tes format` / edit-write (D23 / THI-354 / THI-355); sealed body stores
   results (`\phrase{key}{arg}` → ordinary styled prose; lossy round-trip);
+- optional `faces.toml` + font files — pack-pinned TTFs for `\face{id}{…}`
+  (D23 / THI-356); seals to `InlineKind::Face`; native PDF → `pinned_faces`;
 - allowed block types and `doc_kind` defaults;
 - export targets and starter Tessera Markdown;
 - named slide regions;

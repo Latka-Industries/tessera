@@ -8,6 +8,7 @@ use crate::catalog::{CitePayload, InlineKind, InlineSpan, LinkEntry, LinkKind, O
 use crate::io::cite::{
     CiteTessprekKind, PendingCite, cite_key_from_payload, cite_key_or_fallback, classify_cite,
 };
+use crate::io::face::PendingFace;
 
 use super::super::ContentBlock;
 use super::markers::{
@@ -52,6 +53,7 @@ pub fn encode_content_blocks(
                 body,
                 pending_links,
                 pending_cites,
+                pending_faces,
                 ..
             } => {
                 let ordered_index = ordered.take_for_text(header);
@@ -62,6 +64,7 @@ pub fn encode_content_blocks(
                         body,
                         pending_links,
                         pending_cites,
+                        pending_faces,
                         links,
                         &cite_keys,
                         ordered_index,
@@ -213,11 +216,13 @@ fn write_media(out: &mut String, blocks: &[ContentBlock], media: &[TessprekMedia
     let _ = writeln!(out, "{BRACE_SUFFIX}");
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_text_body(
     header: &TextHeader,
     body: &str,
     pending_links: &[OutboundLink],
     pending_cites: &[PendingCite],
+    pending_faces: &[PendingFace],
     links: &[LinkEntry],
     cite_keys: &std::collections::BTreeMap<u64, String>,
     ordered_index: Option<u32>,
@@ -231,37 +236,48 @@ fn render_text_body(
         .iter()
         .any(|s| matches!(s.kind, InlineKind::Citation { .. }))
     {
-        let mut cite_spans: Vec<&InlineSpan> = header
+        let replacements: Vec<_> = header
             .spans
             .iter()
-            .filter(|s| matches!(s.kind, InlineKind::Citation { .. }))
+            .filter_map(|s| match &s.kind {
+                InlineKind::Citation { cite_chunk_id } => {
+                    let key = cite_key_or_fallback(cite_keys, *cite_chunk_id);
+                    Some((s.start, s.end, format!("\\cite{{{key}}}")))
+                }
+                _ => None,
+            })
             .collect();
-        cite_spans.sort_by_key(|s| std::cmp::Reverse(s.start));
-        for span in cite_spans {
-            let InlineKind::Citation { cite_chunk_id } = &span.kind else {
-                continue;
-            };
-            let start = span.start as usize;
-            let end = span.end as usize;
-            if end > body.len() || start > end {
-                continue;
-            }
-            let key = cite_key_or_fallback(cite_keys, *cite_chunk_id);
-            body.replace_range(start..end, &format!("\\cite{{{key}}}"));
-        }
+        rewrite_ranges_rev(&mut body, replacements);
         header
             .spans
             .retain(|s| !matches!(s.kind, InlineKind::Citation { .. }));
     } else if !pending_cites.is_empty() {
-        let mut cites: Vec<_> = pending_cites.iter().collect();
-        cites.sort_by_key(|c| std::cmp::Reverse(c.start));
-        for cite in cites {
-            let start = cite.start as usize;
-            let end = cite.end as usize;
-            if end > body.len() || start > end {
+        let replacements = pending_cites
+            .iter()
+            .map(|c| (c.start, c.end, format!("\\cite{{{}}}", c.key)))
+            .collect();
+        rewrite_ranges_rev(&mut body, replacements);
+    }
+
+    // Pending faces (pre-seal): project macros. Sealed Face spans go through
+    // `apply_spans_markdown` as `\face{id}{…}`.
+    if !header
+        .spans
+        .iter()
+        .any(|s| matches!(s.kind, InlineKind::Face { .. }))
+        && !pending_faces.is_empty()
+    {
+        let mut faces: Vec<_> = pending_faces.iter().collect();
+        faces.sort_by_key(|f| std::cmp::Reverse(f.start));
+        for face in faces {
+            let Some((start, end)) = byte_range(&body, face.start, face.end) else {
                 continue;
-            }
-            body.replace_range(start..end, &format!("\\cite{{{}}}", cite.key));
+            };
+            let inner = body[start..end].to_owned();
+            body.replace_range(
+                start..end,
+                &format!("\\face{{{}}}{{{inner}}}", face.face_id),
+            );
         }
     }
 
@@ -440,4 +456,25 @@ fn write_attachment_directive(out: &mut String, att: &AttachmentPayload) {
         parts.push(quoted_attr("caption", caption));
     }
     write_brace_block(out, ATTACH_PREFIX, &parts);
+}
+
+/// Apply `(start, end, replacement)` edits from the end of the string forward.
+fn rewrite_ranges_rev(body: &mut String, mut replacements: Vec<(u32, u32, String)>) {
+    replacements.sort_by_key(|(start, _, _)| std::cmp::Reverse(*start));
+    for (start, end, replacement) in replacements {
+        let Some((start, end)) = byte_range(body, start, end) else {
+            continue;
+        };
+        body.replace_range(start..end, &replacement);
+    }
+}
+
+fn byte_range(body: &str, start: u32, end: u32) -> Option<(usize, usize)> {
+    let start = start as usize;
+    let end = end as usize;
+    if end > body.len() || start > end {
+        None
+    } else {
+        Some((start, end))
+    }
 }

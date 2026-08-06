@@ -89,6 +89,48 @@ fn command_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<Co
             ..Default::default()
         });
     }
+    // Sealed pack-pinned face (D23 / THI-356).
+    if "face".starts_with(typed) || typed.is_empty() {
+        items.push(CompletionItem {
+            label: "\\face".into(),
+            kind: Some(CompletionItemKind::SNIPPET),
+            detail: Some("pack-pinned face (seal to InlineKind::Face)".into()),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "Seal `\\face{face_id}{text}` → inline Face span; native PDF uses pack `faces.toml` pins (D23 / THI-356).".into(),
+            })),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            text_edit: Some(snippet_edit(
+                line,
+                replace_start,
+                character,
+                "\\face{${1:face_id}}{${2:text}}$0".into(),
+            )),
+            filter_text: Some("\\face".into()),
+            ..Default::default()
+        });
+    }
+    // Snippet alias → `\face{armenian}{…}` (not a core Tessprek command).
+    if "arm".starts_with(typed) || typed.is_empty() {
+        items.push(CompletionItem {
+            label: "\\arm".into(),
+            kind: Some(CompletionItemKind::SNIPPET),
+            detail: Some("snippet → \\face{armenian}{…}".into()),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "Inserts `\\face{armenian}{…}` (D23). Not a sealed core command.".into(),
+            })),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            text_edit: Some(snippet_edit(
+                line,
+                replace_start,
+                character,
+                "\\face{armenian}{${1:text}}$0".into(),
+            )),
+            filter_text: Some("\\arm".into()),
+            ..Default::default()
+        });
+    }
     if items.is_empty() { None } else { Some(items) }
 }
 
@@ -254,5 +296,34 @@ mod tests {
             panic!("expected array");
         };
         assert!(items.iter().any(|i| i.label == "\\phrase"), "{items:?}");
+    }
+
+    #[test]
+    fn completes_face_and_arm_snippets() {
+        let face = completions_at(
+            "\\fac",
+            Position {
+                line: 0,
+                character: 4,
+            },
+        )
+        .expect("face");
+        let CompletionResponse::Array(face) = face else {
+            panic!("expected array");
+        };
+        assert!(face.iter().any(|i| i.label == "\\face"), "{face:?}");
+
+        let arm = completions_at(
+            "\\ar",
+            Position {
+                line: 0,
+                character: 3,
+            },
+        )
+        .expect("arm");
+        let CompletionResponse::Array(arm) = arm else {
+            panic!("expected array");
+        };
+        assert!(arm.iter().any(|i| i.label == "\\arm"), "{arm:?}");
     }
 }

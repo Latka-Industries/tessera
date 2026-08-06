@@ -252,6 +252,8 @@ pack/
   aliases.toml        # optional fixed string shortcuts
   phrases.toml        # optional parameterized boilerplate
   typography.toml     # optional substitutions (... → …, -> → →)
+  faces.toml          # optional id → relative .ttf/.otf (native pin)
+  fonts/*.ttf         # pinned face bytes
 ```
 
 Typical packs stay small: omit overlay files until needed. Bundled weave
@@ -265,8 +267,8 @@ defaults remain the baseline; overlays are sparse key overrides.
 | Tessprek | Structure + closed commands that seal to chunks/spans |
 
 **Manifest** stays pointers + identity (not layout data). Optional relative
-paths: `weave`, `typography`, `aliases`, `phrases` (else convention filenames
-when present).
+paths: `weave`, `typography`, `aliases`, `phrases`, `faces` (else convention
+filenames when present).
 
 ### Dynamics without `\newcommand` (use each where it fits)
 

@@ -11,8 +11,9 @@ use serde::Deserialize;
 
 use super::template::{
     DEFAULT_ALIASES_NAME, DEFAULT_PHRASES_NAME, DEFAULT_TYPOGRAPHY_NAME, TemplatePack,
-    resolve_template_id,
+    with_resolved_pack,
 };
+use crate::catalog::chunk::is_ascii_ident;
 use crate::error::{Result, TesError};
 
 /// Loaded pack text-expansion rules (may be empty).
@@ -62,12 +63,13 @@ pub fn resolve_pack_text(
     template_id: Option<&str>,
     catalog_template_id: Option<&str>,
 ) -> Result<PackTextRules> {
-    let id = resolve_template_id(template_id, catalog_template_id);
-    match TemplatePack::resolve(template_root, id) {
-        Ok(pack) => pack_text_rules(&pack),
-        Err(TesError::TemplateNotFound { .. }) => Ok(PackTextRules::default()),
-        Err(err) => Err(err),
-    }
+    with_resolved_pack(
+        template_root,
+        template_id,
+        catalog_template_id,
+        PackTextRules::default(),
+        pack_text_rules,
+    )
 }
 
 /// Load typography + aliases + phrases overlays for a pack.
@@ -116,7 +118,7 @@ struct PhrasesFile {
     phrases: std::collections::BTreeMap<String, String>,
 }
 
-fn load_overlay_toml<T: for<'de> Deserialize<'de>>(
+pub(crate) fn load_overlay_toml<T: for<'de> Deserialize<'de>>(
     pack: &TemplatePack,
     path: &Path,
     fallback_name: &str,
@@ -124,7 +126,7 @@ fn load_overlay_toml<T: for<'de> Deserialize<'de>>(
     let raw = fs::read_to_string(path).map_err(|err| {
         if err.kind() == std::io::ErrorKind::NotFound {
             TesError::InvalidTemplate {
-                message: format!("pack text overlay missing: {}", path.display()),
+                message: format!("pack overlay missing: {}", path.display()),
             }
         } else {
             TesError::Io(err)
@@ -147,14 +149,8 @@ fn sorted_pairs(map: std::collections::BTreeMap<String, String>) -> Vec<(String,
     pairs
 }
 
-fn validate_ident(name: &str, kind: &str) -> Result<()> {
-    if name.is_empty()
-        || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-        || !name
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-    {
+pub(crate) fn validate_ident(name: &str, kind: &str) -> Result<()> {
+    if !is_ascii_ident(name) {
         return Err(TesError::InvalidTemplate {
             message: format!("{kind} name must be an ASCII identifier (got {name:?})"),
         });

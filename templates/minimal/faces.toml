@@ -1,0 +1,7 @@
+# Pack-pinned faces for native PDF (`EmitOptions::pinned_faces`, D23 / THI-356).
+# Tessprek: `\face{id}{text}` seals to InlineKind::Face; `\arm` is an LSP snippet → `\face{armenian}{…}`.
+
+[faces]
+test = "fonts/test-face.ttf"
+# Stand-in until a real Armenian TTF ships with dogfood packs.
+armenian = "fonts/test-face.ttf"

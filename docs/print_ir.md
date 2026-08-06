@@ -195,11 +195,10 @@ Unknown pin ids fail emit (`WeaveError::Font`). Pins are stable inputs (sorted
 ids + fixed bytes), so fixtures stay deterministic — this is not OS fontconfig
 lookup (that remains later / THI-311).
 
-**Tessera today:** the print builder sets `face: None` on all prose runs. The
-CLI native path calls `emit_pdf_with` with pack layout knobs when a template
-pack is resolvable (optional `weave.toml` / manifest `weave`, D23 / THI-357);
-otherwise `EmitOptions::bundled_only()`. No `--pin-face` / wire face ids yet
-(library consumers use weave’s API directly).
+**Tessera today:** `InlineKind::Face { face_id }` maps to `TextRun.face`
+(D23 / THI-356). The CLI native path loads pack `faces.toml` into
+`EmitOptions::pinned_faces` and pack `weave.toml` into layout knobs when a
+template pack is resolvable; otherwise `EmitOptions::bundled_only()`.
 
 ---
 

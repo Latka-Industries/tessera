@@ -462,6 +462,11 @@ fn apply_spans_html(
                     format!("<cite>{}</cite>", escape_html(&marker))
                 }
             }
+            InlineKind::Face { face_id } => format!(
+                "<span class=\"face\" data-face=\"{}\">{}</span>",
+                escape_html(face_id),
+                escape_html(&inner)
+            ),
         };
         replacements.push((token.clone(), html));
         work.replace_range(start..end, &token);

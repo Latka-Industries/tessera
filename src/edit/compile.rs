@@ -166,6 +166,7 @@ fn write_compiled_block(
             body,
             pending_links,
             pending_cites,
+            pending_faces,
             ..
         } => {
             let mut header = header.clone();
@@ -183,6 +184,20 @@ fn write_compiled_block(
                         start: pending.start,
                         end: pending.end,
                         kind: InlineKind::Citation { cite_chunk_id },
+                    });
+                }
+            }
+            if !pending_faces.is_empty() {
+                header
+                    .spans
+                    .retain(|s| !matches!(s.kind, InlineKind::Face { .. }));
+                for pending in pending_faces {
+                    header.spans.push(InlineSpan {
+                        start: pending.start,
+                        end: pending.end,
+                        kind: InlineKind::Face {
+                            face_id: pending.face_id.clone(),
+                        },
                     });
                 }
             }
