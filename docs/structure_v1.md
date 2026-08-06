@@ -201,12 +201,14 @@ A Tessera template is a folder/pack with a versioned manifest:
 - id, version, compatible structure/features;
 - CSS themes (HTML / Chromium only) and optional fonts/assets;
 - optional `weave.toml` (or manifest `weave` path) — sparse overlay on
-  ariadnes-weave `LayoutKnobs` for `--backend native` (D23);
+  ariadnes-weave `LayoutKnobs` for `--backend native` (D23); optional
+  category `font` pin ids (`[text|heading|quote|cite].font`, THI-360);
 - optional `typography.toml` / `aliases.toml` / `phrases.toml` — expand once at
   `tes format` / edit-write (D23 / THI-354 / THI-355); sealed body stores
   results (`\phrase{key}{arg}` → ordinary styled prose; lossy round-trip);
-- optional `fonts.toml` + font files — pack-pinned TTFs for `\font{id}{…}`
-  (D23 / THI-356); seals to `InlineKind::Font`; native PDF → `pinned_faces`;
+- optional `fonts.toml` + font files — pack-pinned TTFs for `\font{id}{…}` and
+  category defaults (D23 / THI-356 / THI-360); seals to `InlineKind::Font`;
+  native PDF → `pinned_faces`;
 - allowed block types and `doc_kind` defaults;
 - export targets and starter Tessera Markdown;
 - named slide regions;

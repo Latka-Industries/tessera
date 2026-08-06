@@ -65,8 +65,9 @@ katex-rs = "0.2"
 [patch.crates-io]
 # argus-chunk = { path = "../argus-chunk" }
 # Local suite sibling (tessera-suite/ariadnes-weave → LatkaIndustries).
-# Enable while co-developing weave; leave commented to use crates.io 0.2.5.
-# ariadnes-weave = { path = "../ariadnes-weave" }
+# THI-360: git patch until category-font knobs are on crates.io (weave PR #13).
+# Prefer path for local suite: ariadnes-weave = { path = "../ariadnes-weave" }
+ariadnes-weave = { git = "https://github.com/Latka-Industries/ariadnes-weave", branch = "latkaindustries/thi-360-weavetessera-category-default-fonts-via-weavetoml" }
 
 [dev-dependencies]
 anyhow = "1.0.104"

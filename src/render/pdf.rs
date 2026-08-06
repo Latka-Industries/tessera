@@ -500,6 +500,41 @@ mod tests {
 
     #[cfg(feature = "native-pdf")]
     #[test]
+    fn export_pdf_native_category_heading_font_from_pack() {
+        use crate::render::template::TemplatePack;
+        use crate::render::weave_pack::pack_layout_knobs;
+
+        let dir = tempdir().unwrap();
+        let tes = dir.path().join("note.tes");
+        fs::write(&tes, crate::fixtures::v0::encode_note_three_chunks()).unwrap();
+        let out = dir.path().join("native-category-font.pdf");
+        let templates = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates");
+        export_pdf(
+            &tes,
+            &out,
+            &PdfExportOptions {
+                backend: PdfBackend::Native,
+                template_root: templates.clone(),
+                template_id: Some("minimal".into()),
+                ..PdfExportOptions::default()
+            },
+        )
+        .unwrap();
+        let bytes = fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+        // Heading "Agenda" uses [heading] font = "test" from minimal weave.toml
+        // without Tessprek \font wraps → pinned resource /P…
+        assert!(
+            bytes.windows(2).any(|w| w == b"/P"),
+            "category heading font should embed pack pin"
+        );
+        let pack = TemplatePack::resolve(&templates, "minimal").unwrap();
+        let layout = pack_layout_knobs(&pack).unwrap();
+        assert_eq!(layout.prose.heading.font.as_deref(), Some("test"));
+    }
+
+    #[cfg(feature = "native-pdf")]
+    #[test]
     fn export_pdf_native_manuscript_chapter() {
         let dir = tempdir().unwrap();
         let tes = dir.path().join("ms.tes");

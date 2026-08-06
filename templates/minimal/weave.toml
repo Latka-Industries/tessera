@@ -8,3 +8,7 @@
 # Distinct from bundled indent (18) so pack overlay is easy to spot in tests.
 indent = 28.0
 italic = true
+
+# Category default pin (fonts.toml `test`) — headings without Tessprek \font wraps.
+[heading]
+font = "test"
