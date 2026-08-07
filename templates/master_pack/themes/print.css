@@ -1,0 +1,472 @@
+/* Tessera minimal print theme — shared preview + PDF path
+ *
+ * Same semantic HTML as `tes serve --theme print` / `tes export --pdf`.
+ * Academic / research print; fiction uses `manuscript.css` instead.
+ */
+
+:root {
+  --tes-ink: #111;
+  --tes-muted: #3f3f3f;
+  --tes-rule: #b0b0b0;
+  --tes-soft: #f3f3f3;
+  --tes-link: #000;
+  --tes-measure: 6.5in;
+}
+
+@page {
+  size: letter;
+  margin: 0.85in;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: #fff;
+  color: var(--tes-ink);
+}
+
+body {
+  margin: 0;
+  font-family: "Times New Roman", Times, "Liberation Serif", "Nimbus Roman",
+    serif;
+  font-size: 11pt;
+  line-height: 1.48;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+article {
+  max-width: var(--tes-measure);
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* —— Headings —— */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+  line-height: 1.22;
+  margin: 1.35em 0 0.4em;
+  page-break-after: avoid;
+  break-after: avoid;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 18pt;
+  margin-top: 0;
+  border-bottom: 0.6pt solid var(--tes-rule);
+  padding-bottom: 0.28em;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 13.5pt;
+}
+
+h3 {
+  font-size: 12pt;
+}
+
+h4,
+h5,
+h6 {
+  font-size: 11pt;
+  font-style: italic;
+  font-weight: 600;
+}
+
+/* —— Prose —— */
+
+p {
+  margin: 0 0 0.65em;
+  orphans: 3;
+  widows: 3;
+  text-align: justify;
+  hyphens: auto;
+}
+
+li,
+td,
+th,
+figcaption {
+  orphans: 3;
+  widows: 3;
+}
+
+ul,
+ol {
+  margin: 0 0 0.75em;
+  padding-left: 1.3em;
+}
+
+ul[data-list-depth="2"],
+ol[data-list-depth="2"] {
+  margin-left: 1.2em;
+}
+ul[data-list-depth="3"],
+ol[data-list-depth="3"] {
+  margin-left: 2.4em;
+}
+ul[data-list-depth="4"],
+ol[data-list-depth="4"] {
+  margin-left: 3.6em;
+}
+ul[data-list-depth="5"],
+ol[data-list-depth="5"] {
+  margin-left: 4.8em;
+}
+ul[data-list-depth="6"],
+ol[data-list-depth="6"] {
+  margin-left: 6em;
+}
+
+li {
+  margin-bottom: 0.2em;
+}
+
+blockquote {
+  margin: 0.85em 0;
+  padding: 0.15em 0 0.15em 0.85em;
+  border-left: 2pt solid var(--tes-rule);
+  color: var(--tes-muted);
+  font-style: italic;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* —— Inline —— */
+
+a {
+  color: var(--tes-link);
+  text-decoration: none;
+}
+
+a[href^="http"]::after,
+a[href^="https"]::after {
+  content: none;
+}
+
+@media print {
+  a[href^="http"]::after,
+  a[href^="https"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8.5pt;
+    color: var(--tes-muted);
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    word-break: break-all;
+  }
+
+  .citation a[href^="#"]::after,
+  .bibliography a::after {
+    content: none;
+  }
+}
+
+code {
+  font-family: "Courier New", Courier, "Liberation Mono", monospace;
+  font-size: 0.92em;
+}
+
+pre {
+  margin: 0.85em 0;
+  padding: 0.5em 0.65em;
+  border: 0.5pt solid var(--tes-rule);
+  background: var(--tes-soft);
+  font-size: 9pt;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+pre code {
+  font-size: inherit;
+}
+
+.math-inline {
+  font-style: normal;
+}
+
+.math-display {
+  margin: 1em 0;
+  padding: 0.55em 0.65em;
+  text-align: center;
+  border: 0.5pt solid var(--tes-rule);
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.math-display math {
+  display: inline-block;
+  text-align: start;
+}
+
+.math-fallback {
+  font-family: "Courier New", Courier, monospace;
+  font-style: italic;
+}
+
+/* —— Tables —— */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.9em 0;
+  font-size: 10pt;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+th,
+td {
+  border: 0.5pt solid var(--tes-rule);
+  padding: 0.28em 0.42em;
+  text-align: start;
+  vertical-align: top;
+}
+
+th {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  font-size: 9.5pt;
+  background: var(--tes-soft);
+}
+
+/* —— Figures & attachments —— */
+
+figure {
+  margin: 1em 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+figure img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+figure[data-placement="full_width"] img {
+  width: 100%;
+}
+
+.tes-title {
+  margin: 0.75em 0 0.25em;
+  font-size: 10pt;
+  font-weight: 600;
+  color: var(--tes-ink);
+}
+
+figcaption,
+.tes-caption {
+  margin-top: 0.3em;
+  font-size: 9.5pt;
+  color: var(--tes-muted);
+  font-style: italic;
+}
+
+.tes-attachment {
+  margin: 0.9em 0;
+  padding: 0.45em 0.55em;
+  border: 0.5pt dashed var(--tes-rule);
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.tes-attachment .media-type {
+  color: var(--tes-muted);
+  margin-left: 0.45em;
+}
+
+.tes-attachment .caption {
+  margin: 0.3em 0 0;
+  font-style: italic;
+  color: var(--tes-muted);
+}
+
+/* —— Layout blocks (D24) —— */
+
+.tes-layout {
+  margin: 0.6em 0;
+}
+
+.tes-layout-place {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 1.1em;
+}
+
+.tes-layout-place-flush {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tes-layout-place-label {
+  white-space: pre;
+}
+
+.tes-layout-vspace {
+  width: 100%;
+}
+
+.tes-layout-rule {
+  display: block;
+  margin: 0.25em 0;
+  border: 0;
+  border-top: 0.5pt solid var(--tes-rule, currentColor);
+  max-width: 100%;
+}
+
+/* —— Citations —— */
+
+.citation {
+  margin: 0.75em 0;
+  font-size: 10.5pt;
+  color: var(--tes-muted);
+}
+
+.citation cite {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--tes-ink);
+}
+
+.bibliography {
+  margin-top: 1.75em;
+  padding-top: 0.65em;
+  border-top: 0.6pt solid var(--tes-rule);
+  page-break-before: avoid;
+}
+
+.bibliography h2 {
+  font-size: 12pt;
+  margin-top: 0;
+}
+
+.bibliography ol {
+  padding-left: 1.35em;
+  font-size: 9.5pt;
+}
+
+.bibliography li {
+  margin-bottom: 0.35em;
+  color: var(--tes-muted);
+}
+
+/* —— Deck / slides (print = one slide per page) —— */
+
+.deck {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: none;
+}
+
+.slide {
+  display: grid;
+  gap: 0.55rem 0.85rem;
+  min-height: 5.6in;
+  padding: 0.5in;
+  page-break-after: always;
+  break-after: page;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  border: 0.5pt solid var(--tes-rule);
+}
+
+.slide:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.slide[data-layout="title_body"] {
+  grid-template-areas:
+    "title"
+    "body";
+  grid-template-rows: auto 1fr;
+}
+
+.slide[data-layout="title_body_media"] {
+  grid-template-areas:
+    "title title"
+    "body media";
+  grid-template-columns: 1.35fr 1fr;
+  grid-template-rows: auto 1fr;
+}
+
+.region-title {
+  grid-area: title;
+  border-bottom: 0.5pt solid var(--tes-rule);
+  padding-bottom: 0.35rem;
+}
+
+.region-body {
+  grid-area: body;
+}
+
+.region-media {
+  grid-area: media;
+  align-self: center;
+}
+
+.region img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.region h1,
+.region h2 {
+  margin-top: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+  font-size: 22pt;
+}
+
+.region p {
+  text-align: start;
+  hyphens: manual;
+  font-size: 14pt;
+  line-height: 1.35;
+}
+
+/* Screen chrome so print theme is previewable in the browser */
+
+@media screen {
+  body {
+    background: #e4e4e4;
+    padding: 1.25rem;
+  }
+
+  article,
+  .slide {
+    background: #fff;
+    box-shadow: 0 1px 5px rgb(0 0 0 / 16%);
+  }
+
+  article {
+    padding: 0.85in;
+  }
+
+  .deck {
+    gap: 1.25rem;
+    max-width: 8.5in;
+    margin: 0 auto;
+  }
+
+  .slide {
+    page-break-after: auto;
+    break-after: auto;
+    min-height: 5.6in;
+  }
+}

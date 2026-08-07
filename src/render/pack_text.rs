@@ -74,29 +74,63 @@ pub fn resolve_pack_text(
 
 /// Load typography + aliases + phrases overlays for a pack.
 ///
+/// Sparse files and/or master `tessera.toml` sections (THI-367). A concern present
+/// in both forms is a hard error.
+///
 /// # Errors
 ///
 /// Returns [`TesError::InvalidTemplate`] / [`TesError::Io`] for bad overlays.
 pub fn pack_text_rules(pack: &TemplatePack) -> Result<PackTextRules> {
+    use super::pack_master::{PackConcern, load_pack_master, resolve_map_concern};
+
+    let master = load_pack_master(pack)?;
     let mut rules = PackTextRules::default();
-    if let Some(path) = pack.typography_path() {
-        let file: TypographyFile = load_overlay_toml(pack, &path, DEFAULT_TYPOGRAPHY_NAME)?;
-        rules.substitutions = sorted_pairs(file.substitutions);
+
+    if let Some(map) = resolve_map_concern(
+        pack,
+        master.as_ref(),
+        PackConcern::Typography,
+        pack.typography_path(),
+        |path| {
+            let file: TypographyFile = load_overlay_toml(pack, path, DEFAULT_TYPOGRAPHY_NAME)?;
+            Ok(file.substitutions)
+        },
+    )? {
+        rules.substitutions = sorted_pairs(map);
     }
-    if let Some(path) = pack.aliases_path() {
-        let file: AliasesFile = load_overlay_toml(pack, &path, DEFAULT_ALIASES_NAME)?;
-        for name in file.aliases.keys() {
+
+    if let Some(map) = resolve_map_concern(
+        pack,
+        master.as_ref(),
+        PackConcern::Aliases,
+        pack.aliases_path(),
+        |path| {
+            let file: AliasesFile = load_overlay_toml(pack, path, DEFAULT_ALIASES_NAME)?;
+            Ok(file.aliases)
+        },
+    )? {
+        for name in map.keys() {
             validate_ident(name, "alias")?;
         }
-        rules.aliases = sorted_pairs(file.aliases);
+        rules.aliases = sorted_pairs(map);
     }
-    if let Some(path) = pack.phrases_path() {
-        let file: PhrasesFile = load_overlay_toml(pack, &path, DEFAULT_PHRASES_NAME)?;
-        for name in file.phrases.keys() {
+
+    if let Some(map) = resolve_map_concern(
+        pack,
+        master.as_ref(),
+        PackConcern::Phrases,
+        pack.phrases_path(),
+        |path| {
+            let file: PhrasesFile = load_overlay_toml(pack, path, DEFAULT_PHRASES_NAME)?;
+            Ok(file.phrases)
+        },
+    )? {
+        for name in map.keys() {
             validate_ident(name, "phrase")?;
         }
-        rules.phrases = sorted_pairs(file.phrases);
+        rules.phrases = sorted_pairs(map);
     }
+
     Ok(rules)
 }
 
@@ -388,6 +422,47 @@ mod tests {
             phrases: vec![],
         };
         assert_eq!(rules.apply(r"\phrase{x}"), r"\phrase{x}");
+    }
+
+    #[test]
+    fn master_pack_fixture_loads_text_rules() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates/master_pack");
+        let pack = TemplatePack::load(&root).unwrap();
+        let rules = pack_text_rules(&pack).unwrap();
+        assert!(
+            rules
+                .substitutions
+                .iter()
+                .any(|(from, to)| from == "..." && to == "…"),
+            "{rules:?}"
+        );
+        assert_eq!(rules.apply(r"\phrase{yegourdoon}{hi}"), "*hi*");
+    }
+
+    #[test]
+    fn master_and_sparse_typography_conflict() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut file = fs::File::create(dir.path().join("manifest.json")).unwrap();
+        write!(
+            file,
+            r#"{{"id":"conflict","version":"0.0.1","themes":{{"draft":"draft.css"}}}}"#
+        )
+        .unwrap();
+        fs::write(dir.path().join("draft.css"), "body{}").unwrap();
+        fs::write(
+            dir.path().join("tessera.toml"),
+            "[typography]\n\"...\" = \"…\"\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("typography.toml"),
+            "[substitutions]\n\"->\" = \"→\"\n",
+        )
+        .unwrap();
+        let pack = TemplatePack::load(dir.path()).unwrap();
+        let err = pack_text_rules(&pack).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("both"), "{msg}");
     }
 
     #[test]

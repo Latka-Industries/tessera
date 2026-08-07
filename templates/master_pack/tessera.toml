@@ -1,0 +1,36 @@
+# Master tessera.toml (THI-367) — same content as templates/minimal sparse overlays.
+# Sections map 1:1 onto typography/aliases/phrases/fonts/weave.toml.
+# Do not also ship those sibling files for a concern defined here.
+
+[typography]
+"..." = "…"
+"->" = "→"
+"--" = "–"
+
+[aliases]
+# Example only — packs override with real shortcuts.
+# maryamlatin = "Maryam"
+
+[phrases]
+yegourdoon = "*{arg}*"
+
+[fonts]
+test = "fonts/test-face.ttf"
+armenian = "fonts/test-face.ttf"
+greek = "fonts/test-face.ttf"
+cyrillic = "fonts/test-face.ttf"
+hebrew = "fonts/test-face.ttf"
+arabic = "fonts/test-face.ttf"
+cjk = "fonts/test-face.ttf"
+
+[weave]
+# Sparse native layout overlay for ariadnes-weave (D23), nested under [weave].
+
+[weave.quote]
+# Distinct from bundled indent (18) so pack overlay is easy to spot in tests.
+indent = 28.0
+italic = true
+
+# Category default pin (fonts.toml `test`) — headings without Tessprek \font wraps.
+[weave.heading]
+font = "test"

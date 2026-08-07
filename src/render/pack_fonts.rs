@@ -39,16 +39,32 @@ pub fn resolve_pack_fonts(
 
 /// Load `[fonts]` overlay for a pack (id → relative `.ttf` / `.otf`).
 ///
+/// Sparse `fonts.toml` and/or master `tessera.toml` `[fonts]` (THI-367). Both is
+/// a hard error.
+///
 /// # Errors
 ///
 /// Returns [`TesError::InvalidTemplate`] / [`TesError::Io`] for bad overlays.
 pub fn pack_fonts(pack: &TemplatePack) -> Result<PackFonts> {
-    let Some(path) = pack.fonts_path() else {
+    use super::pack_master::{PackConcern, load_pack_master, resolve_map_concern};
+
+    let master = load_pack_master(pack)?;
+    let Some(font_map) = resolve_map_concern(
+        pack,
+        master.as_ref(),
+        PackConcern::Fonts,
+        pack.fonts_path(),
+        |path| {
+            let file: FontsFile = load_overlay_toml(pack, path, DEFAULT_FONTS_NAME)?;
+            Ok(file.fonts)
+        },
+    )?
+    else {
         return Ok(PackFonts::new());
     };
-    let file: FontsFile = load_overlay_toml(pack, &path, DEFAULT_FONTS_NAME)?;
+
     let mut out = PackFonts::new();
-    for (id, rel) in file.fonts {
+    for (id, rel) in font_map {
         validate_ident(&id, "font")?;
         validate_font_rel(&rel)?;
         let font_path = pack.root.join(&rel);
@@ -129,6 +145,18 @@ mod tests {
         let pack = TemplatePack::load(&root).unwrap();
         let fonts = pack_fonts(&pack).unwrap();
         assert!(fonts.contains_key("test"), "{fonts:?}");
+        assert!(looks_like_sfnt(&fonts["test"]));
+    }
+
+    #[test]
+    fn master_pack_fixture_loads_fonts() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates/master_pack");
+        let pack = TemplatePack::load(&root).unwrap();
+        let fonts = pack_fonts(&pack).unwrap();
+        assert!(fonts.contains_key("test"), "{fonts:?}");
+        for id in ["armenian", "greek", "cyrillic", "hebrew", "arabic", "cjk"] {
+            assert!(fonts.contains_key(id), "missing {id}: {fonts:?}");
+        }
         assert!(looks_like_sfnt(&fonts["test"]));
     }
 

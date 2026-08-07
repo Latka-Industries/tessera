@@ -3,13 +3,12 @@
 //! CSS themes stay Chromium-only. Native emit merges a sparse pack overlay onto
 //! [`LayoutKnobs::bundled`].
 
-use std::fs;
 use std::path::Path;
 
 use ariadnes_weave::LayoutKnobs;
 use toml::Value;
 
-use super::template::{DEFAULT_WEAVE_NAME, TemplatePack, resolve_template_id};
+use super::template::{TemplatePack, resolve_template_id};
 use crate::error::{Result, TesError};
 
 /// Prose section tables that may sit at the pack `weave.toml` root (D23 aesthetics).
@@ -29,7 +28,7 @@ const PROSE_ROOT_SECTIONS: &[&str] = &[
 const LAYOUT_CATEGORIES: &[&str] = &["prose", "table", "deck", "math", "page"];
 
 /// Resolve pack layout for native emit: bundled knobs, optionally overlaid by pack
-/// `weave.toml` (manifest `weave` path or convention [`DEFAULT_WEAVE_NAME`]).
+/// `weave.toml` (manifest `weave` path or convention `weave.toml`).
 ///
 /// Missing template pack/root yields bundled defaults (pre-D23 behavior). A present
 /// pack with a bad `weave.toml` still errors.
@@ -52,30 +51,24 @@ pub fn resolve_pack_layout(
 
 /// Layout knobs for a loaded pack (bundled baseline + optional overlay).
 ///
+/// Sparse `weave.toml` and/or master `tessera.toml` `[weave]` (THI-367). Both is a
+/// hard error.
+///
 /// # Errors
 ///
 /// Returns [`TesError::InvalidTemplate`] / [`TesError::Io`] when an overlay is
 /// present but invalid.
 pub fn pack_layout_knobs(pack: &TemplatePack) -> Result<LayoutKnobs> {
-    let Some(path) = pack.weave_path() else {
+    use crate::render::pack_master::{load_pack_master, resolve_weave_raw};
+
+    let master = load_pack_master(pack)?;
+    let Some((raw, source)) = resolve_weave_raw(pack, master.as_ref())? else {
         return Ok(LayoutKnobs::bundled());
     };
-    let raw = fs::read_to_string(&path).map_err(|err| {
-        if err.kind() == std::io::ErrorKind::NotFound {
-            TesError::InvalidTemplate {
-                message: format!("weave overlay missing: {}", path.display()),
-            }
-        } else {
-            TesError::Io(err)
-        }
-    })?;
     merge_weave_toml(&raw).map_err(|message| TesError::InvalidTemplate {
         message: format!(
-            "pack '{}' weave overlay ({}): {message}",
-            pack.manifest.id,
-            path.file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or(DEFAULT_WEAVE_NAME)
+            "pack '{}' weave overlay ({source}): {message}",
+            pack.manifest.id
         ),
     })
 }
@@ -157,6 +150,7 @@ fn merge_toml_value(base: &mut Value, overlay: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -246,6 +240,15 @@ font_size = 11.0
         let opts = EmitOptions::bundled_only().with_layout(layout);
         assert!((opts.layout.prose.quote.indent - 28.0).abs() < f32::EPSILON);
         assert_eq!(opts.layout.prose.heading.font.as_deref(), Some("test"));
+    }
+
+    #[test]
+    fn master_pack_fixture_weave_matches_minimal() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates/master_pack");
+        let pack = TemplatePack::load(&root).unwrap();
+        let layout = pack_layout_knobs(&pack).unwrap();
+        assert!((layout.prose.quote.indent - 28.0).abs() < f32::EPSILON);
+        assert_eq!(layout.prose.heading.font.as_deref(), Some("test"));
     }
 
     #[test]

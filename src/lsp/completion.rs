@@ -110,27 +110,6 @@ fn command_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<Co
             ..Default::default()
         });
     }
-    // Snippet alias → `\font{armenian}{…}` (not a core Tessprek command).
-    if "arm".starts_with(typed) || typed.is_empty() {
-        items.push(CompletionItem {
-            label: "\\arm".into(),
-            kind: Some(CompletionItemKind::SNIPPET),
-            detail: Some("snippet → \\font{armenian}{…}".into()),
-            documentation: Some(Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: "Inserts `\\font{armenian}{…}` (D23). Not a sealed core command.".into(),
-            })),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            text_edit: Some(snippet_edit(
-                line,
-                replace_start,
-                character,
-                "\\font{armenian}{${1:text}}$0".into(),
-            )),
-            filter_text: Some("\\arm".into()),
-            ..Default::default()
-        });
-    }
     if items.is_empty() { None } else { Some(items) }
 }
 
@@ -299,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn completes_font_and_arm_snippets() {
+    fn completes_font_snippet() {
         let font = completions_at(
             "\\fon",
             Position {
@@ -312,18 +291,9 @@ mod tests {
             panic!("expected array");
         };
         assert!(font.iter().any(|i| i.label == "\\font"), "{font:?}");
-
-        let arm = completions_at(
-            "\\ar",
-            Position {
-                line: 0,
-                character: 3,
-            },
-        )
-        .expect("arm");
-        let CompletionResponse::Array(arm) = arm else {
-            panic!("expected array");
-        };
-        assert!(arm.iter().any(|i| i.label == "\\arm"), "{arm:?}");
+        assert!(
+            !font.iter().any(|i| i.label == "\\arm"),
+            "language-specific font aliases are not LSP snippets: {font:?}"
+        );
     }
 }

@@ -97,8 +97,7 @@ For a rich Tessprek buffer, open
 [`fixtures/samples/tessprek_showcase.tes`](../fixtures/samples/tessprek_showcase.tes)
 (see [fixtures/samples/README.md](../fixtures/samples/README.md)). Pack `\phrase`
 lives in [`phrases_demo.tessprek`](../fixtures/samples/phrases_demo.tessprek).
-Completions include `\font` / `\arm` (snippet → `\font{armenian}{…}`) and
-`\phrase` (D23).
+Completions include `\font{font_id}{…}` and `\phrase` (D23).
 
 ## See also
 

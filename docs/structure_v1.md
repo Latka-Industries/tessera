@@ -210,6 +210,8 @@ A Tessera template is a folder/pack with a versioned manifest:
 - optional `fonts.toml` + font files — pack-pinned TTFs for `\font{id}{…}` and
   category defaults (D23 / THI-356 / THI-360); seals to `InlineKind::Font`;
   native PDF → `pinned_faces`;
+- optional `tessera.toml` (or manifest `pack`) — master form of those overlays
+  (THI-367; see [decisions.md — D23](decisions.md));
 - allowed block types and `doc_kind` defaults;
 - export targets and starter Tessera Markdown;
 - named slide regions;

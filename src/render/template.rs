@@ -5,6 +5,7 @@
 //!
 //! Optional D23 overlays (convention filenames or manifest paths): `weave.toml`,
 //! `typography.toml`, `aliases.toml`, `phrases.toml`, `fonts.toml`.
+//! Optional master form: `tessera.toml` (THI-367) with sections for those concerns.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -16,6 +17,9 @@ use crate::error::{Result, TesError};
 
 /// Filename of a pack manifest.
 pub const MANIFEST_NAME: &str = "manifest.json";
+
+/// Convention filename for the optional master pack TOML (THI-367).
+pub const DEFAULT_PACK_NAME: &str = "tessera.toml";
 
 /// Convention filename for native layout knob overlay (D23).
 pub const DEFAULT_WEAVE_NAME: &str = "weave.toml";
@@ -102,6 +106,13 @@ pub struct TemplateManifest {
     /// When omitted, native emit uses [`DEFAULT_FONTS_NAME`] if present.
     #[serde(default)]
     pub fonts: Option<String>,
+    /// Optional path to master pack TOML relative to the pack root (THI-367).
+    ///
+    /// When omitted, loaders use [`DEFAULT_PACK_NAME`] (`tessera.toml`) if present.
+    /// Sections map onto sparse overlays; a section plus a sibling file for the
+    /// same concern is a hard error.
+    #[serde(default)]
+    pub pack: Option<String>,
 }
 
 /// A loaded pack directory + parsed manifest.
@@ -168,6 +179,9 @@ impl TemplatePack {
         }
         if let Some(fonts) = &manifest.fonts {
             require_pack_relative_file(&root, fonts, "fonts overlay")?;
+        }
+        if let Some(pack) = &manifest.pack {
+            require_pack_relative_file(&root, pack, "master tessera.toml")?;
         }
         Ok(Self { root, manifest })
     }
@@ -253,6 +267,12 @@ impl TemplatePack {
     #[must_use]
     pub fn fonts_path(&self) -> Option<PathBuf> {
         self.optional_overlay_path(self.manifest.fonts.as_deref(), DEFAULT_FONTS_NAME)
+    }
+
+    /// Absolute path to master `tessera.toml`, if present (THI-367).
+    #[must_use]
+    pub fn pack_path(&self) -> Option<PathBuf> {
+        self.optional_overlay_path(self.manifest.pack.as_deref(), DEFAULT_PACK_NAME)
     }
 
     fn optional_overlay_path(

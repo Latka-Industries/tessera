@@ -1,0 +1,271 @@
+/* Tessera minimal manuscript / beta-reader theme
+ *
+ * Distinct from academic `print.css`: monospace, double-spaced, wide margins,
+ * chapter page breaks. Same semantic HTML path as `tes serve` / `tes export --pdf`.
+ */
+
+:root {
+  --tes-ink: #111;
+  --tes-muted: #444;
+  --tes-measure: 6in;
+}
+
+@page {
+  size: letter;
+  margin: 1in;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: #fff;
+  color: var(--tes-ink);
+}
+
+body {
+  margin: 0;
+  font-family: "Courier New", Courier, "Liberation Mono", monospace;
+  font-size: 12pt;
+  line-height: 2;
+}
+
+article {
+  max-width: var(--tes-measure);
+  margin: 0 auto;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Courier New", Courier, "Liberation Mono", monospace;
+  font-weight: 700;
+  line-height: 2;
+  margin: 0 0 2em;
+  page-break-after: avoid;
+}
+
+h1 {
+  font-size: 12pt;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 0;
+  padding-top: 0;
+  page-break-before: always;
+  border-bottom: none;
+}
+
+h1:first-child {
+  page-break-before: auto;
+}
+
+h2 {
+  font-size: 12pt;
+  text-align: center;
+  font-weight: 400;
+  font-style: italic;
+  margin-top: 2em;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: 12pt;
+  text-align: start;
+}
+
+p {
+  margin: 0 0 0;
+  text-indent: 0.5in;
+  orphans: 2;
+  widows: 2;
+}
+
+h1 + p,
+h2 + p,
+h3 + p,
+blockquote + p {
+  text-indent: 0;
+}
+
+li,
+td,
+th {
+  orphans: 2;
+  widows: 2;
+}
+
+ul[data-list-depth="2"],
+ol[data-list-depth="2"] {
+  margin-left: 1.2em;
+}
+ul[data-list-depth="3"],
+ol[data-list-depth="3"] {
+  margin-left: 2.4em;
+}
+ul[data-list-depth="4"],
+ol[data-list-depth="4"] {
+  margin-left: 3.6em;
+}
+ul[data-list-depth="5"],
+ol[data-list-depth="5"] {
+  margin-left: 4.8em;
+}
+ul[data-list-depth="6"],
+ol[data-list-depth="6"] {
+  margin-left: 6em;
+}
+
+blockquote {
+  margin: 2em 0;
+  padding-left: 0.5in;
+  border-left: none;
+  color: var(--tes-ink);
+  font-style: italic;
+  page-break-inside: avoid;
+}
+
+pre {
+  margin: 2em 0;
+  padding: 0;
+  border: none;
+  font-size: 12pt;
+  white-space: pre-wrap;
+  page-break-inside: avoid;
+  text-indent: 0;
+}
+
+code {
+  font-family: "Courier New", Courier, monospace;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2em 0;
+  font-size: 12pt;
+  page-break-inside: avoid;
+}
+
+th,
+td {
+  border: none;
+  border-bottom: 0.5pt solid #ccc;
+  padding: 0.2em 0.4em;
+  text-align: start;
+  vertical-align: top;
+}
+
+th {
+  font-weight: 700;
+}
+
+figure {
+  margin: 2em 0;
+  page-break-inside: avoid;
+  text-indent: 0;
+}
+
+figure img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+figure[data-placement="full_width"] img {
+  width: 100%;
+}
+
+.tes-title {
+  margin: 1em 0 0.35em;
+  font-size: 12pt;
+  font-weight: 600;
+  color: var(--tes-ink);
+  text-indent: 0;
+}
+
+figcaption,
+.tes-caption {
+  margin-top: 0.5em;
+  font-size: 12pt;
+  color: var(--tes-muted);
+  font-style: italic;
+  text-indent: 0;
+}
+
+.deck {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.slide {
+  display: grid;
+  gap: 0.6rem 0.9rem;
+  min-height: 5.5in;
+  padding: 0.45in;
+  page-break-after: always;
+  break-after: page;
+}
+
+.slide:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.slide[data-layout="title_body"] {
+  grid-template-areas:
+    "title"
+    "body";
+  grid-template-rows: auto 1fr;
+}
+
+.slide[data-layout="title_body_media"] {
+  grid-template-areas:
+    "title title"
+    "body media";
+  grid-template-columns: 1.35fr 1fr;
+  grid-template-rows: auto 1fr;
+}
+
+.region-title {
+  grid-area: title;
+}
+
+.region-body {
+  grid-area: body;
+}
+
+.region-media {
+  grid-area: media;
+}
+
+.region img {
+  max-width: 100%;
+  height: auto;
+}
+
+@media screen {
+  body {
+    background: #e8e8e8;
+    padding: 1.25rem;
+  }
+
+  article,
+  .slide {
+    background: #fff;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 18%);
+  }
+
+  article {
+    padding: 1in;
+  }
+}
