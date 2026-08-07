@@ -6,7 +6,8 @@
 //!
 //! D23 pack overlays (sparse): [`pack_text`] (typography / aliases / phrases),
 //! [`pack_fonts`] (`fonts.toml` → pinned TTFs), and `weave_pack` (`weave.toml`
-//! → layout knobs; feature `native-pdf`).
+//! → layout knobs; feature `native-pdf`). Optional master [`pack_master`]
+//! (`tessera.toml`, THI-367) consolidates those sections.
 //!
 //! - [`template`] — external theme/template packs (`docs/structure_v1.md`).
 //! - [`preview`] — loopback `tes serve` HTML preview.
@@ -14,6 +15,7 @@
 //! - [`print`] — `.tes` → ariadnes-weave `PrintDocument` (`native-pdf` feature).
 
 pub mod pack_fonts;
+mod pack_master;
 pub mod pack_text;
 pub mod pdf;
 pub mod preview;

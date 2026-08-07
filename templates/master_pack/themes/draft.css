@@ -1,0 +1,571 @@
+/* Tessera minimal draft theme — screen reading / live preview
+ *
+ * Shared semantic HTML path with `tes serve` and HTML export. CSS-only;
+ * presentation never comes from the exporter.
+ */
+
+:root {
+  --tes-bg: #f4f1ec;
+  --tes-surface: #fffcf7;
+  --tes-ink: #1a1917;
+  --tes-muted: #5a554c;
+  --tes-accent: #0d5c4a;
+  --tes-accent-soft: #d8ebe4;
+  --tes-rule: #d4cdc2;
+  --tes-code-bg: #ebe6dc;
+  --tes-link: #0a4f8c;
+  --tes-link-visited: #5a3d7a;
+  --tes-focus: #0d5c4a;
+  --tes-measure: 42rem;
+  --tes-radius: 0.4rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--tes-bg);
+  color: var(--tes-ink);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+    Georgia, "Times New Roman", serif;
+  line-height: 1.6;
+  font-size: 1.0625rem;
+  font-weight: 400;
+}
+
+article {
+  max-width: var(--tes-measure);
+  margin: 0 auto;
+  padding: 2.75rem 1.35rem 4.5rem;
+}
+
+/* —— Headings —— */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Avenir Next", "Segoe UI", Candara, "Helvetica Neue", sans-serif;
+  line-height: 1.22;
+  letter-spacing: -0.015em;
+  margin: 1.75em 0 0.5em;
+  color: var(--tes-ink);
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: 2.15rem;
+  margin-top: 0;
+  border-bottom: 1px solid var(--tes-rule);
+  padding-bottom: 0.4em;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 1.4rem;
+  color: var(--tes-accent);
+}
+
+h3 {
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+h4,
+h5,
+h6 {
+  font-size: 1.02rem;
+  color: var(--tes-muted);
+}
+
+h1:focus-visible,
+h2:focus-visible,
+h3:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--tes-focus);
+  outline-offset: 3px;
+}
+
+/* —— Prose —— */
+
+p,
+li,
+blockquote,
+td,
+th,
+figcaption {
+  margin: 0 0 0.95em;
+}
+
+p {
+  text-wrap: pretty;
+  max-width: 70ch;
+}
+
+ul,
+ol {
+  padding-left: 1.35em;
+  margin: 0 0 1em;
+}
+
+ul[data-list-depth="2"],
+ol[data-list-depth="2"] {
+  margin-left: 1.25em;
+}
+ul[data-list-depth="3"],
+ol[data-list-depth="3"] {
+  margin-left: 2.5em;
+}
+ul[data-list-depth="4"],
+ol[data-list-depth="4"] {
+  margin-left: 3.75em;
+}
+ul[data-list-depth="5"],
+ol[data-list-depth="5"] {
+  margin-left: 5em;
+}
+ul[data-list-depth="6"],
+ol[data-list-depth="6"] {
+  margin-left: 6.25em;
+}
+
+li {
+  margin-bottom: 0.35em;
+}
+
+blockquote {
+  margin: 1.25em 0;
+  padding: 0.35em 0 0.35em 1.05em;
+  border-left: 3px solid var(--tes-accent);
+  color: var(--tes-muted);
+  font-style: italic;
+}
+
+blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* —— Inline —— */
+
+a {
+  color: var(--tes-link);
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
+}
+
+a:visited {
+  color: var(--tes-link-visited);
+}
+
+a:hover {
+  text-decoration-thickness: 0.1em;
+}
+
+strong {
+  font-weight: 700;
+}
+
+em {
+  font-style: italic;
+}
+
+code {
+  font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.9em;
+  background: var(--tes-code-bg);
+  padding: 0.12em 0.35em;
+  border-radius: 0.25rem;
+}
+
+pre {
+  margin: 1.25em 0;
+  padding: 0.95em 1.05em;
+  overflow-x: auto;
+  background: var(--tes-code-bg);
+  border: 1px solid var(--tes-rule);
+  border-radius: var(--tes-radius);
+  font-size: 0.9em;
+  line-height: 1.45;
+  -webkit-overflow-scrolling: touch;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+.math-inline {
+  font-style: normal;
+}
+
+.math-display {
+  margin: 1.35em 0;
+  padding: 0.85em 1em;
+  overflow-x: auto;
+  background: var(--tes-surface);
+  border: 1px solid var(--tes-rule);
+  border-radius: var(--tes-radius);
+  text-align: center;
+  font-size: 1.05em;
+}
+
+.math-display math {
+  display: inline-block;
+  text-align: start;
+}
+
+.math-fallback {
+  font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-style: italic;
+  background: transparent;
+}
+
+/* —— Tables —— */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.35em 0;
+  font-size: 0.94em;
+  line-height: 1.4;
+}
+
+th,
+td {
+  border: 1px solid var(--tes-rule);
+  padding: 0.5em 0.7em;
+  text-align: start;
+  vertical-align: top;
+}
+
+th {
+  background: var(--tes-code-bg);
+  font-weight: 600;
+  font-family: "Avenir Next", "Segoe UI", Candara, sans-serif;
+  font-size: 0.92em;
+}
+
+tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--tes-surface) 80%, transparent);
+}
+
+/* —— Figures & attachments —— */
+
+figure {
+  margin: 1.5em 0;
+  padding: 0;
+  max-width: 100%;
+}
+
+figure img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: calc(var(--tes-radius) - 0.05rem);
+  border: 1px solid var(--tes-rule);
+}
+
+figure[data-placement="full_width"] img {
+  width: 100%;
+}
+
+/*
+ * Block labels: title above / caption below code, math, tables.
+ * HTML is sibling paragraphs (no wrapper), so collapse the block's own
+ * vertical margins when a label is present — otherwise title + pre + caption
+ * read as three unrelated paragraphs.
+ */
+.tes-title {
+  margin: 1.5em 0 0.35em;
+  font-size: 0.92em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  color: var(--tes-ink);
+  max-width: 60ch;
+}
+
+.tes-title + pre,
+.tes-title + table,
+.tes-title + .math-display {
+  margin-top: 0;
+}
+
+pre:has(+ .tes-caption),
+table:has(+ .tes-caption),
+.math-display:has(+ .tes-caption) {
+  margin-bottom: 0;
+}
+
+figcaption,
+.tes-caption {
+  margin: 0.4em 0 1.5em;
+  font-size: 0.88em;
+  color: var(--tes-muted);
+  font-style: italic;
+  line-height: 1.4;
+  max-width: 60ch;
+}
+
+/* Caption with no following prose still needs group trailing space; title
+   already owns the lead-in when both are present. */
+.tes-title + pre + .tes-caption,
+.tes-title + table + .tes-caption,
+.tes-title + .math-display + .tes-caption {
+  margin-bottom: 1.5em;
+}
+
+figure > .tes-title {
+  margin: 0 0 0.4em;
+}
+
+figure > figcaption {
+  margin: 0.4em 0 0;
+}
+
+.tes-attachment {
+  margin: 1.25em 0;
+  padding: 0.85em 1em;
+  border: 1px dashed var(--tes-rule);
+  border-radius: var(--tes-radius);
+  background: var(--tes-surface);
+  font-size: 0.94em;
+}
+
+.tes-attachment .filename,
+.tes-attachment a {
+  font-family: "Avenir Next", "Segoe UI", Candara, sans-serif;
+  font-weight: 600;
+}
+
+.tes-attachment .media-type {
+  display: inline-block;
+  margin-left: 0.65em;
+  color: var(--tes-muted);
+  font-size: 0.88em;
+}
+
+.tes-attachment .caption {
+  margin: 0.45em 0 0;
+  color: var(--tes-muted);
+  font-style: italic;
+}
+
+/* —— Layout blocks (D24) —— */
+
+.tes-layout {
+  margin: 0.75em 0;
+}
+
+.tes-layout-place {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 1.2em;
+}
+
+.tes-layout-place-flush {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tes-layout-place-label {
+  white-space: pre;
+}
+
+.tes-layout-vspace {
+  width: 100%;
+  pointer-events: none;
+}
+
+.tes-layout-rule {
+  display: block;
+  margin: 0.35em 0;
+  border: 0;
+  border-top: 1px solid var(--tes-rule, currentColor);
+  max-width: 100%;
+}
+
+/* —— Citations —— */
+
+.citation {
+  margin: 1em 0;
+  padding-left: 0.15em;
+  color: var(--tes-muted);
+  font-size: 0.98em;
+}
+
+.citation cite {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--tes-accent);
+}
+
+.citation .cite-label {
+  font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.bibliography {
+  margin-top: 2.75em;
+  padding-top: 1.25em;
+  border-top: 1px solid var(--tes-rule);
+}
+
+.bibliography h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+}
+
+.bibliography ol {
+  padding-left: 1.5em;
+}
+
+.bibliography li {
+  margin-bottom: 0.65em;
+  font-size: 0.95em;
+  color: var(--tes-muted);
+}
+
+/* —— Deck / slides —— */
+
+.deck {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.75rem 1rem 3.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.slide {
+  display: grid;
+  gap: 1.1rem 1.35rem;
+  min-height: 20rem;
+  padding: 1.75rem 2rem;
+  border: 1px solid var(--tes-rule);
+  border-radius: 0.55rem;
+  background: var(--tes-surface);
+  box-shadow: 0 2px 8px rgb(28 27 25 / 7%);
+}
+
+.slide[data-layout="title_body"] {
+  grid-template-areas:
+    "title"
+    "body";
+  grid-template-rows: auto 1fr;
+}
+
+.slide[data-layout="title_body_media"] {
+  grid-template-areas:
+    "title title"
+    "body media";
+  grid-template-columns: 1.4fr 1fr;
+  grid-template-rows: auto 1fr;
+}
+
+.region-title {
+  grid-area: title;
+  border-bottom: 1px solid var(--tes-rule);
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.15rem;
+}
+
+.region-body {
+  grid-area: body;
+  align-self: start;
+}
+
+.region-media {
+  grid-area: media;
+  align-self: center;
+  justify-self: stretch;
+}
+
+.region img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--tes-radius);
+  border: 1px solid var(--tes-rule);
+}
+
+.region h1,
+.region h2 {
+  margin-top: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.region-title h1,
+.region-title h2 {
+  font-size: 1.65rem;
+  color: var(--tes-accent);
+}
+
+.region p:last-child,
+.region ul:last-child,
+.region ol:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 40rem) {
+  article {
+    padding: 1.75rem 1rem 3rem;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  .slide[data-layout="title_body_media"] {
+    grid-template-areas:
+      "title"
+      "body"
+      "media";
+    grid-template-columns: 1fr;
+  }
+
+  .slide {
+    min-height: 0;
+    padding: 1.25rem 1.35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --tes-rule: #8a8378;
+    --tes-muted: #3d3a34;
+    --tes-link: #063a68;
+  }
+
+  a {
+    text-decoration: underline;
+  }
+
+  th,
+  td,
+  pre,
+  figure img,
+  .slide {
+    border-width: 2px;
+  }
+}

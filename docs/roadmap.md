@@ -271,10 +271,9 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **D24 follow-ons:** Tesscriptor op-list UI (THI-366); optional master pack
-   TOML (THI-367). Wire + Tessprek + print + HTML/MD + docs (THI-361..365) are
-   on this branch; Eleatic `\progress` stays composed `place frac=…` (THI-358
-   canceled).
+1. **Pack master TOML (THI-367):** optional `tessera.toml` alongside sparse D23
+   overlays; Tesscriptor targets the master form. D24 Tesscriptor op-list UI
+   stays later (THI-366).
 2. **Native PDF deepen (THI-256):** tables/figures/math quality (THI-291),
    deck regions (THI-293), OS/font packs (THI-307 / THI-308 / THI-311), literary
    unfolding (THI-295); promote `--backend native` to default when ready.

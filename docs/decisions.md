@@ -246,7 +246,7 @@ programmable macros (`\newcommand`). CSS never drives native PDF knobs (D21).
 
 ```text
 pack/
-  manifest.json       # id, version, cite_style_id, themes, optional weave path
+  manifest.json       # id, version, cite_style_id, themes, optional overlay paths
   themes/*.css        # HTML / Chromium preview only
   weave.toml          # optional overlay on ariadnes-weave LayoutKnobs
   aliases.toml        # optional fixed string shortcuts
@@ -254,6 +254,7 @@ pack/
   typography.toml     # optional substitutions (... → …, -> → →)
   fonts.toml          # optional id → relative .ttf/.otf (native pin)
   fonts/*.ttf         # pinned font bytes
+  tessera.toml        # optional master form (THI-367) — see below
 ```
 
 Typical packs stay small: omit overlay files until needed. Bundled weave
@@ -267,8 +268,26 @@ defaults remain the baseline; overlays are sparse key overrides.
 | Tessprek | Structure + closed commands that seal to chunks/spans |
 
 **Manifest** stays pointers + identity (not layout data). Optional relative
-paths: `weave`, `typography`, `aliases`, `phrases`, `fonts` (else convention
-filenames when present).
+paths: `pack`, `weave`, `typography`, `aliases`, `phrases`, `fonts` (else
+convention filenames when present).
+
+### Master `tessera.toml` (THI-367)
+
+Authors may ship **either** sparse siblings **or** one master TOML with
+sections that map onto those concerns:
+
+```toml
+[typography]          # = typography.toml [substitutions]
+[aliases]             # = aliases.toml [aliases]
+[phrases]             # = phrases.toml [phrases]
+[fonts]               # = fonts.toml [fonts]
+[weave.quote]         # = weave.toml root, nested under [weave]
+```
+
+Missing master / missing section → same as missing sparse file. A master
+**section** and a sibling sparse file for the same concern → **hard error**
+(no silent override). Tesscriptor edits the master file; sparse siblings stay
+a Tessera/`tes` load path for hand-authored packs.
 
 ### Dynamics without `\newcommand` (use each where it fits)
 
@@ -461,5 +480,5 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
 | D21 | Print IR + `ariadnes-weave` own native PDF; HTML is preview | Accepted direction |
 | D22 | Tessprek v2: brace commands + `\tessera{}`/`\ids{}` header replace v1 HTML comments | Accepted (THI-318 shipped) |
-| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B **0.2.5** (THI-357/354/355/356); category fonts **0.2.6** (THI-360); `\progress` widget (THI-358) **canceled** → D24 |
+| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B **0.2.5** (THI-357/354/355/356); category fonts **0.2.6** (THI-360); master `tessera.toml` (THI-367); `\progress` widget (THI-358) **canceled** → D24 |
 | D24 | Layout blocks: sealed `place` / `vspace` / `rule` ops (not pack TOML macros) | Accepted; Tessera wire + Tessprek + exports (THI-361..365); weave paint (THI-362) |
