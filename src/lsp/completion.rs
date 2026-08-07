@@ -1,4 +1,6 @@
 //! `textDocument/completion` for Tessprek brace commands and attribute keys.
+//!
+//! Pack-aware `\font{id}` / `\phrase{key}` / alias completions (THI-369).
 
 use tower_lsp::lsp_types::{
     CompletionItem, CompletionItemKind, CompletionResponse, CompletionTextEdit, Documentation,
@@ -7,17 +9,30 @@ use tower_lsp::lsp_types::{
 
 use crate::edit::markers::{BODY_COMMANDS, HEADER_COMMANDS, command_attr_keys, surface_name};
 
+use super::pack_completions::{PackCompletionCatalog, catalog_for_tessprek};
 use super::position::{nth_line, utf16_len, utf16_prefix};
 
 /// Completions at `position` in a Tessprek buffer.
 pub(super) fn completions_at(text: &str, position: Position) -> Option<CompletionResponse> {
+    let catalog = catalog_for_tessprek(text);
+    completions_at_with_catalog(text, position, &catalog)
+}
+
+pub(super) fn completions_at_with_catalog(
+    text: &str,
+    position: Position,
+    catalog: &PackCompletionCatalog,
+) -> Option<CompletionResponse> {
     let (line_idx, line) = nth_line(text, position.line)?;
     let prefix = utf16_prefix(line, position.character as usize);
 
+    if let Some(items) = pack_value_completions(prefix, line_idx, position.character, catalog) {
+        return Some(CompletionResponse::Array(items));
+    }
     if let Some(items) = attr_key_completions(prefix, line_idx, position.character) {
         return Some(CompletionResponse::Array(items));
     }
-    if let Some(items) = command_completions(prefix, line_idx, position.character) {
+    if let Some(items) = command_completions(prefix, line_idx, position.character, catalog) {
         return Some(CompletionResponse::Array(items));
     }
     None
@@ -39,7 +54,56 @@ fn snippet_edit(line: u32, start: u32, end: u32, new_text: String) -> Completion
     })
 }
 
-fn command_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<CompletionItem>> {
+/// Completions inside `\font{…}` / `\phrase{…}` first-brace slots.
+fn pack_value_completions(
+    prefix: &str,
+    line: u32,
+    character: u32,
+    catalog: &PackCompletionCatalog,
+) -> Option<Vec<CompletionItem>> {
+    let (cmd, inside) = open_brace_context(prefix)?;
+    let typed = inside
+        .rsplit(['{', ' ', '\t', '='])
+        .next()
+        .unwrap_or(inside);
+    if typed.contains('=') {
+        return None;
+    }
+    let ids: &[String] = match cmd {
+        "font" => &catalog.font_ids,
+        "phrase" => &catalog.phrase_keys,
+        _ => return None,
+    };
+    if ids.is_empty() {
+        return None;
+    }
+    let replace_start = character.saturating_sub(utf16_len(typed));
+    let mut items = Vec::new();
+    for id in ids {
+        if !id.starts_with(typed) {
+            continue;
+        }
+        items.push(CompletionItem {
+            label: id.clone(),
+            kind: Some(CompletionItemKind::VALUE),
+            detail: Some(format!("pack {cmd} id")),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: format!("From document template pack (`\\{cmd}{{{id}}}`)."),
+            })),
+            text_edit: Some(snippet_edit(line, replace_start, character, id.clone())),
+            ..Default::default()
+        });
+    }
+    if items.is_empty() { None } else { Some(items) }
+}
+
+fn command_completions(
+    prefix: &str,
+    line: u32,
+    character: u32,
+    catalog: &PackCompletionCatalog,
+) -> Option<Vec<CompletionItem>> {
     let bs = prefix.rfind('\\')?;
     let rest = &prefix[bs + 1..];
     if rest.contains('{') || rest.contains(' ') || rest.contains('\t') {
@@ -76,7 +140,7 @@ fn command_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<Co
             detail: Some("pack phrase (expand on format/seal)".into()),
             documentation: Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: "Expand pack `phrases.toml` template: `\\phrase{key}` / `\\phrase{key}{arg}` (D23 / THI-355). Lossy seal to ordinary prose.".into(),
+                value: "Expand pack `phrases.toml` / `tessera.toml` `[phrases]`: `\\phrase{key}` / `\\phrase{key}{arg}` (D23). Lossy seal to ordinary prose.".into(),
             })),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             text_edit: Some(snippet_edit(
@@ -97,7 +161,7 @@ fn command_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<Co
             detail: Some("pack-pinned font (seal to InlineKind::Font)".into()),
             documentation: Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: "Seal `\\font{font_id}{text}` → inline Font span; native PDF uses pack `fonts.toml` pins (D23 / THI-356).".into(),
+                value: "Seal `\\font{font_id}{text}` → inline Font span; ids come from pack `fonts.toml` / `tessera.toml` `[fonts]` (THI-369).".into(),
             })),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             text_edit: Some(snippet_edit(
@@ -109,6 +173,34 @@ fn command_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<Co
             filter_text: Some("\\font".into()),
             ..Default::default()
         });
+    }
+    // Pack aliases: `\name` → fixed string at format (not sealed core commands).
+    // Only after the user typed a prefix (avoid dumping every alias on bare `\`).
+    if !typed.is_empty() {
+        for name in &catalog.alias_names {
+            if !name.starts_with(typed) {
+                continue;
+            }
+            items.push(CompletionItem {
+                label: format!("\\{name}"),
+                kind: Some(CompletionItemKind::TEXT),
+                detail: Some("pack alias".into()),
+                documentation: Some(Documentation::MarkupContent(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: format!(
+                        "Pack alias `\\{name}` (expands at format from aliases.toml / tessera.toml)."
+                    ),
+                })),
+                text_edit: Some(snippet_edit(
+                    line,
+                    replace_start,
+                    character,
+                    format!("\\{name}"),
+                )),
+                filter_text: Some(format!("\\{name}")),
+                ..Default::default()
+            });
+        }
     }
     if items.is_empty() { None } else { Some(items) }
 }
@@ -161,6 +253,10 @@ fn command_snippet(surface: &str) -> (String, &'static str) {
 
 fn attr_key_completions(prefix: &str, line: u32, character: u32) -> Option<Vec<CompletionItem>> {
     let (cmd, inside) = open_brace_context(prefix)?;
+    if matches!(cmd, "font" | "phrase") {
+        // Value slot handled by pack_value_completions.
+        return None;
+    }
     let after = inside.rsplit(['{', ' ', '\t']).next().unwrap_or(inside);
     if after.contains('=') {
         return None;
@@ -211,16 +307,26 @@ fn attr_keys_for(cmd: &str) -> Option<&'static [&'static str]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lsp::pack_completions::PackCompletionCatalog;
+
+    fn catalog_demo() -> PackCompletionCatalog {
+        PackCompletionCatalog {
+            font_ids: vec!["armenian".into(), "greek".into(), "cyrillic".into()],
+            phrase_keys: vec!["yegourdoon".into()],
+            alias_names: vec!["shortname".into()],
+        }
+    }
 
     #[test]
     fn completes_figure_stem() {
         let text = "\\fig";
-        let items = completions_at(
+        let items = completions_at_with_catalog(
             text,
             Position {
                 line: 0,
                 character: 4,
             },
+            &PackCompletionCatalog::default(),
         )
         .expect("completions");
         let CompletionResponse::Array(items) = items else {
@@ -232,12 +338,13 @@ mod tests {
     #[test]
     fn completes_figure_attrs() {
         let text = "\\figure{im";
-        let items = completions_at(
+        let items = completions_at_with_catalog(
             text,
             Position {
                 line: 0,
                 character: 10,
             },
+            &PackCompletionCatalog::default(),
         )
         .expect("attr completions");
         let CompletionResponse::Array(items) = items else {
@@ -249,12 +356,13 @@ mod tests {
     #[test]
     fn no_completion_in_prose() {
         assert!(
-            completions_at(
+            completions_at_with_catalog(
                 "Hello world",
                 Position {
                     line: 0,
                     character: 5,
                 },
+                &PackCompletionCatalog::default(),
             )
             .is_none()
         );
@@ -263,12 +371,13 @@ mod tests {
     #[test]
     fn completes_phrase_snippet() {
         let text = "\\phr";
-        let items = completions_at(
+        let items = completions_at_with_catalog(
             text,
             Position {
                 line: 0,
                 character: 4,
             },
+            &catalog_demo(),
         )
         .expect("completions");
         let CompletionResponse::Array(items) = items else {
@@ -279,12 +388,13 @@ mod tests {
 
     #[test]
     fn completes_font_snippet() {
-        let font = completions_at(
+        let font = completions_at_with_catalog(
             "\\fon",
             Position {
                 line: 0,
                 character: 4,
             },
+            &catalog_demo(),
         )
         .expect("font");
         let CompletionResponse::Array(font) = font else {
@@ -295,5 +405,57 @@ mod tests {
             !font.iter().any(|i| i.label == "\\arm"),
             "language-specific font aliases are not LSP snippets: {font:?}"
         );
+    }
+
+    #[test]
+    fn completes_font_ids_from_pack() {
+        let items = completions_at_with_catalog(
+            "\\font{ar",
+            Position {
+                line: 0,
+                character: 8,
+            },
+            &catalog_demo(),
+        )
+        .expect("font ids");
+        let CompletionResponse::Array(items) = items else {
+            panic!("expected array");
+        };
+        assert!(items.iter().any(|i| i.label == "armenian"), "{items:?}");
+        assert!(!items.iter().any(|i| i.label == "greek"), "{items:?}");
+    }
+
+    #[test]
+    fn completes_phrase_keys_from_pack() {
+        let items = completions_at_with_catalog(
+            "\\phrase{ye",
+            Position {
+                line: 0,
+                character: 10,
+            },
+            &catalog_demo(),
+        )
+        .expect("phrase keys");
+        let CompletionResponse::Array(items) = items else {
+            panic!("expected array");
+        };
+        assert!(items.iter().any(|i| i.label == "yegourdoon"), "{items:?}");
+    }
+
+    #[test]
+    fn completes_pack_alias() {
+        let items = completions_at_with_catalog(
+            "\\sho",
+            Position {
+                line: 0,
+                character: 4,
+            },
+            &catalog_demo(),
+        )
+        .expect("alias");
+        let CompletionResponse::Array(items) = items else {
+            panic!("expected array");
+        };
+        assert!(items.iter().any(|i| i.label == "\\shortname"), "{items:?}");
     }
 }

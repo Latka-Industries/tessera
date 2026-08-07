@@ -722,7 +722,7 @@ fn add_showcase_fonts(session: &mut TesWriterSession) {
         .add_text_chunk(&TextHeader::heading(2), "Pack fonts")
         .expect("h2 fonts");
 
-    // One body, many pack pins — proves mixed alphabets in a single .tes.
+    // A few pack pins in one paragraph — mixed alphabets in a single .tes.
     // Stand-in TTFs share `test-face.ttf` until dogfood packs ship real faces.
     let segments: &[(&str, Option<&str>)] = &[
         ("Mixed scripts in one paragraph: ", None),
@@ -731,12 +731,6 @@ fn add_showcase_fonts(session: &mut TesWriterSession) {
         ("γεια", Some("greek")),
         (" · ", None),
         ("привет", Some("cyrillic")),
-        (" · ", None),
-        ("שלום", Some("hebrew")),
-        (" · ", None),
-        ("مرحبا", Some("arabic")),
-        (" · ", None),
-        ("你好", Some("cjk")),
         (".", None),
     ];
     let mut body = String::new();
@@ -761,7 +755,7 @@ fn add_showcase_fonts(session: &mut TesWriterSession) {
     session
         .add_text_chunk(
             &TextHeader::paragraph(),
-            "Tessprek: \\font{armenian}{…} / \\font{greek}{…} / … (pack fonts.toml pins). LSP completes \\font only — no language-specific aliases.",
+            "Tessprek: \\font{armenian}{…} / \\font{greek}{…} / \\font{cyrillic}{…} (pack fonts.toml pins). LSP completes ids from the pack (THI-369).",
         )
         .expect("font lsp hint");
 }
