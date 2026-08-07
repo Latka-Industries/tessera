@@ -9,6 +9,7 @@ use crate::io::import::parse_markdown_blocks;
 use super::super::inline_cite::extract_inline_cites;
 use super::super::inline_font::extract_inline_fonts;
 use super::parse_err;
+use crate::io::import::is_gfm_separator_row;
 
 pub(super) fn looks_like_gfm_table(body: &str) -> bool {
     table_header_and_sep(&nonempty_trimmed_lines_str(body))
@@ -27,11 +28,6 @@ fn nonempty_trimmed_lines<'a>(lines: &[&'a str]) -> Vec<&'a str> {
         .map(|l| l.trim())
         .filter(|l| !l.is_empty())
         .collect()
-}
-
-fn is_gfm_separator_row(line: &str) -> bool {
-    let t = line.trim();
-    t.starts_with('|') && t.contains('-') && t.chars().all(|c| matches!(c, '|' | '-' | ':' | ' '))
 }
 
 fn table_header_and_sep(lines: &[&str]) -> bool {

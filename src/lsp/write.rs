@@ -4,7 +4,7 @@ use tower_lsp::jsonrpc::{Error, ErrorCode, Result};
 use tower_lsp::lsp_types::{ExecuteCommandParams, Url};
 
 use crate::edit::TessprekDocMeta;
-use crate::edit::{EditWriteOptions, edit_write};
+use crate::edit::{EditWriteOptions, edit_read, edit_write};
 use crate::error::TesError;
 
 use super::document::OpenDocument;
@@ -31,10 +31,11 @@ pub(super) enum WriteBackError {
     Other(String),
 }
 
-/// Call [`edit_write`] and update `doc.source_hash` on success.
+/// Call [`edit_write`], then re-project via [`edit_read`] so media / `\ids{}`
+/// match the sealed file (compile remaps image ids; pack expand rewrites prose).
 pub(super) fn write_back_document(
     doc: &mut OpenDocument,
-) -> std::result::Result<String, WriteBackError> {
+) -> std::result::Result<(String, String), WriteBackError> {
     if let Some((line, keys)) = TessprekDocMeta::unknown_keys_in_buffer(&doc.tessprek) {
         return Err(WriteBackError::UnknownHeaderKeys { line, keys });
     }
@@ -61,8 +62,16 @@ pub(super) fn write_back_document(
     let new_hash = report
         .new_source_hash
         .ok_or_else(|| WriteBackError::Other("edit_write returned no new_source_hash".into()))?;
-    doc.source_hash.clone_from(&new_hash);
-    Ok(new_hash)
+    let refreshed = edit_read(&doc.path).map_err(|e| WriteBackError::Other(e.to_string()))?;
+    if refreshed.source_hash != new_hash {
+        return Err(WriteBackError::Other(format!(
+            "post-write hash mismatch: edit_write={new_hash}, edit_read={}",
+            refreshed.source_hash
+        )));
+    }
+    doc.source_hash.clone_from(&refreshed.source_hash);
+    doc.tessprek.clone_from(&refreshed.tessprek);
+    Ok((refreshed.source_hash, refreshed.tessprek))
 }
 
 pub(super) fn parse_write_uri(params: &ExecuteCommandParams) -> Result<Url> {
@@ -125,13 +134,38 @@ mod tests {
         doc.tessprek = doc
             .tessprek
             .replacen("Hello from Tessera", "Hallo from Tessera", 1);
-        let new_hash = write_back_document(&mut doc).expect("write_back");
+        let (new_hash, refreshed) = write_back_document(&mut doc).expect("write_back");
         assert_ne!(new_hash, old);
         assert_eq!(doc.source_hash, new_hash);
         assert_eq!(file_source_hash(&path).unwrap(), new_hash);
         assert!(verify_tes_file(&path, true).unwrap().ok);
         let again = edit_read(&path).unwrap();
         assert!(again.tessprek.contains("Hallo from Tessera"));
+        assert_eq!(doc.tessprek, again.tessprek);
+        assert_eq!(refreshed, again.tessprek);
+    }
+
+    #[test]
+    fn write_back_twice_keeps_image_ids_in_sync() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("showcase.tes");
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/samples/tessprek_showcase.tes");
+        std::fs::copy(fixture, &path).unwrap();
+        let mut doc = load_open_document(path).unwrap();
+        assert!(
+            doc.tessprek.contains("image="),
+            "fixture missing figure image=: {}",
+            &doc.tessprek[..doc.tessprek.len().min(500)]
+        );
+        write_back_document(&mut doc).expect("first write");
+        assert!(
+            doc.tessprek.contains("image="),
+            "missing figure after refresh: {}",
+            doc.tessprek
+        );
+        write_back_document(&mut doc).expect("second write");
+        assert!(verify_tes_file(&doc.path, true).unwrap().ok);
     }
 
     #[test]

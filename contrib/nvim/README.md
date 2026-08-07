@@ -46,7 +46,7 @@ require("tessera").setup()
 | Open `*.tes` | Buffer filled with Tessprek (`tes edit-read`); `tes-lsp` attaches |
 | Edit | In-memory Tessprek; `didChange` to the server |
 | `:TesseraFormat` | Normalize directives from Markdown shape (`tes format`) |
-| `:w` / save | Optional format-on-save, then `tessera.write` (source-hash safe) |
+| `:w` / save | Optional format-on-save, then `tessera.write`; buffer refreshed from sealed projection |
 | Hover | Markers + body-line chunk id / role via server |
 | Completion | Brace commands (`\figure{…}`, …) + attr keys |
 

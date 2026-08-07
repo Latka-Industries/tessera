@@ -87,7 +87,7 @@ pub const SLIDE_ATTR_KEYS: &[&str] = &["layout", "regions"];
 /// Preferred attribute keys / op hints for `\layout{…}` (D24).
 pub const LAYOUT_ATTR_KEYS: &[&str] = &["place", "vspace", "rule", "frac", "em", "content"];
 /// Preferred attribute keys for `\attach{…}`.
-pub const ATTACH_ATTR_KEYS: &[&str] = &["filename", "media_type", "sha256", "caption"];
+pub const ATTACH_ATTR_KEYS: &[&str] = &["chunk", "filename", "media_type", "sha256", "caption"];
 /// Preferred attribute keys for `\media{…}` header rows.
 pub const MEDIA_ATTR_KEYS: &[&str] = &["id", "media_type", "sha256", "width", "height"];
 

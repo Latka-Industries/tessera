@@ -324,12 +324,7 @@ fn write_attachment_block(
         });
     };
 
-    let mut payload = if let Some(bag) = bag_attachments.get(&id) {
-        (*bag).clone()
-    } else {
-        let raw = source_payload_bytes(source, id, ChunkType::Attachment, "attachment")?;
-        AttachmentPayload::from_bytes(raw.as_ref())?
-    };
+    let mut payload = resolve_attachment_payload(source, bag_attachments, id, sha256)?;
 
     // Allow Tessprek metadata edits that keep the same bytes.
     if payload.sha256 != *sha256 {
@@ -346,4 +341,45 @@ fn write_attachment_block(
     payload.validate()?;
     session.add_attachment_chunk(&payload)?;
     Ok(())
+}
+
+/// Resolve attachment bytes: media bag → chunk id → sha256 fallback when `\ids{}` drifted.
+fn resolve_attachment_payload(
+    source: &TesFile,
+    bag_attachments: &std::collections::HashMap<u64, &AttachmentPayload>,
+    id: u64,
+    sha256: &str,
+) -> Result<AttachmentPayload> {
+    if let Some(bag) = bag_attachments.get(&id) {
+        return Ok((*bag).clone());
+    }
+    if let Ok(entry) = source.chunk_by_id(id)
+        && entry.chunk_type == ChunkType::Attachment
+    {
+        let raw = source.decode_payload(entry)?;
+        return AttachmentPayload::from_bytes(raw.as_ref());
+    }
+    find_source_attachment_by_sha256(source, sha256)?.ok_or_else(|| TesError::EditOp {
+        message: format!(
+            "attachment chunk {id} missing from source and media bag (sha256={sha256})"
+        ),
+    })
+}
+
+/// Find an on-disk attachment by content hash when positional `\ids{}` drifted.
+fn find_source_attachment_by_sha256(
+    source: &TesFile,
+    sha256: &str,
+) -> Result<Option<AttachmentPayload>> {
+    for entry in source.reading_order_chunks() {
+        if entry.chunk_type != ChunkType::Attachment {
+            continue;
+        }
+        let raw = source.decode_payload(entry)?;
+        let payload = AttachmentPayload::from_bytes(raw.as_ref())?;
+        if payload.sha256 == sha256 {
+            return Ok(Some(payload));
+        }
+    }
+    Ok(None)
 }

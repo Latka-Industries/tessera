@@ -132,7 +132,7 @@ impl Backend {
             })?;
 
         match write_result {
-            Ok(new_hash) => self.write_ok(uri, &path, new_hash).await,
+            Ok((new_hash, tessprek)) => self.write_ok(uri, &path, new_hash, tessprek).await,
             Err(WriteBackError::HashMismatch { expected, found }) => {
                 self.write_hash_mismatch(uri, &path, expected, found).await
             }
@@ -151,11 +151,18 @@ impl Backend {
         }
     }
 
-    async fn write_ok(&self, uri: &Url, path: &Path, new_hash: String) -> Result<Value> {
+    async fn write_ok(
+        &self,
+        uri: &Url,
+        path: &Path,
+        new_hash: String,
+        tessprek: String,
+    ) -> Result<Value> {
         {
             let mut docs = self.documents.lock().expect("documents lock");
             if let Some(open) = docs.get_mut(uri) {
                 open.source_hash.clone_from(&new_hash);
+                open.tessprek.clone_from(&tessprek);
             }
         }
         let msg = format!(
@@ -165,16 +172,13 @@ impl Backend {
         );
         eprintln!("{msg}");
         self.client.log_message(MessageType::INFO, msg).await;
-        let tessprek = {
-            let docs = self.documents.lock().expect("documents lock");
-            docs.get(uri).map(|d| d.tessprek.clone())
-        };
-        self.publish_for_open(uri, path, Some(&new_hash), tessprek)
+        self.publish_for_open(uri, path, Some(&new_hash), Some(tessprek.clone()))
             .await;
         Ok(serde_json::json!({
             "ok": true,
             "path": path.to_string_lossy(),
             "source_hash": new_hash,
+            "tessprek": tessprek,
         }))
     }
 

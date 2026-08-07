@@ -16,7 +16,7 @@ Logs go to **stderr** only — stdout is the LSP wire.
 | Open | `edit_read` → buffer = Tessprek; stash `source_hash` |
 | Change | `didChange` updates the in-memory Tessprek string only |
 | Write-back | `tessera.write` / `willSave` → `edit_write` with stored hash |
-| Success | Refresh stored hash from `EditWriteReport` |
+| Success | Refresh stored hash **and** Tessprek from `edit_read` (compile remaps media ids; pack expand rewrites prose); result includes `tessprek` for clients to replace the buffer |
 | Hash conflict | `source-hash` diagnostic; **never** silent overwrite |
 | Unknown `\tessera{…}` key | `tessera-unknown-key` error; **write refused** until removed |
 | Parse error | Ranged `edit-parse` on the offending Tessprek line (buffer) |
@@ -41,7 +41,8 @@ Arguments (first element):
 - URI string: `"file:///…/doc.tes"`
 - or object: `{"uri":"file:///…/doc.tes"}`
 
-Result JSON includes `ok`, and on success `source_hash` / `path`. On hash
+Result JSON includes `ok`, and on success `source_hash` / `path` / `tessprek`
+(post-seal projection — clients should replace the editor buffer). On hash
 conflict: `ok: false`, `code: "source-hash"`.
 
 ### Hover

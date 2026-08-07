@@ -34,7 +34,11 @@ impl PackTextRules {
         self.substitutions.is_empty() && self.aliases.is_empty() && self.phrases.is_empty()
     }
 
-    /// Apply phrases, then aliases, then typography substitutions (skip fenced code).
+    /// Apply phrases, then aliases, then typography substitutions.
+    ///
+    /// Skips fenced code bodies and Markdown hyphen structure lines (GFM table
+    /// separators, thematic breaks, setext underlines) so rules like `"--" → "–"`
+    /// do not rewrite `| --- |` into a non-table.
     #[must_use]
     pub fn apply(&self, input: &str) -> String {
         if self.is_empty() {
@@ -289,7 +293,7 @@ fn expand_aliases(input: &str, aliases: &[(String, String)]) -> String {
     out
 }
 
-/// Map each non-fenced region; leave Markdown fenced code bodies untouched.
+/// Map each unprotected line; leave fenced code and hyphen structure untouched.
 fn apply_outside_fences(input: &str, mut f: impl FnMut(&str) -> String) -> String {
     let mut out = String::with_capacity(input.len());
     let mut in_fence = false;
@@ -310,6 +314,11 @@ fn apply_outside_fences(input: &str, mut f: impl FnMut(&str) -> String) -> Strin
                 continue;
             }
             let (body, nl) = split_trailing_nl(line);
+            // Keep GFM `| --- |` / thematic `---` as ASCII hyphens.
+            if crate::io::import::is_markdown_hyphen_structure(body) {
+                out.push_str(line);
+                continue;
+            }
             out.push_str(&f(body));
             out.push_str(nl);
         }
@@ -412,6 +421,29 @@ mod tests {
         };
         let input = "Prose...\n```\nkeep...\n```\nAfter...\n";
         assert_eq!(rules.apply(input), "Prose…\n```\nkeep...\n```\nAfter…\n");
+    }
+
+    fn dash_typography() -> PackTextRules {
+        PackTextRules {
+            substitutions: vec![("--".into(), "–".into())],
+            aliases: vec![],
+            phrases: vec![],
+        }
+    }
+
+    #[test]
+    fn typography_skips_gfm_table_separators() {
+        let out = dash_typography().apply("| A | B |\n| --- | --- |\n| x -- y | z |\n");
+        assert!(out.contains("| --- | --- |"), "{out}");
+        assert!(out.contains("x – y"), "{out}");
+    }
+
+    #[test]
+    fn typography_skips_thematic_break_hyphens() {
+        assert_eq!(
+            dash_typography().apply("before\n---\nafter -- ok\n"),
+            "before\n---\nafter – ok\n"
+        );
     }
 
     #[test]

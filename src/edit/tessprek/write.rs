@@ -103,14 +103,15 @@ pub fn encode_content_blocks(
                         out.push('\n');
                     }
                     ContentBlock::Attachment {
+                        chunk_id,
                         filename,
                         media_type,
                         caption,
                         sha256,
-                        ..
                     } => {
                         write_attachment_directive(
                             &mut out,
+                            *chunk_id,
                             &AttachmentPayload {
                                 filename: filename.clone(),
                                 media_type: media_type.clone(),
@@ -457,12 +458,14 @@ fn write_layout_directive(out: &mut String, layout: &LayoutPayload) {
     write_brace_block(out, LAYOUT_PREFIX, &parts);
 }
 
-fn write_attachment_directive(out: &mut String, att: &AttachmentPayload) {
-    let mut parts = vec![
-        quoted_attr("filename", &att.filename),
-        kv_attr("media_type", &att.media_type),
-        format!("sha256={}", att.sha256),
-    ];
+fn write_attachment_directive(out: &mut String, chunk_id: Option<u64>, att: &AttachmentPayload) {
+    let mut parts = Vec::new();
+    if let Some(id) = chunk_id.filter(|&id| id > 0) {
+        parts.push(format!("chunk={id}"));
+    }
+    parts.push(quoted_attr("filename", &att.filename));
+    parts.push(kv_attr("media_type", &att.media_type));
+    parts.push(format!("sha256={}", att.sha256));
     if let Some(caption) = att.caption.as_deref() {
         parts.push(quoted_attr("caption", caption));
     }

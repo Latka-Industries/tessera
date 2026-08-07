@@ -176,6 +176,13 @@ function M.write(bufnr)
 
   local result = resp.result
   if type(result) == "table" and result.ok then
+    -- Seal remaps media / \\ids{} and may expand pack phrases — re-project.
+    if type(result.tessprek) == "string" and result.tessprek ~= "" then
+      local view = vim.fn.winsaveview()
+      local out_lines = stdout_lines(result.tessprek)
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, out_lines)
+      vim.fn.winrestview(view)
+    end
     vim.bo[bufnr].modified = false
     local hash = result.source_hash
     local short = hash and hash:sub(1, 12) or "?"

@@ -17,7 +17,8 @@ use crate::edit::ContentBlock;
 /// Free Markdown (no preceding `\text{}`) is accepted. Brace-command
 /// Brace-command directives (`\figure{}` / `\cite{}` / `\quote{}` / `\ref{}` /
 /// `\slide{}` / `\attach{}`) are preserved. Bibliography `\cite` stubs are
-/// moved to the end of the document.
+/// moved to the end of the document (after ids are bound, so attach/figure
+/// identities stay stable across the reorder).
 ///
 /// # Errors
 ///
@@ -26,18 +27,28 @@ pub fn normalize_tessprek(input: &str) -> Result<String> {
     let lines: Vec<&str> = input.lines().collect();
     let declared_ids = extract_declared_ids(&lines);
     let mut blocks = build_content_blocks(&lines)?;
+    assign_normalize_ids(&mut blocks, &declared_ids);
     park_biblio_cites_at_end(&mut blocks);
-
-    let mut ids = IdAllocator::new(declared_ids.iter().copied().collect());
-    for (idx, block) in blocks.iter_mut().enumerate() {
-        let preferred = declared_ids.get(idx).copied();
-        let id = ids.alloc(preferred);
-        set_chunk_id(block, id);
-    }
 
     let meta = extract_doc_meta(&lines);
     let media = extract_media_entries(&lines, &blocks);
     Ok(encode_content_blocks(&meta, &blocks, &[], &media))
+}
+
+/// Explicit `\attach{chunk=N}` (and any pre-set `chunk_id`) first; then positional
+/// `\ids{}` / fresh ids. Parking must happen *after* so identities stay stable.
+fn assign_normalize_ids(blocks: &mut [ContentBlock], declared_ids: &[u64]) {
+    let mut ids = IdAllocator::new(declared_ids.iter().copied().collect());
+    for block in blocks.iter_mut() {
+        if let Some(explicit) = block.chunk_id() {
+            set_chunk_id(block, ids.alloc(Some(explicit)));
+        }
+    }
+    for (idx, block) in blocks.iter_mut().enumerate() {
+        if block.chunk_id().is_none() {
+            set_chunk_id(block, ids.alloc(declared_ids.get(idx).copied()));
+        }
+    }
 }
 
 /// Move bibliography `\cite` stubs after all other blocks (stable within each group).

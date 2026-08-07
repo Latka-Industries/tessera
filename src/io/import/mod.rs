@@ -31,5 +31,28 @@ pub use wikilinks::{
     WikilinkSpan, collect_unresolved_wikilinks, rewrite_wikilinks, visit_wikilinks,
 };
 
+/// GFM pipe table separator row (`| --- | :---: |`).
+#[must_use]
+pub(crate) fn is_gfm_separator_row(line: &str) -> bool {
+    let t = line.trim();
+    t.starts_with('|') && t.contains('-') && t.chars().all(|c| matches!(c, '|' | '-' | ':' | ' '))
+}
+
+/// Lines that must keep ASCII hyphens under pack typography (`"--" → "–"`).
+///
+/// Covers GFM table separators, thematic breaks, and setext `-` underlines.
+#[must_use]
+pub(crate) fn is_markdown_hyphen_structure(line: &str) -> bool {
+    let t = line.trim();
+    if t.is_empty() {
+        return false;
+    }
+    if is_gfm_separator_row(t) {
+        return true;
+    }
+    let hyphen_count = t.chars().filter(|&c| c == '-').count();
+    hyphen_count >= 3 && t.chars().all(|c| matches!(c, '-' | ' ' | ':'))
+}
+
 #[cfg(test)]
 mod tests;
