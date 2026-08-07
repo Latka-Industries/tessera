@@ -145,8 +145,7 @@ fn apply_inline_kind(style: &mut InlineStyle, kind: &InlineKind) {
         InlineKind::Code | InlineKind::Math { .. } => style.code = true,
         InlineKind::Link { .. } => style.link = true,
         InlineKind::Citation { .. } => style.cite = true,
-        // Weave paints underline only via cite policy today (`[cite].underline`).
-        // Per-run underline needs `InlineStyle.underline` on weave — leave no-op.
-        InlineKind::Underline | InlineKind::Font { .. } => {}
+        InlineKind::Underline => style.underline = true,
+        InlineKind::Font { .. } => {}
     }
 }

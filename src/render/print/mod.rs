@@ -100,38 +100,38 @@ fn scoped_entries(file: &TesFile, chapter: Option<u32>) -> Result<Vec<&ChunkInde
     Ok(entries)
 }
 
-pub(crate) fn plain_paragraph(text: impl Into<String>) -> PrintBlock {
-    PrintBlock::Paragraph {
-        runs: vec![TextRun::plain(text)],
+fn single_run_paragraph(run: TextRun) -> PrintBlock {
+    PrintBlock::Paragraph { runs: vec![run] }
+}
+
+fn emphasized_run(text: impl Into<String>) -> TextRun {
+    TextRun {
+        text: text.into(),
+        style: InlineStyle {
+            emphasis: true,
+            ..InlineStyle::default()
+        },
+        face: None,
     }
+}
+
+pub(crate) fn plain_paragraph(text: impl Into<String>) -> PrintBlock {
+    single_run_paragraph(TextRun::plain(text))
 }
 
 /// Chunk `title` above a block — strong so it reads as a label, not body prose.
 pub(crate) fn title_paragraph(text: impl Into<String>) -> PrintBlock {
-    PrintBlock::Paragraph {
-        runs: vec![TextRun {
-            text: text.into(),
-            style: InlineStyle {
-                strong: true,
-                ..InlineStyle::default()
-            },
-            face: None,
-        }],
-    }
+    single_run_paragraph(TextRun::strong(text))
 }
 
-/// Chunk / figure caption stand-in — italic until weave grows a `[caption]` knob / IR.
+/// Non-figure chunk caption stand-in — italic `Paragraph` until a Caption IR exists.
+/// Figure captions use `Figure.caption` + weave `[caption]` knobs instead.
 pub(crate) fn caption_paragraph(text: impl Into<String>) -> PrintBlock {
-    PrintBlock::Paragraph {
-        runs: vec![TextRun {
-            text: text.into(),
-            style: InlineStyle {
-                emphasis: true,
-                ..InlineStyle::default()
-            },
-            face: None,
-        }],
-    }
+    single_run_paragraph(emphasized_run(text))
+}
+
+fn nonempty_label(label: Option<&str>) -> Option<&str> {
+    label.filter(|s| !s.is_empty())
 }
 
 fn map_entries(
@@ -159,12 +159,12 @@ fn map_entries(
                     push_list_item(&mut blocks, &mut list_buf, &header, &body, cite);
                 } else {
                     flush_list(&mut blocks, &mut list_buf);
-                    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
+                    if let Some(title) = nonempty_label(header.title.as_deref()) {
                         blocks.push(title_paragraph(title));
                     }
                     blocks.push(map_text_block(&header, &body, profile, cite));
-                    if let Some(caption) = header.caption.as_deref().filter(|s| !s.is_empty()) {
-                        // No weave caption IR yet — italic paragraph stand-in (THI-349).
+                    // Non-figure captions: no Caption IR yet (weave `[caption]` is figure-only).
+                    if let Some(caption) = nonempty_label(header.caption.as_deref()) {
                         blocks.push(caption_paragraph(caption));
                     }
                 }
