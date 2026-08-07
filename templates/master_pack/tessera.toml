@@ -16,9 +16,9 @@ yegourdoon = "*{arg}*"
 
 [fonts]
 test = "fonts/test-face.ttf"
-armenian = "fonts/test-face.ttf"
-greek = "fonts/test-face.ttf"
-cyrillic = "fonts/test-face.ttf"
+armenian = "fonts/DroidSansArmenian.ttf"
+greek = "fonts/LiberationSans-Regular.ttf"
+cyrillic = "fonts/LiberationSans-Regular.ttf"
 
 [weave]
 # Sparse native layout overlay for ariadnes-weave (D23), nested under [weave].

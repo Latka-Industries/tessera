@@ -1,0 +1,12 @@
+# Same as figure_center (match_figure band + wrap), but caption text is justified.
+[figure]
+align = "center"
+max_width_factor = 0.55
+title_align = "follow"
+title_text_align = "follow"
+
+[caption]
+band = "match_figure"
+text_align = "justify"
+italic = true
+size_factor = 0.9

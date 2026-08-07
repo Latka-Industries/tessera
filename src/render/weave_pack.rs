@@ -19,6 +19,7 @@ const PROSE_ROOT_SECTIONS: &[&str] = &[
     "code",
     "list",
     "figure",
+    "caption",
     "wrap",
     "text",
     "cite",
@@ -76,7 +77,7 @@ pub fn pack_layout_knobs(pack: &TemplatePack) -> Result<LayoutKnobs> {
 /// Merge sparse pack TOML onto [`LayoutKnobs::bundled`].
 ///
 /// Accepts category-rooted tables (`[prose.quote]`, `[page.footer]`, …) and
-/// convenience prose sections at the root (`[quote]`, `[text]`, `[cite]`, …).
+/// convenience prose sections at the root (`[figure]`, `[caption]`, `[quote]`, …).
 ///
 /// # Errors
 ///
@@ -222,6 +223,27 @@ font_size = 11.0
         .unwrap();
         assert!((knobs.prose.quote.indent - 22.0).abs() < f32::EPSILON);
         assert!((knobs.page.footer.font_size - 11.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn figure_and_caption_root_sections_merge() {
+        let knobs = merge_weave_toml(
+            r#"
+[figure]
+align = "right"
+max_width_factor = 0.55
+
+[caption]
+text_align = "justify"
+"#,
+        )
+        .unwrap();
+        assert_eq!(knobs.prose.figure.align, ariadnes_weave::FigureAlign::Right);
+        assert!((knobs.prose.figure.max_width_factor - 0.55).abs() < f32::EPSILON);
+        assert_eq!(
+            knobs.prose.caption.text_align,
+            ariadnes_weave::FigureTextAlign::Justify
+        );
     }
 
     #[test]

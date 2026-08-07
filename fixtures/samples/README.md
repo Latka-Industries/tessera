@@ -5,16 +5,17 @@ Hand-built multi-role `.tes` files for exploring Tessprek in Neovim / CLI.
 
 | File | What you see |
 | --- | --- |
-| **`tessprek_showcase.tes`** | **Start here** — umbrella tour including live `\phrase{…}` and multi-script `\font{…}{…}` pins in one paragraph (plus spans, lists, cite family, figure, slide, …) |
-| **`phrases_demo.tessprek`** | Standalone Tessprek buffer for CLI `tes format` phrase smoke |
+| **`tessprek_showcase.tes`** | **Start here** — sealed results (expanded phrase, font-pinned scripts, spans, lists, cite, figure, slide, …) |
+| **`phrases_demo.tessprek`** | Tessprek **source** for `tes format` phrase smoke (raw `\phrase` lives here, not in the .tes) |
 | `text_roles.tes` | Focused text-role matrix (heading / list depth / blockquote / captioned blocks) |
 | `field_notes.tes` | Longer research note (quote-style cite, scorecard) |
 | `studio_brief.tes` | Deck with slides + figure + attachment + links |
 | `block_captions.tes` | Caption surface matrix |
+| `figure_align.tes` | Figure title/caption band tour (240×120 swatch) — pair with [`../packs/`](../packs/) `figure_*` weave overlays |
 | `manuscript_chapters.tes` | Fiction draft for `--chapter N` + `manuscript` theme |
 
 ```bash
-cargo run --example gen_sample_fixtures
+cargo run --example gen_sample_fixtures   # samples + fixtures/packs/figure_*
 # or: mise run samples
 
 cargo build --bin tes --bin tes-lsp

@@ -3,13 +3,11 @@
 use uuid::Uuid;
 
 use crate::catalog::{
-    AttachmentPayload, FigureRef, ImagePayload, ImagePlacement, InlineKind, InlineSpan, LinkEntry,
-    LinkKind, TesWriterSession, TextHeader,
+    AttachmentPayload, InlineKind, InlineSpan, LinkEntry, LinkKind, TesWriterSession, TextHeader,
 };
 use crate::layout::DocKind;
 
-use super::super::v0::PNG_1X1;
-use super::common::{catalog, title_body_slide};
+use super::common::{add_flow_figure, add_swatch_image, catalog, title_body_slide};
 
 /// Mixed media + deck regions (`studio_brief.tes`).
 ///
@@ -55,26 +53,18 @@ fn add_studio_visual_slide(session: &mut TesWriterSession) {
     session
         .add_text_chunk(
             &TextHeader::paragraph(),
-            "Hero still is a 1×1 fixture PNG; real packs would point at theme assets off-doc.",
+            "Hero still is a 240×120 swatch; real packs would point at theme assets off-doc.",
         )
         .expect("b2");
-    let image_id = session
-        .add_image_chunk(&ImagePayload {
-            media_type: "image/png".into(),
-            width_px: 1,
-            height_px: 1,
-            data: PNG_1X1.to_vec(),
-        })
-        .expect("image");
-    session
-        .add_figure(&FigureRef {
-            image_chunk_id: image_id,
-            alt_text: "Placeholder hero pixel".into(),
-            title: None,
-            caption: Some("Fixture PNG standing in for a hero still.".into()),
-            placement: ImagePlacement::Flow,
-        })
-        .expect("figure");
+    let image_id = add_swatch_image(session).expect("image");
+    add_flow_figure(
+        session,
+        image_id,
+        "Placeholder hero swatch",
+        None,
+        Some("Fixture PNG standing in for a hero still."),
+    )
+    .expect("figure");
     session.add_slide(&title_body_slide(4, 5)).expect("slide2");
 }
 
