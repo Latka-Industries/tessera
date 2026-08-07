@@ -364,8 +364,9 @@ fn decode_attachment_block(map: &BTreeMap<String, String>, line_no: usize) -> Re
         .cloned()
         .filter(|s| !s.is_empty())
         .ok_or_else(|| parse_err(line_no, 1, "attachment requires sha256=…"))?;
+    let chunk_id = optional_u64(map, "chunk");
     Ok(ContentBlock::Attachment {
-        chunk_id: None,
+        chunk_id,
         filename,
         media_type,
         caption: map.get("caption").cloned().filter(|s| !s.is_empty()),

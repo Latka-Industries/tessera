@@ -1,5 +1,23 @@
 use super::*;
 
+fn attach_chunk_id(blocks: &[crate::edit::ContentBlock]) -> u64 {
+    blocks
+        .iter()
+        .find_map(|b| match b {
+            crate::edit::ContentBlock::Attachment { chunk_id, .. } => *chunk_id,
+            _ => None,
+        })
+        .expect("attachment")
+}
+
+const ATTACH_SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+fn attach_directive(chunk: u64) -> String {
+    format!(
+        "\\attach{{\n  chunk={chunk}\n  filename=\"notes.pdf\"\n  media_type=application/pdf\n  sha256={ATTACH_SHA}\n}}\n"
+    )
+}
+
 #[test]
 fn splits_free_markdown_and_assigns_sequential_ids() {
     let input = "# Title\n\n- one\n- two\n";
@@ -246,5 +264,53 @@ Hello world.\n\
     assert!(hello < quote, "{out}");
     assert!(quote < cite, "{out}");
     assert!(out.contains("label=mid"), "{out}");
-    assert!(out.contains("\\ids{"), "{out}");
+    // Ids follow blocks after park, but keep pre-park identities (cite stays 1).
+    assert!(out.contains("\\ids{2,3,1}"), "{out}");
+}
+
+#[test]
+fn format_keeps_attachment_id_when_parking_biblio() {
+    let input = format!(
+        "\
+\\tessera{{format=tessprek version=2}}\n\
+\\ids{{10,20,30}}\n\
+\n\
+\\cite{{label=book author=\"Ada\" title=\"Paper\" year=2020}}\n\
+\n\
+Hello.\n\
+\n\
+{}",
+        attach_directive(30)
+    );
+    let out = normalize_tessprek(&input).unwrap();
+    assert_eq!(
+        attach_chunk_id(&crate::edit::decode_tessprek(&out).unwrap()),
+        30
+    );
+    assert!(out.contains("chunk=30"), "{out}");
+}
+
+#[test]
+fn format_keeps_attach_chunk_when_inserting_before() {
+    // Stale `\\ids` length after inserting a paragraph before attach.
+    let edited = format!(
+        "\
+\\tessera{{format=tessprek version=2}}\n\
+\\ids{{1,2}}\n\
+\n\
+Hello.\n\
+\n\
+Inserted.\n\
+\n\
+{}",
+        attach_directive(2)
+    );
+    let out = normalize_tessprek(&edited).unwrap();
+    let blocks = crate::edit::decode_tessprek(&out).unwrap();
+    assert_eq!(blocks.len(), 3, "{out}");
+    assert_eq!(attach_chunk_id(&blocks), 2);
+    assert!(
+        out.contains("\\ids{1,3,2}") || out.contains("\\ids{1,4,2}"),
+        "{out}"
+    );
 }

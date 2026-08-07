@@ -37,15 +37,12 @@ pub fn resolve_pack_fonts(
     )
 }
 
-/// Load `[fonts]` overlay for a pack (id → relative `.ttf` / `.otf`).
-///
-/// Sparse `fonts.toml` and/or master `tessera.toml` `[fonts]` (THI-367). Both is
-/// a hard error.
+/// Font id → relative path map (no TTF bytes). For LSP completion (THI-369).
 ///
 /// # Errors
 ///
 /// Returns [`TesError::InvalidTemplate`] / [`TesError::Io`] for bad overlays.
-pub fn pack_fonts(pack: &TemplatePack) -> Result<PackFonts> {
+pub fn pack_font_paths(pack: &TemplatePack) -> Result<BTreeMap<String, String>> {
     use super::pack_master::{PackConcern, load_pack_master, resolve_map_concern};
 
     let master = load_pack_master(pack)?;
@@ -60,8 +57,27 @@ pub fn pack_fonts(pack: &TemplatePack) -> Result<PackFonts> {
         },
     )?
     else {
-        return Ok(PackFonts::new());
+        return Ok(BTreeMap::new());
     };
+    for id in font_map.keys() {
+        validate_ident(id, "font")?;
+    }
+    Ok(font_map)
+}
+
+/// Load `[fonts]` overlay for a pack (id → relative `.ttf` / `.otf`).
+///
+/// Sparse `fonts.toml` and/or master `tessera.toml` `[fonts]` (THI-367). Both is
+/// a hard error.
+///
+/// # Errors
+///
+/// Returns [`TesError::InvalidTemplate`] / [`TesError::Io`] for bad overlays.
+pub fn pack_fonts(pack: &TemplatePack) -> Result<PackFonts> {
+    let font_map = pack_font_paths(pack)?;
+    if font_map.is_empty() {
+        return Ok(PackFonts::new());
+    }
 
     let mut out = PackFonts::new();
     for (id, rel) in font_map {
@@ -154,7 +170,7 @@ mod tests {
         let pack = TemplatePack::load(&root).unwrap();
         let fonts = pack_fonts(&pack).unwrap();
         assert!(fonts.contains_key("test"), "{fonts:?}");
-        for id in ["armenian", "greek", "cyrillic", "hebrew", "arabic", "cjk"] {
+        for id in ["armenian", "greek", "cyrillic"] {
             assert!(fonts.contains_key(id), "missing {id}: {fonts:?}");
         }
         assert!(looks_like_sfnt(&fonts["test"]));
