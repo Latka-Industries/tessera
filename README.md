@@ -8,7 +8,7 @@
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
 **In active development — layout v0 wire may change before a stable v1.**
-Crate **0.2.6** ships native PDF via `ariadnes-weave` **0.2.6+** (alongside Chromium print) and D23 pack authoring (`weave.toml` including category fonts, typography / aliases / phrases / `\font` + `fonts.toml`).
+Crate **0.2.7** ships native PDF via `ariadnes-weave` **0.2.7+** (alongside Chromium print) and the full D23 pack surface (`weave.toml` / typography / aliases / phrases / `\font` + optional master `tessera.toml`; pack-aware `tes-lsp` completions).
 
 ## What it does today
 
@@ -17,11 +17,11 @@ Crate **0.2.6** ships native PDF via `ariadnes-weave` **0.2.6+** (alongside Chro
 - **Import** — CommonMark subset, semantic HTML, BibTeX / CSL-JSON → cite chunks
 - **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering; slides
 - **Preview** — loopback `tes serve` with external template/theme packs (`draft` / `print` / `manuscript`)
-- **Packs (D23)** — sparse overlays: `weave.toml` → native knobs (spacing, aesthetics, category `font` pins); `typography.toml` / `aliases.toml` / `phrases.toml` at format/seal; `\font{id}{…}` + `fonts.toml` pins for native PDF
-- **Edit** — Tessprek `edit-read` / `format` / `edit-write` / `apply` (typed `TesOp`s including catalog tags/aliases)
+- **Packs (D23)** — sparse overlays or master `tessera.toml`: `weave.toml` → native knobs; typography / aliases / phrases at format/seal; `\font{id}{…}` + `fonts.toml` pins
+- **Edit** — Tessprek `edit-read` / `format` / `edit-write` / `apply` (typed `TesOp`s including catalog tags/aliases); stable attach ids across format/insert
+- **LSP** — `tes-lsp` pack-aware `\font` / `\phrase` / alias completions + post-write buffer refresh ([docs/lsp.md](docs/lsp.md); Neovim: [contrib/nvim](contrib/nvim/README.md))
 - **History** — `THST` revisions, drafts, diff/changelog, blame, pending redline, export-revs/checkout/textconv/merge-file; GitHub Tessprek Action
 - **Vault** — resolve / backlinks / broken-link check; `vault.tes` TOC; multi-root members; scan + Tantivy FTS
-- **LSP** — `tes-lsp` Tessprek language server over stdio ([docs/lsp.md](docs/lsp.md); Neovim client: [contrib/nvim](contrib/nvim/README.md))
 
 ## Quick start
 

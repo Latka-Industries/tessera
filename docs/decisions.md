@@ -349,6 +349,7 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
 5. Tessera: pack `weave.toml` → `EmitOptions` — **shipped** (THI-357)
 6. Category default fonts via `weave.toml` — **shipped** (Tessera 0.2.6 / weave 0.2.6 / THI-360)
 7. Layout widgets as Eleatic `\progress` (THI-358) — **canceled**; use D24 `\layout` ops
+8. Master `tessera.toml` + pack-aware LSP — **shipped** (Tessera 0.2.7 / THI-367 / THI-369)
 
 ---
 
@@ -480,5 +481,5 @@ The detailed contract is [structure_v1.md](structure_v1.md). Locked decisions:
 | D20 | Content-addressed drafts/review in `THST` | Accepted (M10 shipped) |
 | D21 | Print IR + `ariadnes-weave` own native PDF; HTML is preview | Accepted direction |
 | D22 | Tessprek v2: brace commands + `\tessera{}`/`\ids{}` header replace v1 HTML comments | Accepted (THI-318 shipped) |
-| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B **0.2.5** (THI-357/354/355/356); category fonts **0.2.6** (THI-360); master `tessera.toml` (THI-367); `\progress` widget (THI-358) **canceled** → D24 |
+| D23 | Pack authoring surface: weave knobs + CSS parallel; no doc macros; phrases/aliases/typography/fonts | Accepted; Tessera Phase B **0.2.5** (THI-357/354/355/356); category fonts **0.2.6** (THI-360); master `tessera.toml` + pack-aware LSP **0.2.7** (THI-367/369; epic THI-351 Done); `\progress` widget (THI-358) **canceled** → D24 |
 | D24 | Layout blocks: sealed `place` / `vspace` / `rule` ops (not pack TOML macros) | Accepted; Tessera wire + Tessprek + exports (THI-361..365); weave paint (THI-362) |

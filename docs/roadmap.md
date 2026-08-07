@@ -1,9 +1,9 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.2.6** (document-depth wire: Tessprek v2,
+**Status:** M0–M11 shipped; crate **0.2.7** (document-depth wire: Tessprek v2,
 captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering; **D23** pack
-authoring including category fonts). Native-print continues via
-**`ariadnes-weave` ≥ 0.2.6**;
+authoring complete — category fonts, master `tessera.toml`, pack-aware LSP).
+Native-print continues via **`ariadnes-weave` ≥ 0.2.7**;
 Chromium remains the default PDF backend. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
@@ -18,10 +18,11 @@ default) — THI-290 / THI-294 under epic THI-256. **0.2.1** requires weave
 0.2.2 (`TextRun.face` / pinned faces). **0.2.5** lands D23 Tessera Phase B:
 pack `weave.toml` → `EmitOptions` (THI-357), typography + aliases (THI-354),
 `\phrase` (THI-355), `\font` + `fonts.toml` pins (THI-356). **0.2.6** adds
-category default fonts via `weave.toml` (THI-360; weave **0.2.6**). **D24**
-layout blocks (`\layout` / `place`/`vspace`/`rule`) land with THI-361..365
-(local path weave until Actions recovers); Tesscriptor op-list UI is later
-(THI-366).
+category default fonts via `weave.toml` (THI-360; weave **0.2.6**). **0.2.7**
+closes D23 (THI-351): master `tessera.toml` (THI-367), pack-aware LSP
+completions (THI-369), and Tessprek save/format id stability. **D24** layout
+blocks (`\layout` / `place`/`vspace`/`rule`) land with THI-361..365; Tesscriptor
+op-list UI is later (THI-366).
 Richer native layout (tables/math/decks, OS fonts) continues on that track /
 template dogfood. This is an implementation plan, not a release schedule.
 
@@ -271,19 +272,16 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **Pack master TOML (THI-367):** optional `tessera.toml` alongside sparse D23
-   overlays; Tesscriptor targets the master form. D24 Tesscriptor op-list UI
-   stays later (THI-366).
-2. **Native PDF deepen (THI-256):** tables/figures/math quality (THI-291),
-   deck regions (THI-293), OS/font packs (THI-307 / THI-308 / THI-311), literary
-   unfolding (THI-295); promote `--backend native` to default when ready.
-3. **Dogfood / captions:** THI-324 / THI-349 as packs and manuscripts need them.
-4. **optional:** `layout_version` / feature-flag bump when must-understand features land.
-5. **open format / bench:** MIME/magic conformance cases and claim-backed
+1. **Native PDF deepen / dogfood:** captions and manuscript packs (THI-349 /
+   THI-324); promote `--backend native` when ready (THI-350).
+2. **Tesscriptor later:** layout op-list UI (THI-366) when that track resumes.
+3. **optional:** `layout_version` / feature-flag bump when must-understand features land.
+4. **open format / bench:** MIME/magic conformance cases and claim-backed
    benches continue as hygiene — see [mime.md](mime.md), [benchmarks.md](benchmarks.md).
-6. **Done in-tree:** parser hygiene 0.1.12 (THI-296..299); print bridge 0.2.0
+5. **Done in-tree:** parser hygiene 0.1.12 (THI-296..299); print bridge 0.2.0
    (THI-288..290 / THI-292 / THI-294); D23 Phase B 0.2.5 (THI-357 / 354 / 355 / 356);
-   category fonts 0.2.6 (THI-360); D24 layout blocks (THI-361..365).
+   category fonts 0.2.6 (THI-360); D24 layout blocks (THI-361..365); D23 close
+   0.2.7 (THI-367 / THI-369 / save stability; epic THI-351).
 
 ---
 

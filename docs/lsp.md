@@ -1,7 +1,7 @@
 # Tessprek language server (`tes-lsp`)
 
-**Status:** server MVP is in-tree. Neovim packaging lives under
-[`contrib/nvim/`](../contrib/nvim/README.md).
+**Status:** server MVP is in-tree (pack-aware completions in **0.2.7** / THI-369).
+Neovim packaging lives under [`contrib/nvim/`](../contrib/nvim/README.md).
 
 `tes-lsp` is a thin Language Server Protocol server over **stdio** (tokio + tower-lsp).
 Logs go to **stderr** only — stdout is the LSP wire.

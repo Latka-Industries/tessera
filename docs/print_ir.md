@@ -1,8 +1,8 @@
 # Print IR (`ariadnes-weave`)
 
-**Status (Tessera 0.2.6):** prose print-tree builder + CLI `--backend native`
+**Status (Tessera 0.2.7):** prose print-tree builder + CLI `--backend native`
 shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Requires
-**`ariadnes-weave` ≥ 0.2.6** (quote italic + aesthetic knobs; `TextRun.face`
+**`ariadnes-weave` ≥ 0.2.7** (quote italic + aesthetic knobs; `TextRun.face`
 pins since 0.2.2; category default fonts via `[text|heading|quote|cite].font`
 in pack `weave.toml` — THI-360). Pack `fonts.toml` → `EmitOptions::pinned_faces` and
 `weave.toml` → layout knobs (D23). Layout quality beyond prose (THI-291+
@@ -246,7 +246,7 @@ tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
 ```
 
 Default stays `chromium` until native is promoted; both backends ship since 0.2.0
-(`ariadnes-weave` **0.2.6+** for category fonts + aesthetic knobs). Native CLI uses
+(`ariadnes-weave` **0.2.7+** for category fonts + aesthetic knobs). Native CLI uses
 bundled faces plus optional pack `fonts.toml` pins and `weave.toml` knob
 overlays when `--template` / `--template-root` resolve a pack. See
 [Host-pinned faces](#host-pinned-faces-ariadnes-weave--022) for the library pin
