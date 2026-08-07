@@ -116,8 +116,7 @@ pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Prin
 
 /// Optional figure title/caption → zero or one plain [`TextRun`].
 fn plain_label_runs(label: Option<&str>) -> Vec<TextRun> {
-    label
-        .filter(|s| !s.is_empty())
+    super::nonempty_label(label)
         .map(|s| vec![TextRun::plain(s)])
         .unwrap_or_default()
 }

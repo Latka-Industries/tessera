@@ -130,7 +130,7 @@ pub(crate) fn caption_paragraph(text: impl Into<String>) -> PrintBlock {
     single_run_paragraph(emphasized_run(text))
 }
 
-fn nonempty_label(label: Option<&str>) -> Option<&str> {
+pub(crate) fn nonempty_label(label: Option<&str>) -> Option<&str> {
     label.filter(|s| !s.is_empty())
 }
 

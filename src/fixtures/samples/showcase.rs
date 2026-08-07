@@ -201,7 +201,10 @@ fn add_showcase_captioned(session: &mut TesWriterSession) {
                 cells: vec![cell("prose", false), cell("Markdown body", false)],
             },
             TableRow {
-                cells: vec![cell("figure", false), cell("image + title + caption", false)],
+                cells: vec![
+                    cell("figure", false),
+                    cell("image + title + caption", false),
+                ],
             },
             TableRow {
                 cells: vec![

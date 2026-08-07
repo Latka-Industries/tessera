@@ -13,6 +13,8 @@ struct FigurePack {
     align: &'static str,
     caption_text_align: &'static str,
     comment: &'static str,
+    /// Short README table cell (knobs to notice).
+    knobs: &'static str,
 }
 
 const FIGURE_PACKS: &[FigurePack] = &[
@@ -21,24 +23,28 @@ const FIGURE_PACKS: &[FigurePack] = &[
         align: "left",
         caption_text_align: "follow",
         comment: "Left figure band — caption follows figure + wraps in the band.",
+        knobs: "`[figure].align = left`, caption/title `follow`",
     },
     FigurePack {
         id: "figure_center",
         align: "center",
         caption_text_align: "follow",
         comment: "Center figure band — caption follows figure + wraps in the band.",
+        knobs: "`align = center`, caption/title `follow`",
     },
     FigurePack {
         id: "figure_right",
         align: "right",
         caption_text_align: "follow",
         comment: "Right figure band — caption follows figure + wraps in the band.",
+        knobs: "`align = right`, caption/title `follow`",
     },
     FigurePack {
         id: "figure_caption_justify",
         align: "center",
         caption_text_align: "justify",
         comment: "Same as figure_center (match_figure band + wrap), but caption text is justified.",
+        knobs: "same as center, caption `text_align = justify`",
     },
 ];
 
@@ -54,7 +60,7 @@ pub fn write_all(dir: &Path) -> Result<()> {
     for pack in FIGURE_PACKS {
         write_figure_pack(dir, pack)?;
     }
-    fs::write(dir.join("README.md"), PACKS_README)?;
+    fs::write(dir.join("README.md"), packs_readme())?;
     Ok(())
 }
 
@@ -91,7 +97,15 @@ size_factor = 0.9\n",
     Ok(())
 }
 
-const PACKS_README: &str = "# Browse packs (figure / weave knobs)
+fn packs_readme() -> String {
+    let ids: Vec<&str> = FIGURE_PACKS.iter().map(|p| p.id).collect();
+    let id_loop = ids.join(" ");
+    let mut table = String::from("| Pack | Knobs to notice |\n| --- | --- |\n");
+    for pack in FIGURE_PACKS {
+        table.push_str(&format!("| `{}` | {} |\n", pack.id, pack.knobs));
+    }
+    format!(
+        r#"# Browse packs (figure / weave knobs)
 
 Sparse packs for native PDF smoke — not product templates. Each declares a stub
 `print` theme (Chromium unused here) plus a `weave.toml` overlay.
@@ -103,22 +117,18 @@ Pair with [`../samples/figure_align.tes`](../samples/figure_align.tes):
 ```bash
 cargo run --example gen_sample_fixtures
 
-for id in figure_left figure_center figure_right figure_caption_justify; do
-  cargo run -q --bin tes --features native-pdf -- export \\
-    fixtures/samples/figure_align.tes \\
-    --pdf --backend native \\
-    --template-root fixtures/packs --template \"$id\" \\
-    -o \"tmp/tessera-349-smoke/${id}.pdf\"
+for id in {id_loop}; do
+  cargo run -q --bin tes --features native-pdf -- export \
+    fixtures/samples/figure_align.tes \
+    --pdf --backend native \
+    --template-root fixtures/packs --template "$id" \
+    -o "tmp/tessera-349-smoke/${{id}}.pdf"
 done
 ```
 
 All packs: caption `band = match_figure` (wraps under the image). Left/center/right use
 `text_align = follow`. Justify is the same geometry with `text_align = justify`.
 
-| Pack | Knobs to notice |
-| --- | --- |
-| `figure_left` | `[figure].align = left`, caption/title `follow` |
-| `figure_center` | `align = center`, caption/title `follow` |
-| `figure_right` | `align = right`, caption/title `follow` |
-| `figure_caption_justify` | same as center, caption `text_align = justify` |
-";
+{table}"#
+    )
+}

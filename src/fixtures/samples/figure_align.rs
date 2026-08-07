@@ -21,7 +21,7 @@ use super::common::{add_flow_figure, add_swatch_image, catalog};
 pub fn encode_figure_align() -> Vec<u8> {
     let mut session = TesWriterSession::create("figure_align.tes", DocKind::Note);
     let mut cat = catalog(
-        "aa0e8400-e29b-41d4-a716-446655440105",
+        "aa0e8400-e29b-41d4-a716-446655440106",
         "Figure alignment tour",
         "2026-08-07T00:00:00Z",
         "2026-08-07T00:00:00Z",
