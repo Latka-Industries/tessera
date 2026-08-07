@@ -240,6 +240,11 @@ fn format_block_hover(block: &ContentBlock) -> String {
             push_field(&mut out, "layout", &slide.layout_id);
             out
         }
+        ContentBlock::Layout { layout, .. } => {
+            let mut out = chunk_title(&id, "layout");
+            push_field(&mut out, "ops", &layout.ops.len().to_string());
+            out
+        }
         ContentBlock::Attachment {
             filename,
             media_type,

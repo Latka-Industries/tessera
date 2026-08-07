@@ -42,6 +42,8 @@ pub const QUOTE_PREFIX: &str = "\\quote{";
 pub const REF_PREFIX: &str = "\\ref{";
 /// Slide directive: `\slide{layout=… regions=…}`.
 pub const SLIDE_PREFIX: &str = "\\slide{";
+/// Layout directive: `\layout{ place … / vspace=… / rule … }` (D24).
+pub const LAYOUT_PREFIX: &str = "\\layout{";
 /// Attachment directive: `\attach{filename=… media_type=… sha256=…}`.
 pub const ATTACH_PREFIX: &str = "\\attach{";
 /// Closing delimiter for every brace command.
@@ -82,6 +84,8 @@ pub const QUOTE_ATTR_KEYS: &[&str] = &[
 ];
 /// Preferred attribute keys for `\slide{…}`.
 pub const SLIDE_ATTR_KEYS: &[&str] = &["layout", "regions"];
+/// Preferred attribute keys / op hints for `\layout{…}` (D24).
+pub const LAYOUT_ATTR_KEYS: &[&str] = &["place", "vspace", "rule", "frac", "em", "content"];
 /// Preferred attribute keys for `\attach{…}`.
 pub const ATTACH_ATTR_KEYS: &[&str] = &["filename", "media_type", "sha256", "caption"];
 /// Preferred attribute keys for `\media{…}` header rows.
@@ -97,6 +101,7 @@ pub fn command_attr_keys(kind: &str) -> Option<&'static [&'static str]> {
         "cite" => CITE_ATTR_KEYS,
         "quote" | "ref" => QUOTE_ATTR_KEYS,
         "slide" => SLIDE_ATTR_KEYS,
+        "layout" => LAYOUT_ATTR_KEYS,
         "attach" | "attachment" => ATTACH_ATTR_KEYS,
         "media" => MEDIA_ATTR_KEYS,
         _ => return None,
@@ -119,6 +124,7 @@ pub const BODY_COMMANDS: &[(&str, &str)] = &[
     (QUOTE_PREFIX, "quote"),
     (REF_PREFIX, "ref"),
     (SLIDE_PREFIX, "slide"),
+    (LAYOUT_PREFIX, "layout"),
     (ATTACH_PREFIX, "attachment"),
 ];
 

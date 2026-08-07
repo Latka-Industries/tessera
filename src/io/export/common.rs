@@ -166,6 +166,7 @@ pub(super) fn is_content_export_type(chunk_type: ChunkType) -> bool {
             | ChunkType::Cite
             | ChunkType::Slide
             | ChunkType::Attachment
+            | ChunkType::Layout
     )
 }
 
@@ -279,6 +280,17 @@ pub(crate) fn decode_slide_entry(
 ) -> Result<crate::catalog::SlidePayload> {
     let raw = file.decode_payload(entry)?;
     crate::catalog::SlidePayload::from_bytes(raw.as_ref())
+}
+
+pub(crate) fn decode_layout_entry(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+) -> Result<crate::catalog::LayoutPayload> {
+    let raw = file.decode_payload(entry)?;
+    crate::catalog::LayoutPayload::from_bytes(raw.as_ref()).map_err(|e| TesError::Decode {
+        chunk_id: entry.chunk_id,
+        message: e.to_string(),
+    })
 }
 
 pub(super) fn image_src(

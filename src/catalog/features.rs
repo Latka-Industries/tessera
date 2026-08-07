@@ -20,6 +20,8 @@ pub mod ids {
     pub const SLIDES: &str = "slides";
     /// Image bytes and/or figure-ref chunks.
     pub const FIGURES: &str = "figures";
+    /// Layout chunks (`place` / `vspace` / `rule`; D24).
+    pub const LAYOUT: &str = "layout";
 }
 
 /// Well-known feature ids understood by this build (all optional today).
@@ -30,6 +32,7 @@ pub const KNOWN_FEATURES: &[&str] = &[
     ids::CITATIONS,
     ids::SLIDES,
     ids::FIGURES,
+    ids::LAYOUT,
 ];
 
 /// Optional-vs-required feature declarations in the document catalog.

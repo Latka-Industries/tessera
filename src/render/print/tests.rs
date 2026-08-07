@@ -314,3 +314,62 @@ fn cite_quote_ref_biblio_and_inline_markers() {
         "expected bibliography line: {doc:?}"
     );
 }
+
+#[test]
+fn layout_place_frac_flush_maps_to_weave() {
+    use crate::catalog::layout::{
+        LayoutOp as TesLayoutOp, LayoutPayload, MeasureFrac as TesFrac, PlaceSkip as TesSkip,
+        RuleWidth, VspaceAmount as TesVspace,
+    };
+    use ariadnes_weave::{LayoutOp, MeasureFrac, PlaceSkip, VspaceAmount};
+
+    let mut session = TesWriterSession::create("layout_flush.tes", DocKind::Note);
+    session
+        .add_text_chunk(&TextHeader::paragraph(), "Before layout chunk.")
+        .unwrap();
+    session
+        .add_layout(&LayoutPayload {
+            ops: vec![
+                TesLayoutOp::Place {
+                    skip: TesSkip::Frac {
+                        frac: TesFrac::FULL,
+                    },
+                    content: "▸".into(),
+                    spans: vec![],
+                },
+                TesLayoutOp::Vspace {
+                    amount: TesVspace::Med,
+                },
+                TesLayoutOp::Rule {
+                    width: RuleWidth::frac(TesFrac::FULL),
+                },
+            ],
+        })
+        .unwrap();
+    session
+        .add_text_chunk(&TextHeader::paragraph(), "After layout chunk.")
+        .unwrap();
+    let file = open_bytes("layout_flush.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    assert_eq!(doc.blocks.len(), 3);
+    match &doc.blocks[1] {
+        PrintBlock::Layout { ops } => {
+            assert_eq!(ops.len(), 3);
+            assert!(matches!(
+                &ops[0],
+                LayoutOp::Place {
+                    skip: PlaceSkip::Frac { frac },
+                    runs,
+                } if *frac == MeasureFrac::FULL && runs.iter().any(|r| r.text == "▸")
+            ));
+            assert!(matches!(
+                &ops[1],
+                LayoutOp::Vspace {
+                    amount: VspaceAmount::Med
+                }
+            ));
+            assert!(matches!(&ops[2], LayoutOp::Rule { .. }));
+        }
+        other => panic!("expected Layout block, got {other:?}"),
+    }
+}

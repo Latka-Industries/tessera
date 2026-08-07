@@ -20,7 +20,7 @@ Markdown has no syntax for.
 | Content | Wire form |
 | --- | --- |
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
-| Figure, biblio cite, quote, ref, slide, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\attach{…}` |
+| Figure, biblio cite, quote, ref, slide, layout, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\attach{…}` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; `\arm` is LSP snippet → `\font{armenian}{…}`) |
 | Pack phrase (expand) | `\phrase{key}{arg}` → ordinary prose at format (lossy; not a sealed span) |
@@ -249,6 +249,27 @@ Pointer to a doc/chunk **without** an excerpt (empty `quote` on the payload).
 
 No body (metadata only, mirrors `SlidePayload`).
 
+### `\layout{…}` (D24)
+
+Sealed layout chunk. One op per line (or whitespace-separated). Unknown op /
+bad `frac` → hard parse error.
+
+```text
+\layout{
+  place frac=0.875 content="87.5%"
+  vspace=small
+  rule frac=1
+}
+```
+
+| Op | Forms |
+| --- | --- |
+| `place` | `frac=0..=1` **or** `em=N`; content via `content="…"` or trailing `{…}`; `\font{id}{…}` inside content seals to spans |
+| `vspace` | `vspace=small\|med\|big` or `vspace em=N` |
+| `rule` | `frac=` and/or `em=` |
+
+Semantics (flush-at-1, spacing, rejected sugar): [decisions.md — D24](decisions.md).
+
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 
 No body; attachment bytes are never projected into Tessprek (inert — see
@@ -268,7 +289,7 @@ No body; attachment bytes are never projected into Tessprek (inert — see
    `OrderedListNumbering` + `TextHeader::render_markdown_with_links_indexed`
    (contiguous ordered items become `1.` / `2.` / …; nested depths restart;
    consecutive list items stay tight — one `\n`, not a blank line);
-   figure/cite/quote/ref/slide/attachment → brace command (+ body where
+   figure/cite/quote/ref/slide/layout/attachment → brace command (+ body where
    required; no `chunk=` attr on the command itself — the id lives only in
    `\ids{}`).
 

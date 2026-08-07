@@ -364,6 +364,40 @@ figure > figcaption {
   font-style: italic;
 }
 
+/* —— Layout blocks (D24) —— */
+
+.tes-layout {
+  margin: 0.75em 0;
+}
+
+.tes-layout-place {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 1.2em;
+}
+
+.tes-layout-place-flush {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tes-layout-place-label {
+  white-space: pre;
+}
+
+.tes-layout-vspace {
+  width: 100%;
+  pointer-events: none;
+}
+
+.tes-layout-rule {
+  display: block;
+  margin: 0.35em 0;
+  border: 0;
+  border-top: 1px solid var(--tes-rule, currentColor);
+  max-width: 100%;
+}
+
 /* —— Citations —— */
 
 .citation {

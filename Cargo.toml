@@ -40,7 +40,7 @@ weave-icons = ["native-pdf", "ariadnes-weave/icons"]
 
 [dependencies]
 argus-chunk = "0.1.0"
-ariadnes-weave = { version = "0.2.6", optional = true }
+ariadnes-weave = { version = "0.2.7", optional = true }
 clap = { version = "4.6.4", features = ["derive"] }
 memmap2 = "0.9.11"
 pulldown-cmark = "0.13.4"
@@ -64,8 +64,6 @@ katex-rs = "0.2"
 
 [patch.crates-io]
 # argus-chunk = { path = "../argus-chunk" }
-# Local suite sibling (tessera-suite/ariadnes-weave → LatkaIndustries).
-# Enable while co-developing weave; leave commented to use crates.io.
 # ariadnes-weave = { path = "../ariadnes-weave" }
 
 [dev-dependencies]

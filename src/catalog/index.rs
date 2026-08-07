@@ -77,6 +77,8 @@ pub enum ChunkType {
     Figure = 7,
     /// Inert opaque attachment (media type + safe filename + bytes).
     Attachment = 8,
+    /// Sealed layout ops (`place` / `vspace` / `rule`; D24).
+    Layout = 9,
 }
 
 impl ChunkType {
@@ -95,6 +97,7 @@ impl ChunkType {
             6 => Self::Page,
             7 => Self::Figure,
             8 => Self::Attachment,
+            9 => Self::Layout,
             other => {
                 return Err(TesError::InvalidEnum {
                     field: "chunk_type",
@@ -122,6 +125,7 @@ impl ChunkType {
             Self::Page => "page",
             Self::Figure => "figure",
             Self::Attachment => "attachment",
+            Self::Layout => "layout",
         }
     }
 
@@ -140,6 +144,7 @@ impl ChunkType {
             "page" => Self::Page,
             "figure" => Self::Figure,
             "attachment" => Self::Attachment,
+            "layout" => Self::Layout,
             other => {
                 return Err(TesError::InvalidHistory {
                     message: format!("unknown chunk type '{other}'"),
@@ -158,7 +163,8 @@ impl ChunkType {
             | Self::Cite
             | Self::Slide
             | Self::Figure
-            | Self::Attachment => chunk_flags::READING_ORDER,
+            | Self::Attachment
+            | Self::Layout => chunk_flags::READING_ORDER,
         }
     }
 
@@ -446,6 +452,7 @@ mod tests {
             ChunkType::Page,
             ChunkType::Figure,
             ChunkType::Attachment,
+            ChunkType::Layout,
         ] {
             assert_eq!(ChunkType::from_u32(t.as_u32()).unwrap(), t);
         }
@@ -454,7 +461,7 @@ mod tests {
             Err(TesError::InvalidEnum { .. })
         ));
         assert!(matches!(
-            ChunkType::from_u32(9),
+            ChunkType::from_u32(10),
             Err(TesError::InvalidEnum { .. })
         ));
     }

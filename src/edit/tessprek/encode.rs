@@ -1,6 +1,7 @@
 use crate::catalog::TesFile;
 use crate::catalog::chunk::{CitePayload, decode_text_payload};
 use crate::catalog::index::ChunkType;
+use crate::catalog::layout::LayoutPayload;
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePayload};
 use crate::catalog::slide::SlidePayload;
 use crate::error::Result;
@@ -53,6 +54,14 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
                 ContentBlock::Slide {
                     chunk_id: Some(entry.chunk_id),
                     slide,
+                }
+            }
+            ChunkType::Layout => {
+                let raw = file.decode_payload(entry)?;
+                let layout = LayoutPayload::from_bytes(raw.as_ref())?;
+                ContentBlock::Layout {
+                    chunk_id: Some(entry.chunk_id),
+                    layout,
                 }
             }
             ChunkType::Attachment => {

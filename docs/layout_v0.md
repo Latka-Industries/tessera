@@ -242,6 +242,7 @@ Total index size: **`32 + entry_count × 48`**.
 | `6` | `page` | Imported PDF page raster (optional v0) |
 | `7` | `figure` | Contextual use of an image chunk (alt, caption, placement) |
 | `8` | `attachment` | Inert opaque bytes (media type, safe basename, optional caption, sha256) |
+| `9` | `layout` | Ordered `place` / `vspace` / `rule` ops (D24) |
 
 v0 reference implementation **must** support **`text`**; **`image` + `figure`** are
 available for media; **`attachment`** is inert download-only; **`link` table + cite**

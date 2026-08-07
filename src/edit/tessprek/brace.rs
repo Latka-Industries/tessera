@@ -137,9 +137,13 @@ pub(crate) fn take_leading_tessera_header(lines: &[&str]) -> Result<(String, usi
     Ok((attrs, start, end))
 }
 
-/// Byte offset of the first `}` not inside a double-quoted attr value.
+/// Byte offset of the matching `}` for an already-opened brace group.
+///
+/// Tracks nested `{…}` depth and ignores braces inside double-quoted attribute
+/// values (with `\"` escapes). Callers pass the slice **after** the opening `{`.
 #[must_use]
 pub(crate) fn find_unquoted_close_brace(s: &str) -> Option<usize> {
+    let mut depth = 1i32;
     let mut in_quote = false;
     let mut escape = false;
     for (i, ch) in s.char_indices() {
@@ -150,7 +154,13 @@ pub(crate) fn find_unquoted_close_brace(s: &str) -> Option<usize> {
         match ch {
             '\\' if in_quote => escape = true,
             '"' => in_quote = !in_quote,
-            '}' if !in_quote => return Some(i),
+            '{' if !in_quote => depth += 1,
+            '}' if !in_quote => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
             _ => {}
         }
     }

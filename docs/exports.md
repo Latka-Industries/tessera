@@ -84,6 +84,7 @@ The mean was 12.4°C.
 | `role: list_item` | `- ` or sequential `1.` / `2.` / … from `list_kind` (contiguous ordered runs; nested depths restart) |
 | `role: table` | v0 TSV; v1 structured cells in reading order |
 | `attachment` | `[attachment filename=… media_type=… sha256=…]` (+ optional caption line); never embeds bytes |
+| `layout` | Lossy: place content (+ leading spaces as rough skip); `---` for rules; vspace → blank line (D24) |
 | Links | Inline `[display](doc:UUID/chunk)` form |
 
 **Guarantees:**
@@ -103,6 +104,7 @@ Optimized for **LLM context** — no markup, minimal noise.
 | --- | --- |
 | Text chunk bodies in reading order | Heading `#` markers (structure via separate JSONL fields if needed) |
 | Resolved cite quotes as plain sentences | `\cite{}`, footnote markers |
+| Layout place content (+ rough leading spaces); `---` for rules | Same lossy layout projection as Markdown (D24) |
 | Table cell text row-by-row | HTML/MD syntax |
 | Single `\n\n` between chunks | Chunk ids in prose (unless `--annotate`) |
 
@@ -241,7 +243,11 @@ Generated **DOM-like** HTML5 fragment + linked theme CSS.
 | `--standalone` | Full `<!DOCTYPE html>` wrapper |
 | `--embed-css` | Inline theme for single-file share |
 
-**Mapping:** chunk `role` → element name; `class` from header JSON → `class` attribute. Presentation from theme only — **no inline styles** from exporter.
+**Mapping:** chunk `role` → element name; `class` from header JSON → `class`
+attribute. Presentation from theme only for prose — **no exporter-owned look**
+beyond structural hooks. **Layout chunks (D24)** emit `.tes-layout` /
+`.tes-layout-place` / `.tes-layout-vspace` / `.tes-layout-rule` with measure
+hints as data attrs + minimal positioning styles (theme CSS owns chrome).
 
 **Cite markers:** `\quote` / ranged cite blocks emit
 `<p data-chunk-id="…" class="citation" [data-target-doc] [data-target-chunk] [data-byte-start] [data-byte-end]>`;

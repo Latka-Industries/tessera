@@ -130,6 +130,70 @@ fn round_trip_figure_cite_slide_attachment() {
 }
 
 #[test]
+fn layout_place_vspace_rule_round_trip() {
+    use crate::catalog::layout::{
+        LayoutOp, LayoutPayload, MeasureFrac, PlaceSkip, RuleWidth, VspaceAmount,
+    };
+
+    let blocks = vec![
+        ContentBlock::Text {
+            chunk_id: Some(1),
+            header: TextHeader::paragraph(),
+            body: "Before".into(),
+            pending_links: Vec::new(),
+            pending_cites: Vec::new(),
+            pending_fonts: Vec::new(),
+        },
+        ContentBlock::Layout {
+            chunk_id: Some(2),
+            layout: LayoutPayload {
+                ops: vec![
+                    LayoutOp::Place {
+                        skip: PlaceSkip::Frac {
+                            frac: MeasureFrac::FULL,
+                        },
+                        content: "▸".into(),
+                        spans: vec![],
+                    },
+                    LayoutOp::Vspace {
+                        amount: VspaceAmount::Med,
+                    },
+                    LayoutOp::Rule {
+                        width: RuleWidth::frac(MeasureFrac::FULL),
+                    },
+                ],
+            },
+        },
+        ContentBlock::Text {
+            chunk_id: Some(3),
+            header: TextHeader::paragraph(),
+            body: "After".into(),
+            pending_links: Vec::new(),
+            pending_cites: Vec::new(),
+            pending_fonts: Vec::new(),
+        },
+    ];
+    let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(text.contains("\\layout{"), "{text}");
+    assert!(text.contains("place frac=1"), "{text}");
+    assert!(text.contains("content=\"▸\""), "{text}");
+    assert!(text.contains("vspace=med"), "{text}");
+    assert!(text.contains("rule frac=1"), "{text}");
+    let decoded = decode_tessprek(&text).unwrap();
+    assert_eq!(decoded, blocks);
+}
+
+#[test]
+fn layout_rejects_unknown_op_in_tessprek() {
+    let text = "\\tessera{format=tessprek version=2}\n\\ids{1}\n\n\\layout{\n  gauge value=1\n}\n";
+    let err = decode_tessprek(text).unwrap_err();
+    assert!(
+        matches!(err, crate::error::TesError::EditParse { .. }),
+        "{err}"
+    );
+}
+
+#[test]
 fn decode_skips_rich_media_header() {
     let text = "\
 \\tessera{format=tessprek version=2}\n\

@@ -53,6 +53,7 @@ re-printing HTML/CSS. HTML remains the preview/interchange sink (D21).
 | Browser preview | `tes serve` + theme packs | Theme packs + safe reload | shipped (M7) |
 | PDF | `tes export --pdf` | HTML + print theme pipeline | shipped (M7) |
 | Slides | Region-based slide chunks | Named regions, no freeform coordinates | shipped (M9) |
+| Layout blocks | `ChunkType::Layout` + `place`/`vspace`/`rule` | Closed ops; weave paints; not pack macros | shipped (D24 / THI-363..364) |
 | History (first slice) | `save` / `log` / `diff` / `changelog` | Content-addressed revisions + drafts | shipped (M10) |
 | History (checkout / textconv / merge) | Materialize revisions; git Tessprek + verified merge | `export-revs` / `checkout` / `textconv` / `merge-file` | shipped (M10) |
 | History (redline) | Footer `pending` reserved | Authored ops + accept/reject | shipped (M10) |
@@ -229,6 +230,16 @@ etc.) referencing text/image/cite chunks. CSS grid/flex gives the renderer
 wide latitude. Freeform `x/y/w/h` coordinates are not part of layout v1.
 Animation is theme-layer presentation, not chunk data.
 
+### Layout blocks (D24)
+
+Reading-order **layout chunks** (`ChunkType::Layout` = `9`) seal a short
+ordered list of closed ops: `place`, `vspace`, `rule`. Packs never invent ops
+or Tessprek commands. Optional feature id: `layout`.
+
+Normative rules (units, flush-at-`frac=1`, errors, projections):
+[decisions.md — D24](decisions.md). Wire sketch: [print_ir.md](print_ir.md).
+Authoring: [tessprek.md](tessprek.md) (`\layout{…}`).
+
 ---
 
 ## Tessera Markdown and editing
@@ -328,6 +339,7 @@ Known optional feature ids in this build (all on `layout_version = 0`):
 | `citations` | Cite chunks and/or citation link edges |
 | `slides` | Slide chunks |
 | `figures` | Image and/or figure-ref chunks |
+| `layout` | Layout chunks (`place` / `vspace` / `rule`; D24) |
 
 Bump `layout_version` only when introducing a must-understand feature that
 older readers must fail closed on.

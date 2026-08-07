@@ -18,8 +18,10 @@ default) — THI-290 / THI-294 under epic THI-256. **0.2.1** requires weave
 0.2.2 (`TextRun.face` / pinned faces). **0.2.5** lands D23 Tessera Phase B:
 pack `weave.toml` → `EmitOptions` (THI-357), typography + aliases (THI-354),
 `\phrase` (THI-355), `\font` + `fonts.toml` pins (THI-356). **0.2.6** adds
-category default fonts via `weave.toml` (THI-360; weave **0.2.6**). Optional
-later: `\progress` when dogfood forces (THI-358).
+category default fonts via `weave.toml` (THI-360; weave **0.2.6**). **D24**
+layout blocks (`\layout` / `place`/`vspace`/`rule`) land with THI-361..365
+(local path weave until Actions recovers); Tesscriptor op-list UI is later
+(THI-366).
 Richer native layout (tables/math/decks, OS fonts) continues on that track /
 template dogfood. This is an implementation plan, not a release schedule.
 
@@ -35,7 +37,7 @@ links.
 | Tables | structured header table + TSV fallback | — | rich import/export |
 | Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`); multi-root membership (THI-217) | — | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
-| Human render | template packs, `tes serve`, Chromium PDF (default), native PDF via **`ariadnes-weave`** (`--backend native`), slides, theme polish; print IR; D23 pack overlays (`weave.toml` / `\font` pins / category fonts) | promote native default; tables/math/decks; OS fonts (THI-311) | widgets (`\progress`) when dogfood-forced |
+| Human render | template packs, `tes serve`, Chromium PDF (default), native PDF via **`ariadnes-weave`** (`--backend native`), slides, theme polish; print IR; D23 pack overlays (`weave.toml` / `\font` pins / category fonts); D24 layout blocks (`\layout`) | promote native default; tables/math/decks; OS fonts (THI-311) | Tesscriptor layout op UI (THI-366) when needed |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
 | History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR + push Tessprek (THI-212 / THI-219) | — | — |
 
@@ -269,9 +271,10 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **D23 follow-ons (optional):** `\progress` widget when dogfood forces
-   (THI-358). Category fonts (THI-360) shipped in weave + pack overlay.
-   Parent: [THI-351](https://linear.app/thicclatka/issue/THI-351).
+1. **D24 follow-ons:** Tesscriptor op-list UI (THI-366); optional master pack
+   TOML (THI-367). Wire + Tessprek + print + HTML/MD + docs (THI-361..365) are
+   on this branch; Eleatic `\progress` stays composed `place frac=…` (THI-358
+   canceled).
 2. **Native PDF deepen (THI-256):** tables/figures/math quality (THI-291),
    deck regions (THI-293), OS/font packs (THI-307 / THI-308 / THI-311), literary
    unfolding (THI-295); promote `--backend native` to default when ready.
@@ -281,7 +284,7 @@ freeze. CRDT/live cursors are not part of M10.
    benches continue as hygiene — see [mime.md](mime.md), [benchmarks.md](benchmarks.md).
 6. **Done in-tree:** parser hygiene 0.1.12 (THI-296..299); print bridge 0.2.0
    (THI-288..290 / THI-292 / THI-294); D23 Phase B 0.2.5 (THI-357 / 354 / 355 / 356);
-   category fonts 0.2.6 (THI-360).
+   category fonts 0.2.6 (THI-360); D24 layout blocks (THI-361..365).
 
 ---
 

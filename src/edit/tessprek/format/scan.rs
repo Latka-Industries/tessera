@@ -43,8 +43,19 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
 
         if let Some((kind, prefix)) = match_body_opener(trimmed) {
             let (attrs, cmd_end) = take_brace_command(lines, i, prefix, kind)?;
-            let map = parse_attrs(&attrs, line_no)?;
             i = cmd_end;
+            // `\layout{…}` carries op lines, not flat key=value attrs.
+            if kind == "layout" {
+                segments.push(Segment::Directive {
+                    start,
+                    end: i,
+                    kind: kind.to_owned(),
+                    map: BTreeMap::new(),
+                    body: attrs,
+                });
+                continue;
+            }
+            let map = parse_attrs(&attrs, line_no)?;
             match kind {
                 "text" => {
                     let body_start = i;

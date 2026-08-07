@@ -8,8 +8,8 @@ use crate::error::{Result, TesError};
 
 use super::ExportOptions;
 use super::common::{
-    decode_attachment_entry, decode_figure_entry, decode_text_entry, format_ai_cite_prose,
-    reading_order_scoped,
+    decode_attachment_entry, decode_figure_entry, decode_layout_entry, decode_text_entry,
+    format_ai_cite_prose, reading_order_scoped,
 };
 
 pub(super) fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -21,26 +21,18 @@ pub(super) fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<
         match entry.chunk_type {
             ChunkType::Text => {
                 let (_header, body) = decode_text_entry(file, entry)?;
-                let body = body.trim_end().to_owned();
-                if body.is_empty() {
-                    continue;
-                }
-                if options.annotate {
-                    parts.push(format!("<!-- chunk:{} -->\n{body}", entry.chunk_id));
-                } else {
-                    parts.push(body);
-                }
+                push_ai_text(&mut parts, options, entry.chunk_id, body.trim_end());
             }
             ChunkType::Cite if !options.no_cites => {
                 let raw = file.decode_payload(entry)?;
                 match CitePayload::from_bytes(&raw) {
                     Ok(cite) => {
-                        let text = format_ai_cite_prose(&cite);
-                        if options.annotate {
-                            parts.push(format!("<!-- chunk:{} -->\n{text}", entry.chunk_id));
-                        } else {
-                            parts.push(text);
-                        }
+                        push_ai_text(
+                            &mut parts,
+                            options,
+                            entry.chunk_id,
+                            &format_ai_cite_prose(&cite),
+                        );
                     }
                     Err(_) => {
                         parts.push(format!("[citation unresolved: chunk {}]", entry.chunk_id));
@@ -54,11 +46,11 @@ pub(super) fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<
                     text.push(' ');
                     text.push_str(caption.trim());
                 }
-                if options.annotate {
-                    parts.push(format!("<!-- chunk:{} -->\n{text}", entry.chunk_id));
-                } else {
-                    parts.push(text);
-                }
+                push_ai_text(&mut parts, options, entry.chunk_id, &text);
+            }
+            ChunkType::Layout => {
+                let text = decode_layout_entry(file, entry)?.lossy_prose();
+                push_ai_text(&mut parts, options, entry.chunk_id, &text);
             }
             ChunkType::Attachment => {
                 let att = decode_attachment_entry(file, entry)?;
@@ -70,11 +62,7 @@ pub(super) fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<
                     text.push(' ');
                     text.push_str(caption.trim());
                 }
-                if options.annotate {
-                    parts.push(format!("<!-- chunk:{} -->\n{text}", entry.chunk_id));
-                } else {
-                    parts.push(text);
-                }
+                push_ai_text(&mut parts, options, entry.chunk_id, &text);
             }
             _ => {}
         }
@@ -85,6 +73,17 @@ pub(super) fn export_ai_text(file: &TesFile, options: &ExportOptions) -> Result<
         out.push('\n');
     }
     Ok(out)
+}
+
+fn push_ai_text(parts: &mut Vec<String>, options: &ExportOptions, chunk_id: u64, text: &str) {
+    if text.trim().is_empty() {
+        return;
+    }
+    if options.annotate {
+        parts.push(format!("<!-- chunk:{chunk_id} -->\n{text}"));
+    } else {
+        parts.push(text.to_owned());
+    }
 }
 
 pub enum AiPart {
@@ -156,6 +155,12 @@ pub fn export_ai_parts(file: &TesFile, options: &ExportOptions) -> Result<Vec<Ai
                 let raw = file.decode_payload(entry)?;
                 if let Ok(cite) = CitePayload::from_bytes(&raw) {
                     parts.push(AiPart::Text(format_ai_cite_prose(&cite)));
+                }
+            }
+            ChunkType::Layout => {
+                let text = decode_layout_entry(file, entry)?.lossy_prose();
+                if !text.trim().is_empty() {
+                    parts.push(AiPart::Text(text));
                 }
             }
             _ => {}
