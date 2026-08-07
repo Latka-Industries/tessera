@@ -138,14 +138,15 @@ fn utf8_range(body: &str, start: u32, end: u32) -> Option<(usize, usize)> {
 
 fn apply_inline_kind(style: &mut InlineStyle, kind: &InlineKind) {
     match kind {
-        InlineKind::Emphasis | InlineKind::Term => style.emphasis = true,
+        InlineKind::Emphasis | InlineKind::Term | InlineKind::Quote => style.emphasis = true,
         InlineKind::Strong => style.strong = true,
-        InlineKind::Code => style.code = true,
+        // Inline math has no weave TextRun channel yet (display Math is a block).
+        // Show the latex source in monospace until weave grows inline math runs.
+        InlineKind::Code | InlineKind::Math { .. } => style.code = true,
         InlineKind::Link { .. } => style.link = true,
         InlineKind::Citation { .. } => style.cite = true,
-        InlineKind::Underline
-        | InlineKind::Quote
-        | InlineKind::Math { .. }
-        | InlineKind::Font { .. } => {}
+        // Weave paints underline only via cite policy today (`[cite].underline`).
+        // Per-run underline needs `InlineStyle.underline` on weave — leave no-op.
+        InlineKind::Underline | InlineKind::Font { .. } => {}
     }
 }

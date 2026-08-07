@@ -46,7 +46,7 @@ pub(crate) fn scan_tessprek_preamble(lines: &[&str], start: usize) -> TessprekPr
 /// Accepts a single-line `\cmd{…}` or a multiline form:
 ///
 /// ```text
-/// \text{
+/// \block{
 ///   title="…"
 ///   caption="…"
 /// }

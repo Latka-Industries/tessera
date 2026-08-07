@@ -50,12 +50,12 @@ conflict: `ok: false`, `code: "source-hash"`.
 Hover uses the standard LSP `textDocument/hover` method (Neovim: `K`, same as
 other language servers; VS Code / other clients: editor hover).
 
-- Brace commands (`\tessera{…}` / `\ids{…}` / `\media{…}` / `\text{…}` /
+- Brace commands (`\tessera{…}` / `\ids{…}` / `\media{…}` / `\block{…}` /
   `\figure{…}` / …) — parsed attrs on any line of a multiline block
   - `\tessera{…}` — catalog fields (`doc_id`, `title`, …)
   - `\ids{…}` — reading-order list (image payloads are in `\media`, not here)
   - `\media{…}` — per-payload `media:N` metadata (type / sha256 / size)
-  - `\text{…}` / `\figure{…}` — title/caption and other directive attrs
+  - `\block{…}` / `\figure{…}` — title/caption and other directive attrs
 - Body lines (prose, quote, …) — **chunk id**, role/type, title/caption when
   present; figures are attrs-only (`alt=` / `media:N` via `image=`)
 

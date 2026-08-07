@@ -47,7 +47,7 @@ pub(crate) fn build_content_blocks_with_spans(
             } => {
                 let before = out.len();
                 append_mixed_markdown_spanned(&mut out, lines, body_start, end, preserve.as_ref())?;
-                // Include the `\text{…}` opener lines in the first block's hover span.
+                // Include the `\block{…}` opener lines in the first block's hover span.
                 if preserve.is_some()
                     && let Some((block_start, _, _)) = out.get_mut(before)
                 {

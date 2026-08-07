@@ -14,8 +14,8 @@ use crate::io::font::PendingFont;
 use super::super::ContentBlock;
 use super::layout_ops::layout_op_parts;
 use super::markers::{
-    ATTACH_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX, LAYOUT_PREFIX,
-    MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX, TEXT_PREFIX, VERSION,
+    ATTACH_PREFIX, BLOCK_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX,
+    LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX, VERSION,
 };
 use super::types::{TessprekDocMeta, TessprekMediaEntry};
 use super::util::{kv_attr, quoted_attr};
@@ -59,7 +59,7 @@ pub fn encode_content_blocks(
                 ..
             } => {
                 let ordered_index = ordered.take_for_text(header);
-                write_text_directive(&mut out, header);
+                write_block_directive(&mut out, header);
                 out.push_str(
                     render_text_body(
                         header,
@@ -307,9 +307,9 @@ fn render_text_body(
     header.render_markdown_with_links_indexed(&body, &synthetic_links, ordered_index)
 }
 
-/// Write `\text{title=… caption=… class=… …}` when the header carries attrs
+/// Write `\block{title=… caption=… class=… …}` when the header carries attrs
 /// that cannot live in plain Markdown. Emits nothing otherwise.
-fn write_text_directive(out: &mut String, header: &TextHeader) {
+fn write_block_directive(out: &mut String, header: &TextHeader) {
     if header.classes.is_empty()
         && header.lang.is_none()
         && header.align.is_none()
@@ -334,7 +334,7 @@ fn write_text_directive(out: &mut String, header: &TextHeader) {
     if let Some(align) = header.align {
         parts.push(format!("align={}", align.as_str()));
     }
-    write_brace_block(out, TEXT_PREFIX, &parts);
+    write_brace_block(out, BLOCK_PREFIX, &parts);
 }
 
 fn write_figure_directive(out: &mut String, figure: &FigureRef) {

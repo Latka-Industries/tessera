@@ -30,7 +30,9 @@ pub const IDS_PREFIX: &str = "\\ids{";
 /// These are **not** in `\ids{}` (media store, not reading-order blocks).
 /// They are what `media:N` / `\figure{image=N}` point at.
 pub const MEDIA_PREFIX: &str = "\\media{";
-/// Optional preserved-attrs directive before a Markdown block.
+/// Optional preserved-attrs directive before a Markdown block (table/math/code).
+pub const BLOCK_PREFIX: &str = "\\block{";
+/// Legacy alias for [`BLOCK_PREFIX`] — still accepted on read; encode emits `\block{}`.
 pub const TEXT_PREFIX: &str = "\\text{";
 /// Figure directive: `\figure{image=… placement=… alt=…}` (no Markdown body).
 pub const FIGURE_PREFIX: &str = "\\figure{";
@@ -49,8 +51,10 @@ pub const ATTACH_PREFIX: &str = "\\attach{";
 /// Closing delimiter for every brace command.
 pub const BRACE_SUFFIX: &str = "}";
 
-/// Preferred attribute keys for `\text{…}` (completion + hover order).
-pub const TEXT_ATTR_KEYS: &[&str] = &["title", "caption", "class", "lang", "align", "code_lang"];
+/// Preferred attribute keys for `\block{…}` (completion + hover order).
+pub const BLOCK_ATTR_KEYS: &[&str] = &["title", "caption", "class", "lang", "align", "code_lang"];
+/// Deprecated alias for [`BLOCK_ATTR_KEYS`].
+pub const TEXT_ATTR_KEYS: &[&str] = BLOCK_ATTR_KEYS;
 /// Preferred attribute keys for `\figure{…}`.
 pub const FIGURE_ATTR_KEYS: &[&str] = &["image", "placement", "alt", "region", "title", "caption"];
 /// Preferred attribute keys for bibliography `\cite{…}`.
@@ -91,12 +95,12 @@ pub const ATTACH_ATTR_KEYS: &[&str] = &["chunk", "filename", "media_type", "sha2
 /// Preferred attribute keys for `\media{…}` header rows.
 pub const MEDIA_ATTR_KEYS: &[&str] = &["id", "media_type", "sha256", "width", "height"];
 
-/// Attribute keys for a Tessprek command kind (`text`, `cite`, `attach`, …).
+/// Attribute keys for a Tessprek command kind (`block`, `cite`, `attach`, …).
 #[must_use]
 pub fn command_attr_keys(kind: &str) -> Option<&'static [&'static str]> {
     Some(match kind {
         "tessera" => TESSERA_HEADER_KEYS,
-        "text" => TEXT_ATTR_KEYS,
+        "block" | "text" => BLOCK_ATTR_KEYS,
         "figure" => FIGURE_ATTR_KEYS,
         "cite" => CITE_ATTR_KEYS,
         "quote" | "ref" => QUOTE_ATTR_KEYS,
@@ -115,10 +119,10 @@ pub const HEADER_COMMANDS: &[(&str, &str)] = &[
     (MEDIA_PREFIX, "media"),
 ];
 
-/// Body brace lines (structured chunks + optional `\text`).
+/// Body brace lines (structured chunks + optional `\block`).
 /// Kind `attachment` matches [`super::decode_named_directive`].
 pub const BODY_COMMANDS: &[(&str, &str)] = &[
-    (TEXT_PREFIX, "text"),
+    (BLOCK_PREFIX, "block"),
     (FIGURE_PREFIX, "figure"),
     (CITE_PREFIX, "cite"),
     (QUOTE_PREFIX, "quote"),
@@ -127,6 +131,10 @@ pub const BODY_COMMANDS: &[(&str, &str)] = &[
     (LAYOUT_PREFIX, "layout"),
     (ATTACH_PREFIX, "attachment"),
 ];
+
+/// Legacy body openers — parsed as the same kinds as [`BODY_COMMANDS`].
+/// Not offered in completions; encode never emits these.
+pub const LEGACY_BODY_OPENERS: &[(&str, &str)] = &[(TEXT_PREFIX, "block")];
 
 /// Wire surface name for completions (`attachment` → `attach`).
 #[must_use]
@@ -145,13 +153,14 @@ pub fn parse_brace_command(trimmed: &str, include_header: bool) -> Option<(&'sta
         return Some(hit);
     }
     match_brace_closed(trimmed, BODY_COMMANDS)
+        .or_else(|| match_brace_closed(trimmed, LEGACY_BODY_OPENERS))
 }
 
-/// Match a body command opener (`\text{`, `\figure{`, …) even when `}` is
-/// on a later line. Returns `(kind, prefix)`.
+/// Match a body command opener (`\block{`, `\figure{`, …) even when `}` is
+/// on a later line. Returns `(kind, prefix)`. Legacy `\text{` maps to `block`.
 #[must_use]
 pub fn match_body_opener(trimmed: &str) -> Option<(&'static str, &'static str)> {
-    for &(prefix, kind) in BODY_COMMANDS {
+    for &(prefix, kind) in BODY_COMMANDS.iter().chain(LEGACY_BODY_OPENERS.iter()) {
         if trimmed.starts_with(prefix) {
             return Some((kind, prefix));
         }

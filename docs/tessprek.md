@@ -24,7 +24,7 @@ Markdown has no syntax for.
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
 | Pack phrase (expand) | `\phrase{key}{arg}` → ordinary prose at format (lossy; not a sealed span) |
-| Text attrs that can't live in Markdown (`class` / `lang` / `align`) | Optional `\text{…}` immediately before the Markdown block |
+| Text attrs that can't live in Markdown (`class` / `lang` / `align` / `title` / `caption`) | Optional `\block{…}` immediately before the Markdown block |
 | Document header | `\tessera{format=tessprek version=2 source-hash=… [doc meta…]}` |
 | Reading order | `\ids{1,2,3,6,7}` (flat list, regenerated on every encode) |
 | Media payloads | `\media{…}` multiline (id / media_type / sha256 / width / height) |
@@ -189,14 +189,14 @@ Emitted when the document has figures; ignored on decode (regenerated from the
 `.tes` on `edit-read`). `tes format` preserves declared attrs when open as a
 buffer only. Legacy `\media{7}` / packed one-line entries still skip cleanly.
 
-### `\text{title="…" caption="…" class="…" lang=… align=…}`
+### `\block{title="…" caption="…" class="…" lang=… align=…}`
 
 Optional, immediately before a Markdown block, for the few `TextHeader`
 attributes Markdown can't express. Prefer the multiline form (same shape as
 `\tessera{…}`):
 
 ````text
-\text{
+\block{
   title="Listing 1"
   caption="Prints hello"
 }
@@ -212,8 +212,11 @@ fn main() {}
 
 Also accepted: `class`, `lang`, `align`. Everything else — role, heading level,
 list kind/depth, fence language, table structure — comes from Markdown. When a
-`\text{}` precedes a multi-block Markdown run, attrs apply to **at least the
+`\block{}` precedes a multi-block Markdown run, attrs apply to **at least the
 first** resulting block.
+
+Legacy `\text{…}` is still accepted on read and rewritten to `\block{…}` on
+encode / `tes format`.
 
 ### `\figure{image=N placement=… alt="…" [region="…"] [title="…"] [caption="…"]}`
 
@@ -285,7 +288,7 @@ No body; attachment bytes are never projected into Tessprek (inert — see
 2. Collect the reading-order chunk ids → `\ids{…}`.
 3. Collect figure image payloads → `\media{…}` rows with type/hash/size (omit if
    none).
-4. Per chunk: text → optional `\text{…}` + Markdown via
+4. Per chunk: text → optional `\block{…}` + Markdown via
    `OrderedListNumbering` + `TextHeader::render_markdown_with_links_indexed`
    (contiguous ordered items become `1.` / `2.` / …; nested depths restart;
    consecutive list items stay tight — one `\n`, not a blank line);
@@ -308,7 +311,8 @@ No body; attachment bytes are never projected into Tessprek (inert — see
 5. Zip the resulting blocks with `\ids{}` in order; **error** on a count
    mismatch (message points at `:TesseraFormat` / format-on-save /
    `tes format` to refresh `\ids{}`).
-6. `\text{…}` attrs apply to the first block of the following free run.
+6. `\block{…}` (or legacy `\text{…}`) attrs apply to the first block of the
+   following free run.
 
 `normalize_tessprek` (`tes format`) reuses the same scanner but is lenient
 about the header/`\ids{}` and reallocates ids positionally (reusing declared

@@ -47,7 +47,7 @@ fn round_trip_text_classes() {
         "{text}"
     );
     assert!(text.contains("class=\"lead\""), "{text}");
-    assert!(text.contains("\\text{"), "{text}");
+    assert!(text.contains("\\block{"), "{text}");
     assert!(text.contains("# Hello"), "{text}");
     let blocks = decode_tessprek(&text).unwrap();
     assert_eq!(blocks.len(), 2);

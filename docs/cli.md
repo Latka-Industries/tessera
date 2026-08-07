@@ -383,7 +383,7 @@ commands for structured chunks. Full grammar: [docs/tessprek.md](tessprek.md).
 role / list depth / fence language purely from their Markdown shape (same
 inference as `tes import --markdown`), multi-block bodies are split into one
 block per chunk, and `\ids{}` is reused positionally when possible. Free
-Markdown (no `\text{}`) is accepted. With `--template` / `--template-root`
+Markdown (no `\block{}`) is accepted. With `--template` / `--template-root`
 (or `TES_TEMPLATE_ROOT` + Tessprek `template_id`), pack `typography.toml` /
 `aliases.toml` / `phrases.toml` expand once before normalize (D23; fenced code
 skipped). `\phrase{key}` / `\phrase{key}{arg}` become ordinary Markdown prose.

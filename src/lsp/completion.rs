@@ -217,8 +217,8 @@ fn command_snippet(surface: &str) -> (String, &'static str) {
                 .into(),
             "media payload header (media:N targets)",
         ),
-        "text" => (
-            "\\text{${1:title=\"\" caption=\"\"}}$0".into(),
+        "block" => (
+            "\\block{${1:title=\"\" caption=\"\"}}$0".into(),
             "title/caption/class/lang/align",
         ),
         "figure" => (

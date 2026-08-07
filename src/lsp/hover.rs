@@ -8,7 +8,7 @@ use tower_lsp::lsp_types::{Hover, HoverContents, MarkupContent, MarkupKind, Posi
 use crate::catalog::chunk::TextRole;
 use crate::edit::ContentBlock;
 use crate::edit::markers::{
-    BODY_COMMANDS, HEADER_COMMANDS, command_attr_keys, parse_brace_command,
+    BODY_COMMANDS, HEADER_COMMANDS, LEGACY_BODY_OPENERS, command_attr_keys, parse_brace_command,
 };
 use crate::edit::tessprek::{
     parse_attrs, parse_media_header, take_brace_command, take_leading_tessera_header,
@@ -81,7 +81,7 @@ fn tessera_header_hover(text: &str, line: usize) -> Option<Hover> {
     ))
 }
 
-/// Hover for multiline `\media{…}`, `\figure{…}`, `\text{…}`, etc. when the
+/// Hover for multiline `\media{…}`, `\figure{…}`, `\block{…}`, etc. when the
 /// cursor is on any line of the brace block (not only the opener).
 fn brace_block_hover(text: &str, line: usize) -> Option<Hover> {
     let lines: Vec<&str> = text.lines().collect();
@@ -91,6 +91,7 @@ fn brace_block_hover(text: &str, line: usize) -> Option<Hover> {
         let hit = HEADER_COMMANDS
             .iter()
             .chain(BODY_COMMANDS.iter())
+            .chain(LEGACY_BODY_OPENERS.iter())
             .find(|&&(prefix, kind)| kind != "tessera" && trimmed.starts_with(prefix));
         let Some(&(prefix, kind)) = hit else {
             i += 1;
@@ -310,7 +311,7 @@ fn format_command_hover(kind: &str, map: &BTreeMap<String, String>) -> String {
             "\n\nPoints at image payload `media:{image}` (see `\\media{{}}`)."
         );
     }
-    if kind == "text" {
+    if kind == "block" {
         out.push_str(
             "\n\nOptional label for the following Markdown block (`title` above, `caption` below on table/math/code).",
         );
@@ -568,12 +569,12 @@ Hello\n\
     }
 
     #[test]
-    fn hover_text_title_caption_directive() {
+    fn hover_block_title_caption_directive() {
         let text = "\
 \\tessera{format=tessprek version=2}\n\
 \\ids{1}\n\
 \n\
-\\text{\n\
+\\block{\n\
   title=\"Listing 1\"\n\
   caption=\"Hello\"\n\
 }\n\
@@ -588,9 +589,9 @@ fn main() {}\n\
                 character: 4,
             },
         )
-        .expect("text directive hover");
+        .expect("block directive hover");
         let plain = hover_plain(&h);
-        assert!(plain.contains("\\text"), "{plain}");
+        assert!(plain.contains("\\block"), "{plain}");
         assert!(plain.contains("Listing 1"), "{plain}");
         assert!(plain.contains("Hello"), "{plain}");
 
