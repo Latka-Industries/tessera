@@ -3,7 +3,7 @@
 **Status:** M0–M11 shipped; crate **0.2.7** (document-depth wire: Tessprek v2,
 captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering; **D23** pack
 authoring complete — category fonts, master `tessera.toml`, pack-aware LSP).
-Native-print continues via **`ariadnes-weave` ≥ 0.2.7**;
+Native-print continues via **`ariadnes-weave` ≥ 0.2.8**;
 Chromium remains the default PDF backend. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),

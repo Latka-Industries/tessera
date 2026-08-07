@@ -1,9 +1,8 @@
 # Pack-pinned fonts for native PDF (`EmitOptions::pinned_faces`, D23 / THI-356).
 # Tessprek: `\font{id}{text}` seals to InlineKind::Font.
-# Stand-in TTF paths share test-face.ttf until dogfood packs ship real faces.
 
 [fonts]
 test = "fonts/test-face.ttf"
-armenian = "fonts/test-face.ttf"
-greek = "fonts/test-face.ttf"
-cyrillic = "fonts/test-face.ttf"
+armenian = "fonts/DroidSansArmenian.ttf"
+greek = "fonts/LiberationSans-Regular.ttf"
+cyrillic = "fonts/LiberationSans-Regular.ttf"

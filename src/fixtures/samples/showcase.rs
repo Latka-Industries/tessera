@@ -3,22 +3,18 @@
 use uuid::Uuid;
 
 use crate::catalog::{
-    AttachmentPayload, CitePayload, FigureRef, ImagePayload, ImagePlacement, InlineKind,
-    InlineSpan, LinkEntry, LinkKind, ListKind, TableData, TableRow, TesWriterSession, TextHeader,
-    TextRole,
+    AttachmentPayload, CitePayload, InlineKind, InlineSpan, LinkEntry, LinkKind, ListKind,
+    TableData, TableRow, TesWriterSession, TextHeader, TextRole,
 };
 use crate::io::bib::BibEntry;
 use crate::layout::DocKind;
 
-use super::super::v0::PNG_1X1;
-use super::common::{catalog, cell, title_body_slide};
+use super::common::{add_flow_figure, add_swatch_image, catalog, cell, title_body_slide};
 
 /// Umbrella Tessprek element tour for nvim / LSP (`tessprek_showcase.tes`).
 ///
-/// Covers text roles + inline spans, captioned blocks, figure/media, biblio
-/// `\cite` / `\quote` / `\ref`, slide, attachment, TLNK, and a live
-/// `\phrase{…}` line (expands on `:TesseraFormat` / `tes format` with pack
-/// `minimal`; sealed bytes keep the macro until then).
+/// Sealed **results** only — what native PDF / nvim should show after format.
+/// Raw Tessprek macros live in `phrases_demo.tessprek` for format smoke.
 ///
 /// # Panics
 ///
@@ -64,33 +60,29 @@ pub fn encode_tessprek_showcase() -> Vec<u8> {
     session.encode_file().expect("tessprek_showcase")
 }
 
-/// Live `\phrase` macros in body text (expand at format with pack `minimal`).
+/// Sealed result of pack phrase `yegourdoon` → italic body (what format emits).
 fn add_showcase_phrases(session: &mut TesWriterSession) {
     session
         .add_text_chunk(&TextHeader::heading(2), "Pack phrases")
         .expect("h2 phrases");
-    session
-        .add_text_chunk(
-            &TextHeader::paragraph(),
-            "Pack expansion (D23 / THI-355): \\phrase{yegourdoon}{I am Yes} — format with template minimal turns that into italic prose.",
-        )
-        .expect("phrase line");
-    session
-        .add_text_chunk(
-            &TextHeader::paragraph(),
-            "Type \\phr and complete for the LSP snippet. Companion buffer: phrases_demo.tessprek.",
-        )
-        .expect("phrase lsp hint");
+    // minimal phrases.toml: yegourdoon = "*{arg}*" with arg "I am Yes"
+    let body = "I am Yes";
+    let mut para = TextHeader::paragraph();
+    para.spans = vec![InlineSpan {
+        start: 0,
+        end: u32::try_from(body.len()).unwrap_or(0),
+        kind: InlineKind::Emphasis,
+    }];
+    session.add_text_chunk(&para, body).expect("phrase result");
 }
 
-/// Several sealed `\font{id}{…}` spans in one paragraph (multi-script demo).
+/// Sealed pack font pins — multi-script runs, not Tessprek source text.
 fn add_showcase_fonts(session: &mut TesWriterSession) {
     session
         .add_text_chunk(&TextHeader::heading(2), "Pack fonts")
         .expect("h2 fonts");
 
-    // A few pack pins in one paragraph — mixed alphabets in a single .tes.
-    // Stand-in TTFs share `test-face.ttf` until dogfood packs ship real faces.
+    // Pack pins from minimal fonts.toml (real TTFs with those scripts).
     let segments: &[(&str, Option<&str>)] = &[
         ("Mixed scripts in one paragraph: ", None),
         ("բարև", Some("armenian")),
@@ -119,12 +111,6 @@ fn add_showcase_fonts(session: &mut TesWriterSession) {
     let mut para = TextHeader::paragraph();
     para.spans = spans;
     session.add_text_chunk(&para, &body).expect("font line");
-    session
-        .add_text_chunk(
-            &TextHeader::paragraph(),
-            "Tessprek: \\font{armenian}{…} / \\font{greek}{…} / \\font{cyrillic}{…} (pack fonts.toml pins). LSP completes ids from the pack (THI-369).",
-        )
-        .expect("font lsp hint");
 }
 
 fn add_showcase_prose(session: &mut TesWriterSession) {
@@ -215,12 +201,15 @@ fn add_showcase_captioned(session: &mut TesWriterSession) {
                 cells: vec![cell("prose", false), cell("Markdown body", false)],
             },
             TableRow {
-                cells: vec![cell("figure", false), cell("\\figure{…}", false)],
+                cells: vec![
+                    cell("figure", false),
+                    cell("image + title + caption", false),
+                ],
             },
             TableRow {
                 cells: vec![
                     cell("cite family", false),
-                    cell("\\cite / \\quote / \\ref", false),
+                    cell("citation, quote, ref", false),
                 ],
             },
         ],
@@ -243,23 +232,15 @@ fn add_showcase_media_and_slide(session: &mut TesWriterSession) -> (u64, u64) {
             "Slide body region — figure and attachment sit nearby in reading order.",
         )
         .expect("slide body");
-    let image_id = session
-        .add_image_chunk(&ImagePayload {
-            media_type: "image/png".into(),
-            width_px: 1,
-            height_px: 1,
-            data: PNG_1X1.to_vec(),
-        })
-        .expect("image");
-    session
-        .add_figure(&FigureRef {
-            image_chunk_id: image_id,
-            alt_text: "One red pixel".into(),
-            title: Some("Fixture PNG".into()),
-            caption: Some("1×1 PNG standing in for a figure still.".into()),
-            placement: ImagePlacement::Flow,
-        })
-        .expect("figure");
+    let image_id = add_swatch_image(session).expect("image");
+    add_flow_figure(
+        session,
+        image_id,
+        "Alignment swatch",
+        Some("Fixture PNG"),
+        Some("240×120 swatch standing in for a figure still."),
+    )
+    .expect("figure");
     (slide_title, slide_body)
 }
 

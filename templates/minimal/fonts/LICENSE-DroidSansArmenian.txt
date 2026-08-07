@@ -1,0 +1,3 @@
+DroidSansArmenian.ttf is part of the Droid fonts by Google / Ascender.
+Licensed under the Apache License, Version 2.0.
+See https://github.com/googlefonts/droid-fonts and the Apache-2.0 license.

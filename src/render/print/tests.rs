@@ -442,7 +442,7 @@ fn inline_quote_and_math_map_emphasis_and_code() {
 }
 
 #[test]
-fn inline_underline_still_unmapped() {
+fn inline_underline_maps_style_underline() {
     let body = "under here";
     let start = body.find("under").unwrap() as u32;
     let end = start + "under".len() as u32;
@@ -461,11 +461,51 @@ fn inline_underline_still_unmapped() {
     };
     let under = runs.iter().find(|r| r.text == "under").expect("under run");
     assert!(
-        !under.style.strong
-            && !under.style.emphasis
-            && !under.style.code
-            && !under.style.link
-            && !under.style.cite,
-        "underline must stay a no-op until weave InlineStyle.underline: {under:?}"
+        under.style.underline && !under.style.cite,
+        "underline must set InlineStyle.underline: {under:?}"
     );
+}
+
+#[test]
+fn figure_title_and_caption_use_figure_fields() {
+    use crate::catalog::media::{FigureRef, ImagePayload, ImagePlacement};
+    use crate::fixtures::v0::PNG_1X1;
+
+    let mut session = TesWriterSession::create("fig_title.tes", DocKind::Note);
+    let image_id = session
+        .add_image_chunk(&ImagePayload {
+            media_type: "image/png".into(),
+            width_px: 1,
+            height_px: 1,
+            data: PNG_1X1.to_vec(),
+        })
+        .expect("image");
+    session
+        .add_figure(&FigureRef {
+            image_chunk_id: image_id,
+            alt_text: "alt".into(),
+            title: Some("Hero".into()),
+            caption: Some("A still".into()),
+            placement: ImagePlacement::Flow,
+        })
+        .expect("figure");
+    let file = open_bytes("fig_title.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    match &doc.blocks[0] {
+        PrintBlock::Figure { title, caption, .. } => {
+            assert_eq!(title.len(), 1);
+            assert_eq!(title[0].text, "Hero");
+            assert!(
+                !title[0].style.strong,
+                "title runs are plain; weave styles band"
+            );
+            assert_eq!(caption.len(), 1);
+            assert_eq!(caption[0].text, "A still");
+            assert!(
+                !caption[0].style.emphasis,
+                "caption runs are plain; weave [caption] knobs own italic: {caption:?}"
+            );
+        }
+        other => panic!("expected Figure, got {other:?}"),
+    }
 }

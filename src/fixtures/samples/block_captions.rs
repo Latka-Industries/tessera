@@ -1,13 +1,9 @@
 //! Every caption surface in one note (`block_captions.tes`).
 
-use crate::catalog::{
-    AttachmentPayload, FigureRef, ImagePayload, ImagePlacement, TableData, TableRow,
-    TesWriterSession, TextHeader,
-};
+use crate::catalog::{AttachmentPayload, TableData, TableRow, TesWriterSession, TextHeader};
 use crate::layout::DocKind;
 
-use super::super::v0::PNG_1X1;
-use super::common::{catalog, cell};
+use super::common::{add_flow_figure, add_swatch_image, catalog, cell};
 
 /// Every caption surface in one note (`block_captions.tes`).
 ///
@@ -94,23 +90,15 @@ pub fn encode_block_captions() -> Vec<u8> {
     table.caption = Some("Title sits above; caption sits below.".into());
     session.add_text_chunk(&table, "").expect("table");
 
-    let image_id = session
-        .add_image_chunk(&ImagePayload {
-            media_type: "image/png".into(),
-            width_px: 1,
-            height_px: 1,
-            data: PNG_1X1.to_vec(),
-        })
-        .expect("image");
-    session
-        .add_figure(&FigureRef {
-            image_chunk_id: image_id,
-            alt_text: "One red pixel".into(),
-            title: Some("Fixture PNG".into()),
-            caption: Some("Stands in for a figure still.".into()),
-            placement: ImagePlacement::Flow,
-        })
-        .expect("figure");
+    let image_id = add_swatch_image(&mut session).expect("image");
+    add_flow_figure(
+        &mut session,
+        image_id,
+        "Alignment swatch",
+        Some("Fixture PNG"),
+        Some("Stands in for a figure still."),
+    )
+    .expect("figure");
     session
         .add_attachment_chunk(
             &AttachmentPayload::new(

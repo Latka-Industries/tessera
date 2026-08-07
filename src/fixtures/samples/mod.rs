@@ -6,6 +6,7 @@
 mod block_captions;
 mod common;
 mod field_notes;
+mod figure_align;
 mod manuscript;
 mod showcase;
 mod studio_brief;
@@ -13,6 +14,7 @@ mod text_roles;
 
 pub use block_captions::encode_block_captions;
 pub use field_notes::encode_field_notes;
+pub use figure_align::encode_figure_align;
 pub use manuscript::encode_manuscript_chapters;
 pub use showcase::encode_tessprek_showcase;
 pub use studio_brief::encode_studio_brief;
@@ -36,6 +38,7 @@ pub fn write_all(dir: &Path) -> Result<()> {
         ("field_notes.tes", encode_field_notes()),
         ("studio_brief.tes", encode_studio_brief()),
         ("block_captions.tes", encode_block_captions()),
+        ("figure_align.tes", encode_figure_align()),
         ("manuscript_chapters.tes", encode_manuscript_chapters()),
     ];
     for (name, bytes) in files {

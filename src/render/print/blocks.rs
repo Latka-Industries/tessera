@@ -1,7 +1,7 @@
 //! Map text / figure / slide chunks to weave [`PrintBlock`]s.
 
 use ariadnes_weave::{
-    BreakHint, EmAmount as WeaveEm, FigurePlacement, InlineStyle, LayoutOp as WeaveLayoutOp,
+    BreakHint, EmAmount as WeaveEm, FigurePlacement, LayoutOp as WeaveLayoutOp,
     MeasureFrac as WeaveFrac, PlaceSkip as WeavePlaceSkip, PrintBlock, PrintImage, PrintProfileId,
     RuleWidth as WeaveRuleWidth, SlideRegionContent, TableRow, TextRun,
     VspaceAmount as WeaveVspace,
@@ -99,20 +99,6 @@ pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Prin
         chunk_id: image_entry.chunk_id,
         message: e.to_string(),
     })?;
-    let caption = figure
-        .caption
-        .as_deref()
-        .map(|c| {
-            vec![TextRun {
-                text: c.to_owned(),
-                style: InlineStyle {
-                    emphasis: true,
-                    ..InlineStyle::default()
-                },
-                face: None,
-            }]
-        })
-        .unwrap_or_default();
     Ok(PrintBlock::Figure {
         image: PrintImage {
             bytes: image.data,
@@ -121,9 +107,18 @@ pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Prin
             height_px: (image.height_px > 0).then_some(image.height_px),
         },
         alt: figure.alt_text,
-        caption,
+        title: plain_label_runs(figure.title.as_deref()),
+        // Plain caption runs — weave `[caption]` knobs (italic/size/band) own paint.
+        caption: plain_label_runs(figure.caption.as_deref()),
         placement: map_figure_placement(&figure.placement),
     })
+}
+
+/// Optional figure title/caption → zero or one plain [`TextRun`].
+fn plain_label_runs(label: Option<&str>) -> Vec<TextRun> {
+    super::nonempty_label(label)
+        .map(|s| vec![TextRun::plain(s)])
+        .unwrap_or_default()
 }
 
 fn map_figure_placement(placement: &ImagePlacement) -> FigurePlacement {
