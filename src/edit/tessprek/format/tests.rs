@@ -30,6 +30,7 @@ fn splits_free_markdown_and_assigns_sequential_ids() {
     assert!(out.contains("- one"), "{out}");
     assert!(out.contains("- two"), "{out}");
     // No brace directives needed for plain roles.
+    assert!(!out.contains("\\block{"), "{out}");
     assert!(!out.contains("\\text{"), "{out}");
 }
 
@@ -124,44 +125,55 @@ fn second_table_via_copied_divider_no_blank() {
 }
 
 #[test]
-fn text_directive_preserves_class_and_align() {
-    let input = "\\text{class=\"lead\" align=center}\n# Hello\n";
+fn block_directive_preserves_class_and_align() {
+    let input = "\\block{class=\"lead\" align=center}\n# Hello\n";
     let out = normalize_tessprek(input).unwrap();
     assert!(out.contains("class=\"lead\""), "{out}");
     assert!(out.contains("align=center"), "{out}");
     assert!(out.contains("# Hello"), "{out}");
+    assert!(out.contains("\\block{"), "{out}");
 }
 
 #[test]
-fn text_directive_preserves_caption_on_table() {
-    let input = "\\text{caption=\"Results\"}\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+fn legacy_text_directive_rewrites_to_block() {
+    let input = "\\text{class=\"lead\" align=center}\n# Hello\n";
+    let out = normalize_tessprek(input).unwrap();
+    assert!(out.contains("\\block{"), "{out}");
+    assert!(!out.contains("\\text{"), "{out}");
+    assert!(out.contains("class=\"lead\""), "{out}");
+}
+
+#[test]
+fn block_directive_preserves_caption_on_table() {
+    let input = "\\block{caption=\"Results\"}\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";
     let out = normalize_tessprek(input).unwrap();
     assert!(out.contains("caption=\"Results\""), "{out}");
     assert!(out.contains("| A | B |"), "{out}");
 }
 
 #[test]
-fn text_directive_preserves_caption_on_code() {
-    let input = "\\text{caption=\"Snippet\"}\n```rust\nfn main() {}\n```\n";
+fn block_directive_preserves_caption_on_code() {
+    let input = "\\block{caption=\"Snippet\"}\n```rust\nfn main() {}\n```\n";
     let out = normalize_tessprek(input).unwrap();
     assert!(out.contains("caption=\"Snippet\""), "{out}");
     assert!(out.contains("```rust"), "{out}");
 }
 
 #[test]
-fn text_directive_rejects_caption_on_heading() {
-    let input = "\\text{caption=\"Nope\"}\n# Hello\n";
+fn block_directive_rejects_caption_on_heading() {
+    let input = "\\block{caption=\"Nope\"}\n# Hello\n";
     assert!(normalize_tessprek(input).is_err());
 }
 
 #[test]
-fn multiline_text_title_and_caption() {
+fn multiline_block_title_and_caption() {
     let input =
-        "\\text{\n  title=\"Listing\"\n  caption=\"Says hi\"\n}\n```rust\nfn main() {}\n```\n";
+        "\\block{\n  title=\"Listing\"\n  caption=\"Says hi\"\n}\n```rust\nfn main() {}\n```\n";
     let out = normalize_tessprek(input).unwrap();
     assert!(out.contains("title=\"Listing\""), "{out}");
     assert!(out.contains("caption=\"Says hi\""), "{out}");
-    assert!(out.contains("\\text{\n"), "{out}");
+    assert!(out.contains("\\block{\n"), "{out}");
+    assert!(!out.contains("\\text{"), "{out}");
     assert!(out.contains("```rust"), "{out}");
 }
 

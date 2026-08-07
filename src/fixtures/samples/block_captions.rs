@@ -11,7 +11,7 @@ use super::common::{catalog, cell};
 
 /// Every caption surface in one note (`block_captions.tes`).
 ///
-/// Covers `\text{caption=…}` targets (table / math / code / mermaid) plus
+/// Covers `\block{caption=…}` targets (table / math / code / mermaid) plus
 /// figure and attachment captions so Tessprek edit-read shows the full set.
 ///
 /// # Panics

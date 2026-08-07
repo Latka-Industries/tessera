@@ -373,3 +373,99 @@ fn layout_place_frac_flush_maps_to_weave() {
         other => panic!("expected Layout block, got {other:?}"),
     }
 }
+
+#[test]
+fn chunk_title_and_caption_use_label_styles() {
+    let mut session = TesWriterSession::create("caption.tes", DocKind::Note);
+    let mut math = TextHeader::math();
+    math.title = Some("Eq. label".into());
+    math.caption = Some("A short caption.".into());
+    session.add_text_chunk(&math, "E = mc^2").unwrap();
+    let file = open_bytes("caption.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    assert_eq!(doc.blocks.len(), 3);
+    match &doc.blocks[0] {
+        PrintBlock::Paragraph { runs } => {
+            assert_eq!(runs.len(), 1);
+            assert!(runs[0].style.strong, "{runs:?}");
+            assert_eq!(runs[0].text, "Eq. label");
+        }
+        other => panic!("expected title paragraph, got {other:?}"),
+    }
+    assert!(matches!(doc.blocks[1], PrintBlock::Math { .. }));
+    match &doc.blocks[2] {
+        PrintBlock::Paragraph { runs } => {
+            assert_eq!(runs.len(), 1);
+            assert!(runs[0].style.emphasis, "{runs:?}");
+            assert_eq!(runs[0].text, "A short caption.");
+        }
+        other => panic!("expected caption paragraph, got {other:?}"),
+    }
+}
+
+#[test]
+fn inline_quote_and_math_map_emphasis_and_code() {
+    let body = "say hello and x^2";
+    let quote_start = body.find("hello").unwrap() as u32;
+    let quote_end = quote_start + "hello".len() as u32;
+    let math_start = body.find("x^2").unwrap() as u32;
+    let math_end = math_start + "x^2".len() as u32;
+    let mut para = TextHeader::paragraph();
+    para.spans = vec![
+        InlineSpan {
+            start: quote_start,
+            end: quote_end,
+            kind: InlineKind::Quote,
+        },
+        InlineSpan {
+            start: math_start,
+            end: math_end,
+            kind: InlineKind::Math { tex: "x^2".into() },
+        },
+    ];
+    let mut session = TesWriterSession::create("inline_gaps.tes", DocKind::Note);
+    session.add_text_chunk(&para, body).unwrap();
+    let file = open_bytes("inline_gaps.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    let PrintBlock::Paragraph { runs } = &doc.blocks[0] else {
+        panic!("expected paragraph");
+    };
+    assert!(
+        runs.iter()
+            .any(|r| r.text == "hello" && r.style.emphasis && !r.style.code),
+        "{runs:?}"
+    );
+    assert!(
+        runs.iter().any(|r| r.text == "x^2" && r.style.code),
+        "{runs:?}"
+    );
+}
+
+#[test]
+fn inline_underline_still_unmapped() {
+    let body = "under here";
+    let start = body.find("under").unwrap() as u32;
+    let end = start + "under".len() as u32;
+    let mut para = TextHeader::paragraph();
+    para.spans = vec![InlineSpan {
+        start,
+        end,
+        kind: InlineKind::Underline,
+    }];
+    let mut session = TesWriterSession::create("underline.tes", DocKind::Note);
+    session.add_text_chunk(&para, body).unwrap();
+    let file = open_bytes("underline.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    let PrintBlock::Paragraph { runs } = &doc.blocks[0] else {
+        panic!("expected paragraph");
+    };
+    let under = runs.iter().find(|r| r.text == "under").expect("under run");
+    assert!(
+        !under.style.strong
+            && !under.style.emphasis
+            && !under.style.code
+            && !under.style.link
+            && !under.style.cite,
+        "underline must stay a no-op until weave InlineStyle.underline: {under:?}"
+    );
+}

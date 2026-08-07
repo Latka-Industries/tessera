@@ -129,7 +129,7 @@ fn text_block(
     })
 }
 
-/// Apply `\text{class=… lang=… align=… caption=…}` attrs onto a Markdown-inferred header.
+/// Apply `\block{class=… lang=… align=… caption=…}` attrs onto a Markdown-inferred header.
 pub(super) fn apply_preserved_attrs(
     header: &mut TextHeader,
     map: &BTreeMap<String, String>,

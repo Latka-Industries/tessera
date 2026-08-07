@@ -1,7 +1,7 @@
 //! Map text / figure / slide chunks to weave [`PrintBlock`]s.
 
 use ariadnes_weave::{
-    BreakHint, EmAmount as WeaveEm, FigurePlacement, LayoutOp as WeaveLayoutOp,
+    BreakHint, EmAmount as WeaveEm, FigurePlacement, InlineStyle, LayoutOp as WeaveLayoutOp,
     MeasureFrac as WeaveFrac, PlaceSkip as WeavePlaceSkip, PrintBlock, PrintImage, PrintProfileId,
     RuleWidth as WeaveRuleWidth, SlideRegionContent, TableRow, TextRun,
     VspaceAmount as WeaveVspace,
@@ -102,7 +102,16 @@ pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Prin
     let caption = figure
         .caption
         .as_deref()
-        .map(|c| vec![TextRun::plain(c)])
+        .map(|c| {
+            vec![TextRun {
+                text: c.to_owned(),
+                style: InlineStyle {
+                    emphasis: true,
+                    ..InlineStyle::default()
+                },
+                face: None,
+            }]
+        })
         .unwrap_or_default();
     Ok(PrintBlock::Figure {
         image: PrintImage {

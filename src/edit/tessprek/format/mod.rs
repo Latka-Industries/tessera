@@ -5,7 +5,7 @@
 //!
 //! v2 has no per-block ids: `\ids{…}` is a flat, positional, reading-order list
 //! under the header. [`build_content_blocks`] scans the body into free Markdown
-//! runs (optionally preceded by `\text{…}`) and brace-command directives
+//! runs (optionally preceded by `\block{…}`) and brace-command directives
 //! (`\figure{}` / `\cite{}` / `\slide{}` / `\attach{}`), producing blocks with
 //! `chunk_id: None`; callers assign ids afterward ([`decode_tessprek`] strictly
 //! from `\ids{}`, [`normalize_tessprek`] via [`IdAllocator`]).

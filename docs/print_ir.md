@@ -225,10 +225,16 @@ Optional category defaults (`[text|heading|quote|cite].font` pin ids) apply when
 | --- | --- |
 | Text `heading` level N | `Heading { level: N, … }`; level 1 + `manuscript` → `PageAlways` |
 | `paragraph` / quote / code / list | Matching blocks; inline spans → `TextRun` styles |
+| Text chunk `title` | `Paragraph` with `style.strong` (label stand-in; THI-349) |
+| Text chunk `caption` | `Paragraph` with `style.emphasis` (italic stand-in until weave `[caption]` / muted size) |
+| Figure caption | `Figure.caption` runs with `style.emphasis` |
+| Inline `Quote` | `style.emphasis` |
+| Inline `Math` | `style.code` (latex/source visible; true inline math IR still weave gap) |
+| Inline `Underline` | **Unmapped** — weave paints underline only via `[cite].underline`; needs `InlineStyle.underline` |
 | `--chapter N` | Emit only that H1 slice (same rules as export) |
 | Structured table | `Table` (IR mapped; layout quality THI-291) |
 | Figure + image | `Figure` (IR mapped; float/placement THI-291) |
-| Math role / inline math | `Math { latex }` (IR mapped; real math layout THI-291) |
+| Math role / inline math | Display math role → `Math { latex }`. Inline `Math` spans → `style.code` stopgap (THI-349); real inline math runs still open on weave |
 | Slide chunk | `Slide` (IR mapped; richer regions THI-293) |
 | Layout chunk (`place` / `vspace` / `rule`) | `Layout` (D24 / THI-363) — see [decisions.md — D24](decisions.md) |
 | Cite / quote / ref chunks | Mapped (THI-348): `\quote` → `Quote`; biblio stub → numbered `Paragraph`; `\ref` → short `Paragraph`; trailing `References` when biblio stubs exist |

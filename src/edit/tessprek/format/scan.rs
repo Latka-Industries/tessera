@@ -9,9 +9,9 @@ use super::super::{
 
 #[derive(Debug)]
 pub(super) enum Segment {
-    /// Free Markdown run, optionally preceded by `\text{…}` (attrs applied to
+    /// Free Markdown run, optionally preceded by `\block{…}` (attrs applied to
     /// the first resulting block). Lines are 0-based half-open `[start, end)`;
-    /// Markdown body begins at `body_start` (after a multiline `\text{…}`).
+    /// Markdown body begins at `body_start` (after a multiline `\block{…}`).
     Markdown {
         start: usize,
         body_start: usize,
@@ -57,7 +57,7 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             }
             let map = parse_attrs(&attrs, line_no)?;
             match kind {
-                "text" => {
+                "block" => {
                     let body_start = i;
                     i = next_boundary(lines, i);
                     segments.push(Segment::Markdown {

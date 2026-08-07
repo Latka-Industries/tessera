@@ -158,7 +158,7 @@ citations, and other enum-backed fields for editor round trips.
 **Tessprek v2 (THI-318):** superseded the v1 `<!-- tessera: … -->` /
 `<!-- tes chunk=N … -->` HTML-comment directives with plain Markdown for
 heading/paragraph/list/quote/table/math/code, plus LaTeX-lite brace commands
-(`\figure{}`, `\cite{}`, `\slide{}`, `\attach{}`, optional `\text{}`) for
+(`\figure{}`, `\cite{}`, `\slide{}`, `\attach{}`, optional `\block{}`) for
 structured chunks and a document-level `\tessera{}` + `\ids{}` header. No
 per-block ids, no dual-read with v1. Full grammar: [tessprek.md](tessprek.md).
 

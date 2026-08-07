@@ -14,7 +14,7 @@ mod tests;
 
 use std::path::PathBuf;
 
-use ariadnes_weave::{PrintBlock, PrintDocument, PrintMeta, PrintProfileId, TextRun};
+use ariadnes_weave::{InlineStyle, PrintBlock, PrintDocument, PrintMeta, PrintProfileId, TextRun};
 
 use crate::catalog::chunk::TextRole;
 use crate::catalog::file::TesFile;
@@ -106,6 +106,34 @@ pub(crate) fn plain_paragraph(text: impl Into<String>) -> PrintBlock {
     }
 }
 
+/// Chunk `title` above a block — strong so it reads as a label, not body prose.
+pub(crate) fn title_paragraph(text: impl Into<String>) -> PrintBlock {
+    PrintBlock::Paragraph {
+        runs: vec![TextRun {
+            text: text.into(),
+            style: InlineStyle {
+                strong: true,
+                ..InlineStyle::default()
+            },
+            face: None,
+        }],
+    }
+}
+
+/// Chunk / figure caption stand-in — italic until weave grows a `[caption]` knob / IR.
+pub(crate) fn caption_paragraph(text: impl Into<String>) -> PrintBlock {
+    PrintBlock::Paragraph {
+        runs: vec![TextRun {
+            text: text.into(),
+            style: InlineStyle {
+                emphasis: true,
+                ..InlineStyle::default()
+            },
+            face: None,
+        }],
+    }
+}
+
 fn map_entries(
     file: &TesFile,
     entries: &[&ChunkIndexEntry],
@@ -132,12 +160,12 @@ fn map_entries(
                 } else {
                     flush_list(&mut blocks, &mut list_buf);
                     if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
-                        blocks.push(plain_paragraph(title));
+                        blocks.push(title_paragraph(title));
                     }
                     blocks.push(map_text_block(&header, &body, profile, cite));
                     if let Some(caption) = header.caption.as_deref().filter(|s| !s.is_empty()) {
-                        // Weave IR has no dedicated caption block yet; muted via theme later.
-                        blocks.push(plain_paragraph(caption));
+                        // No weave caption IR yet — italic paragraph stand-in (THI-349).
+                        blocks.push(caption_paragraph(caption));
                     }
                 }
             }

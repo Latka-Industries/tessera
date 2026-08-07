@@ -14,8 +14,8 @@ use crate::edit::ContentBlock;
 /// multi-block bodies, allocate/reuse `\ids{}` positionally, and re-emit
 /// canonical Tessprek.
 ///
-/// Free Markdown (no preceding `\text{}`) is accepted. Brace-command
-/// Brace-command directives (`\figure{}` / `\cite{}` / `\quote{}` / `\ref{}` /
+/// Free Markdown (no preceding `\block{}`) is accepted. Brace-command
+/// directives (`\figure{}` / `\cite{}` / `\quote{}` / `\ref{}` /
 /// `\slide{}` / `\attach{}`) are preserved. Bibliography `\cite` stubs are
 /// moved to the end of the document (after ids are bound, so attach/figure
 /// identities stay stable across the reorder).
