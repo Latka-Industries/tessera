@@ -154,7 +154,9 @@ mod tests {
         let pack = TemplatePack::load(&root).unwrap();
         let fonts = pack_fonts(&pack).unwrap();
         assert!(fonts.contains_key("test"), "{fonts:?}");
-        assert!(fonts.contains_key("armenian"), "{fonts:?}");
+        for id in ["armenian", "greek", "cyrillic", "hebrew", "arabic", "cjk"] {
+            assert!(fonts.contains_key(id), "missing {id}: {fonts:?}");
+        }
         assert!(looks_like_sfnt(&fonts["test"]));
     }
 

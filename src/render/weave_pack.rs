@@ -3,13 +3,12 @@
 //! CSS themes stay Chromium-only. Native emit merges a sparse pack overlay onto
 //! [`LayoutKnobs::bundled`].
 
-use std::fs;
 use std::path::Path;
 
 use ariadnes_weave::LayoutKnobs;
 use toml::Value;
 
-use super::template::{DEFAULT_WEAVE_NAME, TemplatePack, resolve_template_id};
+use super::template::{TemplatePack, resolve_template_id};
 use crate::error::{Result, TesError};
 
 /// Prose section tables that may sit at the pack `weave.toml` root (D23 aesthetics).
@@ -29,7 +28,7 @@ const PROSE_ROOT_SECTIONS: &[&str] = &[
 const LAYOUT_CATEGORIES: &[&str] = &["prose", "table", "deck", "math", "page"];
 
 /// Resolve pack layout for native emit: bundled knobs, optionally overlaid by pack
-/// `weave.toml` (manifest `weave` path or convention [`DEFAULT_WEAVE_NAME`]).
+/// `weave.toml` (manifest `weave` path or convention `weave.toml`).
 ///
 /// Missing template pack/root yields bundled defaults (pre-D23 behavior). A present
 /// pack with a bad `weave.toml` still errors.
@@ -151,6 +150,7 @@ fn merge_toml_value(base: &mut Value, overlay: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::io::Write;
     use std::path::PathBuf;
 

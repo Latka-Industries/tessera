@@ -16,8 +16,12 @@ yegourdoon = "*{arg}*"
 
 [fonts]
 test = "fonts/test-face.ttf"
-# Stand-in until a real Armenian TTF ships with dogfood packs.
 armenian = "fonts/test-face.ttf"
+greek = "fonts/test-face.ttf"
+cyrillic = "fonts/test-face.ttf"
+hebrew = "fonts/test-face.ttf"
+arabic = "fonts/test-face.ttf"
+cjk = "fonts/test-face.ttf"
 
 [weave]
 # Sparse native layout overlay for ariadnes-weave (D23), nested under [weave].

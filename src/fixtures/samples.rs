@@ -716,27 +716,52 @@ fn add_showcase_phrases(session: &mut TesWriterSession) {
         .expect("phrase lsp hint");
 }
 
-/// Sealed `\font{…}{…}` span (round-trips; pack `fonts.toml` pins the TTF).
+/// Several sealed `\font{id}{…}` spans in one paragraph (multi-script demo).
 fn add_showcase_fonts(session: &mut TesWriterSession) {
     session
         .add_text_chunk(&TextHeader::heading(2), "Pack fonts")
         .expect("h2 fonts");
-    let body = "Pinned font demo: barev ashkharh.";
-    let start = u32::try_from(body.find("barev").expect("barev")).unwrap_or(0);
-    let end = u32::try_from(body.len()).unwrap_or(0);
+
+    // One body, many pack pins — proves mixed alphabets in a single .tes.
+    // Stand-in TTFs share `test-face.ttf` until dogfood packs ship real faces.
+    let segments: &[(&str, Option<&str>)] = &[
+        ("Mixed scripts in one paragraph: ", None),
+        ("բարև", Some("armenian")),
+        (" · ", None),
+        ("γεια", Some("greek")),
+        (" · ", None),
+        ("привет", Some("cyrillic")),
+        (" · ", None),
+        ("שלום", Some("hebrew")),
+        (" · ", None),
+        ("مرحبا", Some("arabic")),
+        (" · ", None),
+        ("你好", Some("cjk")),
+        (".", None),
+    ];
+    let mut body = String::new();
+    let mut spans = Vec::new();
+    for &(text, font_id) in segments {
+        let start = u32::try_from(body.len()).unwrap_or(0);
+        body.push_str(text);
+        let end = u32::try_from(body.len()).unwrap_or(0);
+        if let Some(font_id) = font_id {
+            spans.push(InlineSpan {
+                start,
+                end,
+                kind: InlineKind::Font {
+                    font_id: font_id.into(),
+                },
+            });
+        }
+    }
     let mut para = TextHeader::paragraph();
-    para.spans = vec![InlineSpan {
-        start,
-        end,
-        kind: InlineKind::Font {
-            font_id: "armenian".into(),
-        },
-    }];
-    session.add_text_chunk(&para, body).expect("font line");
+    para.spans = spans;
+    session.add_text_chunk(&para, &body).expect("font line");
     session
         .add_text_chunk(
             &TextHeader::paragraph(),
-            "LSP: \\font / \\arm (snippet → \\font{armenian}{…}). Native PDF loads pack fonts.toml pins.",
+            "Tessprek: \\font{armenian}{…} / \\font{greek}{…} / … (pack fonts.toml pins). LSP completes \\font only — no language-specific aliases.",
         )
         .expect("font lsp hint");
 }

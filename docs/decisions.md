@@ -295,7 +295,7 @@ a Tessera/`tes` load path for hand-authored packs.
 | --- | --- | --- |
 | Fixed strings | `aliases.toml` | `\maryamlatin` → literal |
 | Glyph shortcuts | `typography.toml` substitutions at format/compile | `...` → `…` (not `\ldots` Tessprek) |
-| Wrap arg in face/style | Closed `\font{id}{…}` → IR span + pinned face | `\arm` snippet → `\font{armenian}{…}` |
+| Wrap arg in face/style | Closed `\font{id}{…}` → IR span + pinned face | `\font{armenian}{բարև}` (pack pin id) |
 | Parameterized boilerplate | Pack phrase + one `\phrase{id}{opt}` | `\yegourdoon` |
 | Layout intent | Closed `\layout{…}` ops (D24); not pack TOML | `place frac=0.875 content="87.5%"` |
 
@@ -312,8 +312,8 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
 2. **Tessprek syntax:**
    - Phrases: `\phrase{key}` and `\phrase{key}{arg}` (optional second brace).
    - Fonts: generic `\font{font_id}{…}` where `font_id` is pack-pinned (e.g.
-     `armenian`). Language-specific `\arm` is a **snippet/alias** that inserts
-     `\font{armenian}{…}`, not a core Tessprek command.
+     `armenian`, `greek`, `cyrillic`). No language-specific Tessprek/LSP
+     aliases — authors (or Tesscriptor) pick the pin id.
 3. **First color cut (weave):** optional hex on `[text]` (global default),
    `[quote]`, and `[cite]` only. No per-heading or bibliography color until a
    later knob bump.
@@ -344,7 +344,7 @@ Sealed `.tes` stores ordinary chunks/spans (or resolved Unicode), not live macro
 
 1. Typography substitutions + aliases — **shipped** (Tessera 0.2.5 / THI-354)
 2. Phrase templates + `\phrase` — **shipped** (THI-355)
-3. Font wraps (`\font` + pack pins; `\arm` snippet) — **shipped** (THI-356)
+3. Font wraps (`\font` + pack pins) — **shipped** (THI-356)
 4. Weave quote italic default + sparse aesthetic knobs — **shipped** (weave 0.2.5 / THI-352 / THI-353)
 5. Tessera: pack `weave.toml` → `EmitOptions` — **shipped** (THI-357)
 6. Category default fonts via `weave.toml` — **shipped** (Tessera 0.2.6 / weave 0.2.6 / THI-360)
