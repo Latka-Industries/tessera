@@ -6,7 +6,8 @@ and D23 pack overlays is implemented; layout v1 additions are planned in
 [structure_v1.md](structure_v1.md). Native PDF via `ariadnes-weave` landed in
 crate **0.2.0** (feature `native-pdf`); pack authoring (D23) lands in **0.2.5**;
 category fonts (THI-360) in **0.2.6**; master pack TOML + pack-aware LSP (THI-367 /
-THI-369) in **0.2.7**.
+THI-369) in **0.2.7**; figure title/caption + underline print bridge (THI-349) in
+**0.2.8**.
 
 This doc sits **between** the wire spec and the user-facing CLI: how bytes become documents, how documents become exports, and what is **not** in the engine (GUI, query stack, Tetration dependency).
 
@@ -98,7 +99,7 @@ The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp
 | `io::import` | `--markdown`, `--html` | [decisions](decisions.md) |
 | `io::bib` | BibTeX / CSL-JSON bibliography interchange | [exports.md](exports.md#bibliography) |
 | `vault` | Multi-file link resolve, backlinks, search (scan / Tantivy) | Phase 5 / THI-223 |
-| `render` | Template packs (D23 overlays), `tes serve`, Chromium PDF, print IR → weave | Phase 7 / 0.2.0; D23 in 0.2.5+; category fonts 0.2.6; master pack + LSP 0.2.7 |
+| `render` | Template packs (D23 overlays), `tes serve`, Chromium PDF, print IR → weave | Phase 7 / 0.2.0; D23 in 0.2.5+; category fonts 0.2.6; master pack + LSP 0.2.7; caption/underline 0.2.8 |
 | `edit` | Tessera Markdown + typed safe mutation | Layout v1 |
 | `history` | save/log/diff/blame/pending/`merge-file` over THST | M10 |
 | `cli` | Clap surface + command runners for `tes` | [cli.md](cli.md) |

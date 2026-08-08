@@ -1,12 +1,14 @@
 # Print IR (`ariadnes-weave`)
 
-**Status (Tessera 0.2.7):** prose print-tree builder + CLI `--backend native`
+**Status (Tessera 0.2.8):** prose print-tree builder + CLI `--backend native`
 shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Requires
-**`ariadnes-weave` ≥ 0.2.7** (quote italic + aesthetic knobs; `TextRun.face`
-pins since 0.2.2; category default fonts via `[text|heading|quote|cite].font`
-in pack `weave.toml` — THI-360). Pack `fonts.toml` → `EmitOptions::pinned_faces` and
-`weave.toml` → layout knobs (D23). Layout quality beyond prose (THI-291+
-tables/math/decks; OS fonts THI-311) continues in
+**`ariadnes-weave` ≥ 0.2.8** (figure title/caption IR + `style.underline`;
+quote italic + aesthetic knobs since 0.2.7; `TextRun.face` pins since 0.2.2;
+category default fonts via `[text|heading|quote|cite].font` in pack
+`weave.toml` — THI-360). Pack `fonts.toml` → `EmitOptions::pinned_faces` and
+`weave.toml` → layout knobs (D23). Caption/underline bridge (THI-349) maps
+figure fields and inline underline into weave. Layout quality beyond prose
+(THI-291+ tables/math/decks; OS fonts THI-311) continues in
 **`ariadnes-weave`** under epic THI-256.
 
 Tessera builds the IR from `.tes` (`render::print`) and calls the crate
@@ -254,9 +256,10 @@ tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
 ```
 
 Default stays `chromium` until native is promoted; both backends ship since 0.2.0
-(`ariadnes-weave` **0.2.7+** for category fonts + aesthetic knobs). Native CLI uses
-bundled faces plus optional pack `fonts.toml` pins and `weave.toml` knob
-overlays when `--template` / `--template-root` resolve a pack. See
+(`ariadnes-weave` **0.2.8+** for figure title/caption + underline; category fonts
++ aesthetic knobs since 0.2.7). Native CLI uses bundled faces plus optional pack
+`fonts.toml` pins and `weave.toml` knob overlays when `--template` /
+`--template-root` resolve a pack. See
 [Host-pinned faces](#host-pinned-faces-ariadnes-weave--022) for the library pin
 path.
 
@@ -268,4 +271,4 @@ path.
 2. Scaffold `ariadnes-weave` (THI-289) — done
 3. Tessera print-tree builder, prose (THI-290) — done (0.2.0)
 4. Pagination + CLI wiring (THI-294) — done (0.2.0, `--backend native`)
-5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363)
+5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363); caption/underline bridge (Tessera 0.2.8 / weave 0.2.8 / THI-349)
