@@ -54,6 +54,50 @@ fn underline_span_round_trip_and_markdown() {
 }
 
 #[test]
+fn font_and_link_coextensive_spans_keep_backslash_font() {
+    use crate::catalog::link::{LinkKind, OutboundLink};
+
+    let glyph = "\u{f08c}";
+    let body = glyph.to_owned();
+    let end = u32::try_from(body.len()).unwrap();
+    let mut header = TextHeader::paragraph();
+    header.spans = vec![
+        InlineSpan {
+            start: 0,
+            end,
+            kind: InlineKind::Font {
+                font_id: "fab".into(),
+            },
+        },
+        InlineSpan {
+            start: 0,
+            end,
+            kind: InlineKind::Link { link_id: 0 },
+        },
+    ];
+    let entry = OutboundLink {
+        start: 0,
+        end,
+        dest: "https://example.com/".into(),
+    }
+    .into_entry(0, LinkKind::Wiki)
+    .unwrap();
+    let md = header.render_markdown_with_links(&body, &[entry]);
+    assert!(
+        md.contains("\\font{fab}{"),
+        "expected \\font macro, got {md:?}"
+    );
+    assert!(
+        !md.contains('\u{000c}'),
+        "must not interpret \\f as form-feed: {md:?}"
+    );
+    assert!(
+        md.starts_with("[\\font{fab}{") || md.contains("](https://example.com/)"),
+        "expected linked font glyph, got {md:?}"
+    );
+}
+
+#[test]
 fn text_payload_round_trip() {
     let header = TextHeader::paragraph();
     let body = "We measured …";

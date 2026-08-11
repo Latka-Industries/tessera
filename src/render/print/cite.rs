@@ -36,6 +36,7 @@ pub(crate) fn push_cite_block(
                             ..Default::default()
                         },
                         face: None,
+                        link_uri: None,
                     },
                     TextRun::plain(format!(" {label}")),
                 ],

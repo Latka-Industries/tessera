@@ -64,7 +64,8 @@ katex-rs = "0.2"
 
 [patch.crates-io]
 # argus-chunk = { path = "../argus-chunk" }
-# ariadnes-weave = { path = "../ariadnes-weave" }
+# Local weave while dogfooding THI-324 resume density (revert before crates.io release).
+ariadnes-weave = { path = "../ariadnes-weave" }
 
 [dev-dependencies]
 anyhow = "1.0.104"

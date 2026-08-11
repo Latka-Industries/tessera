@@ -247,7 +247,8 @@ pub(super) struct ExportArgs {
     /// Template pack root for --pdf (env: `TES_TEMPLATE_ROOT`)
     #[arg(long = "template-root", requires = "pdf")]
     pub(super) template_root: Option<PathBuf>,
-    /// Pack theme id for --pdf (default: print, or manuscript for `doc_kind=manuscript`)
+    /// Pack theme id for --pdf (Chromium CSS theme, or native weave profile:
+    /// `print` / `print-letter` / `resume` / `manuscript` / `deck`)
     #[arg(long = "theme-id", requires = "pdf")]
     pub(super) theme_id: Option<String>,
 }

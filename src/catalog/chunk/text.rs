@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Result, TesError};
 
 use super::inline::{InlineSpan, TextAlign, apply_spans_markdown, validate_spans};
-use super::table::{TableData, render_table_markdown};
+use super::table::{TableData, render_table_markdown_with_links};
 
 /// Maximum text-chunk semantic header size (4 KiB).
 pub const TEXT_HEADER_MAX_BYTES: usize = 4 * 1024;
@@ -391,7 +391,7 @@ impl TextHeader {
             }
             TextRole::Table => {
                 if let Some(table) = &self.table {
-                    render_table_markdown(table)
+                    render_table_markdown_with_links(table, links)
                 } else {
                     format!("```tsv\n{body}\n```")
                 }

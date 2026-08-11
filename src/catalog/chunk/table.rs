@@ -42,7 +42,10 @@ pub struct TableData {
 }
 
 /// GFM-ish pipe table from structured rows (first row treated as header).
-pub(super) fn render_table_markdown(table: &TableData) -> String {
+pub(super) fn render_table_markdown_with_links(
+    table: &TableData,
+    links: &[crate::catalog::LinkEntry],
+) -> String {
     if table.rows.is_empty() {
         return String::new();
     }
@@ -51,7 +54,12 @@ pub(super) fn render_table_markdown(table: &TableData) -> String {
         out.push('|');
         for cell in &row.cells {
             out.push(' ');
-            out.push_str(cell.text.replace('|', "\\|").trim());
+            let rendered = if cell.spans.is_empty() {
+                cell.text.clone()
+            } else {
+                super::inline::apply_spans_markdown(&cell.text, &cell.spans, links)
+            };
+            out.push_str(rendered.replace('|', "\\|").trim());
             out.push_str(" |");
         }
         out.push('\n');

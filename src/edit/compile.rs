@@ -242,18 +242,33 @@ fn text_outbound_links(
     if !pending_links.is_empty() {
         return pending_links.to_vec();
     }
-    // Remap existing Link spans from the source TLNK.
-    header
-        .spans
-        .iter()
-        .filter_map(|span| {
-            let InlineKind::Link { link_id } = &span.kind else {
-                return None;
-            };
-            let entry = source.links().get(*link_id as usize)?;
+    // Remap existing Link spans from the source TLNK (body or table cells).
+    let mut spans: Vec<(u64, u32, u32)> = Vec::new();
+    if let Some(table) = &header.table {
+        for row in &table.rows {
+            for cell in &row.cells {
+                for span in &cell.spans {
+                    if let InlineKind::Link { link_id } = span.kind {
+                        spans.push((link_id, span.start, span.end));
+                    }
+                }
+            }
+        }
+        spans.sort_by_key(|(id, _, _)| *id);
+    } else {
+        for span in &header.spans {
+            if let InlineKind::Link { link_id } = span.kind {
+                spans.push((link_id, span.start, span.end));
+            }
+        }
+    }
+    spans
+        .into_iter()
+        .filter_map(|(link_id, start, end)| {
+            let entry = source.links().get(link_id as usize)?;
             Some(OutboundLink {
-                start: span.start,
-                end: span.end,
+                start,
+                end,
                 dest: entry.target.markdown_destination(),
             })
         })

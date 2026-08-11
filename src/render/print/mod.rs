@@ -112,6 +112,7 @@ fn emphasized_run(text: impl Into<String>) -> TextRun {
             ..InlineStyle::default()
         },
         face: None,
+        link_uri: None,
     }
 }
 
@@ -156,13 +157,20 @@ fn map_entries(
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
                 if header.role == TextRole::ListItem {
-                    push_list_item(&mut blocks, &mut list_buf, &header, &body, cite);
+                    push_list_item(
+                        &mut blocks,
+                        &mut list_buf,
+                        &header,
+                        &body,
+                        cite,
+                        file.links(),
+                    );
                 } else {
                     flush_list(&mut blocks, &mut list_buf);
                     if let Some(title) = nonempty_label(header.title.as_deref()) {
                         blocks.push(title_paragraph(title));
                     }
-                    blocks.push(map_text_block(&header, &body, profile, cite));
+                    blocks.push(map_text_block(&header, &body, profile, cite, file.links()));
                     // Non-figure captions: no Caption IR yet (weave `[caption]` is figure-only).
                     if let Some(caption) = nonempty_label(header.caption.as_deref()) {
                         blocks.push(caption_paragraph(caption));

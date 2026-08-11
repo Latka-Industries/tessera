@@ -102,9 +102,12 @@ impl TesWriterSession {
 
     /// Append a text chunk and materialize outbound links into `TLNK` + Link spans.
     ///
-    /// Drops any existing Link spans on `header`, assigns contiguous `link_id`s
-    /// starting at the current table length, then adds one [`LinkEntry`] per
-    /// outbound edge via [`OutboundLink::into_entry`].
+    /// Drops any existing Link spans on `header` (and on table cells), assigns
+    /// contiguous `link_id`s starting at the current table length, then adds one
+    /// [`LinkEntry`] per outbound edge via [`OutboundLink::into_entry`].
+    ///
+    /// For structured tables, outbound links are applied to cell spans (row-major
+    /// order matching temporary parse-time link ids) rather than `header.spans`.
     ///
     /// # Errors
     ///
@@ -118,15 +121,66 @@ impl TesWriterSession {
         header
             .spans
             .retain(|s| !matches!(s.kind, InlineKind::Link { .. }));
+
+        let cell_slots = table_link_slots(&header);
+        if let Some(table) = header.table.as_mut() {
+            for row in &mut table.rows {
+                for cell in &mut row.cells {
+                    cell.spans
+                        .retain(|s| !matches!(s.kind, InlineKind::Link { .. }));
+                }
+            }
+        }
+
         let base = self.link_count() as u64;
-        for (i, pending) in outbound.iter().enumerate() {
-            header.spans.push(InlineSpan {
-                start: pending.start,
-                end: pending.end,
-                kind: InlineKind::Link {
-                    link_id: base + i as u64,
-                },
-            });
+        if cell_slots.is_empty() {
+            for (i, pending) in outbound.iter().enumerate() {
+                header.spans.push(InlineSpan {
+                    start: pending.start,
+                    end: pending.end,
+                    kind: InlineKind::Link {
+                        link_id: base + i as u64,
+                    },
+                });
+            }
+        } else {
+            let Some(table) = header.table.as_mut() else {
+                return Err(TesError::EditOp {
+                    message: "table link slots without table payload".into(),
+                });
+            };
+            if outbound.len() != cell_slots.len() {
+                return Err(TesError::EditOp {
+                    message: format!(
+                        "table link count mismatch: {} outbound vs {} cell slots",
+                        outbound.len(),
+                        cell_slots.len()
+                    ),
+                });
+            }
+            for (i, pending) in outbound.iter().enumerate() {
+                let (ri, ci, start, end) = cell_slots[i];
+                let cell = table
+                    .rows
+                    .get_mut(ri)
+                    .and_then(|row| row.cells.get_mut(ci))
+                    .ok_or_else(|| TesError::EditOp {
+                        message: format!("missing table cell [{ri}][{ci}] for link"),
+                    })?;
+                // Prefer outbound offsets (trim-shifted); fall back to slot ranges.
+                let (start, end) = if pending.end > pending.start {
+                    (pending.start, pending.end)
+                } else {
+                    (start, end)
+                };
+                cell.spans.push(InlineSpan {
+                    start,
+                    end,
+                    kind: InlineKind::Link {
+                        link_id: base + i as u64,
+                    },
+                });
+            }
         }
         let chunk_id = self.add_text_chunk(&header, body)?;
         for pending in outbound {
@@ -493,6 +547,28 @@ fn pad_to(buf: &mut Vec<u8>, offset: usize) {
     if buf.len() < offset {
         buf.resize(offset, 0);
     }
+}
+
+/// Row-major `(row, col, start, end)` for temporary / sealed cell Link spans.
+fn table_link_slots(header: &TextHeader) -> Vec<(usize, usize, u32, u32)> {
+    let Some(table) = header.table.as_ref() else {
+        return Vec::new();
+    };
+    let mut found: Vec<(u64, usize, usize, u32, u32)> = Vec::new();
+    for (ri, row) in table.rows.iter().enumerate() {
+        for (ci, cell) in row.cells.iter().enumerate() {
+            for span in &cell.spans {
+                if let InlineKind::Link { link_id } = span.kind {
+                    found.push((link_id, ri, ci, span.start, span.end));
+                }
+            }
+        }
+    }
+    found.sort_by_key(|(id, _, _, _, _)| *id);
+    found
+        .into_iter()
+        .map(|(_, ri, ci, start, end)| (ri, ci, start, end))
+        .collect()
 }
 
 fn doc_kind_from_str(s: &str) -> Result<DocKind> {

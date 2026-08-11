@@ -20,6 +20,7 @@ pub(crate) fn push_list_item(
     header: &TextHeader,
     body: &str,
     cite: CiteProj<'_>,
+    links: &[crate::catalog::link::LinkEntry],
 ) {
     let kind = header.list_kind.unwrap_or(ListKind::Bullet);
     let depth = header.list_depth_or_default();
@@ -32,7 +33,7 @@ pub(crate) fn push_list_item(
     list_buf.push(PendingListItem {
         depth,
         kind,
-        runs: body_to_runs(body, &header.spans, Some(cite)),
+        runs: body_to_runs(body, &header.spans, Some(cite), links),
     });
 }
 

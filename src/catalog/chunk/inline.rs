@@ -172,42 +172,73 @@ pub(super) fn apply_spans_markdown(
     if spans.is_empty() {
         return body.to_owned();
     }
-    let mut by_start: Vec<&InlineSpan> = spans.iter().collect();
-    // Inner spans (same start, shorter end) first so outer wraps last.
-    by_start.sort_by_key(|s| (std::cmp::Reverse(s.start), s.end));
+
+    // Coextensive spans share one replacement (e.g. Font+Link on the same glyph)
+    // so we never re-wrap with stale offsets into a longer `\font{…}{…}` string.
+    let mut groups: std::collections::BTreeMap<(u32, u32), Vec<&InlineSpan>> =
+        std::collections::BTreeMap::new();
+    for span in spans {
+        if span.end > span.start {
+            groups.entry((span.start, span.end)).or_default().push(span);
+        }
+    }
+
+    let mut keys: Vec<(u32, u32)> = groups.keys().copied().collect();
+    // Right-to-left: earlier byte offsets stay valid for disjoint ranges.
+    keys.sort_by_key(|&(start, end)| std::cmp::Reverse((start, end)));
+
     let mut out = body.to_owned();
-    for span in by_start {
-        let start = span.start as usize;
-        let end = span.end as usize;
-        if end > out.len() || start > end {
+    for (start_u, end_u) in keys {
+        let start = start_u as usize;
+        let end = end_u as usize;
+        if end > out.len()
+            || start >= end
+            || !out.is_char_boundary(start)
+            || !out.is_char_boundary(end)
+        {
             continue;
         }
-        let inner = out[start..end].to_owned();
-        let wrapped = match &span.kind {
-            InlineKind::Emphasis | InlineKind::Term => format!("*{inner}*"),
-            InlineKind::Strong => format!("**{inner}**"),
-            InlineKind::Underline => format!("<u>{inner}</u>"),
-            InlineKind::Code => format!("`{inner}`"),
-            InlineKind::Quote => format!("\u{201c}{inner}\u{201d}"),
-            InlineKind::Math { tex } => format!("${tex}$"),
-            InlineKind::Link { link_id } => match links.get(*link_id as usize) {
-                Some(entry) => {
-                    let dest = entry.target.markdown_destination();
-                    format!("[{inner}]({dest})")
-                }
-                None => inner,
-            },
-            InlineKind::Citation { cite_chunk_id } => {
-                // Placeholder — exporters that care pass a cite-aware applicator.
-                // Default: keep inner key text.
-                let _ = cite_chunk_id;
-                inner
+        let group = &groups[&(start_u, end_u)];
+        let mut inner = out[start..end].to_owned();
+        // Font → style → Link (link outermost).
+        let order = |s: &&InlineSpan| -> u8 {
+            match s.kind {
+                InlineKind::Font { .. } => 0,
+                InlineKind::Link { .. } => 2,
+                _ => 1,
             }
-            InlineKind::Font { font_id } => format!("\\font{{{font_id}}}{{{inner}}}"),
         };
-        out.replace_range(start..end, &wrapped);
+        let mut ordered = group.clone();
+        ordered.sort_by_key(order);
+        for span in ordered {
+            inner = wrap_markdown_span(inner, span, links);
+        }
+        out.replace_range(start..end, &inner);
     }
     out
+}
+
+fn wrap_markdown_span(inner: String, span: &InlineSpan, links: &[LinkEntry]) -> String {
+    match &span.kind {
+        InlineKind::Emphasis | InlineKind::Term => format!("*{inner}*"),
+        InlineKind::Strong => format!("**{inner}**"),
+        InlineKind::Underline => format!("<u>{inner}</u>"),
+        InlineKind::Code => format!("`{inner}`"),
+        InlineKind::Quote => format!("\u{201c}{inner}\u{201d}"),
+        InlineKind::Math { tex } => format!("${tex}$"),
+        InlineKind::Link { link_id } => match links.get(*link_id as usize) {
+            Some(entry) => {
+                let dest = entry.target.markdown_destination();
+                format!("[{inner}]({dest})")
+            }
+            None => inner,
+        },
+        InlineKind::Citation { cite_chunk_id } => {
+            let _ = cite_chunk_id;
+            inner
+        }
+        InlineKind::Font { font_id } => format!("\\font{{{font_id}}}{{{inner}}}"),
+    }
 }
 
 /// ASCII identifier: `[A-Za-z_][A-Za-z0-9_]*` (aliases, phrases, font ids).

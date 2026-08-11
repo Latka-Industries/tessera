@@ -7,7 +7,7 @@ use crate::error::Result;
 use crate::io::import::parse_markdown_blocks;
 
 use super::super::inline_cite::extract_inline_cites;
-use super::super::inline_font::extract_inline_fonts;
+use super::super::inline_font::extract_inline_fonts_mapped;
 use super::parse_err;
 use crate::io::import::is_gfm_separator_row;
 
@@ -112,20 +112,46 @@ pub(super) fn append_markdown_blocks(
 
 fn text_block(
     chunk_id: Option<u64>,
-    header: TextHeader,
+    mut header: TextHeader,
     body: &str,
-    pending_links: Vec<OutboundLink>,
+    mut pending_links: Vec<OutboundLink>,
 ) -> Result<ContentBlock> {
     // Fonts first so `\font{id}{\cite{key}}` keeps an extractable cite inside.
-    let (body, pending_fonts) = extract_inline_fonts(body)?;
-    let (body, pending_cites) = extract_inline_cites(&body)?;
+    // Markdown spans/links were measured on the pre-strip body — remap them.
+    let extracted = extract_inline_fonts_mapped(body)?;
+    if !extracted.pending.is_empty() {
+        header.spans = header
+            .spans
+            .into_iter()
+            .filter_map(|span| {
+                let (start, end) = extracted.remap_range(span.start, span.end)?;
+                Some(crate::catalog::chunk::InlineSpan {
+                    start,
+                    end,
+                    kind: span.kind,
+                })
+            })
+            .collect();
+        pending_links = pending_links
+            .into_iter()
+            .filter_map(|link| {
+                let (start, end) = extracted.remap_range(link.start, link.end)?;
+                Some(OutboundLink {
+                    start,
+                    end,
+                    dest: link.dest,
+                })
+            })
+            .collect();
+    }
+    let (body, pending_cites) = extract_inline_cites(&extracted.body)?;
     Ok(ContentBlock::Text {
         chunk_id,
         header,
         body,
         pending_links,
         pending_cites,
-        pending_fonts,
+        pending_fonts: extracted.pending,
     })
 }
 

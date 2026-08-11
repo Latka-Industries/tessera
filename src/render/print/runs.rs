@@ -5,19 +5,61 @@ use std::collections::BTreeSet;
 use ariadnes_weave::{InlineStyle, TextRun};
 
 use crate::catalog::chunk::{InlineKind, InlineSpan};
+use crate::catalog::link::LinkEntry;
+use crate::edit::tessprek::extract_inline_fonts_mapped;
 use crate::io::cite::CiteProj;
 
 /// Split body into styled runs using half-open UTF-8 span ranges.
 ///
 /// Inline [`InlineKind::Citation`] spans are rewritten to `[n]` / `[@key]`
 /// (same projection as HTML/Markdown export) and keep `style.cite`.
+/// [`InlineKind::Link`] resolves `link_id` against the document link table into
+/// [`TextRun::link_uri`] for native PDF annotations.
 pub(crate) fn body_to_runs(
     body: &str,
     spans: &[InlineSpan],
     cite: Option<CiteProj<'_>>,
+    links: &[LinkEntry],
 ) -> Vec<TextRun> {
     let (body, spans) = project_inline_citations(body, spans, cite);
-    body_to_runs_projected(&body, &spans)
+    body_to_runs_projected(&body, &spans, links)
+}
+
+/// Table cells often still carry Tessprek `\font{id}{…}` scaffolding (not sealed
+/// as cell spans). Strip macros and apply [`InlineKind::Font`] before run split,
+/// remapping any existing cell spans (links, emphasis) onto the stripped text.
+pub(crate) fn cell_to_runs(
+    text: &str,
+    spans: &[InlineSpan],
+    cite: Option<CiteProj<'_>>,
+    links: &[LinkEntry],
+) -> Vec<TextRun> {
+    if !text.contains("\\font{") {
+        return body_to_runs(text, spans, cite, links);
+    }
+    let Ok(extracted) = extract_inline_fonts_mapped(text) else {
+        return body_to_runs(text, spans, cite, links);
+    };
+    if extracted.pending.is_empty() {
+        return body_to_runs(text, spans, cite, links);
+    }
+    let mut merged: Vec<InlineSpan> = spans
+        .iter()
+        .filter_map(|span| {
+            let (start, end) = extracted.remap_range(span.start, span.end)?;
+            Some(InlineSpan {
+                start,
+                end,
+                kind: span.kind.clone(),
+            })
+        })
+        .collect();
+    merged.extend(extracted.pending.into_iter().map(|f| InlineSpan {
+        start: f.start,
+        end: f.end,
+        kind: InlineKind::Font { font_id: f.font_id },
+    }));
+    body_to_runs(&extracted.body, &merged, cite, links)
 }
 
 fn project_inline_citations(
@@ -75,7 +117,7 @@ fn project_inline_citations(
     (body, spans)
 }
 
-fn body_to_runs_projected(body: &str, spans: &[InlineSpan]) -> Vec<TextRun> {
+fn body_to_runs_projected(body: &str, spans: &[InlineSpan], links: &[LinkEntry]) -> Vec<TextRun> {
     if body.is_empty() {
         return Vec::new();
     }
@@ -103,14 +145,26 @@ fn body_to_runs_projected(body: &str, spans: &[InlineSpan]) -> Vec<TextRun> {
         }
         let mut style = InlineStyle::default();
         let mut face: Option<String> = None;
+        let mut link_uri: Option<String> = None;
         for span in spans {
             let start = span.start as usize;
             let end = span.end as usize;
             if start <= a && end >= b {
                 apply_inline_kind(&mut style, &span.kind);
-                if let InlineKind::Font { font_id } = &span.kind {
-                    // Innermost / last covering Font wins → weave TextRun.face.
-                    face = Some(font_id.clone());
+                match &span.kind {
+                    InlineKind::Font { font_id } => {
+                        // Innermost / last covering Font wins → weave TextRun.face.
+                        face = Some(font_id.clone());
+                    }
+                    InlineKind::Link { link_id } => {
+                        if let Some(uri) =
+                            links.get(*link_id as usize).and_then(|e| e.external_uri())
+                        {
+                            link_uri = Some(uri.to_owned());
+                            style.link = true;
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -118,6 +172,7 @@ fn body_to_runs_projected(body: &str, spans: &[InlineSpan]) -> Vec<TextRun> {
             text: body[a..b].to_owned(),
             style,
             face,
+            link_uri,
         });
     }
     runs

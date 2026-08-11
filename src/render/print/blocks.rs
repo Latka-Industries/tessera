@@ -18,15 +18,16 @@ use crate::io::export::{
     decode_figure_entry, decode_layout_entry, decode_slide_entry, decode_text_entry,
 };
 
-use super::runs::body_to_runs;
+use super::runs::{body_to_runs, cell_to_runs};
 
 pub(crate) fn map_text_block(
     header: &TextHeader,
     body: &str,
     profile: &PrintProfileId,
     cite: CiteProj<'_>,
+    links: &[crate::catalog::link::LinkEntry],
 ) -> PrintBlock {
-    let runs = || body_to_runs(body, &header.spans, Some(cite));
+    let runs = || body_to_runs(body, &header.spans, Some(cite), links);
     match header.role {
         TextRole::Heading => {
             let level = u8::try_from(header.level.unwrap_or(1).clamp(1, 6)).unwrap_or(1);
@@ -43,7 +44,7 @@ pub(crate) fn map_text_block(
             lang: header.code_lang.clone(),
             text: body.to_owned(),
         },
-        TextRole::Table => map_table(header, body),
+        TextRole::Table => map_table(header, body, cite, links),
         TextRole::Math => PrintBlock::Math {
             display: true,
             latex: body.trim().to_owned(),
@@ -61,8 +62,40 @@ fn heading_break(level: u8, profile: &PrintProfileId) -> BreakHint {
     }
 }
 
-fn map_table(header: &TextHeader, body: &str) -> PrintBlock {
+fn map_table(
+    header: &TextHeader,
+    body: &str,
+    cite: CiteProj<'_>,
+    links: &[crate::catalog::link::LinkEntry],
+) -> PrintBlock {
     if let Some(table) = &header.table {
+        // Two-cell single-row tables are CV left/right meta rows (hfill stand-in).
+        if table.rows.len() == 1 && table.rows[0].cells.len() == 2 {
+            let row = &table.rows[0];
+            let left_text = row.cells[0].text.as_str();
+            let right_raw = row.cells[1].text.as_str();
+            let right_text = normalize_date_dashes(right_raw);
+            let (left_strong, left_emph) = meta_row_left_style(left_text, right_text.as_str());
+            let left = style_meta_row_runs(
+                cell_to_runs(left_text, &row.cells[0].spans, Some(cite), links),
+                left_strong,
+                left_emph,
+            );
+            let right = if right_text.len() == right_raw.len() {
+                style_meta_row_runs(
+                    cell_to_runs(right_raw, &row.cells[1].spans, Some(cite), links),
+                    false,
+                    true,
+                )
+            } else {
+                style_meta_row_runs(
+                    vec![ariadnes_weave::TextRun::plain(right_text)],
+                    false,
+                    true,
+                )
+            };
+            return PrintBlock::Row { left, right };
+        }
         let rows = table
             .rows
             .iter()
@@ -72,13 +105,90 @@ fn map_table(header: &TextHeader, body: &str) -> PrintBlock {
             .collect();
         return PrintBlock::Table { rows };
     }
-    let rows = body
+    let rows: Vec<TableRow> = body
         .lines()
         .map(|line| TableRow {
             cells: line.split('\t').map(str::to_owned).collect(),
         })
         .collect();
+    if rows.len() == 1 && rows[0].cells.len() == 2 {
+        let left_text = rows[0].cells[0].as_str();
+        let right_text = normalize_date_dashes(rows[0].cells[1].as_str());
+        let (left_strong, left_emph) = meta_row_left_style(left_text, right_text.as_str());
+        return PrintBlock::Row {
+            left: style_meta_row_runs(
+                vec![ariadnes_weave::TextRun::plain(left_text.to_owned())],
+                left_strong,
+                left_emph,
+            ),
+            right: style_meta_row_runs(
+                vec![ariadnes_weave::TextRun::plain(right_text)],
+                false,
+                true,
+            ),
+        };
+    }
     PrintBlock::Table { rows }
+}
+
+/// `structure.tex`: org/project → bold; role/degree/school → italic.
+fn meta_row_left_style(left: &str, right: &str) -> (bool, bool) {
+    if looks_like_date_meta(right) || looks_like_school(left) {
+        (false, true)
+    } else {
+        (true, false)
+    }
+}
+
+fn looks_like_school(text: &str) -> bool {
+    let t = text.to_ascii_lowercase();
+    // Employers sometimes include "University" (e.g. research foundations).
+    if t.contains("foundation")
+        || t.contains("llc")
+        || t.contains("inc")
+        || t.contains("corp")
+        || t.contains("ltd")
+    {
+        return false;
+    }
+    t.contains("university")
+        || t.contains("school")
+        || t.contains("college")
+        || t.contains("medicine")
+        || t.contains("erasmus")
+        || t.contains("institute")
+        || t.ends_with(" mc")
+        || t.contains(" mc ")
+}
+
+/// Right cell looks like a date range (`5/2026 -- Present`, `2018 -- 2020`).
+fn looks_like_date_meta(text: &str) -> bool {
+    let t = text.trim();
+    if t.is_empty() {
+        return false;
+    }
+    t.contains("--") || t.contains('\u{2013}') || t.contains('\u{2014}') || t.contains("Present")
+}
+
+fn normalize_date_dashes(text: &str) -> String {
+    text.replace("--", "\u{2013}")
+}
+
+/// Chromium/print.css + structure.tex meta-row stand-in.
+fn style_meta_row_runs(
+    mut runs: Vec<ariadnes_weave::TextRun>,
+    strong: bool,
+    emphasis: bool,
+) -> Vec<ariadnes_weave::TextRun> {
+    for run in &mut runs {
+        if strong {
+            run.style.strong = true;
+        }
+        if emphasis {
+            run.style.emphasis = true;
+        }
+    }
+    runs
 }
 
 pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<PrintBlock> {
@@ -159,7 +269,7 @@ fn map_layout_op(op: &LayoutOp) -> WeaveLayoutOp {
             spans,
         } => WeaveLayoutOp::Place {
             skip: map_place_skip(*skip),
-            runs: body_to_runs(content, spans, None),
+            runs: body_to_runs(content, spans, None, &[]),
         },
         LayoutOp::Vspace { amount } => WeaveLayoutOp::Vspace {
             amount: map_vspace(*amount),
