@@ -1,6 +1,0 @@
-show_hidden_files = true
-hash = false
-follow_links = true
-enable_enhance_all = true
-run_snapshot_on_startup = true
-typed_column_tables = "full"

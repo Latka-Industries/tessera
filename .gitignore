@@ -16,3 +16,6 @@ fuzz/corpus/**/*
 
 # Local Dropbox cloud vault symlink (do not commit)
 test-data-cloud
+
+# Local UBLX browser config
+.ublx.toml
