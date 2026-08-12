@@ -25,7 +25,7 @@ fn note_one_chunk_paragraph_with_code_span() {
     assert_eq!(doc.profile.as_label(), "print@0");
     assert_eq!(doc.blocks.len(), 1);
     match &doc.blocks[0] {
-        PrintBlock::Paragraph { runs } => {
+        PrintBlock::Paragraph { runs, .. } => {
             assert!(
                 runs.iter().any(|r| r.style.code),
                 "expected code run: {runs:?}"
@@ -54,7 +54,7 @@ fn font_span_sets_text_run_face() {
     session.add_text_chunk(&para, body).unwrap();
     let file = open_bytes("font.tes", session.encode_file().unwrap());
     let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
-    let PrintBlock::Paragraph { runs } = &doc.blocks[0] else {
+    let PrintBlock::Paragraph { runs, .. } = &doc.blocks[0] else {
         panic!("expected paragraph");
     };
     assert!(
@@ -77,6 +77,7 @@ fn note_three_chunks_heading_paragraph_list() {
         PrintBlock::List {
             ordered: false,
             items,
+            ..
         } => {
             assert_eq!(items.len(), 3);
         }
@@ -260,7 +261,7 @@ fn cite_quote_ref_biblio_and_inline_markers() {
 
     // Biblio stub: "[1] keller2020"
     let stub = doc.blocks.iter().find_map(|b| match b {
-        PrintBlock::Paragraph { runs } if runs.iter().any(|r| r.style.cite && r.text == "[1]") => {
+        PrintBlock::Paragraph { runs, .. } if runs.iter().any(|r| r.style.cite && r.text == "[1]") => {
             Some(runs.iter().map(|r| r.text.as_str()).collect::<String>())
         }
         _ => None,
@@ -269,7 +270,7 @@ fn cite_quote_ref_biblio_and_inline_markers() {
 
     // Inline rewrite in prose
     let prose = doc.blocks.iter().find_map(|b| match b {
-        PrintBlock::Paragraph { runs }
+        PrintBlock::Paragraph { runs, .. }
             if runs.iter().any(|r| r.text.starts_with("See "))
                 && runs.iter().any(|r| r.style.cite && r.text == "[1]") =>
         {
@@ -289,7 +290,7 @@ fn cite_quote_ref_biblio_and_inline_markers() {
     assert!(
         doc.blocks.iter().any(|b| matches!(
             b,
-            PrintBlock::Paragraph { runs }
+            PrintBlock::Paragraph { runs, .. }
                 if runs.iter().any(|r| r.text.contains("[ref:") && r.text.contains("see-also"))
         )),
         "expected ref paragraph: {doc:?}"
@@ -308,7 +309,7 @@ fn cite_quote_ref_biblio_and_inline_markers() {
     assert!(
         doc.blocks.iter().any(|b| matches!(
             b,
-            PrintBlock::Paragraph { runs }
+            PrintBlock::Paragraph { runs, .. }
                 if runs.iter().any(|r| r.text.contains("1. Keller") && r.text.contains("Chunk Containers"))
         )),
         "expected bibliography line: {doc:?}"
@@ -385,7 +386,7 @@ fn chunk_title_and_caption_use_label_styles() {
     let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
     assert_eq!(doc.blocks.len(), 3);
     match &doc.blocks[0] {
-        PrintBlock::Paragraph { runs } => {
+        PrintBlock::Paragraph { runs, .. } => {
             assert_eq!(runs.len(), 1);
             assert!(runs[0].style.strong, "{runs:?}");
             assert_eq!(runs[0].text, "Eq. label");
@@ -394,7 +395,7 @@ fn chunk_title_and_caption_use_label_styles() {
     }
     assert!(matches!(doc.blocks[1], PrintBlock::Math { .. }));
     match &doc.blocks[2] {
-        PrintBlock::Paragraph { runs } => {
+        PrintBlock::Paragraph { runs, .. } => {
             assert_eq!(runs.len(), 1);
             assert!(runs[0].style.emphasis, "{runs:?}");
             assert_eq!(runs[0].text, "A short caption.");
@@ -427,7 +428,7 @@ fn inline_quote_and_math_map_emphasis_and_code() {
     session.add_text_chunk(&para, body).unwrap();
     let file = open_bytes("inline_gaps.tes", session.encode_file().unwrap());
     let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
-    let PrintBlock::Paragraph { runs } = &doc.blocks[0] else {
+    let PrintBlock::Paragraph { runs, .. } = &doc.blocks[0] else {
         panic!("expected paragraph");
     };
     assert!(
@@ -456,7 +457,7 @@ fn inline_underline_maps_style_underline() {
     session.add_text_chunk(&para, body).unwrap();
     let file = open_bytes("underline.tes", session.encode_file().unwrap());
     let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
-    let PrintBlock::Paragraph { runs } = &doc.blocks[0] else {
+    let PrintBlock::Paragraph { runs, .. } = &doc.blocks[0] else {
         panic!("expected paragraph");
     };
     let under = runs.iter().find(|r| r.text == "under").expect("under run");

@@ -135,6 +135,44 @@ fn block_directive_preserves_class_and_align() {
 }
 
 #[test]
+fn block_indent_applies_to_list_run_and_rewrites() {
+    let input = "\\block{indent=2}\n- top\n  - nested\n";
+    let out = normalize_tessprek(input).unwrap();
+    assert!(out.contains("indent=2"), "{out}");
+    assert!(out.contains("- top"), "{out}");
+    let blocks = crate::edit::decode_tessprek(&out).unwrap();
+    let indents: Vec<_> = blocks
+        .iter()
+        .filter_map(|b| match b {
+            crate::edit::ContentBlock::Text { header, .. }
+                if header.role == crate::catalog::chunk::TextRole::ListItem =>
+            {
+                Some(header.indent_or_default())
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(indents, vec![2, 2], "{indents:?} from {out}");
+}
+
+#[test]
+fn block_indent_before_row() {
+    let input = "\\block{indent=1}\n\\row{Org}{City}\n";
+    let out = normalize_tessprek(input).unwrap();
+    assert!(out.contains("indent=1"), "{out}");
+    let blocks = crate::edit::decode_tessprek(&out).unwrap();
+    let row = blocks.iter().find_map(|b| match b {
+        crate::edit::ContentBlock::Text { header, .. }
+            if header.role == crate::catalog::chunk::TextRole::Row =>
+        {
+            Some(header)
+        }
+        _ => None,
+    });
+    assert_eq!(row.map(|h| h.indent_or_default()), Some(1), "{out}");
+}
+
+#[test]
 fn legacy_text_directive_rewrites_to_block() {
     let input = "\\text{class=\"lead\" align=center}\n# Hello\n";
     let out = normalize_tessprek(input).unwrap();

@@ -101,7 +101,7 @@ fn scoped_entries(file: &TesFile, chapter: Option<u32>) -> Result<Vec<&ChunkInde
 }
 
 fn single_run_paragraph(run: TextRun) -> PrintBlock {
-    PrintBlock::Paragraph { runs: vec![run] }
+    PrintBlock::paragraph(vec![run])
 }
 
 fn emphasized_run(text: impl Into<String>) -> TextRun {

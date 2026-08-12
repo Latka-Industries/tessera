@@ -98,16 +98,30 @@ pub(super) fn append_markdown_blocks(
         return Ok(());
     }
 
+    // `\block{indent=N}` before a list applies the band to every item in the run.
+    let list_indent = preserve.and_then(|m| parse_indent_level(m.get("indent")?));
+
     for (idx, block) in parsed.into_iter().enumerate() {
         let mut header = block.header;
         if idx == 0
             && let Some(map) = preserve
         {
             apply_preserved_attrs(&mut header, map, line_no)?;
+        } else if header.role == TextRole::ListItem
+            && header.indent.is_none()
+            && let Some(n) = list_indent
+        {
+            header.indent = Some(n);
         }
         out.push(text_block(None, header, &block.body, block.pending_links)?);
     }
     Ok(())
+}
+
+/// Parse `\block{indent=N}` (`1..=16`). `0` / invalid → `None` (absent band).
+fn parse_indent_level(raw: &str) -> Option<u32> {
+    let n: u32 = raw.parse().ok()?;
+    (1..=16).contains(&n).then_some(n)
 }
 
 fn text_block(
@@ -180,6 +194,21 @@ pub(super) fn apply_preserved_attrs(
     {
         header.align =
             Some(TextAlign::from_name(align).map_err(|e| parse_err(line_no, 1, format!("{e}")))?);
+    }
+    if header.indent.is_none()
+        && let Some(raw) = map.get("indent")
+    {
+        match parse_indent_level(raw) {
+            Some(n) => header.indent = Some(n),
+            None if raw == "0" => {}
+            None => {
+                return Err(parse_err(
+                    line_no,
+                    1,
+                    format!("invalid indent={raw} (expected 0..=16)"),
+                ));
+            }
+        }
     }
     if header.role == TextRole::CodeBlock
         && header.code_lang.is_none()

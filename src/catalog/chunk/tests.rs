@@ -37,6 +37,17 @@ fn list_depth_round_trip_and_markdown_indent() {
 }
 
 #[test]
+fn indent_level_round_trip() {
+    let mut header = TextHeader::paragraph();
+    header.indent = Some(2);
+    assert!(header.uses_layout_v1_features());
+    assert_eq!(header.indent_or_default(), 2);
+    let bytes = encode_text_payload(&header, "skills").unwrap();
+    let (h2, _) = decode_text_payload(&bytes).unwrap();
+    assert_eq!(h2.indent, Some(2));
+}
+
+#[test]
 fn underline_span_round_trip_and_markdown() {
     let body = "see noted term here";
     let mut header = TextHeader::paragraph();

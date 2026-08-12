@@ -38,7 +38,9 @@ pub(crate) fn map_text_block(
             }
         }
         // ListItem: isolated items should have been coalesced; paragraph fallback.
-        TextRole::Paragraph | TextRole::ListItem => PrintBlock::Paragraph { runs: runs() },
+        TextRole::Paragraph | TextRole::ListItem => {
+            PrintBlock::paragraph_indent(runs(), header.indent_or_default())
+        }
         TextRole::Blockquote => PrintBlock::Quote { runs: runs() },
         TextRole::CodeBlock => PrintBlock::Code {
             lang: header.code_lang.clone(),
@@ -68,7 +70,7 @@ fn map_row(
                 .collect()
         })
         .unwrap_or_default();
-    PrintBlock::Row { panes }
+    PrintBlock::row_indent(panes, header.indent_or_default())
 }
 
 fn heading_break(level: u8, profile: &PrintProfileId) -> BreakHint {
@@ -113,9 +115,7 @@ fn map_table(
                     true,
                 )
             };
-            return PrintBlock::Row {
-                panes: vec![left, right],
-            };
+            return PrintBlock::row_indent(vec![left, right], header.indent_or_default());
         }
         let rows = table
             .rows
@@ -136,8 +136,8 @@ fn map_table(
         let left_text = rows[0].cells[0].as_str();
         let right_text = normalize_date_dashes(rows[0].cells[1].as_str());
         let (left_strong, left_emph) = meta_row_left_style(left_text, right_text.as_str());
-        return PrintBlock::Row {
-            panes: vec![
+        return PrintBlock::row_indent(
+            vec![
                 style_meta_row_runs(
                     vec![ariadnes_weave::TextRun::plain(left_text.to_owned())],
                     left_strong,
@@ -149,7 +149,8 @@ fn map_table(
                     true,
                 ),
             ],
-        };
+            header.indent_or_default(),
+        );
     }
     PrintBlock::Table { rows }
 }

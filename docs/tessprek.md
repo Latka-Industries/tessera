@@ -189,7 +189,7 @@ Emitted when the document has figures; ignored on decode (regenerated from the
 `.tes` on `edit-read`). `tes format` preserves declared attrs when open as a
 buffer only. Legacy `\media{7}` / packed one-line entries still skip cleanly.
 
-### `\block{title="…" caption="…" class="…" lang=… align=…}`
+### `\block{title="…" caption="…" class="…" lang=… align=… indent=N}`
 
 Optional, immediately before a Markdown block, for the few `TextHeader`
 attributes Markdown can't express. Prefer the multiline form (same shape as
@@ -209,11 +209,17 @@ fn main() {}
 - `caption` renders **below** the block
 - Both are valid only on `table`, `math`, and `code_block` (mermaid = fenced
   code with language `mermaid` plus this directive)
+- `indent=N` sets the print **band** level (`0` = content margin). Points =
+  `N ×` profile step (`resume@0` uses 14pt). Orthogonal to list nesting:
+  `\block{indent=2}` before a list applies to every item in that run; Markdown
+  `  - nested` only bumps `list_depth`. Also attaches to a following `\row{…}`
+  when the `\block` body is otherwise empty.
 
 Also accepted: `class`, `lang`, `align`. Everything else — role, heading level,
 list kind/depth, fence language, table structure — comes from Markdown. When a
 `\block{}` precedes a multi-block Markdown run, attrs apply to **at least the
-first** resulting block.
+first** resulting block (`indent` additionally spreads across a consecutive
+list-item run).
 
 Legacy `\text{…}` is still accepted on read and rewritten to `\block{…}` on
 encode / `tes format`.

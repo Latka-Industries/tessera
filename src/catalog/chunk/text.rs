@@ -122,6 +122,12 @@ pub struct TextHeader {
     /// Nesting depth for [`TextRole::ListItem`] (1 = top-level). Absent means 1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub list_depth: Option<u32>,
+    /// Print band indent level (0 = content margin). Points = `level ×` profile step.
+    ///
+    /// Orthogonal to [`Self::list_depth`]: nested bullets keep the same band and
+    /// only deepen the list. Tessprek: `\block{indent=N}` before the chunk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indent: Option<u32>,
     /// Legacy string emphasis tags (prefer [`Self::spans`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub emphasis: Vec<String>,
@@ -163,6 +169,7 @@ impl TextHeader {
             level: None,
             list_kind: None,
             list_depth: None,
+            indent: None,
             emphasis: Vec::new(),
             classes: Vec::new(),
             spans: Vec::new(),
@@ -194,7 +201,14 @@ impl TextHeader {
             || self.table.is_some()
             || self.panes.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
+            || self.indent.is_some_and(|n| n > 0)
             || matches!(self.role, TextRole::Table | TextRole::Row | TextRole::Math)
+    }
+
+    /// Effective print band indent level (absent → 0).
+    #[must_use]
+    pub fn indent_or_default(&self) -> u32 {
+        self.indent.unwrap_or(0).min(16)
     }
 
     /// A heading header at `level` (1–6).
@@ -379,6 +393,13 @@ impl TextHeader {
         {
             return Err(TesError::InvalidTextHeader {
                 message: format!("list_depth {depth} must be 1..=16"),
+            });
+        }
+        if let Some(indent) = self.indent
+            && indent > 16
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("indent {indent} must be 0..=16"),
             });
         }
         Ok(())
