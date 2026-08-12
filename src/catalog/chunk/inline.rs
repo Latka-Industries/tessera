@@ -164,6 +164,9 @@ pub(super) fn validate_spans(body: &str, spans: &[InlineSpan]) -> Result<()> {
 }
 
 /// Apply spanned formatting as Markdown (links resolved via the document link table).
+///
+/// Nested spans (e.g. Font glyph inside a longer Link label) are wrapped
+/// innermost-first so outer `](url)` never lands inside `\font{…}` / `\icon{…}`.
 pub(super) fn apply_spans_markdown(
     body: &str,
     spans: &[InlineSpan],
@@ -172,42 +175,131 @@ pub(super) fn apply_spans_markdown(
     if spans.is_empty() {
         return body.to_owned();
     }
-    let mut by_start: Vec<&InlineSpan> = spans.iter().collect();
-    // Inner spans (same start, shorter end) first so outer wraps last.
-    by_start.sort_by_key(|s| (std::cmp::Reverse(s.start), s.end));
-    let mut out = body.to_owned();
-    for span in by_start {
-        let start = span.start as usize;
-        let end = span.end as usize;
-        if end > out.len() || start > end {
-            continue;
-        }
-        let inner = out[start..end].to_owned();
-        let wrapped = match &span.kind {
-            InlineKind::Emphasis | InlineKind::Term => format!("*{inner}*"),
-            InlineKind::Strong => format!("**{inner}**"),
-            InlineKind::Underline => format!("<u>{inner}</u>"),
-            InlineKind::Code => format!("`{inner}`"),
-            InlineKind::Quote => format!("\u{201c}{inner}\u{201d}"),
-            InlineKind::Math { tex } => format!("${tex}$"),
-            InlineKind::Link { link_id } => match links.get(*link_id as usize) {
-                Some(entry) => {
-                    let dest = entry.target.markdown_destination();
-                    format!("[{inner}]({dest})")
-                }
-                None => inner,
-            },
-            InlineKind::Citation { cite_chunk_id } => {
-                // Placeholder — exporters that care pass a cite-aware applicator.
-                // Default: keep inner key text.
-                let _ = cite_chunk_id;
-                inner
+    let active: Vec<&InlineSpan> = spans.iter().filter(|s| s.end > s.start).collect();
+    render_span_region(
+        body,
+        0,
+        u32::try_from(body.len()).unwrap_or(u32::MAX),
+        &active,
+        links,
+    )
+}
+
+fn render_span_region(
+    body: &str,
+    region_start: u32,
+    region_end: u32,
+    spans: &[&InlineSpan],
+    links: &[LinkEntry],
+) -> String {
+    let rs = region_start as usize;
+    let re = (region_end as usize).min(body.len());
+    if rs >= re || !body.is_char_boundary(rs) || !body.is_char_boundary(re) {
+        return String::new();
+    }
+
+    // Top-level = spans in this region not strictly inside another span here.
+    let mut tops: Vec<&InlineSpan> = spans
+        .iter()
+        .copied()
+        .filter(|s| s.start >= region_start && s.end <= region_end)
+        .filter(|s| {
+            !spans.iter().any(|o| {
+                !std::ptr::eq(*o, *s)
+                    && o.start <= s.start
+                    && o.end >= s.end
+                    && (o.start < s.start || o.end > s.end)
+            })
+        })
+        .collect();
+    // Right-to-left so earlier byte offsets stay stable while we build `out`
+    // from the raw body slice... actually we build left-to-right from pieces.
+    tops.sort_by_key(|s| (s.start, std::cmp::Reverse(s.end)));
+
+    if tops.is_empty() {
+        return body[rs..re].to_owned();
+    }
+
+    let mut out = String::new();
+    let mut cursor = region_start;
+    // Group coextensive tops and process left→right.
+    let mut i = 0;
+    while i < tops.len() {
+        let start = tops[i].start;
+        let end = tops[i].end;
+        if start > cursor {
+            let a = cursor as usize;
+            let b = start as usize;
+            if a < b && b <= body.len() && body.is_char_boundary(a) && body.is_char_boundary(b) {
+                out.push_str(&body[a..b]);
             }
-            InlineKind::Font { font_id } => format!("\\font{{{font_id}}}{{{inner}}}"),
+        }
+        let mut group: Vec<&InlineSpan> = vec![tops[i]];
+        i += 1;
+        while i < tops.len() && tops[i].start == start && tops[i].end == end {
+            group.push(tops[i]);
+            i += 1;
+        }
+        // Children strictly inside this range (excluding the coextensive group).
+        let children: Vec<&InlineSpan> = spans
+            .iter()
+            .copied()
+            .filter(|s| s.start >= start && s.end <= end && (s.start > start || s.end < end))
+            .filter(|s| !group.iter().any(|g| std::ptr::eq(*g, *s)))
+            .collect();
+        let mut inner = render_span_region(body, start, end, &children, links);
+        // Font → style → Link (link outermost), same as before for coextensive.
+        let order = |s: &&InlineSpan| -> u8 {
+            match s.kind {
+                InlineKind::Font { .. } => 0,
+                InlineKind::Link { .. } => 2,
+                _ => 1,
+            }
         };
-        out.replace_range(start..end, &wrapped);
+        group.sort_by_key(order);
+        for span in group {
+            inner = wrap_markdown_span(inner, span, links);
+        }
+        out.push_str(&inner);
+        cursor = end;
+    }
+    if cursor < region_end {
+        let a = cursor as usize;
+        let b = re;
+        if a < b && body.is_char_boundary(a) {
+            out.push_str(&body[a..b]);
+        }
     }
     out
+}
+
+fn wrap_markdown_span(inner: String, span: &InlineSpan, links: &[LinkEntry]) -> String {
+    match &span.kind {
+        InlineKind::Emphasis | InlineKind::Term => format!("*{inner}*"),
+        InlineKind::Strong => format!("**{inner}**"),
+        InlineKind::Underline => format!("<u>{inner}</u>"),
+        InlineKind::Code => format!("`{inner}`"),
+        InlineKind::Quote => format!("\u{201c}{inner}\u{201d}"),
+        InlineKind::Math { tex } => format!("${tex}$"),
+        InlineKind::Link { link_id } => match links.get(*link_id as usize) {
+            Some(entry) => {
+                let dest = entry.target.markdown_destination();
+                format!("[{inner}]({dest})")
+            }
+            None => inner,
+        },
+        InlineKind::Citation { cite_chunk_id } => {
+            let _ = cite_chunk_id;
+            inner
+        }
+        InlineKind::Font { font_id } => {
+            if let Some(name) = crate::catalog::icon_name_for_face_glyph(font_id, &inner) {
+                format!("\\icon{{{name}}}")
+            } else {
+                format!("\\font{{{font_id}}}{{{inner}}}")
+            }
+        }
+    }
 }
 
 /// ASCII identifier: `[A-Za-z_][A-Za-z0-9_]*` (aliases, phrases, font ids).

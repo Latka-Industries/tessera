@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
-use crate::catalog::chunk::{OrderedListNumbering, TextHeader};
+use crate::catalog::chunk::{OrderedListNumbering, TextHeader, TextRole};
 use crate::catalog::layout::LayoutPayload;
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::SlidePayload;
@@ -59,7 +59,12 @@ pub fn encode_content_blocks(
                 ..
             } => {
                 let ordered_index = ordered.take_for_text(header);
-                write_block_directive(&mut out, header);
+                // One `\block{indent=N}` per list run — not before every item.
+                let mut attr_header = header.clone();
+                if header.role == TextRole::ListItem && i > 0 && blocks[i - 1].is_list_item() {
+                    attr_header.indent = None;
+                }
+                write_block_directive(&mut out, &attr_header);
                 out.push_str(
                     render_text_body(
                         header,
@@ -281,10 +286,14 @@ fn render_text_body(
                 continue;
             };
             let inner = body[start..end].to_owned();
-            body.replace_range(
-                start..end,
-                &format!("\\font{{{}}}{{{inner}}}", font.font_id),
-            );
+            let replacement = if let Some(name) =
+                crate::catalog::icon_name_for_face_glyph(&font.font_id, &inner)
+            {
+                format!("\\icon{{{name}}}")
+            } else {
+                format!("\\font{{{}}}{{{inner}}}", font.font_id)
+            };
+            body.replace_range(start..end, &replacement);
         }
     }
 
@@ -313,6 +322,7 @@ fn write_block_directive(out: &mut String, header: &TextHeader) {
     if header.classes.is_empty()
         && header.lang.is_none()
         && header.align.is_none()
+        && header.indent.is_none()
         && header.title.is_none()
         && header.caption.is_none()
     {
@@ -333,6 +343,9 @@ fn write_block_directive(out: &mut String, header: &TextHeader) {
     }
     if let Some(align) = header.align {
         parts.push(format!("align={}", align.as_str()));
+    }
+    if let Some(indent) = header.indent.filter(|&n| n > 0) {
+        parts.push(format!("indent={indent}"));
     }
     write_brace_block(out, BLOCK_PREFIX, &parts);
 }

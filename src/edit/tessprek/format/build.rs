@@ -8,6 +8,7 @@ use super::markdown::{
     append_markdown_blocks, apply_preserved_attrs, build_table_block, looks_like_gfm_table,
     split_pipe_run_into_tables,
 };
+use super::row::decode_row_panes;
 use super::scan::{Segment, scan_segments};
 use crate::edit::ContentBlock;
 
@@ -37,6 +38,7 @@ pub(crate) fn build_content_blocks_with_spans(
 ) -> Result<Vec<(usize, usize, ContentBlock)>> {
     let segments = scan_segments(lines)?;
     let mut out = Vec::new();
+    let mut leftover_preserve: Option<BTreeMap<String, String>> = None;
     for segment in segments {
         match segment {
             Segment::Markdown {
@@ -46,13 +48,16 @@ pub(crate) fn build_content_blocks_with_spans(
                 preserve,
             } => {
                 let before = out.len();
-                append_mixed_markdown_spanned(&mut out, lines, body_start, end, preserve.as_ref())?;
+                let map = preserve.or_else(|| leftover_preserve.take());
+                append_mixed_markdown_spanned(&mut out, lines, body_start, end, map.as_ref())?;
                 // Include the `\block{…}` opener lines in the first block's hover span.
-                if preserve.is_some()
+                if map.is_some()
                     && let Some((block_start, _, _)) = out.get_mut(before)
                 {
                     *block_start = start;
                 }
+                // Empty body before `\row` / directive: keep attrs for the next segment.
+                leftover_preserve = if out.len() == before { map } else { None };
             }
             Segment::Directive {
                 start,
@@ -61,8 +66,19 @@ pub(crate) fn build_content_blocks_with_spans(
                 map,
                 body,
             } => {
+                leftover_preserve = None;
                 let line_no = start + 1;
                 let block = decode_named_directive(&kind, &map, &body, line_no)?;
+                out.push((start, end, block));
+            }
+            Segment::Row { start, end, panes } => {
+                let line_no = start + 1;
+                let mut block = decode_row_panes(&panes, line_no)?;
+                if let Some(map) = leftover_preserve.take()
+                    && let ContentBlock::Text { header, .. } = &mut block
+                {
+                    apply_preserved_attrs(header, &map, line_no)?;
+                }
                 out.push((start, end, block));
             }
         }
@@ -183,6 +199,11 @@ fn block_anchor_line(block: &ContentBlock) -> String {
             .and_then(|t| t.rows.first())
             .and_then(|r| r.cells.first())
             .map_or_else(|| first_nonempty_line(body), |c| format!("| {} ", c.text)),
+        ContentBlock::Text { header, .. } if header.role == TextRole::Row => header
+            .panes
+            .as_ref()
+            .and_then(|p| p.first())
+            .map_or_else(|| "\\row".into(), |c| format!("\\row{{{}}}", c.text)),
         ContentBlock::Text { body, .. } => first_nonempty_line(body),
         ContentBlock::Figure { figure, .. } => first_nonempty_line(&figure.alt_text),
         ContentBlock::Cite { cite, .. } => {

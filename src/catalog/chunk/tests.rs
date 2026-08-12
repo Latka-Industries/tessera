@@ -37,6 +37,17 @@ fn list_depth_round_trip_and_markdown_indent() {
 }
 
 #[test]
+fn indent_level_round_trip() {
+    let mut header = TextHeader::paragraph();
+    header.indent = Some(2);
+    assert!(header.uses_layout_v1_features());
+    assert_eq!(header.indent_or_default(), 2);
+    let bytes = encode_text_payload(&header, "skills").unwrap();
+    let (h2, _) = decode_text_payload(&bytes).unwrap();
+    assert_eq!(h2.indent, Some(2));
+}
+
+#[test]
 fn underline_span_round_trip_and_markdown() {
     let body = "see noted term here";
     let mut header = TextHeader::paragraph();
@@ -51,6 +62,90 @@ fn underline_span_round_trip_and_markdown() {
     assert_eq!(b2, body);
     let md = header.render_markdown(body);
     assert!(md.contains("<u>noted</u>"), "{md}");
+}
+
+#[test]
+fn font_and_link_coextensive_spans_keep_backslash_font() {
+    use crate::catalog::link::{LinkKind, OutboundLink};
+
+    let glyph = "\u{f08c}";
+    let body = glyph.to_owned();
+    let end = u32::try_from(body.len()).unwrap();
+    let mut header = TextHeader::paragraph();
+    header.spans = vec![
+        InlineSpan {
+            start: 0,
+            end,
+            kind: InlineKind::Font {
+                font_id: "fab".into(),
+            },
+        },
+        InlineSpan {
+            start: 0,
+            end,
+            kind: InlineKind::Link { link_id: 0 },
+        },
+    ];
+    let entry = OutboundLink {
+        start: 0,
+        end,
+        dest: "https://example.com/".into(),
+    }
+    .into_entry(0, LinkKind::Wiki)
+    .unwrap();
+    let md = header.render_markdown_with_links(&body, &[entry]);
+    assert!(
+        md.contains("\\icon{linkedin}") || md.contains("\\font{fab}{"),
+        "expected \\icon or \\font macro, got {md:?}"
+    );
+    assert!(
+        !md.contains('\u{000c}'),
+        "must not interpret \\f as form-feed: {md:?}"
+    );
+    assert!(
+        md.starts_with("[\\icon{")
+            || md.starts_with("[\\font{fab}{")
+            || md.contains("](https://example.com/)"),
+        "expected linked font glyph, got {md:?}"
+    );
+}
+
+#[test]
+fn nested_font_inside_link_label_round_trips() {
+    use crate::catalog::link::{LinkKind, OutboundLink};
+
+    // "Nefaxer " + github glyph — Font is a sub-range of Link.
+    let glyph = "\u{f09b}";
+    let body = format!("Nefaxer {glyph}");
+    let glyph_start = body.find(glyph).unwrap() as u32;
+    let end = body.len() as u32;
+    let mut header = TextHeader::paragraph();
+    header.spans = vec![
+        InlineSpan {
+            start: glyph_start,
+            end,
+            kind: InlineKind::Font {
+                font_id: "fab".into(),
+            },
+        },
+        InlineSpan {
+            start: 0,
+            end,
+            kind: InlineKind::Link { link_id: 0 },
+        },
+    ];
+    let entry = OutboundLink {
+        start: 0,
+        end,
+        dest: "https://github.com/thicclatka/nefaxer".into(),
+    }
+    .into_entry(0, LinkKind::Wiki)
+    .unwrap();
+    let md = header.render_markdown_with_links(&body, &[entry]);
+    assert!(
+        md.contains("[Nefaxer \\icon{github}](https://github.com/thicclatka/nefaxer)"),
+        "nested icon in link must not split \\icon: {md:?}"
+    );
 }
 
 #[test]

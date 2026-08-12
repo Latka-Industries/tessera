@@ -4,7 +4,8 @@ use crate::error::Result;
 
 use super::super::markers::match_body_opener;
 use super::super::{
-    parse_attrs, scan_tessprek_preamble, skip_blank_lines, take_brace_command, trim_block_body,
+    parse_attrs, scan_tessprek_preamble, skip_blank_lines, take_brace_command, take_row_panes,
+    trim_block_body,
 };
 
 #[derive(Debug)]
@@ -26,6 +27,12 @@ pub(super) enum Segment {
         map: BTreeMap<String, String>,
         body: String,
     },
+    /// Tessprek `\row{pane}{pane}…` (2+ consecutive content braces).
+    Row {
+        start: usize,
+        end: usize,
+        panes: Vec<String>,
+    },
 }
 
 pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
@@ -38,6 +45,17 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
         let trimmed = lines[i].trim();
         if trimmed.is_empty() {
             i += 1;
+            continue;
+        }
+
+        if trimmed.starts_with("\\row{") || trimmed == "\\row" {
+            let (panes, cmd_end) = take_row_panes(lines, i)?;
+            segments.push(Segment::Row {
+                start,
+                end: cmd_end,
+                panes,
+            });
+            i = cmd_end;
             continue;
         }
 
@@ -129,7 +147,10 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
 fn next_boundary(lines: &[&str], mut i: usize) -> usize {
     while i < lines.len() {
         let trimmed = lines[i].trim();
-        if match_body_opener(trimmed).is_some() {
+        if match_body_opener(trimmed).is_some()
+            || trimmed.starts_with("\\row{")
+            || trimmed == "\\row"
+        {
             break;
         }
         i += 1;

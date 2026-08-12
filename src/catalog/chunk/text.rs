@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Result, TesError};
 
 use super::inline::{InlineSpan, TextAlign, apply_spans_markdown, validate_spans};
-use super::table::{TableData, render_table_markdown};
+use super::table::{TableCell, TableData, render_cell_markdown, render_table_markdown_with_links};
 
 /// Maximum text-chunk semantic header size (4 KiB).
 pub const TEXT_HEADER_MAX_BYTES: usize = 4 * 1024;
@@ -29,6 +29,8 @@ pub enum TextRole {
     CodeBlock,
     /// Table: prefer [`TextHeader::table`]; v0 TSV body remains accepted.
     Table,
+    /// Meta row (Tessprek `\row{…}{…}…`); panes in [`TextHeader::panes`].
+    Row,
     /// Display math; body is LaTeX source.
     Math,
 }
@@ -44,6 +46,7 @@ impl TextRole {
             Self::Blockquote => "blockquote",
             Self::CodeBlock => "code_block",
             Self::Table => "table",
+            Self::Row => "row",
             Self::Math => "math",
         }
     }
@@ -119,6 +122,12 @@ pub struct TextHeader {
     /// Nesting depth for [`TextRole::ListItem`] (1 = top-level). Absent means 1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub list_depth: Option<u32>,
+    /// Print band indent level (0 = content margin). Points = `level ×` profile step.
+    ///
+    /// Orthogonal to [`Self::list_depth`]: nested bullets keep the same band and
+    /// only deepen the list. Tessprek: `\block{indent=N}` before the chunk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indent: Option<u32>,
     /// Legacy string emphasis tags (prefer [`Self::spans`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub emphasis: Vec<String>,
@@ -146,6 +155,9 @@ pub struct TextHeader {
     /// Structured table when `role` is [`TextRole::Table`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub table: Option<TableData>,
+    /// Ordered panes when `role` is [`TextRole::Row`] (Tessprek `\row{…}{…}`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub panes: Option<Vec<TableCell>>,
 }
 
 impl TextHeader {
@@ -157,6 +169,7 @@ impl TextHeader {
             level: None,
             list_kind: None,
             list_depth: None,
+            indent: None,
             emphasis: Vec::new(),
             classes: Vec::new(),
             spans: Vec::new(),
@@ -166,6 +179,7 @@ impl TextHeader {
             title: None,
             caption: None,
             table: None,
+            panes: None,
         }
     }
 
@@ -185,8 +199,16 @@ impl TextHeader {
             || self.title.is_some()
             || self.caption.is_some()
             || self.table.is_some()
+            || self.panes.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
-            || matches!(self.role, TextRole::Table | TextRole::Math)
+            || self.indent.is_some_and(|n| n > 0)
+            || matches!(self.role, TextRole::Table | TextRole::Row | TextRole::Math)
+    }
+
+    /// Effective print band indent level (absent → 0).
+    #[must_use]
+    pub fn indent_or_default(&self) -> u32 {
+        self.indent.unwrap_or(0).min(16)
     }
 
     /// A heading header at `level` (1–6).
@@ -257,6 +279,14 @@ impl TextHeader {
         h
     }
 
+    /// A meta-row header (`\row{…}{…}`).
+    #[must_use]
+    pub fn row(panes: Vec<TableCell>) -> Self {
+        let mut h = Self::with_role(TextRole::Row);
+        h.panes = Some(panes);
+        h
+    }
+
     fn validate_block_label(&self, name: &str, value: Option<&str>) -> Result<()> {
         let Some(value) = value else {
             return Ok(());
@@ -313,6 +343,30 @@ impl TextHeader {
                 }
             }
         }
+        if let Some(panes) = &self.panes {
+            if self.role != TextRole::Row {
+                return Err(TesError::InvalidTextHeader {
+                    message: "panes payload requires role=row".into(),
+                });
+            }
+            if panes.len() < 2 {
+                return Err(TesError::InvalidTextHeader {
+                    message: "row requires at least 2 panes".into(),
+                });
+            }
+            for (i, pane) in panes.iter().enumerate() {
+                validate_spans(&pane.text, &pane.spans).map_err(|e| match e {
+                    TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
+                        message: format!("row pane[{i}]: {message}"),
+                    },
+                    other => other,
+                })?;
+            }
+        } else if self.role == TextRole::Row {
+            return Err(TesError::InvalidTextHeader {
+                message: "role=row requires panes".into(),
+            });
+        }
         if self.code_lang.is_some() && self.role != TextRole::CodeBlock {
             return Err(TesError::InvalidTextHeader {
                 message: "code_lang is only valid on code_block".into(),
@@ -339,6 +393,13 @@ impl TextHeader {
         {
             return Err(TesError::InvalidTextHeader {
                 message: format!("list_depth {depth} must be 1..=16"),
+            });
+        }
+        if let Some(indent) = self.indent
+            && indent > 16
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("indent {indent} must be 0..=16"),
             });
         }
         Ok(())
@@ -391,13 +452,31 @@ impl TextHeader {
             }
             TextRole::Table => {
                 if let Some(table) = &self.table {
-                    render_table_markdown(table)
+                    render_table_markdown_with_links(table, links)
                 } else {
                     format!("```tsv\n{body}\n```")
+                }
+            }
+            TextRole::Row => {
+                if let Some(panes) = &self.panes {
+                    render_row_tessprek(panes, links)
+                } else {
+                    spanned
                 }
             }
             TextRole::Math => format!("$$\n{body}\n$$"),
             TextRole::Paragraph => spanned,
         }
     }
+}
+
+/// Tessprek projection: `\row{pane0}{pane1}…`.
+fn render_row_tessprek(panes: &[TableCell], links: &[crate::catalog::LinkEntry]) -> String {
+    let mut out = String::from("\\row");
+    for pane in panes {
+        out.push('{');
+        out.push_str(&render_cell_markdown(pane, links));
+        out.push('}');
+    }
+    out
 }

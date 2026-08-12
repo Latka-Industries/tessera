@@ -8,6 +8,7 @@ pub mod document;
 pub mod features;
 pub mod file;
 pub mod history;
+pub mod icon;
 pub mod index;
 pub mod info;
 pub mod layout;
@@ -31,6 +32,7 @@ pub use history::{
     decode_footer, encode_footer, footer_suffix_len, revision_id, split_body_and_history,
     usable_file_len,
 };
+pub use icon::{ICONS, IconDef, icon_by_name, icon_name_for_face_glyph, icon_names};
 pub use index::{ChunkIndexEntry, ChunkIndexHeader, ChunkType, Codec};
 pub use info::{
     TesInfoReport, format_info_human, format_info_json, format_info_quiet, read_summary_v0,

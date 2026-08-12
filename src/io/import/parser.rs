@@ -59,6 +59,12 @@ struct TableBuilder {
     current_cell: String,
     in_head: bool,
     cell_index: usize,
+    /// Open links in the current cell: (UTF-8 start in `current_cell`, dest).
+    link_stack: Vec<(u32, String)>,
+    /// Closed links for the current cell (cell-local offsets).
+    cell_pending_links: Vec<OutboundLink>,
+    /// Flat outbound links in row-major cell order (paired with cell Link spans).
+    pending_links: Vec<OutboundLink>,
 }
 
 struct ActiveBlock {
@@ -114,8 +120,9 @@ impl ParseState {
                 self.begin(TextHeader::code_block(lang));
             }
             Tag::Link { dest_url, .. } => {
-                if self.table.is_some() {
-                    // Flatten link text into the current cell; skip TLNK for tables.
+                if let Some(table) = &mut self.table {
+                    let start = u32::try_from(table.current_cell.len()).unwrap_or(u32::MAX);
+                    table.link_stack.push((start, dest_url.to_string()));
                     return;
                 }
                 if self.active.is_none() {
@@ -149,6 +156,8 @@ impl ParseState {
             Tag::TableCell => {
                 if let Some(table) = &mut self.table {
                     table.current_cell.clear();
+                    table.link_stack.clear();
+                    table.cell_pending_links.clear();
                 }
             }
             // Other inline tags are intentionally flattened; unsupported block
@@ -189,7 +198,18 @@ impl ParseState {
                 }
             }
             TagEnd::Link => {
-                if self.table.is_some() {
+                if let Some(table) = &mut self.table {
+                    if let Some((start, dest)) = table.link_stack.pop() {
+                        let end = u32::try_from(table.current_cell.len()).unwrap_or(u32::MAX);
+                        let keep = end > start
+                            && (crate::catalog::validate_external_uri(&dest).is_ok()
+                                || Uuid::parse_str(dest.trim()).is_ok());
+                        if keep {
+                            table
+                                .cell_pending_links
+                                .push(OutboundLink { start, end, dest });
+                        }
+                    }
                     return;
                 }
                 if let Some(active) = &mut self.active
@@ -358,15 +378,49 @@ impl ParseState {
             .get(table.cell_index)
             .copied()
             .and_then(alignment_to_text_align);
+        let raw = std::mem::take(&mut table.current_cell);
+        let trimmed = raw.trim();
+        let lead = raw.len() - raw.trim_start().len();
+        let keep_end = lead + trimmed.len();
+        let shift = |offset: u32| -> Option<u32> {
+            let o = offset as usize;
+            if o < lead || o > keep_end {
+                return None;
+            }
+            u32::try_from(o - lead).ok()
+        };
+        let mut spans = Vec::new();
+        for link in std::mem::take(&mut table.cell_pending_links) {
+            let Some(start) = shift(link.start) else {
+                continue;
+            };
+            let Some(end) = shift(link.end) else {
+                continue;
+            };
+            if start >= end {
+                continue;
+            }
+            let link_id = u64::try_from(table.pending_links.len()).unwrap_or(u64::MAX);
+            spans.push(InlineSpan {
+                start,
+                end,
+                kind: InlineKind::Link { link_id },
+            });
+            table.pending_links.push(OutboundLink {
+                start,
+                end,
+                dest: link.dest,
+            });
+        }
+        table.link_stack.clear();
         table.current_row.push(TableCell {
-            text: table.current_cell.trim().to_owned(),
-            spans: Vec::new(),
+            text: trimmed.to_owned(),
+            spans,
             align,
             is_header: table.in_head,
             rowspan: None,
             colspan: None,
         });
-        table.current_cell.clear();
         table.cell_index += 1;
     }
 
@@ -393,7 +447,7 @@ impl ParseState {
         self.blocks.push(MarkdownBlock {
             header: TextHeader::table(data),
             body: String::new(),
-            pending_links: Vec::new(),
+            pending_links: table.pending_links,
         });
     }
 

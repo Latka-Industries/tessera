@@ -23,7 +23,8 @@ Markdown has no syntax for.
 | Figure, biblio cite, quote, ref, slide, layout, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\attach{…}` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
-| Pack phrase (expand) | `\phrase{key}{arg}` → ordinary prose at format (lossy; not a sealed span) |
+| Named FA icon | `\icon{name}` → same Font seal (`fab`/`fas` + glyph); encode prefers `\icon` when known |
+| Pack phrase (expand) | `\phrase{key}{arg…}` → ordinary Tessprek at format (lossy; not sealed). `{arg}`/`$1` and `{argN}`/`$N` |
 | Text attrs that can't live in Markdown (`class` / `lang` / `align` / `title` / `caption`) | Optional `\block{…}` immediately before the Markdown block |
 | Document header | `\tessera{format=tessprek version=2 source-hash=… [doc meta…]}` |
 | Reading order | `\ids{1,2,3,6,7}` (flat list, regenerated on every encode) |
@@ -189,7 +190,7 @@ Emitted when the document has figures; ignored on decode (regenerated from the
 `.tes` on `edit-read`). `tes format` preserves declared attrs when open as a
 buffer only. Legacy `\media{7}` / packed one-line entries still skip cleanly.
 
-### `\block{title="…" caption="…" class="…" lang=… align=…}`
+### `\block{title="…" caption="…" class="…" lang=… align=… indent=N}`
 
 Optional, immediately before a Markdown block, for the few `TextHeader`
 attributes Markdown can't express. Prefer the multiline form (same shape as
@@ -209,11 +210,17 @@ fn main() {}
 - `caption` renders **below** the block
 - Both are valid only on `table`, `math`, and `code_block` (mermaid = fenced
   code with language `mermaid` plus this directive)
+- `indent=N` sets the print **band** level (`0` = content margin). Points =
+  `N ×` profile step (`resume@0` uses 14pt). Orthogonal to list nesting:
+  `\block{indent=2}` before a list applies to every item in that run; Markdown
+  `  - nested` only bumps `list_depth`. Also attaches to a following `\row{…}`
+  when the `\block` body is otherwise empty.
 
 Also accepted: `class`, `lang`, `align`. Everything else — role, heading level,
 list kind/depth, fence language, table structure — comes from Markdown. When a
 `\block{}` precedes a multi-block Markdown run, attrs apply to **at least the
-first** resulting block.
+first** resulting block (`indent` additionally spreads across a consecutive
+list-item run).
 
 Legacy `\text{…}` is still accepted on read and rewritten to `\block{…}` on
 encode / `tes format`.
@@ -272,6 +279,23 @@ bad `frac` → hard parse error.
 | `rule` | `frac=` and/or `em=` |
 
 Semantics (flush-at-1, spacing, rejected sugar): [decisions.md — D24](decisions.md).
+
+### `\row{pane0}{pane1}…` (THI-386)
+
+Meta row without a table grid (LaTeX `\hfill` / `\headedsubsection` stand-in).
+**At least two** consecutive content braces; brace count = pane count. Nested
+`{…}` inside a pane (e.g. `\font{id}{text}`, Markdown links) is fine.
+
+```text
+\row{[Org \icon{globe}](https://example.com)}{New York, NY}
+\row{*Chief Technology Officer*}{*5/2026 – Present*}
+\row{Left}{Middle}{Right}
+```
+
+Seals as `TextRole::Row` + `panes` (cell-shaped: text + spans). Native PDF maps
+to weave `PrintBlock::Row` (last pane natural-width flush-end; earlier panes
+share leftover measure). One-row GFM tables stay tables — use `\row` for
+meta/hfill layout.
 
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 

@@ -18,6 +18,7 @@ mod encode;
 mod format;
 mod inline_cite;
 mod inline_font;
+pub(crate) use inline_font::extract_inline_fonts_mapped;
 mod layout_ops;
 pub mod markers;
 mod types;
@@ -39,6 +40,7 @@ pub use write::encode_content_blocks;
 
 pub(crate) use brace::{
     scan_tessprek_preamble, skip_blank_lines, take_brace_command, take_leading_tessera_header,
+    take_row_panes,
 };
 pub(crate) use util::{parse_attrs, trim_block_body};
 

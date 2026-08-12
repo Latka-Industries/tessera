@@ -2,6 +2,7 @@
 //!
 //! Not product templates. Regenerate with `cargo run --example gen_sample_fixtures`.
 
+use std::fmt::Write;
 use std::fs;
 use std::path::Path;
 
@@ -102,7 +103,7 @@ fn packs_readme() -> String {
     let id_loop = ids.join(" ");
     let mut table = String::from("| Pack | Knobs to notice |\n| --- | --- |\n");
     for pack in FIGURE_PACKS {
-        table.push_str(&format!("| `{}` | {} |\n", pack.id, pack.knobs));
+        let _ = writeln!(table, "| `{}` | {} |", pack.id, pack.knobs);
     }
     format!(
         r#"# Browse packs (figure / weave knobs)

@@ -27,19 +27,18 @@ pub(crate) fn push_cite_block(
             let (n, cite, bib) = decode_numbered_cite(file, entry, cite_numbers)?;
             let label = cite_stub_label(&cite, &bib);
             let marker = format_numeric_marker(n);
-            blocks.push(PrintBlock::Paragraph {
-                runs: vec![
-                    TextRun {
-                        text: marker,
-                        style: InlineStyle {
-                            cite: true,
-                            ..Default::default()
-                        },
-                        face: None,
+            blocks.push(PrintBlock::paragraph(vec![
+                TextRun {
+                    text: marker,
+                    style: InlineStyle {
+                        cite: true,
+                        ..Default::default()
                     },
-                    TextRun::plain(format!(" {label}")),
-                ],
-            });
+                    face: None,
+                    link_uri: None,
+                },
+                TextRun::plain(format!(" {label}")),
+            ]));
             bib_items.push((n, bib));
         }
         CiteTessprekKind::Quote => {

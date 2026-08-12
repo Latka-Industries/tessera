@@ -29,6 +29,8 @@ struct ChunkJsonlRow<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     list_depth: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    indent: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     byte_len: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     text: Option<&'a str>,
@@ -132,6 +134,7 @@ impl<'a> ChunkJsonlRow<'a> {
             level: None,
             list_kind: None,
             list_depth: None,
+            indent: None,
             byte_len: None,
             text: None,
             quote: None,
@@ -179,6 +182,9 @@ fn append_jsonl_text(
         if depth > 1 {
             row.list_depth = Some(depth);
         }
+    }
+    if let level @ 1.. = header.indent_or_default() {
+        row.indent = Some(level);
     }
     row.byte_len = Some(body.len());
     row.text = Some(&body);

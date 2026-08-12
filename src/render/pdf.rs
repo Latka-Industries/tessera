@@ -166,6 +166,8 @@ fn export_pdf_native(path: &Path, output: &Path, options: &PdfExportOptions) -> 
         Some("manuscript") => Some(PrintProfileId::manuscript_v0()),
         Some("deck") => Some(PrintProfileId::deck_v0()),
         Some("print") => Some(PrintProfileId::print_v0()),
+        Some("print-letter") => Some(PrintProfileId::print_letter_v0()),
+        Some("resume") => Some(PrintProfileId::resume_v0()),
         _ => None,
     };
     let doc = build_print_document(

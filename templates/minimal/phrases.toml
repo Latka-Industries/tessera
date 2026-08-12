@@ -1,5 +1,5 @@
-# Parameterized phrases expanded as `\phrase{key}` / `\phrase{key}{arg}` (D23 / THI-355).
-# Keys are ASCII identifiers. `{arg}` / `$1` slots receive the optional second brace.
+# Parameterized phrases: `\phrase{key}` / `\phrase{key}{arg…}` (D23 / THI-355).
+# Keys are ASCII identifiers. Slots: `{arg}` / `$1` (first) and `{argN}` / `$N`.
 # Markdown in the template is fine (*emphasis*); sealed `.tes` stores ordinary prose.
 
 [phrases]

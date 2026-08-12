@@ -102,9 +102,12 @@ impl TesWriterSession {
 
     /// Append a text chunk and materialize outbound links into `TLNK` + Link spans.
     ///
-    /// Drops any existing Link spans on `header`, assigns contiguous `link_id`s
-    /// starting at the current table length, then adds one [`LinkEntry`] per
-    /// outbound edge via [`OutboundLink::into_entry`].
+    /// Drops any existing Link spans on `header` (and on table cells), assigns
+    /// contiguous `link_id`s starting at the current table length, then adds one
+    /// [`LinkEntry`] per outbound edge via [`OutboundLink::into_entry`].
+    ///
+    /// For structured tables, outbound links are applied to cell spans (row-major
+    /// order matching temporary parse-time link ids) rather than `header.spans`.
     ///
     /// # Errors
     ///
@@ -118,15 +121,23 @@ impl TesWriterSession {
         header
             .spans
             .retain(|s| !matches!(s.kind, InlineKind::Link { .. }));
+
+        let cell_slots = structured_link_slots(&header);
+        strip_structured_link_spans(&mut header);
+
         let base = self.link_count() as u64;
-        for (i, pending) in outbound.iter().enumerate() {
-            header.spans.push(InlineSpan {
-                start: pending.start,
-                end: pending.end,
-                kind: InlineKind::Link {
-                    link_id: base + i as u64,
-                },
-            });
+        if cell_slots.is_empty() {
+            for (i, pending) in outbound.iter().enumerate() {
+                header.spans.push(InlineSpan {
+                    start: pending.start,
+                    end: pending.end,
+                    kind: InlineKind::Link {
+                        link_id: base + i as u64,
+                    },
+                });
+            }
+        } else {
+            seal_structured_outbound(&mut header, &cell_slots, outbound, base)?;
         }
         let chunk_id = self.add_text_chunk(&header, body)?;
         for pending in outbound {
@@ -493,6 +504,128 @@ fn pad_to(buf: &mut Vec<u8>, offset: usize) {
     if buf.len() < offset {
         buf.resize(offset, 0);
     }
+}
+
+/// `(row, col, start, end)` for temporary / sealed Link spans on tables or rows.
+///
+/// Row panes use `row = 0` and `col = pane index`.
+fn structured_link_slots(header: &TextHeader) -> Vec<(usize, usize, u32, u32)> {
+    let cells: Vec<(usize, usize, &crate::catalog::chunk::TableCell)> =
+        if let Some(table) = header.table.as_ref() {
+            table
+                .rows
+                .iter()
+                .enumerate()
+                .flat_map(|(ri, row)| {
+                    row.cells
+                        .iter()
+                        .enumerate()
+                        .map(move |(ci, cell)| (ri, ci, cell))
+                })
+                .collect()
+        } else if let Some(panes) = header.panes.as_ref() {
+            panes
+                .iter()
+                .enumerate()
+                .map(|(ci, pane)| (0, ci, pane))
+                .collect()
+        } else {
+            return Vec::new();
+        };
+    link_slots_from_cells(cells.into_iter())
+}
+
+fn link_slots_from_cells<'a>(
+    cells: impl Iterator<Item = (usize, usize, &'a crate::catalog::chunk::TableCell)>,
+) -> Vec<(usize, usize, u32, u32)> {
+    let mut found: Vec<(u64, usize, usize, u32, u32)> = Vec::new();
+    for (ri, ci, cell) in cells {
+        for span in &cell.spans {
+            if let InlineKind::Link { link_id } = span.kind {
+                found.push((link_id, ri, ci, span.start, span.end));
+            }
+        }
+    }
+    found.sort_by_key(|(id, _, _, _, _)| *id);
+    found
+        .into_iter()
+        .map(|(_, ri, ci, start, end)| (ri, ci, start, end))
+        .collect()
+}
+
+fn strip_structured_link_spans(header: &mut TextHeader) {
+    if let Some(table) = header.table.as_mut() {
+        for row in &mut table.rows {
+            for cell in &mut row.cells {
+                strip_link_spans(&mut cell.spans);
+            }
+        }
+    }
+    if let Some(panes) = header.panes.as_mut() {
+        for pane in panes {
+            strip_link_spans(&mut pane.spans);
+        }
+    }
+}
+
+fn strip_link_spans(spans: &mut Vec<InlineSpan>) {
+    spans.retain(|s| !matches!(s.kind, InlineKind::Link { .. }));
+}
+
+fn seal_structured_outbound(
+    header: &mut TextHeader,
+    slots: &[(usize, usize, u32, u32)],
+    outbound: &[OutboundLink],
+    base: u64,
+) -> Result<()> {
+    let kind = if header.table.is_some() {
+        "table"
+    } else if header.panes.is_some() {
+        "row"
+    } else {
+        return Err(TesError::EditOp {
+            message: "structured link slots without table/row payload".into(),
+        });
+    };
+    if outbound.len() != slots.len() {
+        return Err(TesError::EditOp {
+            message: format!(
+                "{kind} link count mismatch: {} outbound vs {} cell slots",
+                outbound.len(),
+                slots.len()
+            ),
+        });
+    }
+    for (i, pending) in outbound.iter().enumerate() {
+        let (ri, ci, start, end) = slots[i];
+        let cell = structured_cell_mut(header, ri, ci).ok_or_else(|| TesError::EditOp {
+            message: format!("missing {kind} cell [{ri}][{ci}] for link"),
+        })?;
+        let (start, end) = if pending.end > pending.start {
+            (pending.start, pending.end)
+        } else {
+            (start, end)
+        };
+        cell.spans.push(InlineSpan {
+            start,
+            end,
+            kind: InlineKind::Link {
+                link_id: base + i as u64,
+            },
+        });
+    }
+    Ok(())
+}
+
+fn structured_cell_mut(
+    header: &mut TextHeader,
+    ri: usize,
+    ci: usize,
+) -> Option<&mut crate::catalog::chunk::TableCell> {
+    if let Some(table) = header.table.as_mut() {
+        return table.rows.get_mut(ri).and_then(|row| row.cells.get_mut(ci));
+    }
+    header.panes.as_mut()?.get_mut(ci)
 }
 
 fn doc_kind_from_str(s: &str) -> Result<DocKind> {

@@ -11,6 +11,7 @@ use super::runs::body_to_runs;
 pub(crate) struct PendingListItem {
     depth: u32,
     kind: ListKind,
+    indent: u32,
     runs: Vec<TextRun>,
 }
 
@@ -20,6 +21,7 @@ pub(crate) fn push_list_item(
     header: &TextHeader,
     body: &str,
     cite: CiteProj<'_>,
+    links: &[crate::catalog::link::LinkEntry],
 ) {
     let kind = header.list_kind.unwrap_or(ListKind::Bullet);
     let depth = header.list_depth_or_default();
@@ -32,7 +34,8 @@ pub(crate) fn push_list_item(
     list_buf.push(PendingListItem {
         depth,
         kind,
-        runs: body_to_runs(body, &header.spans, Some(cite)),
+        indent: header.indent_or_default(),
+        runs: body_to_runs(body, &header.spans, Some(cite), links),
     });
 }
 
@@ -47,13 +50,15 @@ pub(crate) fn flush_list(blocks: &mut Vec<PrintBlock>, list_buf: &mut Vec<Pendin
 fn coalesce_list(items: &[PendingListItem]) -> PrintBlock {
     let ordered = matches!(items.first().map(|i| i.kind), Some(ListKind::Ordered));
     let min_depth = items.iter().map(|i| i.depth).min().unwrap_or(1);
+    let indent = items.iter().map(|i| i.indent).find(|&n| n > 0).unwrap_or(0);
     PrintBlock::List {
         ordered,
-        items: nest_list_items(items, min_depth),
+        items: nest_list_items(items, min_depth, indent),
+        indent,
     }
 }
 
-fn nest_list_items(items: &[PendingListItem], depth: u32) -> Vec<ListItem> {
+fn nest_list_items(items: &[PendingListItem], depth: u32, band_indent: u32) -> Vec<ListItem> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < items.len() {
@@ -65,7 +70,7 @@ fn nest_list_items(items: &[PendingListItem], depth: u32) -> Vec<ListItem> {
             let mut promoted = items[i].clone();
             promoted.depth = depth;
             let slice = std::slice::from_ref(&promoted);
-            out.extend(nest_list_items(slice, depth));
+            out.extend(nest_list_items(slice, depth, band_indent));
             i += 1;
             continue;
         }
@@ -76,7 +81,7 @@ fn nest_list_items(items: &[PendingListItem], depth: u32) -> Vec<ListItem> {
             i += 1;
         }
         let children = if child_start < i {
-            child_lists(&items[child_start..i], depth + 1)
+            child_lists(&items[child_start..i], depth + 1, band_indent)
         } else {
             Vec::new()
         };
@@ -85,7 +90,7 @@ fn nest_list_items(items: &[PendingListItem], depth: u32) -> Vec<ListItem> {
     out
 }
 
-fn child_lists(items: &[PendingListItem], depth: u32) -> Vec<PrintBlock> {
+fn child_lists(items: &[PendingListItem], depth: u32, band_indent: u32) -> Vec<PrintBlock> {
     if items.is_empty() {
         return Vec::new();
     }
@@ -101,10 +106,10 @@ fn child_lists(items: &[PendingListItem], depth: u32) -> Vec<PrintBlock> {
             }
             end += 1;
         }
-        let ordered = matches!(kind, ListKind::Ordered);
         out.push(PrintBlock::List {
-            ordered,
-            items: nest_list_items(&items[start..end], depth),
+            ordered: matches!(kind, ListKind::Ordered),
+            items: nest_list_items(&items[start..end], depth, band_indent),
+            indent: band_indent,
         });
         start = end;
     }

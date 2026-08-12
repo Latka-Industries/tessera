@@ -120,6 +120,33 @@ fn parses_gfm_pipe_table_into_table_data() {
 }
 
 #[test]
+fn parses_markdown_links_inside_table_cells() {
+    let md = concat!(
+        "| [VerifyLocal LLC](https://pilot.verifylocal.ai) | New York, NY |\n",
+        "| --- | --- |\n",
+    );
+    let blocks = parse_markdown_blocks(md);
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert_eq!(blocks[0].pending_links.len(), 1);
+    assert_eq!(
+        blocks[0].pending_links[0].dest,
+        "https://pilot.verifylocal.ai"
+    );
+    let table = blocks[0].header.table.as_ref().expect("TableData");
+    let cell = &table.rows[0].cells[0];
+    assert_eq!(cell.text, "VerifyLocal LLC");
+    assert_eq!(cell.spans.len(), 1);
+    assert!(matches!(
+        cell.spans[0].kind,
+        InlineKind::Link { link_id: 0 }
+    ));
+    assert_eq!(
+        &cell.text[cell.spans[0].start as usize..cell.spans[0].end as usize],
+        "VerifyLocal LLC"
+    );
+}
+
+#[test]
 fn imports_obsidian_pipe_table_round_trips_as_table_role() {
     let dir = tempdir().unwrap();
     let input = dir.path().join("table.md");

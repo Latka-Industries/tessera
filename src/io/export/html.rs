@@ -275,6 +275,18 @@ fn render_text_chunk_html(
             html.push_str(&text_caption_html(header.caption.as_deref()));
             html
         }
+        TextRole::Row => {
+            let panes = header.panes.as_deref().unwrap_or(&[]);
+            let cells = panes.iter().fold(String::new(), |mut acc, pane| {
+                let _ = write!(
+                    acc,
+                    "<span class=\"tes-row-pane\">{}</span>",
+                    escape_html(pane.text.as_str())
+                );
+                acc
+            });
+            format!("  <div class=\"tes-row\" data-chunk-id=\"{chunk_id}\"{class}>{cells}</div>\n")
+        }
         TextRole::Math => {
             let mut html = text_title_html(header.title.as_deref());
             html.push_str(&render_math_html(chunk_id, body, &class, true));

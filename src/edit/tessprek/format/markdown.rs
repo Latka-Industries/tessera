@@ -7,7 +7,7 @@ use crate::error::Result;
 use crate::io::import::parse_markdown_blocks;
 
 use super::super::inline_cite::extract_inline_cites;
-use super::super::inline_font::extract_inline_fonts;
+use super::super::inline_font::extract_inline_fonts_mapped;
 use super::parse_err;
 use crate::io::import::is_gfm_separator_row;
 
@@ -98,34 +98,74 @@ pub(super) fn append_markdown_blocks(
         return Ok(());
     }
 
+    // `\block{indent=N}` before a list applies the band to every item in the run.
+    let list_indent = preserve.and_then(|m| parse_indent_level(m.get("indent")?));
+
     for (idx, block) in parsed.into_iter().enumerate() {
         let mut header = block.header;
         if idx == 0
             && let Some(map) = preserve
         {
             apply_preserved_attrs(&mut header, map, line_no)?;
+        } else if header.role == TextRole::ListItem
+            && header.indent.is_none()
+            && let Some(n) = list_indent
+        {
+            header.indent = Some(n);
         }
         out.push(text_block(None, header, &block.body, block.pending_links)?);
     }
     Ok(())
 }
 
+/// Parse `\block{indent=N}` (`1..=16`). `0` / invalid → `None` (absent band).
+fn parse_indent_level(raw: &str) -> Option<u32> {
+    let n: u32 = raw.parse().ok()?;
+    (1..=16).contains(&n).then_some(n)
+}
+
 fn text_block(
     chunk_id: Option<u64>,
-    header: TextHeader,
+    mut header: TextHeader,
     body: &str,
-    pending_links: Vec<OutboundLink>,
+    mut pending_links: Vec<OutboundLink>,
 ) -> Result<ContentBlock> {
     // Fonts first so `\font{id}{\cite{key}}` keeps an extractable cite inside.
-    let (body, pending_fonts) = extract_inline_fonts(body)?;
-    let (body, pending_cites) = extract_inline_cites(&body)?;
+    // Markdown spans/links were measured on the pre-strip body — remap them.
+    let extracted = extract_inline_fonts_mapped(body)?;
+    if !extracted.pending.is_empty() {
+        header.spans = header
+            .spans
+            .into_iter()
+            .filter_map(|span| {
+                let (start, end) = extracted.remap_range(span.start, span.end)?;
+                Some(crate::catalog::chunk::InlineSpan {
+                    start,
+                    end,
+                    kind: span.kind,
+                })
+            })
+            .collect();
+        pending_links = pending_links
+            .into_iter()
+            .filter_map(|link| {
+                let (start, end) = extracted.remap_range(link.start, link.end)?;
+                Some(OutboundLink {
+                    start,
+                    end,
+                    dest: link.dest,
+                })
+            })
+            .collect();
+    }
+    let (body, pending_cites) = extract_inline_cites(&extracted.body)?;
     Ok(ContentBlock::Text {
         chunk_id,
         header,
         body,
         pending_links,
         pending_cites,
-        pending_fonts,
+        pending_fonts: extracted.pending,
     })
 }
 
@@ -154,6 +194,21 @@ pub(super) fn apply_preserved_attrs(
     {
         header.align =
             Some(TextAlign::from_name(align).map_err(|e| parse_err(line_no, 1, format!("{e}")))?);
+    }
+    if header.indent.is_none()
+        && let Some(raw) = map.get("indent")
+    {
+        match parse_indent_level(raw) {
+            Some(n) => header.indent = Some(n),
+            None if raw == "0" => {}
+            None => {
+                return Err(parse_err(
+                    line_no,
+                    1,
+                    format!("invalid indent={raw} (expected 0..=16)"),
+                ));
+            }
+        }
     }
     if header.role == TextRole::CodeBlock
         && header.code_lang.is_none()

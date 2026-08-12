@@ -46,13 +46,23 @@ pub const REF_PREFIX: &str = "\\ref{";
 pub const SLIDE_PREFIX: &str = "\\slide{";
 /// Layout directive: `\layout{ place … / vspace=… / rule … }` (D24).
 pub const LAYOUT_PREFIX: &str = "\\layout{";
+/// Meta-row directive opener: `\row{left}{right}…` (2+ content braces).
+pub const ROW_PREFIX: &str = "\\row{";
 /// Attachment directive: `\attach{filename=… media_type=… sha256=…}`.
 pub const ATTACH_PREFIX: &str = "\\attach{";
 /// Closing delimiter for every brace command.
 pub const BRACE_SUFFIX: &str = "}";
 
 /// Preferred attribute keys for `\block{…}` (completion + hover order).
-pub const BLOCK_ATTR_KEYS: &[&str] = &["title", "caption", "class", "lang", "align", "code_lang"];
+pub const BLOCK_ATTR_KEYS: &[&str] = &[
+    "title",
+    "caption",
+    "class",
+    "lang",
+    "align",
+    "indent",
+    "code_lang",
+];
 /// Deprecated alias for [`BLOCK_ATTR_KEYS`].
 pub const TEXT_ATTR_KEYS: &[&str] = BLOCK_ATTR_KEYS;
 /// Preferred attribute keys for `\figure{…}`.

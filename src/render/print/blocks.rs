@@ -18,15 +18,16 @@ use crate::io::export::{
     decode_figure_entry, decode_layout_entry, decode_slide_entry, decode_text_entry,
 };
 
-use super::runs::body_to_runs;
+use super::runs::{body_to_runs, cell_to_runs};
 
 pub(crate) fn map_text_block(
     header: &TextHeader,
     body: &str,
     profile: &PrintProfileId,
     cite: CiteProj<'_>,
+    links: &[crate::catalog::link::LinkEntry],
 ) -> PrintBlock {
-    let runs = || body_to_runs(body, &header.spans, Some(cite));
+    let runs = || body_to_runs(body, &header.spans, Some(cite), links);
     match header.role {
         TextRole::Heading => {
             let level = u8::try_from(header.level.unwrap_or(1).clamp(1, 6)).unwrap_or(1);
@@ -37,18 +38,39 @@ pub(crate) fn map_text_block(
             }
         }
         // ListItem: isolated items should have been coalesced; paragraph fallback.
-        TextRole::Paragraph | TextRole::ListItem => PrintBlock::Paragraph { runs: runs() },
+        TextRole::Paragraph | TextRole::ListItem => {
+            PrintBlock::paragraph_indent(runs(), header.indent_or_default())
+        }
         TextRole::Blockquote => PrintBlock::Quote { runs: runs() },
         TextRole::CodeBlock => PrintBlock::Code {
             lang: header.code_lang.clone(),
             text: body.to_owned(),
         },
-        TextRole::Table => map_table(header, body),
+        TextRole::Table => map_table(header, body, cite, links),
+        TextRole::Row => map_row(header, cite, links),
         TextRole::Math => PrintBlock::Math {
             display: true,
             latex: body.trim().to_owned(),
         },
     }
+}
+
+fn map_row(
+    header: &TextHeader,
+    cite: CiteProj<'_>,
+    links: &[crate::catalog::link::LinkEntry],
+) -> PrintBlock {
+    let panes = header
+        .panes
+        .as_ref()
+        .map(|panes| {
+            panes
+                .iter()
+                .map(|pane| cell_to_runs(&pane.text, &pane.spans, Some(cite), links))
+                .collect()
+        })
+        .unwrap_or_default();
+    PrintBlock::row_indent(panes, header.indent_or_default())
 }
 
 fn heading_break(level: u8, profile: &PrintProfileId) -> BreakHint {
@@ -61,7 +83,12 @@ fn heading_break(level: u8, profile: &PrintProfileId) -> BreakHint {
     }
 }
 
-fn map_table(header: &TextHeader, body: &str) -> PrintBlock {
+fn map_table(
+    header: &TextHeader,
+    body: &str,
+    _cite: CiteProj<'_>,
+    _links: &[crate::catalog::link::LinkEntry],
+) -> PrintBlock {
     if let Some(table) = &header.table {
         let rows = table
             .rows
@@ -72,7 +99,7 @@ fn map_table(header: &TextHeader, body: &str) -> PrintBlock {
             .collect();
         return PrintBlock::Table { rows };
     }
-    let rows = body
+    let rows: Vec<TableRow> = body
         .lines()
         .map(|line| TableRow {
             cells: line.split('\t').map(str::to_owned).collect(),
@@ -159,7 +186,7 @@ fn map_layout_op(op: &LayoutOp) -> WeaveLayoutOp {
             spans,
         } => WeaveLayoutOp::Place {
             skip: map_place_skip(*skip),
-            runs: body_to_runs(content, spans, None),
+            runs: body_to_runs(content, spans, None, &[]),
         },
         LayoutOp::Vspace { amount } => WeaveLayoutOp::Vspace {
             amount: map_vspace(*amount),
