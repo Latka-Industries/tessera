@@ -15,6 +15,7 @@
 mod build;
 mod markdown;
 mod normalize;
+mod row;
 mod scan;
 
 #[cfg(test)]

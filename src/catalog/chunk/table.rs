@@ -54,12 +54,7 @@ pub(super) fn render_table_markdown_with_links(
         out.push('|');
         for cell in &row.cells {
             out.push(' ');
-            let rendered = if cell.spans.is_empty() {
-                cell.text.clone()
-            } else {
-                super::inline::apply_spans_markdown(&cell.text, &cell.spans, links)
-            };
-            out.push_str(rendered.replace('|', "\\|").trim());
+            out.push_str(render_cell_markdown(cell, links).replace('|', "\\|").trim());
             out.push_str(" |");
         }
         out.push('\n');
@@ -72,4 +67,16 @@ pub(super) fn render_table_markdown_with_links(
         }
     }
     out
+}
+
+/// Markdown projection of one cell / row pane (links + emphasis via spans).
+pub(super) fn render_cell_markdown(
+    cell: &TableCell,
+    links: &[crate::catalog::LinkEntry],
+) -> String {
+    if cell.spans.is_empty() {
+        cell.text.clone()
+    } else {
+        super::inline::apply_spans_markdown(&cell.text, &cell.spans, links)
+    }
 }

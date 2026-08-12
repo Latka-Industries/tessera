@@ -45,11 +45,30 @@ pub(crate) fn map_text_block(
             text: body.to_owned(),
         },
         TextRole::Table => map_table(header, body, cite, links),
+        TextRole::Row => map_row(header, cite, links),
         TextRole::Math => PrintBlock::Math {
             display: true,
             latex: body.trim().to_owned(),
         },
     }
+}
+
+fn map_row(
+    header: &TextHeader,
+    cite: CiteProj<'_>,
+    links: &[crate::catalog::link::LinkEntry],
+) -> PrintBlock {
+    let panes = header
+        .panes
+        .as_ref()
+        .map(|panes| {
+            panes
+                .iter()
+                .map(|pane| cell_to_runs(&pane.text, &pane.spans, Some(cite), links))
+                .collect()
+        })
+        .unwrap_or_default();
+    PrintBlock::Row { panes }
 }
 
 fn heading_break(level: u8, profile: &PrintProfileId) -> BreakHint {
@@ -94,7 +113,9 @@ fn map_table(
                     true,
                 )
             };
-            return PrintBlock::Row { left, right };
+            return PrintBlock::Row {
+                panes: vec![left, right],
+            };
         }
         let rows = table
             .rows
@@ -116,16 +137,18 @@ fn map_table(
         let right_text = normalize_date_dashes(rows[0].cells[1].as_str());
         let (left_strong, left_emph) = meta_row_left_style(left_text, right_text.as_str());
         return PrintBlock::Row {
-            left: style_meta_row_runs(
-                vec![ariadnes_weave::TextRun::plain(left_text.to_owned())],
-                left_strong,
-                left_emph,
-            ),
-            right: style_meta_row_runs(
-                vec![ariadnes_weave::TextRun::plain(right_text)],
-                false,
-                true,
-            ),
+            panes: vec![
+                style_meta_row_runs(
+                    vec![ariadnes_weave::TextRun::plain(left_text.to_owned())],
+                    left_strong,
+                    left_emph,
+                ),
+                style_meta_row_runs(
+                    vec![ariadnes_weave::TextRun::plain(right_text)],
+                    false,
+                    true,
+                ),
+            ],
         };
     }
     PrintBlock::Table { rows }

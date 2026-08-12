@@ -105,6 +105,61 @@ pub(crate) fn take_brace_command(
     ))
 }
 
+/// Parse `\row{pane0}{pane1}…` starting at `lines[start]` (single logical line).
+///
+/// Requires at least two consecutive content braces. Nested `{…}` inside a pane
+/// (e.g. `\font{id}{text}`) is respected via [`find_unquoted_close_brace`].
+///
+/// # Errors
+///
+/// Returns [`TesError::EditParse`] when the opener is missing, a brace is
+/// unclosed, fewer than two panes are present, or trailing junk remains.
+pub(crate) fn take_row_panes(lines: &[&str], start: usize) -> Result<(Vec<String>, usize)> {
+    let line_no = start.saturating_add(1);
+    let first = lines.get(start).map_or("", |l| l.trim());
+    let Some(mut rest) = first.strip_prefix("\\row") else {
+        return Err(parse_err(
+            line_no,
+            1,
+            format!("expected `\\row{{…}}{{…}}`, found: {first}"),
+        ));
+    };
+    let mut panes = Vec::new();
+    loop {
+        rest = rest.trim_start();
+        if rest.is_empty() {
+            break;
+        }
+        let Some(inner) = rest.strip_prefix('{') else {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("expected `{{` for next \\row pane, found: {rest}"),
+            ));
+        };
+        let Some(close) = find_unquoted_close_brace(inner) else {
+            return Err(parse_err(
+                line_no,
+                1,
+                "unclosed `{…}` in \\row pane",
+            ));
+        };
+        panes.push(inner[..close].to_owned());
+        rest = &inner[close + 1..];
+    }
+    if panes.len() < 2 {
+        return Err(parse_err(
+            line_no,
+            1,
+            format!(
+                "\\row requires at least 2 panes, found {}",
+                panes.len()
+            ),
+        ));
+    }
+    Ok((panes, start + 1))
+}
+
 /// Parse a `\tessera{…}` header starting at `lines[start]` (0-based).
 ///
 /// # Errors

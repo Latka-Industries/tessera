@@ -273,6 +273,23 @@ bad `frac` → hard parse error.
 
 Semantics (flush-at-1, spacing, rejected sugar): [decisions.md — D24](decisions.md).
 
+### `\row{pane0}{pane1}…` (THI-386)
+
+Meta row without a table grid (LaTeX `\hfill` / `\headedsubsection` stand-in).
+**At least two** consecutive content braces; brace count = pane count. Nested
+`{…}` inside a pane (e.g. `\font{id}{text}`, Markdown links) is fine.
+
+```text
+\row{[Org \font{fas}{}](https://example.com)}{New York, NY}
+\row{Chief Technology Officer}{5/2026 – Present}
+\row{Left}{Middle}{Right}
+```
+
+Seals as `TextRole::Row` + `panes` (cell-shaped: text + spans). Native PDF maps
+to weave `PrintBlock::Row` (last pane natural-width flush-end; earlier panes
+share leftover measure). The temporary 1×2 GFM-table→Row print heuristic still
+exists for dogfood; prefer `\row` for new content.
+
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 
 No body; attachment bytes are never projected into Tessprek (inert — see

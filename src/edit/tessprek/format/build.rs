@@ -8,6 +8,7 @@ use super::markdown::{
     append_markdown_blocks, apply_preserved_attrs, build_table_block, looks_like_gfm_table,
     split_pipe_run_into_tables,
 };
+use super::row::decode_row_panes;
 use super::scan::{Segment, scan_segments};
 use crate::edit::ContentBlock;
 
@@ -63,6 +64,11 @@ pub(crate) fn build_content_blocks_with_spans(
             } => {
                 let line_no = start + 1;
                 let block = decode_named_directive(&kind, &map, &body, line_no)?;
+                out.push((start, end, block));
+            }
+            Segment::Row { start, end, panes } => {
+                let line_no = start + 1;
+                let block = decode_row_panes(&panes, line_no)?;
                 out.push((start, end, block));
             }
         }
@@ -183,6 +189,11 @@ fn block_anchor_line(block: &ContentBlock) -> String {
             .and_then(|t| t.rows.first())
             .and_then(|r| r.cells.first())
             .map_or_else(|| first_nonempty_line(body), |c| format!("| {} ", c.text)),
+        ContentBlock::Text { header, .. } if header.role == TextRole::Row => header
+            .panes
+            .as_ref()
+            .and_then(|p| p.first())
+            .map_or_else(|| "\\row".into(), |c| format!("\\row{{{}}}", c.text)),
         ContentBlock::Text { body, .. } => first_nonempty_line(body),
         ContentBlock::Figure { figure, .. } => first_nonempty_line(&figure.alt_text),
         ContentBlock::Cite { cite, .. } => {

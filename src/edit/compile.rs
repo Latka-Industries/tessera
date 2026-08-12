@@ -242,18 +242,15 @@ fn text_outbound_links(
     if !pending_links.is_empty() {
         return pending_links.to_vec();
     }
-    // Remap existing Link spans from the source TLNK (body or table cells).
+    // Remap existing Link spans from the source TLNK (body, table cells, or row panes).
     let mut spans: Vec<(u64, u32, u32)> = Vec::new();
     if let Some(table) = &header.table {
         for row in &table.rows {
-            for cell in &row.cells {
-                for span in &cell.spans {
-                    if let InlineKind::Link { link_id } = span.kind {
-                        spans.push((link_id, span.start, span.end));
-                    }
-                }
-            }
+            push_cell_link_ids(&mut spans, &row.cells);
         }
+        spans.sort_by_key(|(id, _, _)| *id);
+    } else if let Some(panes) = &header.panes {
+        push_cell_link_ids(&mut spans, panes);
         spans.sort_by_key(|(id, _, _)| *id);
     } else {
         for span in &header.spans {
@@ -273,6 +270,16 @@ fn text_outbound_links(
             })
         })
         .collect()
+}
+
+fn push_cell_link_ids(out: &mut Vec<(u64, u32, u32)>, cells: &[crate::catalog::chunk::TableCell]) {
+    for cell in cells {
+        for span in &cell.spans {
+            if let InlineKind::Link { link_id } = span.kind {
+                out.push((link_id, span.start, span.end));
+            }
+        }
+    }
 }
 
 /// Persist a cite block, preferring Tessprek-provided biblio `source` over a

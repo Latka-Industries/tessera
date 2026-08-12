@@ -155,11 +155,13 @@ fn append_linear_text(
             out.push_str("\n$$\n");
             append_linear_caption(out, header.caption.as_deref());
         }
-        TextRole::Paragraph | TextRole::Table => {
+        TextRole::Paragraph | TextRole::Table | TextRole::Row => {
             if header.role == TextRole::Table {
                 append_linear_title(out, header.title.as_deref());
             }
             if header.role == TextRole::Table && header.table.is_some() {
+                out.push_str(&header.render_markdown(""));
+            } else if header.role == TextRole::Row && header.panes.is_some() {
                 out.push_str(&header.render_markdown(""));
             } else {
                 out.push_str(body.trim_end());

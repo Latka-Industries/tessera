@@ -12,6 +12,51 @@ use crate::layout::DocKind;
 use tempfile::tempdir;
 
 #[test]
+fn round_trip_row_directive() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\row{[Org](https://example.com)}{New York, NY}\n\
+\n\
+\\row{Left}{Mid}{Right}\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 2);
+    match &blocks[0] {
+        ContentBlock::Text {
+            header,
+            pending_links,
+            ..
+        } => {
+            assert_eq!(header.role, TextRole::Row);
+            let panes = header.panes.as_ref().expect("panes");
+            assert_eq!(panes.len(), 2);
+            assert_eq!(panes[0].text, "Org");
+            assert_eq!(panes[1].text, "New York, NY");
+            assert_eq!(pending_links.len(), 1);
+        }
+        _ => panic!("expected row text"),
+    }
+    match &blocks[1] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Row);
+            assert_eq!(header.panes.as_ref().map(|p| p.len()), Some(3));
+        }
+        _ => panic!("expected 3-pane row"),
+    }
+    let out = encode_content_blocks(
+        &TessprekDocMeta::default(),
+        &blocks,
+        &[],
+        &[],
+    );
+    assert!(out.contains("\\row{"), "{out}");
+    assert!(out.contains("Org") && out.contains("New York, NY"), "{out}");
+    assert!(out.contains("\\row{Left}{Mid}{Right}") || out.contains("{Left}{Mid}{Right}"), "{out}");
+}
+
+#[test]
 fn round_trip_text_classes() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("note.tes");
