@@ -375,7 +375,12 @@ fn render_place_content(content: &str, spans: &[InlineSpan]) -> String {
             continue;
         }
         let inner = out[start..end].to_owned();
-        let replacement = format!("\\font{{{font_id}}}{{{inner}}}");
+        let replacement =
+            if let Some(name) = crate::catalog::icon_name_for_face_glyph(font_id, &inner) {
+                format!("\\icon{{{name}}}")
+            } else {
+                format!("\\font{{{font_id}}}{{{inner}}}")
+            };
         out.replace_range(start..end, &replacement);
     }
     out

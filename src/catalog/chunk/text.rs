@@ -471,10 +471,7 @@ impl TextHeader {
 }
 
 /// Tessprek projection: `\row{pane0}{pane1}…`.
-fn render_row_tessprek(
-    panes: &[TableCell],
-    links: &[crate::catalog::LinkEntry],
-) -> String {
+fn render_row_tessprek(panes: &[TableCell], links: &[crate::catalog::LinkEntry]) -> String {
     let mut out = String::from("\\row");
     for pane in panes {
         out.push('{');

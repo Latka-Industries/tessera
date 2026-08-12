@@ -45,15 +45,13 @@ fn round_trip_row_directive() {
         }
         _ => panic!("expected 3-pane row"),
     }
-    let out = encode_content_blocks(
-        &TessprekDocMeta::default(),
-        &blocks,
-        &[],
-        &[],
-    );
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
     assert!(out.contains("\\row{"), "{out}");
     assert!(out.contains("Org") && out.contains("New York, NY"), "{out}");
-    assert!(out.contains("\\row{Left}{Mid}{Right}") || out.contains("{Left}{Mid}{Right}"), "{out}");
+    assert!(
+        out.contains("\\row{Left}{Mid}{Right}") || out.contains("{Left}{Mid}{Right}"),
+        "{out}"
+    );
 }
 
 #[test]

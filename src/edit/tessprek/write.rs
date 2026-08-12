@@ -61,10 +61,7 @@ pub fn encode_content_blocks(
                 let ordered_index = ordered.take_for_text(header);
                 // One `\block{indent=N}` per list run — not before every item.
                 let mut attr_header = header.clone();
-                if header.role == TextRole::ListItem
-                    && i > 0
-                    && blocks[i - 1].is_list_item()
-                {
+                if header.role == TextRole::ListItem && i > 0 && blocks[i - 1].is_list_item() {
                     attr_header.indent = None;
                 }
                 write_block_directive(&mut out, &attr_header);
@@ -289,10 +286,14 @@ fn render_text_body(
                 continue;
             };
             let inner = body[start..end].to_owned();
-            body.replace_range(
-                start..end,
-                &format!("\\font{{{}}}{{{inner}}}", font.font_id),
-            );
+            let replacement = if let Some(name) =
+                crate::catalog::icon_name_for_face_glyph(&font.font_id, &inner)
+            {
+                format!("\\icon{{{name}}}")
+            } else {
+                format!("\\font{{{}}}{{{inner}}}", font.font_id)
+            };
+            body.replace_range(start..end, &replacement);
         }
     }
 

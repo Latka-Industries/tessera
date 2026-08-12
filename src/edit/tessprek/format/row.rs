@@ -1,7 +1,7 @@
 //! Tessprek `\row{pane}{pane}…` → sealed [`TextRole::Row`](crate::catalog::TextRole::Row).
 
-use crate::catalog::chunk::{InlineKind, InlineSpan, TableCell, TextHeader};
 use crate::catalog::OutboundLink;
+use crate::catalog::chunk::{InlineKind, InlineSpan, TableCell, TextHeader};
 use crate::edit::ContentBlock;
 use crate::error::Result;
 use crate::io::import::parse_markdown_blocks;
@@ -76,10 +76,7 @@ mod tests {
     #[test]
     fn decodes_two_panes_with_link() {
         let block = decode_row_panes(
-            &[
-                "[Org](https://example.com)".into(),
-                "New York, NY".into(),
-            ],
+            &["[Org](https://example.com)".into(), "New York, NY".into()],
             1,
         )
         .expect("decode");

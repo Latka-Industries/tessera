@@ -23,6 +23,7 @@ Markdown has no syntax for.
 | Figure, biblio cite, quote, ref, slide, layout, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\attach{…}` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
+| Named FA icon | `\icon{name}` → same Font seal (`fab`/`fas` + glyph); encode prefers `\icon` when known |
 | Pack phrase (expand) | `\phrase{key}{arg}` → ordinary prose at format (lossy; not a sealed span) |
 | Text attrs that can't live in Markdown (`class` / `lang` / `align` / `title` / `caption`) | Optional `\block{…}` immediately before the Markdown block |
 | Document header | `\tessera{format=tessprek version=2 source-hash=… [doc meta…]}` |
@@ -286,15 +287,15 @@ Meta row without a table grid (LaTeX `\hfill` / `\headedsubsection` stand-in).
 `{…}` inside a pane (e.g. `\font{id}{text}`, Markdown links) is fine.
 
 ```text
-\row{[Org \font{fas}{}](https://example.com)}{New York, NY}
-\row{Chief Technology Officer}{5/2026 – Present}
+\row{[Org \icon{globe}](https://example.com)}{New York, NY}
+\row{*Chief Technology Officer*}{*5/2026 – Present*}
 \row{Left}{Middle}{Right}
 ```
 
 Seals as `TextRole::Row` + `panes` (cell-shaped: text + spans). Native PDF maps
 to weave `PrintBlock::Row` (last pane natural-width flush-end; earlier panes
-share leftover measure). The temporary 1×2 GFM-table→Row print heuristic still
-exists for dogfood; prefer `\row` for new content.
+share leftover measure). One-row GFM tables stay tables — use `\row` for
+meta/hfill layout.
 
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 

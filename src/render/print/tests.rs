@@ -261,7 +261,9 @@ fn cite_quote_ref_biblio_and_inline_markers() {
 
     // Biblio stub: "[1] keller2020"
     let stub = doc.blocks.iter().find_map(|b| match b {
-        PrintBlock::Paragraph { runs, .. } if runs.iter().any(|r| r.style.cite && r.text == "[1]") => {
+        PrintBlock::Paragraph { runs, .. }
+            if runs.iter().any(|r| r.style.cite && r.text == "[1]") =>
+        {
             Some(runs.iter().map(|r| r.text.as_str()).collect::<String>())
         }
         _ => None,

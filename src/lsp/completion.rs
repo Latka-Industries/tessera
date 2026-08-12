@@ -174,6 +174,30 @@ fn command_completions(
             ..Default::default()
         });
     }
+    // Named Font Awesome icons (seal as Font span; encode prefers `\icon{name}`).
+    if "icon".starts_with(typed) || typed.is_empty() {
+        items.push(CompletionItem {
+            label: "\\icon".into(),
+            kind: Some(CompletionItemKind::SNIPPET),
+            detail: Some("named FA icon (→ Font span)".into()),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: format!(
+                    "Seal `\\icon{{name}}` → pack face + glyph. Names: {}.",
+                    crate::catalog::icon_names().join(", ")
+                ),
+            })),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            text_edit: Some(snippet_edit(
+                line,
+                replace_start,
+                character,
+                "\\icon{${1:github}}$0".into(),
+            )),
+            filter_text: Some("\\icon".into()),
+            ..Default::default()
+        });
+    }
     // Pack aliases: `\name` → fixed string at format (not sealed core commands).
     // Only after the user typed a prefix (avoid dumping every alias on bare `\`).
     if !typed.is_empty() {

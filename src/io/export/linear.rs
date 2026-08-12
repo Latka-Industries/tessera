@@ -159,9 +159,12 @@ fn append_linear_text(
             if header.role == TextRole::Table {
                 append_linear_title(out, header.title.as_deref());
             }
-            if header.role == TextRole::Table && header.table.is_some() {
-                out.push_str(&header.render_markdown(""));
-            } else if header.role == TextRole::Row && header.panes.is_some() {
+            let structured = match header.role {
+                TextRole::Table => header.table.is_some(),
+                TextRole::Row => header.panes.is_some(),
+                _ => false,
+            };
+            if structured {
                 out.push_str(&header.render_markdown(""));
             } else {
                 out.push_str(body.trim_end());

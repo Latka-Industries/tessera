@@ -138,11 +138,7 @@ pub(crate) fn take_row_panes(lines: &[&str], start: usize) -> Result<(Vec<String
             ));
         };
         let Some(close) = find_unquoted_close_brace(inner) else {
-            return Err(parse_err(
-                line_no,
-                1,
-                "unclosed `{…}` in \\row pane",
-            ));
+            return Err(parse_err(line_no, 1, "unclosed `{…}` in \\row pane"));
         };
         panes.push(inner[..close].to_owned());
         rest = &inner[close + 1..];
@@ -151,10 +147,7 @@ pub(crate) fn take_row_panes(lines: &[&str], start: usize) -> Result<(Vec<String
         return Err(parse_err(
             line_no,
             1,
-            format!(
-                "\\row requires at least 2 panes, found {}",
-                panes.len()
-            ),
+            format!("\\row requires at least 2 panes, found {}", panes.len()),
         ));
     }
     Ok((panes, start + 1))

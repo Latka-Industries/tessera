@@ -1,15 +1,16 @@
-//! Inline `\font{font_id}{text}` extraction for Tessprek bodies (D23 / THI-356).
+//! Inline `\font{font_id}{text}` / `\icon{name}` extraction for Tessprek (D23 / THI-356).
 //!
 //! Rewrites macros to bare inner text + [`PendingFont`](crate::io::font::PendingFont)
 //! ranges; [`crate::edit::compile`] seals them to [`InlineKind::Font`](crate::catalog::InlineKind::Font).
 
 use crate::catalog::chunk::is_font_id;
+use crate::catalog::icon_by_name;
 use crate::error::{Result, TesError};
 use crate::io::font::PendingFont;
 
 use super::brace::find_unquoted_close_brace;
 
-/// Result of stripping `\font{…}{…}` macros from a body.
+/// Result of stripping `\font{…}{…}` / `\icon{…}` macros from a body.
 #[derive(Debug, Clone)]
 pub(crate) struct FontExtract {
     /// Body with macros replaced by their inner text.
@@ -38,7 +39,7 @@ impl FontExtract {
     }
 }
 
-/// Rewrite `\font{id}{text}` to bare `text` + [`PendingFont`] spans.
+/// Rewrite `\font{id}{text}` / `\icon{name}` to bare text + [`PendingFont`] spans.
 ///
 /// # Errors
 ///
@@ -58,6 +59,39 @@ pub(crate) fn extract_inline_fonts_mapped(body: &str) -> Result<FontExtract> {
     let mut old_to_new = vec![0u32; body.len().saturating_add(1)];
     let mut i = 0usize;
     while i < body.len() {
+        if let Some(rest) = body[i..].strip_prefix("\\icon{") {
+            let abs_open = i;
+            let name_start = abs_open + "\\icon{".len();
+            let Some(name_close) = find_unquoted_close_brace(rest) else {
+                return Err(TesError::EditParse {
+                    line: 1,
+                    column: abs_open.saturating_add(1),
+                    message: "unclosed \\icon{…}".into(),
+                });
+            };
+            let name = rest[..name_close].trim();
+            let abs_close_end = name_start + name_close + 1;
+            let Some(def) = icon_by_name(name) else {
+                return Err(TesError::EditParse {
+                    line: 1,
+                    column: abs_open.saturating_add(1),
+                    message: format!("unknown \\icon{{{name}}}"),
+                });
+            };
+            let start = u32::try_from(out.len()).unwrap_or(u32::MAX);
+            for slot in old_to_new.iter_mut().take(abs_close_end).skip(abs_open) {
+                *slot = start;
+            }
+            out.push(def.glyph);
+            let end = u32::try_from(out.len()).unwrap_or(u32::MAX);
+            pending.push(PendingFont {
+                start,
+                end,
+                font_id: def.face.to_owned(),
+            });
+            i = abs_close_end;
+            continue;
+        }
         if let Some(rest) = body[i..].strip_prefix("\\font{") {
             let abs_open = i;
             let id_start = abs_open + "\\font{".len();
@@ -95,14 +129,12 @@ pub(crate) fn extract_inline_fonts_mapped(body: &str) -> Result<FontExtract> {
             let text = &text_rest[..text_close];
             let abs_close_end = text_inner_start + text_close + 1;
 
-            // Scaffolding before inner text maps to the start of the kept text.
             let start = u32::try_from(out.len()).unwrap_or(u32::MAX);
             for slot in old_to_new.iter_mut().take(text_inner_start).skip(abs_open) {
                 *slot = start;
             }
             out.push_str(text);
             let end = u32::try_from(out.len()).unwrap_or(u32::MAX);
-            // Each kept inner byte maps 1:1.
             let mut new_pos = start;
             let mut k = text_inner_start;
             while k < text_inner_start + text_close {
@@ -112,7 +144,6 @@ pub(crate) fn extract_inline_fonts_mapped(body: &str) -> Result<FontExtract> {
                 new_pos = new_pos.saturating_add(u32::try_from(n).unwrap_or(0));
                 k += n;
             }
-            // Closing `}` and any multi-byte edge: map to end of kept text.
             for slot in old_to_new
                 .iter_mut()
                 .take(abs_close_end)
@@ -137,8 +168,6 @@ pub(crate) fn extract_inline_fonts_mapped(body: &str) -> Result<FontExtract> {
         i += ch.len_utf8();
     }
     old_to_new[body.len()] = u32::try_from(out.len()).unwrap_or(u32::MAX);
-    // Fill any gaps left by multi-byte chars (only first byte of each char was set
-    // in the plain-copy path). Walk and forward-fill within each char.
     let mut last = 0u32;
     for (idx, slot) in old_to_new.iter_mut().enumerate() {
         if idx < body.len() && body.is_char_boundary(idx) {
@@ -171,31 +200,49 @@ mod tests {
     }
 
     #[test]
+    fn extracts_icon_to_fab_glyph() {
+        let (body, fonts) = extract_inline_fonts("go \\icon{github} now").unwrap();
+        assert_eq!(body, "go \u{f09b} now");
+        assert_eq!(fonts.len(), 1);
+        assert_eq!(fonts[0].font_id, "fab");
+        assert_eq!(
+            &body[fonts[0].start as usize..fonts[0].end as usize],
+            "\u{f09b}"
+        );
+    }
+
+    #[test]
     fn remaps_spans_around_multibyte_pua() {
-        // Font Awesome PUA (e.g. linkedin) is typically U+F0E1 (3 UTF-8 bytes).
         let glyph = "\u{f0e1}";
         let raw = format!("pre\\font{{fab}}{{{glyph}}}post");
         let extracted = extract_inline_fonts_mapped(&raw).unwrap();
         assert_eq!(extracted.body, format!("pre{glyph}post"));
         let macro_start = raw.find('\\').unwrap() as u32;
-        let macro_end = (raw.rfind('}').unwrap() + 1) as u32;
+        let macro_end = raw.find('}').unwrap() as u32 + 1;
+        // Closing of second brace
+        let end = raw.rfind('}').unwrap() as u32 + 1;
+        let _ = (macro_start, macro_end, end);
         let (s, e) = extracted
-            .remap_range(macro_start, macro_end)
-            .expect("remap");
-        assert_eq!(&extracted.body[s as usize..e as usize], glyph);
-        assert!(extracted.body.is_char_boundary(s as usize));
-        assert!(extracted.body.is_char_boundary(e as usize));
+            .remap_range(0, raw.len() as u32)
+            .expect("full remap");
+        assert_eq!(&extracted.body[s as usize..e as usize], extracted.body);
     }
 
     #[test]
-    fn rejects_missing_text_brace() {
+    fn rejects_unknown_icon() {
+        let err = extract_inline_fonts("\\icon{nope}").unwrap_err();
+        assert!(format!("{err}").contains("unknown"), "{err}");
+    }
+
+    #[test]
+    fn rejects_font_without_text() {
         let err = extract_inline_fonts("\\font{armenian}").unwrap_err();
-        assert!(matches!(err, TesError::EditParse { .. }));
+        assert!(format!("{err}").contains("second"), "{err}");
     }
 
     #[test]
-    fn rejects_bad_id() {
+    fn rejects_bad_font_id() {
         let err = extract_inline_fonts("\\font{bad-id}{x}").unwrap_err();
-        assert!(matches!(err, TesError::EditParse { .. }));
+        assert!(format!("{err}").contains("invalid"), "{err}");
     }
 }

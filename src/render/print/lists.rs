@@ -50,11 +50,7 @@ pub(crate) fn flush_list(blocks: &mut Vec<PrintBlock>, list_buf: &mut Vec<Pendin
 fn coalesce_list(items: &[PendingListItem]) -> PrintBlock {
     let ordered = matches!(items.first().map(|i| i.kind), Some(ListKind::Ordered));
     let min_depth = items.iter().map(|i| i.depth).min().unwrap_or(1);
-    let indent = items
-        .iter()
-        .map(|i| i.indent)
-        .find(|&n| n > 0)
-        .unwrap_or(0);
+    let indent = items.iter().map(|i| i.indent).find(|&n| n > 0).unwrap_or(0);
     PrintBlock::List {
         ordered,
         items: nest_list_items(items, min_depth, indent),
