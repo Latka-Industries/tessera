@@ -209,7 +209,7 @@ A Tessera template is a folder/pack with a versioned manifest:
   category `font` pin ids (`[text|heading|quote|cite].font`, THI-360);
 - optional `typography.toml` / `aliases.toml` / `phrases.toml` — expand once at
   `tes format` / edit-write (D23 / THI-354 / THI-355); sealed body stores
-  results (`\phrase{key}{arg}` → ordinary styled prose; lossy round-trip);
+  results (`\phrase{key}{arg…}` → ordinary Tessprek; `{argN}`/`$N` slots; lossy);
 - optional `fonts.toml` + font files — pack-pinned TTFs for `\font{id}{…}` and
   category defaults (D23 / THI-356 / THI-360); seals to `InlineKind::Font`;
   native PDF → `pinned_faces`;

@@ -1,10 +1,12 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.2.8** (document-depth wire: Tessprek v2,
+**Status:** M0–M11 shipped; crate **0.2.9** (document-depth wire: Tessprek v2,
 captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering; **D23** pack
 authoring complete — category fonts, master `tessera.toml`, pack-aware LSP;
 native print caption/underline bridge via **`ariadnes-weave` ≥ 0.2.8** /
-THI-349). Chromium remains the default PDF backend. M10 history tools
+THI-349; resume dogfood wire via weave **0.2.9** / THI-324 — `\row`, `\icon`,
+`\block{indent=N}`, multi-arg `\phrase`, `--theme-id resume`). Chromium remains
+the default PDF backend. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
 **inert attachments**, and **typed TLNK targets** (external URI heap v1) are
@@ -23,9 +25,10 @@ closes D23 (THI-351): master `tessera.toml` (THI-367), pack-aware LSP
 completions (THI-369), and Tessprek save/format id stability. **D24** layout
 blocks (`\layout` / `place`/`vspace`/`rule`) land with THI-361..365; Tesscriptor
 op-list UI is later (THI-366). **0.2.8** pins weave **0.2.8** and bridges
-figure title/caption + inline underline (THI-349).
-Richer native layout (tables/math/decks, OS fonts) continues on that track /
-template dogfood (THI-324). This is an implementation plan, not a release schedule.
+figure title/caption + inline underline (THI-349). **0.2.9** pins weave
+**0.2.9** and lands THI-324 resume print/Tessprek surface (`\row` / `\icon` /
+indent / multi-arg phrases). Richer native layout (tables/math/decks, OS fonts)
+continues on that track. This is an implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -283,7 +286,8 @@ freeze. CRDT/live cursors are not part of M10.
    (THI-288..290 / THI-292 / THI-294); D23 Phase B 0.2.5 (THI-357 / 354 / 355 / 356);
    category fonts 0.2.6 (THI-360); D24 layout blocks (THI-361..365); D23 close
    0.2.7 (THI-367 / THI-369 / save stability; epic THI-351); caption/underline
-   bridge 0.2.8 (THI-349 / weave 0.2.8).
+   bridge 0.2.8 (THI-349 / weave 0.2.8); resume Tessprek/print 0.2.9
+   (THI-324 / 386 / 387 / weave 0.2.9).
 
 ---
 
