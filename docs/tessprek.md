@@ -24,7 +24,7 @@ Markdown has no syntax for.
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
 | Named FA icon | `\icon{name}` → same Font seal (`fab`/`fas` + glyph); encode prefers `\icon` when known |
-| Pack phrase (expand) | `\phrase{key}{arg}` → ordinary prose at format (lossy; not a sealed span) |
+| Pack phrase (expand) | `\phrase{key}{arg…}` → ordinary Tessprek at format (lossy; not sealed). `{arg}`/`$1` and `{argN}`/`$N` |
 | Text attrs that can't live in Markdown (`class` / `lang` / `align` / `title` / `caption`) | Optional `\block{…}` immediately before the Markdown block |
 | Document header | `\tessera{format=tessprek version=2 source-hash=… [doc meta…]}` |
 | Reading order | `\ids{1,2,3,6,7}` (flat list, regenerated on every encode) |

@@ -59,104 +59,12 @@ pub(crate) fn extract_inline_fonts_mapped(body: &str) -> Result<FontExtract> {
     let mut old_to_new = vec![0u32; body.len().saturating_add(1)];
     let mut i = 0usize;
     while i < body.len() {
-        if let Some(rest) = body[i..].strip_prefix("\\icon{") {
-            let abs_open = i;
-            let name_start = abs_open + "\\icon{".len();
-            let Some(name_close) = find_unquoted_close_brace(rest) else {
-                return Err(TesError::EditParse {
-                    line: 1,
-                    column: abs_open.saturating_add(1),
-                    message: "unclosed \\icon{…}".into(),
-                });
-            };
-            let name = rest[..name_close].trim();
-            let abs_close_end = name_start + name_close + 1;
-            let Some(def) = icon_by_name(name) else {
-                return Err(TesError::EditParse {
-                    line: 1,
-                    column: abs_open.saturating_add(1),
-                    message: format!("unknown \\icon{{{name}}}"),
-                });
-            };
-            let start = u32::try_from(out.len()).unwrap_or(u32::MAX);
-            for slot in old_to_new.iter_mut().take(abs_close_end).skip(abs_open) {
-                *slot = start;
-            }
-            out.push(def.glyph);
-            let end = u32::try_from(out.len()).unwrap_or(u32::MAX);
-            pending.push(PendingFont {
-                start,
-                end,
-                font_id: def.face.to_owned(),
-            });
-            i = abs_close_end;
+        if body[i..].starts_with("\\icon{") {
+            i = take_icon(body, i, &mut out, &mut pending, &mut old_to_new)?;
             continue;
         }
-        if let Some(rest) = body[i..].strip_prefix("\\font{") {
-            let abs_open = i;
-            let id_start = abs_open + "\\font{".len();
-            let Some(id_close) = find_unquoted_close_brace(rest) else {
-                return Err(TesError::EditParse {
-                    line: 1,
-                    column: abs_open.saturating_add(1),
-                    message: "unclosed \\font{…}".into(),
-                });
-            };
-            let font_id = rest[..id_close].trim();
-            let after_id = id_start + id_close + 1;
-            if !is_font_id(font_id) {
-                return Err(TesError::EditParse {
-                    line: 1,
-                    column: abs_open.saturating_add(1),
-                    message: format!("invalid \\font id {font_id:?}"),
-                });
-            }
-            let Some(text_rest) = body.get(after_id..).and_then(|s| s.strip_prefix('{')) else {
-                return Err(TesError::EditParse {
-                    line: 1,
-                    column: after_id.saturating_add(1),
-                    message: "\\font{id} requires a second {text} brace".into(),
-                });
-            };
-            let text_inner_start = after_id + 1;
-            let Some(text_close) = find_unquoted_close_brace(text_rest) else {
-                return Err(TesError::EditParse {
-                    line: 1,
-                    column: text_inner_start.saturating_add(1),
-                    message: "unclosed \\font{id}{…}".into(),
-                });
-            };
-            let text = &text_rest[..text_close];
-            let abs_close_end = text_inner_start + text_close + 1;
-
-            let start = u32::try_from(out.len()).unwrap_or(u32::MAX);
-            for slot in old_to_new.iter_mut().take(text_inner_start).skip(abs_open) {
-                *slot = start;
-            }
-            out.push_str(text);
-            let end = u32::try_from(out.len()).unwrap_or(u32::MAX);
-            let mut new_pos = start;
-            let mut k = text_inner_start;
-            while k < text_inner_start + text_close {
-                old_to_new[k] = new_pos;
-                let ch = body[k..].chars().next().expect("inner text char");
-                let n = ch.len_utf8();
-                new_pos = new_pos.saturating_add(u32::try_from(n).unwrap_or(0));
-                k += n;
-            }
-            for slot in old_to_new
-                .iter_mut()
-                .take(abs_close_end)
-                .skip(text_inner_start + text_close)
-            {
-                *slot = end;
-            }
-            pending.push(PendingFont {
-                start,
-                end,
-                font_id: font_id.to_owned(),
-            });
-            i = abs_close_end;
+        if body[i..].starts_with("\\font{") {
+            i = take_font(body, i, &mut out, &mut pending, &mut old_to_new)?;
             continue;
         }
         let Some(ch) = body[i..].chars().next() else {
@@ -168,6 +76,127 @@ pub(crate) fn extract_inline_fonts_mapped(body: &str) -> Result<FontExtract> {
         i += ch.len_utf8();
     }
     old_to_new[body.len()] = u32::try_from(out.len()).unwrap_or(u32::MAX);
+    fill_non_boundary_slots(body, &mut old_to_new);
+    Ok(FontExtract {
+        body: out,
+        pending,
+        old_to_new,
+    })
+}
+
+fn take_icon(
+    body: &str,
+    abs_open: usize,
+    out: &mut String,
+    pending: &mut Vec<PendingFont>,
+    old_to_new: &mut [u32],
+) -> Result<usize> {
+    let rest = &body[abs_open + "\\icon{".len()..];
+    let name_start = abs_open + "\\icon{".len();
+    let Some(name_close) = find_unquoted_close_brace(rest) else {
+        return Err(TesError::EditParse {
+            line: 1,
+            column: abs_open.saturating_add(1),
+            message: "unclosed \\icon{…}".into(),
+        });
+    };
+    let name = rest[..name_close].trim();
+    let abs_close_end = name_start + name_close + 1;
+    let Some(def) = icon_by_name(name) else {
+        return Err(TesError::EditParse {
+            line: 1,
+            column: abs_open.saturating_add(1),
+            message: format!("unknown \\icon{{{name}}}"),
+        });
+    };
+    let start = u32::try_from(out.len()).unwrap_or(u32::MAX);
+    for slot in old_to_new.iter_mut().take(abs_close_end).skip(abs_open) {
+        *slot = start;
+    }
+    out.push(def.glyph);
+    let end = u32::try_from(out.len()).unwrap_or(u32::MAX);
+    pending.push(PendingFont {
+        start,
+        end,
+        font_id: def.face.to_owned(),
+    });
+    Ok(abs_close_end)
+}
+
+fn take_font(
+    body: &str,
+    abs_open: usize,
+    out: &mut String,
+    pending: &mut Vec<PendingFont>,
+    old_to_new: &mut [u32],
+) -> Result<usize> {
+    let rest = &body[abs_open + "\\font{".len()..];
+    let id_start = abs_open + "\\font{".len();
+    let Some(id_close) = find_unquoted_close_brace(rest) else {
+        return Err(TesError::EditParse {
+            line: 1,
+            column: abs_open.saturating_add(1),
+            message: "unclosed \\font{…}".into(),
+        });
+    };
+    let font_id = rest[..id_close].trim();
+    let after_id = id_start + id_close + 1;
+    if !is_font_id(font_id) {
+        return Err(TesError::EditParse {
+            line: 1,
+            column: abs_open.saturating_add(1),
+            message: format!("invalid \\font id {font_id:?}"),
+        });
+    }
+    let Some(text_rest) = body.get(after_id..).and_then(|s| s.strip_prefix('{')) else {
+        return Err(TesError::EditParse {
+            line: 1,
+            column: after_id.saturating_add(1),
+            message: "\\font{id} requires a second {text} brace".into(),
+        });
+    };
+    let text_inner_start = after_id + 1;
+    let Some(text_close) = find_unquoted_close_brace(text_rest) else {
+        return Err(TesError::EditParse {
+            line: 1,
+            column: text_inner_start.saturating_add(1),
+            message: "unclosed \\font{id}{…}".into(),
+        });
+    };
+    let text = &text_rest[..text_close];
+    let abs_close_end = text_inner_start + text_close + 1;
+
+    let start = u32::try_from(out.len()).unwrap_or(u32::MAX);
+    for slot in old_to_new.iter_mut().take(text_inner_start).skip(abs_open) {
+        *slot = start;
+    }
+    out.push_str(text);
+    let end = u32::try_from(out.len()).unwrap_or(u32::MAX);
+    let mut new_pos = start;
+    let mut k = text_inner_start;
+    while k < text_inner_start + text_close {
+        old_to_new[k] = new_pos;
+        let ch = body[k..].chars().next().expect("inner text char");
+        let n = ch.len_utf8();
+        new_pos = new_pos.saturating_add(u32::try_from(n).unwrap_or(0));
+        k += n;
+    }
+    for slot in old_to_new
+        .iter_mut()
+        .take(abs_close_end)
+        .skip(text_inner_start + text_close)
+    {
+        *slot = end;
+    }
+    pending.push(PendingFont {
+        start,
+        end,
+        font_id: font_id.to_owned(),
+    });
+    Ok(abs_close_end)
+}
+
+fn fill_non_boundary_slots(body: &str, old_to_new: &mut [u32]) {
     let mut last = 0u32;
     for (idx, slot) in old_to_new.iter_mut().enumerate() {
         if idx < body.len() && body.is_char_boundary(idx) {
@@ -176,11 +205,6 @@ pub(crate) fn extract_inline_fonts_mapped(body: &str) -> Result<FontExtract> {
             *slot = last;
         }
     }
-    Ok(FontExtract {
-        body: out,
-        pending,
-        old_to_new,
-    })
 }
 
 #[cfg(test)]

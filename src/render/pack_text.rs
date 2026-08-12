@@ -23,7 +23,11 @@ pub struct PackTextRules {
     pub substitutions: Vec<(String, String)>,
     /// Named aliases expanded as `\name` → value, longest name first.
     pub aliases: Vec<(String, String)>,
-    /// Phrase templates expanded as `\phrase{key}` / `\phrase{key}{arg}`.
+    /// Phrase templates expanded as `\phrase{key}` / `\phrase{key}{arg…}`.
+    ///
+    /// Consecutive content braces after the key are args. Templates use
+    /// `{arg}` / `$1` (first arg, backward-compatible) and `{argN}` / `$N`
+    /// (1-based) for further slots; missing args substitute as empty.
     pub phrases: Vec<(String, String)>,
 }
 
@@ -208,19 +212,24 @@ fn expand_phrases(input: &str, phrases: &[(String, String)]) -> String {
             let key_start = i + "\\phrase{".chars().count();
             if let Some((key_end, key)) = take_brace_inner(&chars, key_start) {
                 let mut j = key_end;
-                let mut arg = String::new();
-                if j < chars.len() && chars[j] == '{' {
+                let mut args = Vec::new();
+                let mut arg_parse_failed = false;
+                while j < chars.len() && chars[j] == '{' {
                     if let Some((arg_end, a)) = take_brace_inner(&chars, j + 1) {
-                        arg = a;
+                        args.push(a);
                         j = arg_end;
                     } else {
-                        out.push(chars[i]);
-                        i += 1;
-                        continue;
+                        arg_parse_failed = true;
+                        break;
                     }
                 }
+                if arg_parse_failed {
+                    out.push(chars[i]);
+                    i += 1;
+                    continue;
+                }
                 if let Some((_, template)) = phrases.iter().find(|(n, _)| n == &key) {
-                    out.push_str(&substitute_arg(template, &arg));
+                    out.push_str(&substitute_args(template, &args));
                     i = j;
                     continue;
                 }
@@ -257,8 +266,19 @@ fn take_brace_inner(chars: &[char], start: usize) -> Option<(usize, String)> {
     None
 }
 
-fn substitute_arg(template: &str, arg: &str) -> String {
-    template.replace("{arg}", arg).replace("$1", arg)
+fn substitute_args(template: &str, args: &[String]) -> String {
+    // High→low so `$10` / `{arg10}` are not eaten by `$1` / `{arg1}`.
+    // Walk a fixed ceiling so missing higher slots still clear to empty.
+    const MAX_SLOT: usize = 16;
+    let mut out = template.to_owned();
+    for n in (1..=MAX_SLOT).rev() {
+        let val = args.get(n - 1).map_or("", String::as_str);
+        out = out.replace(&format!("{{arg{n}}}"), val);
+        out = out.replace(&format!("${n}"), val);
+    }
+    let first = args.first().map_or("", String::as_str);
+    out = out.replace("{arg}", first);
+    out
 }
 
 fn expand_aliases(input: &str, aliases: &[(String, String)]) -> String {
@@ -380,6 +400,32 @@ mod tests {
             phrases: vec![("yegourdoon".into(), "*{arg}*".into())],
         };
         assert_eq!(rules.apply(r"\phrase{yegourdoon}{I am Yes}"), "*I am Yes*");
+    }
+
+    #[test]
+    fn phrase_expands_multi_arg() {
+        let rules = PackTextRules {
+            substitutions: vec![],
+            aliases: vec![],
+            phrases: vec![(
+                "entry".into(),
+                "\\row{{arg1}}{{arg2}}\n\\row{{arg3}}{{arg4}}".into(),
+            )],
+        };
+        assert_eq!(
+            rules.apply(r"\phrase{entry}{Org}{NY}{*CTO*}{*2026*}"),
+            "\\row{Org}{NY}\n\\row{*CTO*}{*2026*}"
+        );
+    }
+
+    #[test]
+    fn phrase_multi_arg_missing_slots_empty() {
+        let rules = PackTextRules {
+            substitutions: vec![],
+            aliases: vec![],
+            phrases: vec![("pair".into(), "{arg1}|{arg2}".into())],
+        };
+        assert_eq!(rules.apply(r"\phrase{pair}{only}"), "only|");
     }
 
     #[test]

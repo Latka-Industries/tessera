@@ -118,115 +118,130 @@ fn command_completions(
             continue;
         }
         let (insert, detail) = command_snippet(surface);
-        items.push(CompletionItem {
-            label: format!("\\{surface}"),
-            kind: Some(CompletionItemKind::SNIPPET),
-            detail: Some(detail.into()),
-            documentation: Some(Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: format!("Tessprek `\\{surface}{{…}}`"),
-            })),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            text_edit: Some(snippet_edit(line, replace_start, character, insert)),
-            filter_text: Some(format!("\\{surface}")),
-            ..Default::default()
-        });
+        items.push(snippet_command_item(
+            &format!("\\{surface}"),
+            detail,
+            format!("Tessprek `\\{surface}{{…}}`"),
+            line,
+            replace_start,
+            character,
+            insert,
+        ));
     }
+    push_inline_macro_snippets(&mut items, typed, line, replace_start, character);
+    push_pack_alias_items(&mut items, typed, catalog, line, replace_start, character);
+    if items.is_empty() { None } else { Some(items) }
+}
+
+fn snippet_command_item(
+    label: &str,
+    detail: &str,
+    docs: String,
+    line: u32,
+    replace_start: u32,
+    character: u32,
+    insert: String,
+) -> CompletionItem {
+    CompletionItem {
+        label: label.into(),
+        kind: Some(CompletionItemKind::SNIPPET),
+        detail: Some(detail.into()),
+        documentation: Some(Documentation::MarkupContent(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: docs,
+        })),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        text_edit: Some(snippet_edit(line, replace_start, character, insert)),
+        filter_text: Some(label.into()),
+        ..Default::default()
+    }
+}
+
+fn push_inline_macro_snippets(
+    items: &mut Vec<CompletionItem>,
+    typed: &str,
+    line: u32,
+    replace_start: u32,
+    character: u32,
+) {
     // Pack-expanded inline (not a sealed ContentBlock); snippet-only in v1.
     if "phrase".starts_with(typed) || typed.is_empty() {
-        items.push(CompletionItem {
-            label: "\\phrase".into(),
-            kind: Some(CompletionItemKind::SNIPPET),
-            detail: Some("pack phrase (expand on format/seal)".into()),
-            documentation: Some(Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: "Expand pack `phrases.toml` / `tessera.toml` `[phrases]`: `\\phrase{key}` / `\\phrase{key}{arg}` (D23). Lossy seal to ordinary prose.".into(),
-            })),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            text_edit: Some(snippet_edit(
-                line,
-                replace_start,
-                character,
-                "\\phrase{${1:key}}{${2:arg}}$0".into(),
-            )),
-            filter_text: Some("\\phrase".into()),
-            ..Default::default()
-        });
+        items.push(snippet_command_item(
+            "\\phrase",
+            "pack phrase (expand on format/seal)",
+            "Expand pack `phrases.toml` / `tessera.toml` `[phrases]`: `\\phrase{key}` / `\\phrase{key}{arg…}` (D23). Slots `{arg}`/`$1` and `{argN}`/`$N`. Lossy seal.".into(),
+            line,
+            replace_start,
+            character,
+            "\\phrase{${1:key}}{${2:arg}}$0".into(),
+        ));
     }
     // Sealed pack-pinned font (D23 / THI-356).
     if "font".starts_with(typed) || typed.is_empty() {
-        items.push(CompletionItem {
-            label: "\\font".into(),
-            kind: Some(CompletionItemKind::SNIPPET),
-            detail: Some("pack-pinned font (seal to InlineKind::Font)".into()),
-            documentation: Some(Documentation::MarkupContent(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: "Seal `\\font{font_id}{text}` → inline Font span; ids come from pack `fonts.toml` / `tessera.toml` `[fonts]` (THI-369).".into(),
-            })),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            text_edit: Some(snippet_edit(
-                line,
-                replace_start,
-                character,
-                "\\font{${1:font_id}}{${2:text}}$0".into(),
-            )),
-            filter_text: Some("\\font".into()),
-            ..Default::default()
-        });
+        items.push(snippet_command_item(
+            "\\font",
+            "pack-pinned font (seal to InlineKind::Font)",
+            "Seal `\\font{font_id}{text}` → inline Font span; ids come from pack `fonts.toml` / `tessera.toml` `[fonts]` (THI-369).".into(),
+            line,
+            replace_start,
+            character,
+            "\\font{${1:font_id}}{${2:text}}$0".into(),
+        ));
     }
     // Named Font Awesome icons (seal as Font span; encode prefers `\icon{name}`).
     if "icon".starts_with(typed) || typed.is_empty() {
+        items.push(snippet_command_item(
+            "\\icon",
+            "named FA icon (→ Font span)",
+            format!(
+                "Seal `\\icon{{name}}` → pack face + glyph. Names: {}.",
+                crate::catalog::icon_names().join(", ")
+            ),
+            line,
+            replace_start,
+            character,
+            "\\icon{${1:github}}$0".into(),
+        ));
+    }
+}
+
+fn push_pack_alias_items(
+    items: &mut Vec<CompletionItem>,
+    typed: &str,
+    catalog: &PackCompletionCatalog,
+    line: u32,
+    replace_start: u32,
+    character: u32,
+) {
+    // Pack aliases: `\name` → fixed string at format (not sealed core commands).
+    // Only after the user typed a prefix (avoid dumping every alias on bare `\`).
+    if typed.is_empty() {
+        return;
+    }
+    for name in &catalog.alias_names {
+        if !name.starts_with(typed) {
+            continue;
+        }
         items.push(CompletionItem {
-            label: "\\icon".into(),
-            kind: Some(CompletionItemKind::SNIPPET),
-            detail: Some("named FA icon (→ Font span)".into()),
+            label: format!("\\{name}"),
+            kind: Some(CompletionItemKind::TEXT),
+            detail: Some("pack alias".into()),
             documentation: Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
                 value: format!(
-                    "Seal `\\icon{{name}}` → pack face + glyph. Names: {}.",
-                    crate::catalog::icon_names().join(", ")
+                    "Pack alias `\\{name}` (expands at format from aliases.toml / tessera.toml)."
                 ),
             })),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
             text_edit: Some(snippet_edit(
                 line,
                 replace_start,
                 character,
-                "\\icon{${1:github}}$0".into(),
+                format!("\\{name}"),
             )),
-            filter_text: Some("\\icon".into()),
+            filter_text: Some(format!("\\{name}")),
             ..Default::default()
         });
     }
-    // Pack aliases: `\name` → fixed string at format (not sealed core commands).
-    // Only after the user typed a prefix (avoid dumping every alias on bare `\`).
-    if !typed.is_empty() {
-        for name in &catalog.alias_names {
-            if !name.starts_with(typed) {
-                continue;
-            }
-            items.push(CompletionItem {
-                label: format!("\\{name}"),
-                kind: Some(CompletionItemKind::TEXT),
-                detail: Some("pack alias".into()),
-                documentation: Some(Documentation::MarkupContent(MarkupContent {
-                    kind: MarkupKind::Markdown,
-                    value: format!(
-                        "Pack alias `\\{name}` (expands at format from aliases.toml / tessera.toml)."
-                    ),
-                })),
-                text_edit: Some(snippet_edit(
-                    line,
-                    replace_start,
-                    character,
-                    format!("\\{name}"),
-                )),
-                filter_text: Some(format!("\\{name}")),
-                ..Default::default()
-            });
-        }
-    }
-    if items.is_empty() { None } else { Some(items) }
 }
 
 fn command_snippet(surface: &str) -> (String, &'static str) {
