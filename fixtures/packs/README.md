@@ -77,3 +77,19 @@ cargo run -q --bin tes --features native-pdf -- export \
   --template-root fixtures/packs --template page_chrome \
   -o tmp/thi-390-smoke/manuscript_chapters__page_chrome.pdf
 ```
+
+## Multi-column body (THI-391)
+
+See [`columns_justify/README.md`](columns_justify/README.md). Pair with
+[`../samples/article_columns.tes`](../samples/article_columns.tes):
+
+```bash
+mkdir -p tmp/thi-391-smoke
+for pack in columns_left columns_justify; do
+  cargo run -q --bin tes --features native-pdf -- export \
+    fixtures/samples/article_columns.tes \
+    --pdf --backend native \
+    --template-root fixtures/packs --template "$pack" \
+    -o "tmp/thi-391-smoke/article_columns__${pack}.pdf"
+done
+```

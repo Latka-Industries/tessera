@@ -79,7 +79,8 @@ pub fn encode_article_columns() -> Vec<u8> {
         .add_text_chunk(
             &TextHeader::paragraph(),
             "Lead stays full measure. Below: a two-column region, a spanning mid heading, \
-             then a three-column region — enough lorem to fill bands so the split is obvious.",
+             then a three-column region — enough lorem to fill bands so the split is obvious. \
+             Pair with pack `columns_justify` for justified column text (vs `columns_left`).",
         )
         .expect("lead");
 
