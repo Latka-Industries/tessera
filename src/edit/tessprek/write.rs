@@ -14,9 +14,8 @@ use crate::io::font::PendingFont;
 use super::super::ContentBlock;
 use super::layout_ops::layout_op_parts;
 use super::markers::{
-    ATTACH_PREFIX, BLOCK_PREFIX, BRACE_SUFFIX, CITE_PREFIX, COLUMNS_PREFIX, FIGURE_PREFIX, FORMAT,
-    IDS_PREFIX, LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX,
-    TESSERA_PREFIX, TOC_PREFIX, LOF_PREFIX, LOT_PREFIX, VERSION,
+    ATTACH_PREFIX, BLOCK_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX,
+    LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX, VERSION,
 };
 use super::types::{TessprekDocMeta, TessprekMediaEntry};
 use super::util::{kv_attr, quoted_attr};
@@ -59,28 +58,13 @@ pub fn encode_content_blocks(
                 pending_fonts,
                 ..
             } => {
-                if header.role == TextRole::Toc {
-                    write_toc_directive(&mut out, header);
-                    out.push('\n');
-                    continue;
-                }
-                if header.role == TextRole::Lof {
-                    write_float_list_directive(&mut out, header, "lof", LOF_PREFIX);
-                    out.push('\n');
-                    continue;
-                }
-                if header.role == TextRole::Lot {
-                    write_float_list_directive(&mut out, header, "lot", LOT_PREFIX);
-                    out.push('\n');
-                    continue;
-                }
-                if header.role == TextRole::Columns {
-                    write_columns_directive(&mut out, header);
-                    out.push('\n');
-                    continue;
-                }
-                if header.role == TextRole::ColumnsEnd {
-                    let _ = writeln!(out, "\\endcolumns");
+                if header.role.is_list_nav()
+                    || matches!(
+                        header.role,
+                        TextRole::Columns | TextRole::ColumnsEnd
+                    )
+                {
+                    let _ = writeln!(out, "{}", header.render_markdown(""));
                     out.push('\n');
                     continue;
                 }
@@ -374,81 +358,6 @@ fn write_block_directive(out: &mut String, header: &TextHeader) {
         parts.push(format!("indent={indent}"));
     }
     write_brace_block(out, BLOCK_PREFIX, &parts);
-}
-
-fn write_toc_directive(out: &mut String, header: &TextHeader) {
-    let mut parts = Vec::new();
-    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
-        parts.push(quoted_attr("title", title));
-    }
-    if let Some(depth) = header.toc_depth {
-        parts.push(format!("depth={depth}"));
-    }
-    match header.toc_pages {
-        Some(false) => parts.push("page_numbers=false".into()),
-        Some(true) => parts.push("page_numbers=true".into()),
-        None => {}
-    }
-    match header.toc_sections {
-        Some(false) => parts.push("section_numbers=false".into()),
-        Some(true) => parts.push("section_numbers=true".into()),
-        None => {}
-    }
-    match header.toc_leaders {
-        Some(false) => parts.push("leaders=false".into()),
-        Some(true) => parts.push("leaders=true".into()),
-        None => {}
-    }
-    if parts.is_empty() {
-        let _ = writeln!(out, "\\toc");
-    } else {
-        write_brace_block(out, TOC_PREFIX, &parts);
-    }
-}
-
-fn write_float_list_directive(
-    out: &mut String,
-    header: &TextHeader,
-    bare: &str,
-    prefix: &str,
-) {
-    let mut parts = Vec::new();
-    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
-        parts.push(quoted_attr("title", title));
-    }
-    match header.toc_pages {
-        Some(false) => parts.push("page_numbers=false".into()),
-        Some(true) => parts.push("page_numbers=true".into()),
-        None => {}
-    }
-    match header.toc_leaders {
-        Some(false) => parts.push("leaders=false".into()),
-        Some(true) => parts.push("leaders=true".into()),
-        None => {}
-    }
-    if let Some(source) = header.float_list_source {
-        parts.push(format!("source={}", source.as_str()));
-    }
-    if parts.is_empty() {
-        let _ = writeln!(out, "\\{bare}");
-    } else {
-        write_brace_block(out, prefix, &parts);
-    }
-}
-
-fn write_columns_directive(out: &mut String, header: &TextHeader) {
-    let mut parts = Vec::new();
-    if let Some(n) = header.columns_count {
-        parts.push(format!("n={n}"));
-    }
-    if let Some(gap) = header.columns_gap {
-        parts.push(format!("gap={gap}"));
-    }
-    if parts.is_empty() {
-        let _ = writeln!(out, "\\columns");
-    } else {
-        write_brace_block(out, COLUMNS_PREFIX, &parts);
-    }
 }
 
 fn write_figure_directive(out: &mut String, figure: &FigureRef) {

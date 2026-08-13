@@ -135,20 +135,20 @@ pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Prin
         chunk_id: image_entry.chunk_id,
         message: e.to_string(),
     })?;
-    Ok(PrintBlock::Figure {
-        image: PrintImage {
+    Ok(PrintBlock::figure_dest(
+        PrintImage {
             bytes: image.data,
             media_type: image.media_type,
             width_px: (image.width_px > 0).then_some(image.width_px),
             height_px: (image.height_px > 0).then_some(image.height_px),
         },
-        alt: figure.alt_text,
-        title: plain_label_runs(figure.title.as_deref()),
+        figure.alt_text,
+        plain_label_runs(figure.title.as_deref()),
         // Plain caption runs — weave `[caption]` knobs (italic/size/band) own paint.
-        caption: plain_label_runs(figure.caption.as_deref()),
-        placement: map_figure_placement(&figure.placement),
-        dest_id: Some(float_dest_id(FloatListKind::Figures, entry.chunk_id)),
-    })
+        plain_label_runs(figure.caption.as_deref()),
+        map_figure_placement(&figure.placement),
+        float_dest_id(FloatListKind::Figures, entry.chunk_id),
+    ))
 }
 
 /// Optional figure title/caption → zero or one plain [`TextRun`].

@@ -101,6 +101,18 @@ impl TextRole {
             Self::ColumnsEnd => "columns_end",
         }
     }
+
+    /// In-document list-nav markers (`\toc` / `\lof` / `\lot`).
+    #[must_use]
+    pub const fn is_list_nav(self) -> bool {
+        matches!(self, Self::Toc | Self::Lof | Self::Lot)
+    }
+
+    /// List-of-floats markers (`\lof` / `\lot`).
+    #[must_use]
+    pub const fn is_float_list(self) -> bool {
+        matches!(self, Self::Lof | Self::Lot)
+    }
 }
 
 /// List marker kind for [`TextRole::ListItem`].
@@ -609,12 +621,7 @@ impl TextHeader {
                 message: "toc_depth is only valid on toc".into(),
             });
         }
-        if self.toc_pages.is_some()
-            && !matches!(
-                self.role,
-                TextRole::Toc | TextRole::Lof | TextRole::Lot
-            )
-        {
+        if self.toc_pages.is_some() && !self.role.is_list_nav() {
             return Err(TesError::InvalidTextHeader {
                 message: "toc_pages is only valid on toc, lof, or lot".into(),
             });
@@ -624,19 +631,12 @@ impl TextHeader {
                 message: "toc_sections is only valid on toc".into(),
             });
         }
-        if self.toc_leaders.is_some()
-            && !matches!(
-                self.role,
-                TextRole::Toc | TextRole::Lof | TextRole::Lot
-            )
-        {
+        if self.toc_leaders.is_some() && !self.role.is_list_nav() {
             return Err(TesError::InvalidTextHeader {
                 message: "toc_leaders is only valid on toc, lof, or lot".into(),
             });
         }
-        if self.float_list_source.is_some()
-            && !matches!(self.role, TextRole::Lof | TextRole::Lot)
-        {
+        if self.float_list_source.is_some() && !self.role.is_float_list() {
             return Err(TesError::InvalidTextHeader {
                 message: "float_list_source is only valid on lof or lot".into(),
             });
@@ -763,55 +763,43 @@ impl TextHeader {
 /// Tessprek projection: `\toc` or `\toc{depth=… title="…"}`.
 fn render_toc_tessprek(header: &TextHeader) -> String {
     let mut parts = Vec::new();
-    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
-        parts.push(format!("title=\"{title}\""));
-    }
+    push_list_nav_title(&mut parts, header);
     if let Some(depth) = header.toc_depth {
         parts.push(format!("depth={depth}"));
     }
-    // Defaults are on; only emit explicit `false` (or legacy `true` when sealed).
-    match header.toc_pages {
-        Some(false) => parts.push("page_numbers=false".into()),
-        Some(true) => parts.push("page_numbers=true".into()),
-        None => {}
-    }
-    match header.toc_sections {
-        Some(false) => parts.push("section_numbers=false".into()),
-        Some(true) => parts.push("section_numbers=true".into()),
-        None => {}
-    }
-    match header.toc_leaders {
-        Some(false) => parts.push("leaders=false".into()),
-        Some(true) => parts.push("leaders=true".into()),
-        None => {}
-    }
-    if parts.is_empty() {
-        "\\toc".into()
-    } else {
-        format!("\\toc{{{}}}", parts.join(" "))
-    }
+    push_optional_bool_attr(&mut parts, "page_numbers", header.toc_pages);
+    push_optional_bool_attr(&mut parts, "section_numbers", header.toc_sections);
+    push_optional_bool_attr(&mut parts, "leaders", header.toc_leaders);
+    finish_list_nav_cmd("toc", &parts)
 }
 
 /// Tessprek projection: `\lof` / `\lot` or braced attrs (THI-395).
 fn render_float_list_tessprek(header: &TextHeader, cmd: &str) -> String {
     let mut parts = Vec::new();
+    push_list_nav_title(&mut parts, header);
+    push_optional_bool_attr(&mut parts, "page_numbers", header.toc_pages);
+    push_optional_bool_attr(&mut parts, "leaders", header.toc_leaders);
+    if let Some(source) = header.float_list_source {
+        parts.push(format!("source={}", source.as_str()));
+    }
+    finish_list_nav_cmd(cmd, &parts)
+}
+
+fn push_list_nav_title(parts: &mut Vec<String>, header: &TextHeader) {
     if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
         parts.push(format!("title=\"{title}\""));
     }
-    match header.toc_pages {
-        Some(false) => parts.push("page_numbers=false".into()),
-        Some(true) => parts.push("page_numbers=true".into()),
+}
+
+fn push_optional_bool_attr(parts: &mut Vec<String>, key: &str, value: Option<bool>) {
+    match value {
+        Some(false) => parts.push(format!("{key}=false")),
+        Some(true) => parts.push(format!("{key}=true")),
         None => {}
     }
-    match header.toc_leaders {
-        Some(false) => parts.push("leaders=false".into()),
-        Some(true) => parts.push("leaders=true".into()),
-        None => {}
-    }
-    if let Some(source) = header.float_list_source {
-        // Default is title; only emit when sealed explicitly (incl. title).
-        parts.push(format!("source={}", source.as_str()));
-    }
+}
+
+fn finish_list_nav_cmd(cmd: &str, parts: &[String]) -> String {
     if parts.is_empty() {
         format!("\\{cmd}")
     } else {

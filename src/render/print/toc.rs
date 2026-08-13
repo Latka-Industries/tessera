@@ -1,12 +1,12 @@
 //! Print IR expansion for sealed [`TextRole::Toc`] (THI-390 / THI-390 defaults).
 
-use ariadnes_weave::{InlineStyle, PrintBlock, TextRun};
+use ariadnes_weave::PrintBlock;
 
 use crate::catalog::chunk::TextHeader;
 use crate::render::toc::{TocHeading, filter_headings, section_number_labels};
 
 use super::heading_dest_id;
-use super::title_paragraph;
+use super::{push_list_nav_entry, title_paragraph};
 
 /// Expand a sealed TOC marker into print IR blocks.
 ///
@@ -37,32 +37,23 @@ pub(super) fn expand_toc_print(header: &TextHeader, headings: &[TocHeading]) -> 
     let leaders = header.toc_leaders_or_default();
 
     for (i, h) in owned.iter().enumerate() {
-        let dest_id = Some(heading_dest_id(h.chunk_id));
         let title_text = match labels.get(i).map(String::as_str).filter(|s| !s.is_empty()) {
             Some(num) => format!("{num} {}", h.text),
             None => h.text.clone(),
         };
-        let mut run = TextRun::plain(title_text);
-        run.style = InlineStyle {
-            link: true,
-            ..InlineStyle::default()
-        };
-        // `None` → weave resolves page digits from `dest_id`.
-        // `Some("")` → no page column (pages explicitly off).
-        let page_label = if pages { None } else { Some(String::new()) };
-        // Indent nested levels only when section numbers are on.
         let indent = if sections {
             h.level.saturating_sub(min_level)
         } else {
             0
         };
-        blocks.push(PrintBlock::toc_entry_leaders(
-            vec![run],
-            page_label,
-            dest_id,
+        push_list_nav_entry(
+            &mut blocks,
+            title_text,
+            Some(heading_dest_id(h.chunk_id)),
             indent,
+            pages,
             leaders,
-        ));
+        );
     }
     blocks
 }

@@ -118,7 +118,9 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
         }],
     });
     table_c.caption = Some("Caption-only table — omitted unless source=caption.".into());
-    session.add_text_chunk(&table_c, "").expect("table caption-only");
+    session
+        .add_text_chunk(&table_c, "")
+        .expect("table caption-only");
 
     session
         .add_text_chunk(

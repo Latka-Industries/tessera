@@ -161,9 +161,7 @@ pub(crate) fn decode_named_directive(
 
 fn decode_toc_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
     let mut header = TextHeader::toc();
-    if let Some(title) = map.get("title").cloned().filter(|s| !s.is_empty()) {
-        header.title = Some(title);
-    }
+    apply_list_nav_common_attrs(&mut header, map, line_no)?;
     if let Some(depth) = optional_u32(map, "depth") {
         if !(1..=6).contains(&depth) {
             return Err(parse_err(
@@ -174,23 +172,10 @@ fn decode_toc_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<Co
         }
         header.toc_depth = Some(depth);
     }
-    if let Some(raw) = map.get("page_numbers") {
-        header.toc_pages = Some(parse_toc_bool(raw, "page_numbers", line_no)?);
-    }
     if let Some(raw) = map.get("section_numbers") {
         header.toc_sections = Some(parse_toc_bool(raw, "section_numbers", line_no)?);
     }
-    if let Some(raw) = map.get("leaders") {
-        header.toc_leaders = Some(parse_toc_bool(raw, "leaders", line_no)?);
-    }
-    Ok(ContentBlock::Text {
-        chunk_id: None,
-        header,
-        body: String::new(),
-        pending_links: Vec::new(),
-        pending_cites: Vec::new(),
-        pending_fonts: Vec::new(),
-    })
+    Ok(empty_marker_text(header))
 }
 
 fn parse_toc_bool(raw: &str, attr: &str, line_no: usize) -> Result<bool> {
@@ -215,15 +200,7 @@ fn decode_float_list_block(
         TextRole::Lot => TextHeader::lot(),
         _ => unreachable!("float list roles only"),
     };
-    if let Some(title) = map.get("title").cloned().filter(|s| !s.is_empty()) {
-        header.title = Some(title);
-    }
-    if let Some(raw) = map.get("page_numbers") {
-        header.toc_pages = Some(parse_toc_bool(raw, "page_numbers", line_no)?);
-    }
-    if let Some(raw) = map.get("leaders") {
-        header.toc_leaders = Some(parse_toc_bool(raw, "leaders", line_no)?);
-    }
+    apply_list_nav_common_attrs(&mut header, map, line_no)?;
     if let Some(raw) = map.get("source") {
         header.float_list_source = Some(match raw.as_str() {
             "title" => FloatListSource::Title,
@@ -244,14 +221,35 @@ fn decode_float_list_block(
             "depth/section_numbers are only valid on \\toc",
         ));
     }
-    Ok(ContentBlock::Text {
+    Ok(empty_marker_text(header))
+}
+
+fn apply_list_nav_common_attrs(
+    header: &mut TextHeader,
+    map: &BTreeMap<String, String>,
+    line_no: usize,
+) -> Result<()> {
+    if let Some(title) = map.get("title").cloned().filter(|s| !s.is_empty()) {
+        header.title = Some(title);
+    }
+    if let Some(raw) = map.get("page_numbers") {
+        header.toc_pages = Some(parse_toc_bool(raw, "page_numbers", line_no)?);
+    }
+    if let Some(raw) = map.get("leaders") {
+        header.toc_leaders = Some(parse_toc_bool(raw, "leaders", line_no)?);
+    }
+    Ok(())
+}
+
+fn empty_marker_text(header: TextHeader) -> ContentBlock {
+    ContentBlock::Text {
         chunk_id: None,
         header,
         body: String::new(),
         pending_links: Vec::new(),
         pending_cites: Vec::new(),
         pending_fonts: Vec::new(),
-    })
+    }
 }
 
 fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {

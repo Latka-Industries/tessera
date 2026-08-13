@@ -1,11 +1,11 @@
 //! Print IR expansion for sealed [`TextRole::Lof`] / [`TextRole::Lot`] (THI-395).
 
-use ariadnes_weave::{InlineStyle, PrintBlock, TextRun};
+use ariadnes_weave::PrintBlock;
 
 use crate::catalog::chunk::TextHeader;
 use crate::render::floats::{FloatCandidate, FloatListKind, float_dest_id, select_float_entries};
 
-use super::title_paragraph;
+use super::{push_list_nav_entry, title_paragraph};
 
 /// Expand a sealed LOF / LOT marker into print IR blocks.
 ///
@@ -31,21 +31,14 @@ pub(super) fn expand_float_list_print(
     let leaders = header.toc_leaders_or_default();
 
     for entry in entries {
-        let dest_id = Some(float_dest_id(kind, entry.chunk_id));
-        let title_text = format!("{} {}. {}", kind.noun(), entry.number, entry.text);
-        let mut run = TextRun::plain(title_text);
-        run.style = InlineStyle {
-            link: true,
-            ..InlineStyle::default()
-        };
-        let page_label = if pages { None } else { Some(String::new()) };
-        blocks.push(PrintBlock::toc_entry_leaders(
-            vec![run],
-            page_label,
-            dest_id,
+        push_list_nav_entry(
+            &mut blocks,
+            format!("{} {}. {}", kind.noun(), entry.number, entry.text),
+            Some(float_dest_id(kind, entry.chunk_id)),
             0,
+            pages,
             leaders,
-        ));
+        );
     }
     blocks
 }

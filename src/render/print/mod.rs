@@ -137,6 +137,32 @@ pub(crate) fn heading_dest_id(chunk_id: u64) -> String {
     format!("h-{chunk_id}")
 }
 
+/// One list-nav line (`TocEntry`) with optional page resolve and leaders.
+pub(super) fn push_list_nav_entry(
+    blocks: &mut Vec<PrintBlock>,
+    title_text: impl Into<String>,
+    dest_id: Option<String>,
+    indent: u32,
+    pages: bool,
+    leaders: bool,
+) {
+    let mut run = TextRun::plain(title_text.into());
+    run.style = InlineStyle {
+        link: true,
+        ..InlineStyle::default()
+    };
+    // `None` → weave resolves page digits from `dest_id`.
+    // `Some("")` → no page column (pages explicitly off).
+    let page_label = if pages { None } else { Some(String::new()) };
+    blocks.push(PrintBlock::toc_entry_leaders(
+        vec![run],
+        page_label,
+        dest_id,
+        indent,
+        leaders,
+    ));
+}
+
 /// Non-figure chunk caption stand-in — italic `Paragraph` until a Caption IR exists.
 /// Figure captions use `Figure.caption` + weave `[caption]` knobs instead.
 pub(crate) fn caption_paragraph(text: impl Into<String>) -> PrintBlock {
@@ -209,19 +235,16 @@ fn map_entries(
                         );
                         continue;
                     }
-                    if header.role == TextRole::Lof {
+                    if header.role.is_float_list() {
+                        let (candidates, kind) = if header.role == TextRole::Lof {
+                            (&figures, FloatListKind::Figures)
+                        } else {
+                            (&tables, FloatListKind::Tables)
+                        };
                         push_blocks(
                             &mut blocks,
                             &mut columns,
-                            expand_float_list_print(&header, &figures, FloatListKind::Figures),
-                        );
-                        continue;
-                    }
-                    if header.role == TextRole::Lot {
-                        push_blocks(
-                            &mut blocks,
-                            &mut columns,
-                            expand_float_list_print(&header, &tables, FloatListKind::Tables),
+                            expand_float_list_print(&header, candidates, kind),
                         );
                         continue;
                     }

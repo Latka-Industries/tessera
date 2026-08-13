@@ -239,7 +239,10 @@ pub fn write_all(dir: &Path) -> Result<()> {
     fs::write(dir.join("README.md"), packs_readme())?;
     fs::write(dir.join("page_chrome").join("README.md"), chrome_readme())?;
     fs::write(dir.join("hyphen_on").join("README.md"), hyphen_readme())?;
-    fs::write(dir.join("columns_justify").join("README.md"), columns_readme())?;
+    fs::write(
+        dir.join("columns_justify").join("README.md"),
+        columns_readme(),
+    )?;
     Ok(())
 }
 

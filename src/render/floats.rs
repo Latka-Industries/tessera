@@ -37,7 +37,10 @@ pub struct FloatEntry {
 /// # Errors
 ///
 /// Returns decode errors from figure chunk payloads.
-pub fn collect_figures(file: &TesFile, entries: &[&ChunkIndexEntry]) -> Result<Vec<FloatCandidate>> {
+pub fn collect_figures(
+    file: &TesFile,
+    entries: &[&ChunkIndexEntry],
+) -> Result<Vec<FloatCandidate>> {
     let mut out = Vec::new();
     for entry in entries {
         if entry.chunk_type != ChunkType::Figure {
@@ -100,7 +103,9 @@ pub fn select_float_entries(
 }
 
 fn nonempty_owned(s: Option<&str>) -> Option<String> {
-    s.map(str::trim).filter(|t| !t.is_empty()).map(str::to_owned)
+    s.map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(str::to_owned)
 }
 
 fn float_label(c: &FloatCandidate, source: FloatListSource) -> Option<String> {
