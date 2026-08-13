@@ -49,7 +49,7 @@ const FIGURE_PACKS: &[FigurePack] = &[
     },
 ];
 
-/// One page_chrome_* pack (THI-392): header/footer align + format.
+/// One `page_chrome`_* pack (THI-392): header/footer align + format.
 struct ChromePack {
     id: &'static str,
     comment: &'static str,
@@ -194,7 +194,7 @@ const STUB_CSS: &str = "/* stub — native PDF ignores pack CSS; required by Tem
 
 const CHROME_SMOKE_DOCS: &[&str] = &["manuscript_chapters", "field_notes", "studio_brief"];
 
-/// Write every figure_* and page_chrome_* smoke pack under `dir`.
+/// Write every figure_* and `page_chrome`_* smoke pack under `dir`.
 ///
 /// # Errors
 ///

@@ -169,6 +169,9 @@ fn decode_toc_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<Co
     if let Some(raw) = map.get("section_numbers") {
         header.toc_sections = Some(parse_toc_bool(raw, "section_numbers", line_no)?);
     }
+    if let Some(raw) = map.get("leaders") {
+        header.toc_leaders = Some(parse_toc_bool(raw, "leaders", line_no)?);
+    }
     Ok(ContentBlock::Text {
         chunk_id: None,
         header,

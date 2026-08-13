@@ -125,7 +125,7 @@ fn toc_html_list(headings: &[TocHeading], labels: &[String], depth: u32) -> Stri
         if i >= headings.len() || headings[i].level < depth {
             break;
         }
-        let label = labels.get(i).map(String::as_str).unwrap_or("");
+        let label = labels.get(i).map_or("", String::as_str);
         let title = if label.is_empty() {
             headings[i].text.clone()
         } else {

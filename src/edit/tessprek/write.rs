@@ -374,6 +374,11 @@ fn write_toc_directive(out: &mut String, header: &TextHeader) {
         Some(true) => parts.push("section_numbers=true".into()),
         None => {}
     }
+    match header.toc_leaders {
+        Some(false) => parts.push("leaders=false".into()),
+        Some(true) => parts.push("leaders=true".into()),
+        None => {}
+    }
     if parts.is_empty() {
         let _ = writeln!(out, "\\toc");
     } else {

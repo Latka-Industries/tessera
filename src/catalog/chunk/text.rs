@@ -174,9 +174,14 @@ pub struct TextHeader {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_pages: Option<bool>,
     /// Section numbers (`1`, `1.1`, …) on TOC lines when `role` is [`TextRole::Toc`].
-    /// Absent means **on** (`toc_sections_or_default`).
+    /// Absent means **on** (`toc_sections_or_default`). When on, nested levels
+    /// also get band indent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_sections: Option<bool>,
+    /// Dotted leaders between title and page when `role` is [`TextRole::Toc`].
+    /// Absent means **on** (`toc_leaders_or_default`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toc_leaders: Option<bool>,
 }
 
 impl TextHeader {
@@ -202,6 +207,7 @@ impl TextHeader {
             toc_depth: None,
             toc_pages: None,
             toc_sections: None,
+            toc_leaders: None,
         }
     }
 
@@ -246,6 +252,12 @@ impl TextHeader {
         self.toc_sections.unwrap_or(true)
     }
 
+    /// Whether TOC lines get dotted leaders (absent → `true`).
+    #[must_use]
+    pub fn toc_leaders_or_default(&self) -> bool {
+        self.toc_leaders.unwrap_or(true)
+    }
+
     /// Whether this header uses additive layout-v1 fields (`text_spans` feature).
     #[must_use]
     pub fn uses_layout_v1_features(&self) -> bool {
@@ -260,6 +272,7 @@ impl TextHeader {
             || self.toc_depth.is_some()
             || self.toc_pages.is_some()
             || self.toc_sections.is_some()
+            || self.toc_leaders.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
             || self.indent.is_some_and(|n| n > 0)
             || matches!(
@@ -469,6 +482,11 @@ impl TextHeader {
                 message: "toc_sections is only valid on toc".into(),
             });
         }
+        if self.toc_leaders.is_some() && self.role != TextRole::Toc {
+            return Err(TesError::InvalidTextHeader {
+                message: "toc_leaders is only valid on toc".into(),
+            });
+        }
         if self.role == TextRole::Toc
             && let Some(depth) = self.toc_depth
             && !(1..=6).contains(&depth)
@@ -584,6 +602,11 @@ fn render_toc_tessprek(header: &TextHeader) -> String {
     match header.toc_sections {
         Some(false) => parts.push("section_numbers=false".into()),
         Some(true) => parts.push("section_numbers=true".into()),
+        None => {}
+    }
+    match header.toc_leaders {
+        Some(false) => parts.push("leaders=false".into()),
+        Some(true) => parts.push("leaders=true".into()),
         None => {}
     }
     if parts.is_empty() {

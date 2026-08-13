@@ -9,9 +9,9 @@ use super::title_paragraph;
 
 /// Expand a sealed TOC marker into print IR blocks.
 ///
-/// Default look: [`PrintBlock::TocEntry`] lines with section numbers, optional
-/// page column (weave-resolved when `page_label` is `None`), and `h-{chunk_id}`
-/// destinations matching heading `dest_id`s.
+/// Default look: [`PrintBlock::TocEntry`] lines with section numbers (and band
+/// indent when sections are on), optional dotted leaders, optional page column
+/// (weave-resolved when `page_label` is `None`), and `h-{chunk_id}` destinations.
 #[must_use]
 pub(super) fn expand_toc_print(header: &TextHeader, headings: &[TocHeading]) -> Vec<PrintBlock> {
     let included = filter_headings(header, headings);
@@ -25,13 +25,15 @@ pub(super) fn expand_toc_print(header: &TextHeader, headings: &[TocHeading]) -> 
     }
 
     let owned: Vec<TocHeading> = included.iter().map(|h| (*h).clone()).collect();
-    let labels = if header.toc_sections_or_default() {
+    let sections = header.toc_sections_or_default();
+    let labels = if sections {
         section_number_labels(&owned)
     } else {
         vec![String::new(); owned.len()]
     };
     let min_level = owned.iter().map(|h| h.level).min().unwrap_or(1);
     let pages = header.toc_pages_or_default();
+    let leaders = header.toc_leaders_or_default();
 
     for (i, h) in owned.iter().enumerate() {
         let dest_id = Some(format!("h-{}", h.chunk_id));
@@ -47,12 +49,18 @@ pub(super) fn expand_toc_print(header: &TextHeader, headings: &[TocHeading]) -> 
         // `None` → weave resolves page digits from `dest_id`.
         // `Some("")` → no page column (pages explicitly off).
         let page_label = if pages { None } else { Some(String::new()) };
-        let indent = h.level.saturating_sub(min_level);
-        blocks.push(PrintBlock::toc_entry(
+        // Indent nested levels only when section numbers are on.
+        let indent = if sections {
+            h.level.saturating_sub(min_level)
+        } else {
+            0
+        };
+        blocks.push(PrintBlock::toc_entry_leaders(
             vec![run],
             page_label,
             dest_id,
             indent,
+            leaders,
         ));
     }
     blocks

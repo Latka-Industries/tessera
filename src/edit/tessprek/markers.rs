@@ -103,7 +103,13 @@ pub const SLIDE_ATTR_KEYS: &[&str] = &["layout", "regions"];
 /// Preferred attribute keys / op hints for `\layout{…}` (D24).
 pub const LAYOUT_ATTR_KEYS: &[&str] = &["place", "vspace", "rule", "frac", "em", "content"];
 /// Preferred attribute keys for `\toc{…}` (THI-390).
-pub const TOC_ATTR_KEYS: &[&str] = &["depth", "title", "page_numbers", "section_numbers"];
+pub const TOC_ATTR_KEYS: &[&str] = &[
+    "depth",
+    "title",
+    "page_numbers",
+    "section_numbers",
+    "leaders",
+];
 /// Preferred attribute keys for `\attach{…}`.
 pub const ATTACH_ATTR_KEYS: &[&str] = &["chunk", "filename", "media_type", "sha256", "caption"];
 /// Preferred attribute keys for `\media{…}` header rows.

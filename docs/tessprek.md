@@ -308,6 +308,7 @@ from heading chunks.
 \toc{depth=2 title="Contents"}
 \toc{depth=3 page_numbers=false}
 \toc{section_numbers=false}
+\toc{leaders=false}
 ```
 
 | Attr | Meaning |
@@ -315,7 +316,8 @@ from heading chunks.
 | `depth` | Max heading level to include (1–6; default 3) |
 | `title` | Optional label above the list (strong paragraph in print) |
 | `page_numbers` | Page column on TOC lines (default **on**; weave resolves from heading dests). Set `false` to omit. |
-| `section_numbers` | Hierarchical prefixes `1`, `1.1`, … (default **on**). Set `false` to omit. |
+| `section_numbers` | Hierarchical prefixes `1`, `1.1`, … **and band indent** for nested levels (default **on**). |
+| `leaders` | Dotted leaders between title and page (default **on**). Set `false` for a plain gap. |
 
 Seals as `TextRole::Toc` (empty body; live marker). Round-trip re-emits `\toc` /
 `\toc{…}` — not a frozen Markdown list. Native PDF expands to weave

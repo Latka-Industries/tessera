@@ -251,10 +251,11 @@ See `fixtures/packs/hyphen_on` vs `hyphen_off` + `fixtures/samples/hyphen_dense.
 ### In-document TOC (THI-390)
 
 Tessprek `\toc` / `\toc{…}` seals as `TextRole::Toc` (live marker). Print expands
-from heading chunks into `PrintBlock::TocEntry` lines: section numbers (default
-on), page digits resolved by weave when `page_numbers` is on (default), and
-`dest_id` / heading `h-{chunk_id}` for clickable GoTo. See `docs/tessprek.md`
-and `fixtures/samples/manuscript_chapters.tes` (Contents after front matter).
+from heading chunks into `PrintBlock::TocEntry` lines: section numbers + nested
+band indent (default on), dotted leaders (`leaders`, default on), page digits
+flush-right (weave-resolved when `page_numbers` is on), and `dest_id` /
+heading `h-{chunk_id}` for clickable GoTo. See `docs/tessprek.md` and
+`fixtures/samples/manuscript_chapters.tes` (Contents after front matter).
 
 Smoke with page chrome:
 
