@@ -11,6 +11,18 @@ vocabulary should break with a hyphen rather than overflowing the measure or \
 hard-splitting mid-grapheme. Repeated electroencephalographically challenging \
 words force several soft wraps across a deliberately narrow band.";
 
+const WIDOW_PAD: &str = "Widows and orphans: short lead-in. Then enough lines that pagination \
+glue matters when the paragraph straddles a page break. Lorem-ish \
+filler continues with more internationalization talk so the engine \
+has several content lines to keep together at the break. Extra \
+electroencephalographically dense wording pads the paragraph.";
+
+fn indented_para(session: &mut TesWriterSession, body: &str) {
+    let mut header = TextHeader::paragraph();
+    header.indent = Some(5);
+    session.add_text_chunk(&header, body).expect("para");
+}
+
 /// Dense indented prose for THI-394 hyphen on/off smoke.
 ///
 /// # Panics
@@ -33,28 +45,11 @@ pub fn encode_hyphen_dense() -> Vec<u8> {
         .add_text_chunk(&TextHeader::heading(1), "Hyphenation dense prose")
         .expect("h1");
     for _ in 0..5 {
-        let mut header = TextHeader::paragraph();
-        header.indent = Some(5);
-        session.add_text_chunk(&header, LONG).expect("para");
+        indented_para(&mut session, LONG);
     }
-    session
-        .add_text_chunk(
-            &{
-                let mut header = TextHeader::paragraph();
-                header.indent = Some(5);
-                header
-            },
-            "Widows and orphans: short lead-in. Then enough lines that pagination \
-             glue matters when the paragraph straddles a page break. Lorem-ish \
-             filler continues with more internationalization talk so the engine \
-             has several content lines to keep together at the break. Extra \
-             electroencephalographically dense wording pads the paragraph.",
-        )
-        .expect("widow para");
+    indented_para(&mut session, WIDOW_PAD);
     for _ in 0..3 {
-        let mut header = TextHeader::paragraph();
-        header.indent = Some(5);
-        session.add_text_chunk(&header, LONG).expect("para2");
+        indented_para(&mut session, LONG);
     }
     session.encode_file().expect("hyphen_dense")
 }
