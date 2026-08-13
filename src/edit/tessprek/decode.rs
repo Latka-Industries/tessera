@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::catalog::chunk::CitePayload;
+use crate::catalog::chunk::{CitePayload, TextHeader};
 use crate::catalog::media::FigureRef;
 use crate::catalog::slide::SlidePayload;
 use crate::error::Result;
@@ -138,6 +138,7 @@ pub(crate) fn decode_named_directive(
         "ref" => decode_ref_block(map, line_no),
         "slide" => decode_slide_block(map, line_no),
         "layout" => decode_layout_block(body, line_no),
+        "toc" => decode_toc_block(map, line_no),
         "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
             line_no,
@@ -145,6 +146,44 @@ pub(crate) fn decode_named_directive(
             format!("unknown tessprek directive '\\{other}{{...}}'"),
         )),
     }
+}
+
+fn decode_toc_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
+    let mut header = TextHeader::toc();
+    if let Some(title) = map.get("title").cloned().filter(|s| !s.is_empty()) {
+        header.title = Some(title);
+    }
+    if let Some(depth) = optional_u32(map, "depth") {
+        if !(1..=6).contains(&depth) {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("toc depth={depth} must be 1..=6"),
+            ));
+        }
+        header.toc_depth = Some(depth);
+    }
+    if let Some(raw) = map.get("page_numbers") {
+        header.toc_pages = Some(match raw.as_str() {
+            "true" | "1" | "yes" => true,
+            "false" | "0" | "no" => false,
+            other => {
+                return Err(parse_err(
+                    line_no,
+                    1,
+                    format!("toc page_numbers must be true/false, got '{other}'"),
+                ));
+            }
+        });
+    }
+    Ok(ContentBlock::Text {
+        chunk_id: None,
+        header,
+        body: String::new(),
+        pending_links: Vec::new(),
+        pending_cites: Vec::new(),
+        pending_fonts: Vec::new(),
+    })
 }
 
 fn decode_figure_block(

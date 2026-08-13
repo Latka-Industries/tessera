@@ -248,6 +248,24 @@ Pack `weave.toml` `[wrap]` merges onto weave prose wrap knobs:
 
 See `fixtures/packs/hyphen_on` vs `hyphen_off` + `fixtures/samples/hyphen_dense.tes`.
 
+### In-document TOC (THI-390)
+
+Tessprek `\toc` / `\toc{…}` seals as `TextRole::Toc` (live marker). Print expands
+from heading chunks into a nested bullet list (optional title; `page_numbers`
+stubs leaders until outline/page-ref pass). See `docs/tessprek.md` and
+`fixtures/samples/manuscript_chapters.tes` (Contents after front matter).
+
+Smoke with page chrome:
+
+```bash
+mkdir -p tmp/thi-390-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/manuscript_chapters.tes \
+  --pdf --backend native \
+  --template-root fixtures/packs --template page_chrome \
+  -o tmp/thi-390-smoke/manuscript_chapters__page_chrome.pdf
+```
+
 ---
 
 ## Tessera mapping (prose MVP)
@@ -255,6 +273,7 @@ See `fixtures/packs/hyphen_on` vs `hyphen_off` + `fixtures/samples/hyphen_dense.
 | `.tes` | Print IR |
 | --- | --- |
 | Text `heading` level N | `Heading { level: N, … }`; level 1 + `manuscript` → `PageAlways` |
+| Text `toc` | Expanded list (+ optional title paragraph); not a frozen sealed list |
 | `paragraph` / quote / code / list | Matching blocks; inline spans → `TextRun` styles |
 | Text chunk `title` | `Paragraph` with `style.strong` (label stand-in; no non-figure title IR) |
 | Text chunk `caption` | `Paragraph` with `style.emphasis` (stand-in; weave `[caption]` is figure-only) |

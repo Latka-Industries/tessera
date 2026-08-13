@@ -52,6 +52,8 @@ pub(crate) fn map_text_block(
             display: true,
             latex: body.trim().to_owned(),
         },
+        // Expanded in `map_entries` via `expand_toc_print`.
+        TextRole::Toc => PrintBlock::paragraph(runs()),
     }
 }
 

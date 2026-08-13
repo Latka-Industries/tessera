@@ -98,8 +98,9 @@ Terms used consistently across Tessera docs, issues, and code.
 | `research` | Papers, lit notes, cites |
 | `deck` | Slides |
 | `wiki_page` | Standalone wiki article |
-| `hub` | Table of contents / MOC |
+| `hub` | Vault map-of-content (ordered links); **not** in-document `\toc` |
 | `index` | Vault catalog sidecar |
+| **In-document TOC** | Tessprek `\toc` → sealed `TextRole::Toc`; expands at print/HTML from headings (THI-390). Distinct from hub / Tesscriptor TOC panes. |
 
 See [README — Writing modes](../README.md#writing-one-format-many-kinds-of-work).
 

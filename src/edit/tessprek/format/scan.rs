@@ -59,6 +59,19 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             continue;
         }
 
+        // Bare `\toc` (no braces) — attrs-only TOC with defaults.
+        if trimmed == "\\toc" {
+            segments.push(Segment::Directive {
+                start,
+                end: i + 1,
+                kind: "toc".into(),
+                map: BTreeMap::new(),
+                body: String::new(),
+            });
+            i += 1;
+            continue;
+        }
+
         if let Some((kind, prefix)) = match_body_opener(trimmed) {
             let (attrs, cmd_end) = take_brace_command(lines, i, prefix, kind)?;
             i = cmd_end;
@@ -85,7 +98,7 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
                         preserve: Some(map),
                     });
                 }
-                "slide" | "attachment" | "cite" | "quote" | "ref" => {
+                "slide" | "attachment" | "cite" | "quote" | "ref" | "toc" => {
                     segments.push(Segment::Directive {
                         start,
                         end: i,
@@ -150,6 +163,7 @@ fn next_boundary(lines: &[&str], mut i: usize) -> usize {
         if match_body_opener(trimmed).is_some()
             || trimmed.starts_with("\\row{")
             || trimmed == "\\row"
+            || trimmed == "\\toc"
         {
             break;
         }

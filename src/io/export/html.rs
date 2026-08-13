@@ -18,6 +18,7 @@ use super::common::{
     html_class_attr, image_src, selected_content_entries,
 };
 use super::layout_proj::layout_html;
+use crate::render::toc::{collect_headings, expand_toc_html};
 
 pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     if options.chunk_id.is_none() && options.chapter.is_none() && file_has_slides(file) {
@@ -32,6 +33,7 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
         keys: &cite_keys,
         style,
     };
+    let headings = collect_headings(file, &entries)?;
     let doc_id = file.catalog().map_or("", |catalog| catalog.doc_id.as_str());
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
@@ -53,13 +55,17 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
                     );
                 } else {
                     close_all_lists(&mut article, &mut list_stack);
-                    article.push_str(&render_text_chunk_html(
-                        entry.chunk_id,
-                        &header,
-                        &body,
-                        file.links(),
-                        Some(cite),
-                    ));
+                    if header.role == TextRole::Toc {
+                        article.push_str(&expand_toc_html(entry.chunk_id, &header, &headings));
+                    } else {
+                        article.push_str(&render_text_chunk_html(
+                            entry.chunk_id,
+                            &header,
+                            &body,
+                            file.links(),
+                            Some(cite),
+                        ));
+                    }
                 }
             }
             ChunkType::Figure => {
@@ -292,6 +298,10 @@ fn render_text_chunk_html(
             html.push_str(&render_math_html(chunk_id, body, &class, true));
             html.push_str(&text_caption_html(header.caption.as_deref()));
             html
+        }
+        // Expanded in `export_html` via `expand_toc_html`.
+        TextRole::Toc => {
+            format!("  <nav class=\"toc\" data-chunk-id=\"{chunk_id}\"{class}></nav>\n")
         }
     }
 }

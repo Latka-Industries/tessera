@@ -55,6 +55,51 @@ fn round_trip_row_directive() {
 }
 
 #[test]
+fn round_trip_toc_directive() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2,3}\n\
+\n\
+\\toc{depth=2 title=\"Contents\"}\n\
+\n\
+# Chapter 1\n\
+\n\
+## Scene\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 3);
+    match &blocks[0] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Toc);
+            assert_eq!(header.title.as_deref(), Some("Contents"));
+            assert_eq!(header.toc_depth, Some(2));
+            assert!(body.is_empty());
+        }
+        _ => panic!("expected toc"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\toc{") || out.contains("\\toc\n"), "{out}");
+    assert!(out.contains("title=\"Contents\""), "{out}");
+    assert!(out.contains("depth=2"), "{out}");
+
+    let bare = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
+\n\
+\\toc\n\
+";
+    let bare_blocks = decode_tessprek(bare).expect("bare toc");
+    match &bare_blocks[0] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Toc);
+            assert!(header.title.is_none());
+            assert!(header.toc_depth.is_none());
+        }
+        _ => panic!("expected bare toc"),
+    }
+}
+
+#[test]
 fn round_trip_text_classes() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("note.tes");

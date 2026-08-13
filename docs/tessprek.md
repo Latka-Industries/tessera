@@ -20,7 +20,7 @@ Markdown has no syntax for.
 | Content | Wire form |
 | --- | --- |
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
-| Figure, biblio cite, quote, ref, slide, layout, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\attach{…}` |
+| Figure, biblio cite, quote, ref, slide, layout, toc, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\toc{…}` / `\attach{…}` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
 | Named FA icon | `\icon{name}` → same Font seal (`fab`/`fas` + glyph); encode prefers `\icon` when known |
@@ -296,6 +296,28 @@ Seals as `TextRole::Row` + `panes` (cell-shaped: text + spans). Native PDF maps
 to weave `PrintBlock::Row` (last pane natural-width flush-end; earlier panes
 share leftover measure). One-row GFM tables stay tables — use `\row` for
 meta/hfill layout.
+
+### `\toc` / `\toc{…}` (THI-390)
+
+In-document table of contents (LaTeX `\tableofcontents` stand-in). **Not** the
+vault/hub TOC pane — this is sealed body content that expands at print/HTML
+from heading chunks.
+
+```text
+\toc
+\toc{depth=2 title="Contents"}
+\toc{depth=3 page_numbers=true}
+```
+
+| Attr | Meaning |
+| --- | --- |
+| `depth` | Max heading level to include (1–6; default 3) |
+| `title` | Optional label above the list (strong paragraph in print) |
+| `page_numbers` | Request page refs; first cut stubs `—` via `\row`-style panes |
+
+Seals as `TextRole::Toc` (empty body; live marker). Round-trip re-emits `\toc` /
+`\toc{…}` — not a frozen Markdown list. Native PDF / HTML expand from the
+document's headings at emit time.
 
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 

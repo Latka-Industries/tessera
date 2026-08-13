@@ -33,6 +33,11 @@ pub enum TextRole {
     Row,
     /// Display math; body is LaTeX source.
     Math,
+    /// In-document table of contents (Tessprek `\toc` / `\toc{…}`; THI-390).
+    ///
+    /// Live marker: print/HTML expand from heading chunks. Body is empty.
+    /// Not vault/hub nav.
+    Toc,
 }
 
 impl TextRole {
@@ -48,6 +53,7 @@ impl TextRole {
             Self::Table => "table",
             Self::Row => "row",
             Self::Math => "math",
+            Self::Toc => "toc",
         }
     }
 }
@@ -158,6 +164,14 @@ pub struct TextHeader {
     /// Ordered panes when `role` is [`TextRole::Row`] (Tessprek `\row{…}{…}`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panes: Option<Vec<TableCell>>,
+    /// Max heading level (1–6) included when `role` is [`TextRole::Toc`].
+    /// Absent means 3 (H1–H3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toc_depth: Option<u32>,
+    /// Request page numbers on TOC lines when `role` is [`TextRole::Toc`].
+    /// First cut stubs leaders (no resolved page refs yet).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toc_pages: Option<bool>,
 }
 
 impl TextHeader {
@@ -180,6 +194,8 @@ impl TextHeader {
             caption: None,
             table: None,
             panes: None,
+            toc_depth: None,
+            toc_pages: None,
         }
     }
 
@@ -187,6 +203,29 @@ impl TextHeader {
     #[must_use]
     pub fn paragraph() -> Self {
         Self::with_role(TextRole::Paragraph)
+    }
+
+    /// In-document TOC marker (empty body; expand at print/HTML).
+    #[must_use]
+    pub fn toc() -> Self {
+        Self::with_role(TextRole::Toc)
+    }
+
+    /// TOC with optional title and max heading depth.
+    #[must_use]
+    pub fn toc_titled(title: impl Into<String>, depth: u32) -> Self {
+        let mut h = Self::toc();
+        h.title = Some(title.into());
+        if depth != 3 {
+            h.toc_depth = Some(depth.clamp(1, 6));
+        }
+        h
+    }
+
+    /// Effective TOC max heading depth (absent → 3).
+    #[must_use]
+    pub fn toc_depth_or_default(&self) -> u32 {
+        self.toc_depth.unwrap_or(3).clamp(1, 6)
     }
 
     /// Whether this header uses additive layout-v1 fields (`text_spans` feature).
@@ -200,9 +239,14 @@ impl TextHeader {
             || self.caption.is_some()
             || self.table.is_some()
             || self.panes.is_some()
+            || self.toc_depth.is_some()
+            || self.toc_pages.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
             || self.indent.is_some_and(|n| n > 0)
-            || matches!(self.role, TextRole::Table | TextRole::Row | TextRole::Math)
+            || matches!(
+                self.role,
+                TextRole::Table | TextRole::Row | TextRole::Math | TextRole::Toc
+            )
     }
 
     /// Effective print band indent level (absent → 0).
@@ -301,12 +345,21 @@ impl TextHeader {
                 message: format!("{name} exceeds {TEXT_CAPTION_MAX} bytes"),
             });
         }
-        if !matches!(
-            self.role,
-            TextRole::Table | TextRole::Math | TextRole::CodeBlock
-        ) {
+        let ok = match name {
+            "title" => matches!(
+                self.role,
+                TextRole::Table | TextRole::Math | TextRole::CodeBlock | TextRole::Toc
+            ),
+            _ => matches!(
+                self.role,
+                TextRole::Table | TextRole::Math | TextRole::CodeBlock
+            ),
+        };
+        if !ok {
             return Err(TesError::InvalidTextHeader {
-                message: format!("{name} is only valid on table, math, or code_block"),
+                message: format!(
+                    "{name} is only valid on table, math, or code_block (title also on toc)"
+                ),
             });
         }
         Ok(())
@@ -380,6 +433,24 @@ impl TextHeader {
         {
             return Err(TesError::InvalidTextHeader {
                 message: format!("heading level {level} must be 1..=6"),
+            });
+        }
+        if self.toc_depth.is_some() && self.role != TextRole::Toc {
+            return Err(TesError::InvalidTextHeader {
+                message: "toc_depth is only valid on toc".into(),
+            });
+        }
+        if self.toc_pages.is_some() && self.role != TextRole::Toc {
+            return Err(TesError::InvalidTextHeader {
+                message: "toc_pages is only valid on toc".into(),
+            });
+        }
+        if self.role == TextRole::Toc
+            && let Some(depth) = self.toc_depth
+            && !(1..=6).contains(&depth)
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("toc_depth {depth} must be 1..=6"),
             });
         }
         if self.list_depth.is_some() && self.role != TextRole::ListItem {
@@ -465,8 +536,28 @@ impl TextHeader {
                 }
             }
             TextRole::Math => format!("$$\n{body}\n$$"),
+            TextRole::Toc => render_toc_tessprek(self),
             TextRole::Paragraph => spanned,
         }
+    }
+}
+
+/// Tessprek projection: `\toc` or `\toc{depth=… title="…"}`.
+fn render_toc_tessprek(header: &TextHeader) -> String {
+    let mut parts = Vec::new();
+    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(format!("title=\"{title}\""));
+    }
+    if let Some(depth) = header.toc_depth {
+        parts.push(format!("depth={depth}"));
+    }
+    if header.toc_pages == Some(true) {
+        parts.push("page_numbers=true".into());
+    }
+    if parts.is_empty() {
+        "\\toc".into()
+    } else {
+        format!("\\toc{{{}}}", parts.join(" "))
     }
 }
 

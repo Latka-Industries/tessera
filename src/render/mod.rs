@@ -22,5 +22,6 @@ pub mod preview;
 #[cfg(feature = "native-pdf")]
 pub mod print;
 pub mod template;
+pub mod toc;
 #[cfg(feature = "native-pdf")]
 pub mod weave_pack;

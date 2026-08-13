@@ -63,3 +63,17 @@ for pack in hyphen_on hyphen_off hyphen_widows_3; do
     -o "tmp/thi-394-smoke/${pack}.pdf"
 done
 ```
+
+## In-document TOC (THI-390)
+
+[`../samples/manuscript_chapters.tes`](../samples/manuscript_chapters.tes) seals
+`\toc{title="Contents" depth=2}` after front matter. Smoke with page chrome:
+
+```bash
+mkdir -p tmp/thi-390-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/manuscript_chapters.tes \
+  --pdf --backend native \
+  --template-root fixtures/packs --template page_chrome \
+  -o tmp/thi-390-smoke/manuscript_chapters__page_chrome.pdf
+```

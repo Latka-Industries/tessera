@@ -25,7 +25,7 @@ pub use ai::{AiPart, export_ai_parts};
 pub use common::export_attachment_bytes;
 pub(crate) use common::{
     chapter_slice, cite_number_map, decode_cite_entry, decode_figure_entry, decode_layout_entry,
-    decode_numbered_cite, decode_slide_entry, decode_text_entry,
+    decode_numbered_cite, decode_slide_entry, decode_text_entry, escape_html,
 };
 
 /// Which decoded view to emit.

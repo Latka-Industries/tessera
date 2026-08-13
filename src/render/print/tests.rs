@@ -109,6 +109,21 @@ fn manuscript_chapters_profile_and_h1_breaks() {
         .collect();
     assert_eq!(h1s.len(), 3);
     assert!(h1s.iter().all(|(_, br)| *br == BreakHint::PageAlways));
+    // THI-390: sealed `\toc` expands to title + nested list of chapters/scenes.
+    let toc_title = doc.blocks.iter().find_map(|b| match b {
+        PrintBlock::Paragraph { runs, .. } => {
+            let t: String = runs.iter().map(|r| r.text.as_str()).collect();
+            (t == "Contents").then_some(t)
+        }
+        _ => None,
+    });
+    assert_eq!(toc_title.as_deref(), Some("Contents"));
+    assert!(
+        doc.blocks
+            .iter()
+            .any(|b| matches!(b, PrintBlock::List { .. })),
+        "expected TOC list block"
+    );
 }
 
 #[test]

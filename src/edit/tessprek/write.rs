@@ -15,7 +15,8 @@ use super::super::ContentBlock;
 use super::layout_ops::layout_op_parts;
 use super::markers::{
     ATTACH_PREFIX, BLOCK_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX,
-    LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX, VERSION,
+    LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX,
+    TOC_PREFIX, VERSION,
 };
 use super::types::{TessprekDocMeta, TessprekMediaEntry};
 use super::util::{kv_attr, quoted_attr};
@@ -58,6 +59,11 @@ pub fn encode_content_blocks(
                 pending_fonts,
                 ..
             } => {
+                if header.role == TextRole::Toc {
+                    write_toc_directive(&mut out, header);
+                    out.push('\n');
+                    continue;
+                }
                 let ordered_index = ordered.take_for_text(header);
                 // One `\block{indent=N}` per list run — not before every item.
                 let mut attr_header = header.clone();
@@ -348,6 +354,24 @@ fn write_block_directive(out: &mut String, header: &TextHeader) {
         parts.push(format!("indent={indent}"));
     }
     write_brace_block(out, BLOCK_PREFIX, &parts);
+}
+
+fn write_toc_directive(out: &mut String, header: &TextHeader) {
+    let mut parts = Vec::new();
+    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(quoted_attr("title", title));
+    }
+    if let Some(depth) = header.toc_depth {
+        parts.push(format!("depth={depth}"));
+    }
+    if header.toc_pages == Some(true) {
+        parts.push("page_numbers=true".into());
+    }
+    if parts.is_empty() {
+        let _ = writeln!(out, "\\toc");
+    } else {
+        write_brace_block(out, TOC_PREFIX, &parts);
+    }
 }
 
 fn write_figure_directive(out: &mut String, figure: &FigureRef) {

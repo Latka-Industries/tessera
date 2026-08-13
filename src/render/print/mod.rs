@@ -8,6 +8,7 @@ mod blocks;
 mod cite;
 mod lists;
 mod runs;
+mod toc;
 
 #[cfg(test)]
 mod tests;
@@ -24,10 +25,12 @@ use crate::io::bib::BibEntry;
 use crate::io::cite::{CiteProj, projection_maps};
 use crate::io::export::{chapter_slice, cite_number_map, decode_text_entry};
 use crate::layout::DocKind;
+use crate::render::toc::collect_headings;
 
 use blocks::{map_figure, map_layout, map_slide, map_text_block};
 use cite::{append_print_references, push_cite_block};
 use lists::{PendingListItem, flush_list, push_list_item};
+use toc::expand_toc_print;
 
 /// Options for building a [`PrintDocument`] from a `.tes` file.
 #[derive(Debug, Clone, Default)]
@@ -148,6 +151,8 @@ fn map_entries(
         style: cite_style,
     };
 
+    let headings = collect_headings(file, entries)?;
+
     let mut blocks = Vec::new();
     let mut list_buf: Vec<PendingListItem> = Vec::new();
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
@@ -167,6 +172,10 @@ fn map_entries(
                     );
                 } else {
                     flush_list(&mut blocks, &mut list_buf);
+                    if header.role == TextRole::Toc {
+                        blocks.extend(expand_toc_print(&header, &headings));
+                        continue;
+                    }
                     if let Some(title) = nonempty_label(header.title.as_deref()) {
                         blocks.push(title_paragraph(title));
                     }
