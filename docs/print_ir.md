@@ -223,6 +223,19 @@ Optional category defaults (`[text|heading|quote|cite].font` pin ids) apply when
 `TextRun.face` is unset; explicit `\font{id}{…}` / `TextRun.face` still wins
 (THI-360).
 
+### Page chrome (`ariadnes-weave` path / THI-392)
+
+Pack `weave.toml` (or master `[weave.page.*]`) merges onto weave page knobs:
+
+| Key | Meaning |
+| --- | --- |
+| `[page.footer].enabled` / `format` / `align` | Page-number footer (`{page}`, `{pages}`, `{title}`) |
+| `[page.header].*` | Running header (bundled off; same tokens) |
+| `[page.content].top_clearance` / `bottom_clearance` | Reserve when header/footer enabled |
+
+`resume@0` densify still forces header+footer off. Live `{heading}` is deferred.
+See weave `docs/layout-knobs.md` (Page chrome).
+
 ---
 
 ## Tessera mapping (prose MVP)

@@ -49,9 +49,115 @@ const FIGURE_PACKS: &[FigurePack] = &[
     },
 ];
 
+/// One page_chrome_* pack (THI-392): header/footer align + format.
+struct ChromePack {
+    id: &'static str,
+    comment: &'static str,
+    knobs: &'static str,
+    header_align: &'static str,
+    header_format: &'static str,
+    footer_align: &'static str,
+    footer_format: &'static str,
+}
+
+const CHROME_PACKS: &[ChromePack] = &[
+    ChromePack {
+        id: "page_chrome",
+        comment: "THI-392 reference — full header/footer knob dump (center footer, left title).",
+        knobs: "all knobs; footer `{page} / {pages}` center; header `{title}` left",
+        header_align: "left",
+        header_format: "{title}",
+        footer_align: "center",
+        footer_format: "{page} / {pages}",
+    },
+    ChromePack {
+        id: "page_chrome_footer_left",
+        comment: "THI-392: footer left, header left, n/m.",
+        knobs: "footer `align = left`",
+        header_align: "left",
+        header_format: "{title}",
+        footer_align: "left",
+        footer_format: "{page} / {pages}",
+    },
+    ChromePack {
+        id: "page_chrome_footer_center",
+        comment: "THI-392: footer center, header left, n/m.",
+        knobs: "footer `align = center`",
+        header_align: "left",
+        header_format: "{title}",
+        footer_align: "center",
+        footer_format: "{page} / {pages}",
+    },
+    ChromePack {
+        id: "page_chrome_footer_right",
+        comment: "THI-392: footer right, header left, n/m.",
+        knobs: "footer `align = right`",
+        header_align: "left",
+        header_format: "{title}",
+        footer_align: "right",
+        footer_format: "{page} / {pages}",
+    },
+    ChromePack {
+        id: "page_chrome_fmt_slash",
+        comment: "THI-392: format `{page} / {pages}`.",
+        knobs: "footer `format = \"{page} / {pages}\"`",
+        header_align: "left",
+        header_format: "{title}",
+        footer_align: "center",
+        footer_format: "{page} / {pages}",
+    },
+    ChromePack {
+        id: "page_chrome_fmt_of",
+        comment: "THI-392: format `Page {page} of {pages}`.",
+        knobs: "footer `format = \"Page {page} of {pages}\"`",
+        header_align: "left",
+        header_format: "{title}",
+        footer_align: "center",
+        footer_format: "Page {page} of {pages}",
+    },
+    ChromePack {
+        id: "page_chrome_fmt_bare",
+        comment: "THI-392: format `{page}` only.",
+        knobs: "footer `format = \"{page}\"`",
+        header_align: "left",
+        header_format: "{title}",
+        footer_align: "center",
+        footer_format: "{page}",
+    },
+    ChromePack {
+        id: "page_chrome_fmt_title_page",
+        comment: "THI-392: format `{title} — {page}`.",
+        knobs: "footer `format = \"{title} — {page}\"`",
+        header_align: "left",
+        header_format: "{title}",
+        footer_align: "center",
+        footer_format: "{title} — {page}",
+    },
+    ChromePack {
+        id: "page_chrome_header_center",
+        comment: "THI-392: header center `{title}`.",
+        knobs: "header `align = center`",
+        header_align: "center",
+        header_format: "{title}",
+        footer_align: "center",
+        footer_format: "{page} / {pages}",
+    },
+    ChromePack {
+        id: "page_chrome_header_right",
+        comment: "THI-392: header right `{title}`.",
+        knobs: "header `align = right`",
+        header_align: "right",
+        header_format: "{title}",
+        footer_align: "center",
+        footer_format: "{page} / {pages}",
+    },
+];
+
 const STUB_CSS: &str = "/* stub — native PDF ignores pack CSS; required by TemplatePack::load */\nbody { margin: 0; }\n";
 
-/// Write every figure_* smoke pack under `dir` (typically `fixtures/packs`).
+const CHROME_SMOKE_DOCS: &[&str] = &["manuscript_chapters", "field_notes", "studio_brief"];
+
+/// Write every figure_* and page_chrome_* smoke pack under `dir`.
 ///
 /// # Errors
 ///
@@ -61,22 +167,31 @@ pub fn write_all(dir: &Path) -> Result<()> {
     for pack in FIGURE_PACKS {
         write_figure_pack(dir, pack)?;
     }
+    for pack in CHROME_PACKS {
+        write_chrome_pack(dir, pack)?;
+    }
     fs::write(dir.join("README.md"), packs_readme())?;
+    fs::write(dir.join("page_chrome").join("README.md"), chrome_readme())?;
     Ok(())
 }
 
-fn write_figure_pack(root: &Path, pack: &FigurePack) -> Result<()> {
-    let pack_dir = root.join(pack.id);
+fn write_stub_shell(pack_dir: &Path, id: &str) -> Result<()> {
     let themes = pack_dir.join("themes");
     fs::create_dir_all(&themes)?;
     fs::write(
         pack_dir.join("manifest.json"),
         format!(
             "{{\n  \"id\": \"{}\",\n  \"version\": \"0.1.0\",\n  \"compatible_layout\": 0,\n  \"doc_kind_default\": \"note\",\n  \"themes\": {{\n    \"print\": \"themes/print.css\"\n  }},\n  \"export_targets\": [\"pdf\"]\n}}\n",
-            pack.id
+            id
         ),
     )?;
     fs::write(themes.join("print.css"), STUB_CSS)?;
+    Ok(())
+}
+
+fn write_figure_pack(root: &Path, pack: &FigurePack) -> Result<()> {
+    let pack_dir = root.join(pack.id);
+    write_stub_shell(&pack_dir, pack.id)?;
     fs::write(
         pack_dir.join("weave.toml"),
         format!(
@@ -98,13 +213,51 @@ size_factor = 0.9\n",
     Ok(())
 }
 
+fn write_chrome_pack(root: &Path, pack: &ChromePack) -> Result<()> {
+    let pack_dir = root.join(pack.id);
+    write_stub_shell(&pack_dir, pack.id)?;
+    fs::write(
+        pack_dir.join("weave.toml"),
+        format!(
+            "# {}\n\
+# Tokens: {{page}}, {{pages}}, {{title}} ({{heading}} deferred)\n\
+\n\
+[page.header]\n\
+enabled = true\n\
+format = \"{}\"\n\
+align = \"{}\"\n\
+font_size = 9.0\n\
+y_margin_factor = 0.55\n\
+\n\
+[page.footer]\n\
+enabled = true\n\
+format = \"{}\"\n\
+align = \"{}\"\n\
+font_size = 9.0\n\
+y_margin_factor = 0.45\n\
+\n\
+[page.content]\n\
+top_clearance = 18.0\n\
+bottom_clearance = 18.0\n",
+            pack.comment,
+            pack.header_format,
+            pack.header_align,
+            pack.footer_format,
+            pack.footer_align
+        ),
+    )?;
+    Ok(())
+}
+
 fn packs_readme() -> String {
-    let ids: Vec<&str> = FIGURE_PACKS.iter().map(|p| p.id).collect();
-    let id_loop = ids.join(" ");
-    let mut table = String::from("| Pack | Knobs to notice |\n| --- | --- |\n");
+    let figure_ids: Vec<&str> = FIGURE_PACKS.iter().map(|p| p.id).collect();
+    let figure_loop = figure_ids.join(" ");
+    let mut figure_table = String::from("| Pack | Knobs to notice |\n| --- | --- |\n");
     for pack in FIGURE_PACKS {
-        let _ = writeln!(table, "| `{}` | {} |", pack.id, pack.knobs);
+        let _ = writeln!(figure_table, "| `{}` | {} |", pack.id, pack.knobs);
     }
+    let chrome_ids: Vec<&str> = CHROME_PACKS.iter().map(|p| p.id).collect();
+    let chrome_loop = chrome_ids.join(" ");
     format!(
         r#"# Browse packs (figure / weave knobs)
 
@@ -113,12 +266,14 @@ Sparse packs for native PDF smoke — not product templates. Each declares a stu
 
 Regenerate with `cargo run --example gen_sample_fixtures` (same as samples).
 
+## Figures
+
 Pair with [`../samples/figure_align.tes`](../samples/figure_align.tes):
 
 ```bash
 cargo run --example gen_sample_fixtures
 
-for id in {id_loop}; do
+for id in {figure_loop}; do
   cargo run -q --bin tes --features native-pdf -- export \
     fixtures/samples/figure_align.tes \
     --pdf --backend native \
@@ -130,6 +285,56 @@ done
 All packs: caption `band = match_figure` (wraps under the image). Left/center/right use
 `text_align = follow`. Justify is the same geometry with `text_align = justify`.
 
-{table}"#
+{figure_table}
+## Page chrome (THI-392)
+
+See [`page_chrome/README.md`](page_chrome/README.md). Tokens: `{{page}}`, `{{pages}}`, `{{title}}`.
+
+```bash
+mkdir -p tmp/thi-392-smoke
+for doc in {docs}; do
+  for pack in {chrome_loop}; do
+    cargo run -q --bin tes --features native-pdf -- export \
+      "fixtures/samples/${{doc}}.tes" \
+      --pdf --backend native \
+      --template-root fixtures/packs --template "$pack" \
+      -o "tmp/thi-392-smoke/${{doc}}__${{pack}}.pdf"
+  done
+done
+```
+"#,
+        docs = CHROME_SMOKE_DOCS.join(" "),
+    )
+}
+
+fn chrome_readme() -> String {
+    let mut table = String::from("| Pack | Shows |\n| --- | --- |\n");
+    for pack in CHROME_PACKS {
+        let _ = writeln!(table, "| `{}` | {} |", pack.id, pack.knobs);
+    }
+    let chrome_ids: Vec<&str> = CHROME_PACKS.iter().map(|p| p.id).collect();
+    format!(
+        r#"# Page chrome smoke packs (THI-392)
+
+Native PDF header/footer knobs. Tokens: `{{page}}`, `{{pages}}`, `{{title}}`.
+Regenerated by `cargo run --example gen_sample_fixtures`.
+
+{table}
+Smoke PDFs: `tmp/thi-392-smoke/<doc>__<pack>.pdf` (`{docs}`).
+
+```bash
+mkdir -p tmp/thi-392-smoke
+for doc in {docs}; do
+  for pack in {packs}; do
+    cargo run -q --bin tes -- export "fixtures/samples/${{doc}}.tes" \
+      --pdf --backend native \
+      --template-root fixtures/packs --template "$pack" \
+      -o "tmp/thi-392-smoke/${{doc}}__${{pack}}.pdf"
+  done
+done
+```
+"#,
+        docs = CHROME_SMOKE_DOCS.join(" / "),
+        packs = chrome_ids.join(" "),
     )
 }

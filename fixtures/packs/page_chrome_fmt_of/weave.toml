@@ -1,0 +1,20 @@
+# THI-392: format `Page {page} of {pages}`.
+# Tokens: {page}, {pages}, {title} ({heading} deferred)
+
+[page.header]
+enabled = true
+format = "{title}"
+align = "left"
+font_size = 9.0
+y_margin_factor = 0.55
+
+[page.footer]
+enabled = true
+format = "Page {page} of {pages}"
+align = "center"
+font_size = 9.0
+y_margin_factor = 0.45
+
+[page.content]
+top_clearance = 18.0
+bottom_clearance = 18.0

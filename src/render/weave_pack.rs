@@ -218,11 +218,21 @@ indent = 22.0
 
 [page.footer]
 font_size = 11.0
+format = "p.{page}"
+align = "right"
+
+[page.header]
+enabled = true
+format = "{title}"
 "#,
         )
         .unwrap();
         assert!((knobs.prose.quote.indent - 22.0).abs() < f32::EPSILON);
         assert!((knobs.page.footer.font_size - 11.0).abs() < f32::EPSILON);
+        assert_eq!(knobs.page.footer.format, "p.{page}");
+        assert_eq!(knobs.page.footer.align, ariadnes_weave::ChromeAlign::Right);
+        assert!(knobs.page.header.enabled);
+        assert_eq!(knobs.page.header.format, "{title}");
     }
 
     #[test]
