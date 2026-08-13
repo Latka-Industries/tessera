@@ -175,7 +175,11 @@ fn article_columns_maps_print_block_columns() {
             _ => None,
         })
         .collect();
-    assert_eq!(cols.len(), 2, "expected 2-col then 3-col regions, got: {cols:?}");
+    assert_eq!(
+        cols.len(),
+        2,
+        "expected 2-col then 3-col regions, got: {cols:?}"
+    );
     assert_eq!(cols[0].0, 2);
     assert_eq!(cols[0].1, Some(16));
     assert!(
@@ -191,13 +195,9 @@ fn article_columns_maps_print_block_columns() {
         cols[1].2
     );
     assert!(
-        doc.blocks.iter().any(|b| matches!(
-            b,
-            PrintBlock::Heading {
-                level: 1,
-                ..
-            }
-        )),
+        doc.blocks
+            .iter()
+            .any(|b| matches!(b, PrintBlock::Heading { level: 1, .. })),
         "title heading should stay outside Columns"
     );
 }

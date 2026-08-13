@@ -362,28 +362,35 @@ text_align = \"{}\"\n\
 [body_columns]\n\
 gap = 16.0\n\
 \n\
-[page.header]\n\
+{}\
+",
+            pack.comment,
+            pack.text_align,
+            page_chrome_bands_toml()
+        ),
+    )?;
+    Ok(())
+}
+
+/// Shared header/footer band knobs for column smoke packs (same as page_chrome defaults).
+fn page_chrome_bands_toml() -> &'static str {
+    "[page.header]\n\
 enabled = true\n\
-format = \"{{title}}\"\n\
+format = \"{title}\"\n\
 align = \"left\"\n\
 font_size = 9.0\n\
 y_margin_factor = 0.55\n\
 \n\
 [page.footer]\n\
 enabled = true\n\
-format = \"{{page}} / {{pages}}\"\n\
+format = \"{page} / {pages}\"\n\
 align = \"center\"\n\
 font_size = 9.0\n\
 y_margin_factor = 0.45\n\
 \n\
 [page.content]\n\
 top_clearance = 18.0\n\
-bottom_clearance = 18.0\n\
-",
-            pack.comment, pack.text_align
-        ),
-    )?;
-    Ok(())
+bottom_clearance = 18.0\n"
 }
 
 fn packs_readme() -> String {

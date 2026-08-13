@@ -15,8 +15,8 @@ use super::super::ContentBlock;
 use super::layout_ops::layout_op_parts;
 use super::markers::{
     ATTACH_PREFIX, BLOCK_PREFIX, BRACE_SUFFIX, CITE_PREFIX, COLUMNS_PREFIX, FIGURE_PREFIX, FORMAT,
-    IDS_PREFIX, LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX,
-    TOC_PREFIX, VERSION,
+    IDS_PREFIX, LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX,
+    TESSERA_PREFIX, TOC_PREFIX, VERSION,
 };
 use super::types::{TessprekDocMeta, TessprekMediaEntry};
 use super::util::{kv_attr, quoted_attr};

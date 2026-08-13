@@ -320,9 +320,7 @@ fn columns_open_html(chunk_id: u64, header: &TextHeader) -> String {
         let _ = write!(style, "; column-gap: {gap}pt");
     }
     let class = html_class_attr(&header.classes);
-    format!(
-        "  <div class=\"tes-columns\" data-chunk-id=\"{chunk_id}\"{class} style=\"{style}\">\n"
-    )
+    format!("  <div class=\"tes-columns\" data-chunk-id=\"{chunk_id}\"{class} style=\"{style}\">\n")
 }
 
 fn text_title_html(title: Option<&str>) -> String {
@@ -617,9 +615,7 @@ fn append_html_bibliography(article: &mut String, bib_items: &mut [(usize, BibEn
 fn html_theme_styles(options: &ExportOptions) -> String {
     let mut styles = String::new();
     // Multi-column body (THI-391): headings span full measure inside `.tes-columns`.
-    styles.push_str(
-        "<style>\n.tes-columns :is(h1,h2,h3,h4,h5,h6){column-span:all}\n</style>\n",
-    );
+    styles.push_str("<style>\n.tes-columns :is(h1,h2,h3,h4,h5,h6){column-span:all}\n</style>\n");
     if let Some(css) = &options.embedded_css {
         styles.push_str("<style>\n");
         styles.push_str(css);

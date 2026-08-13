@@ -210,14 +210,7 @@ fn map_entries(
                     push_block(
                         &mut blocks,
                         &mut columns,
-                        map_text_block(
-                            entry.chunk_id,
-                            &header,
-                            &body,
-                            profile,
-                            cite,
-                            file.links(),
-                        ),
+                        map_text_block(entry.chunk_id, &header, &body, profile, cite, file.links()),
                     );
                     // Non-figure captions: no Caption IR yet (weave `[caption]` is figure-only).
                     if let Some(caption) = nonempty_label(header.caption.as_deref()) {
