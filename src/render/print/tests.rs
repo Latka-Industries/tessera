@@ -175,13 +175,20 @@ fn article_columns_maps_print_block_columns() {
             _ => None,
         })
         .collect();
-    assert_eq!(cols.len(), 1, "expected one Columns region, got: {cols:?}");
+    assert_eq!(cols.len(), 2, "expected 2-col then 3-col regions, got: {cols:?}");
     assert_eq!(cols[0].0, 2);
-    assert_eq!(cols[0].1, Some(14));
+    assert_eq!(cols[0].1, Some(16));
     assert!(
-        cols[0].2 >= 3,
-        "expected paragraphs + mid heading as children, got {}",
+        cols[0].2 >= 5,
+        "2-col region should carry several children, got {}",
         cols[0].2
+    );
+    assert_eq!(cols[1].0, 3);
+    assert_eq!(cols[1].1, Some(12));
+    assert!(
+        cols[1].2 >= 4,
+        "3-col region should carry several paragraphs, got {}",
+        cols[1].2
     );
     assert!(
         doc.blocks.iter().any(|b| matches!(

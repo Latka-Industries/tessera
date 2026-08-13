@@ -334,20 +334,16 @@ Continuous multi-column **body flow** (newspaper / article). Distinct from
 `\row` (meta hfill panes) and deck two-column slides.
 
 ```text
-\columns{n=2}
-First flowing paragraph…
+\columns{n=2 gap=16}
+Lorem… (fills left, then right)
 
 ## Mid heading spans full measure
 
-More column body…
+More lorem…
 \endcolumns
 
-\columns{n=2 gap=14}
-…
-\endcolumns
-
-\columns
-…   # n defaults to 2
+\columns{n=3 gap=12}
+Lorem… (three narrower bands)
 \endcolumns
 ```
 
