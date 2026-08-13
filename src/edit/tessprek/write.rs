@@ -59,10 +59,7 @@ pub fn encode_content_blocks(
                 ..
             } => {
                 if header.role.is_list_nav()
-                    || matches!(
-                        header.role,
-                        TextRole::Columns | TextRole::ColumnsEnd
-                    )
+                    || matches!(header.role, TextRole::Columns | TextRole::ColumnsEnd)
                 {
                     let _ = writeln!(out, "{}", header.render_markdown(""));
                     out.push('\n');
