@@ -131,7 +131,7 @@ pub(crate) fn title_paragraph(text: impl Into<String>) -> PrintBlock {
     single_run_paragraph(TextRun::strong(text))
 }
 
-/// Print IR destination id for a heading chunk (TOC GoTo + PDF outline; THI-390/393).
+/// Print IR destination id for a heading chunk (TOC `GoTo` + PDF outline; THI-390/393).
 #[must_use]
 pub(crate) fn heading_dest_id(chunk_id: u64) -> String {
     format!("h-{chunk_id}")
@@ -198,70 +198,18 @@ fn map_entries(
 
     for entry in entries {
         match entry.chunk_type {
-            ChunkType::Text => {
-                let (header, body) = decode_text_entry(file, entry)?;
-                if header.role == TextRole::Columns {
-                    flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
-                    // Nested open: flush previous region, then start a new one.
-                    flush_columns(&mut blocks, &mut columns);
-                    columns = Some((
-                        header.columns_count_or_default(),
-                        header.columns_gap,
-                        Vec::new(),
-                    ));
-                    continue;
-                }
-                if header.role == TextRole::ColumnsEnd {
-                    flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
-                    flush_columns(&mut blocks, &mut columns);
-                    continue;
-                }
-                if header.role == TextRole::ListItem {
-                    push_list_item(
-                        columns_sink(&mut blocks, &mut columns),
-                        &mut list_buf,
-                        &header,
-                        &body,
-                        cite,
-                        file.links(),
-                    );
-                } else {
-                    flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
-                    if header.role == TextRole::Toc {
-                        push_blocks(
-                            &mut blocks,
-                            &mut columns,
-                            expand_toc_print(&header, &headings),
-                        );
-                        continue;
-                    }
-                    if header.role.is_float_list() {
-                        let (candidates, kind) = if header.role == TextRole::Lof {
-                            (&figures, FloatListKind::Figures)
-                        } else {
-                            (&tables, FloatListKind::Tables)
-                        };
-                        push_blocks(
-                            &mut blocks,
-                            &mut columns,
-                            expand_float_list_print(&header, candidates, kind),
-                        );
-                        continue;
-                    }
-                    if let Some(title) = nonempty_label(header.title.as_deref()) {
-                        push_block(&mut blocks, &mut columns, title_paragraph(title));
-                    }
-                    push_block(
-                        &mut blocks,
-                        &mut columns,
-                        map_text_block(entry.chunk_id, &header, &body, profile, cite, file.links()),
-                    );
-                    // Non-figure captions: no Caption IR yet (weave `[caption]` is figure-only).
-                    if let Some(caption) = nonempty_label(header.caption.as_deref()) {
-                        push_block(&mut blocks, &mut columns, caption_paragraph(caption));
-                    }
-                }
-            }
+            ChunkType::Text => push_text_entry(
+                file,
+                entry,
+                profile,
+                cite,
+                &headings,
+                &figures,
+                &tables,
+                &mut blocks,
+                &mut list_buf,
+                &mut columns,
+            )?,
             ChunkType::Figure => {
                 flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
                 push_block(&mut blocks, &mut columns, map_figure(file, entry)?);
@@ -276,13 +224,11 @@ fn map_entries(
             }
             ChunkType::Cite => {
                 flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
-                // Cite helper pushes onto a Vec; buffer then re-home into columns.
                 let mut cite_blocks = Vec::new();
                 push_cite_block(file, entry, &cite_numbers, &mut cite_blocks, &mut bib_items)?;
                 push_blocks(&mut blocks, &mut columns, cite_blocks);
             }
             ChunkType::Attachment => {
-                // Attachments are not prose print blocks.
                 flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
             }
             _ => {}
@@ -292,6 +238,79 @@ fn map_entries(
     flush_columns(&mut blocks, &mut columns);
     append_print_references(&mut blocks, &mut bib_items);
     Ok(blocks)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_text_entry(
+    file: &TesFile,
+    entry: &ChunkIndexEntry,
+    profile: &PrintProfileId,
+    cite: CiteProj<'_>,
+    headings: &[crate::render::toc::TocHeading],
+    figures: &[crate::render::floats::FloatCandidate],
+    tables: &[crate::render::floats::FloatCandidate],
+    blocks: &mut Vec<PrintBlock>,
+    list_buf: &mut Vec<PendingListItem>,
+    columns: &mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
+) -> Result<()> {
+    let (header, body) = decode_text_entry(file, entry)?;
+    if header.role == TextRole::Columns {
+        flush_list(columns_sink(blocks, columns), list_buf);
+        flush_columns(blocks, columns);
+        *columns = Some((
+            header.columns_count_or_default(),
+            header.columns_gap,
+            Vec::new(),
+        ));
+        return Ok(());
+    }
+    if header.role == TextRole::ColumnsEnd {
+        flush_list(columns_sink(blocks, columns), list_buf);
+        flush_columns(blocks, columns);
+        return Ok(());
+    }
+    if header.role == TextRole::ListItem {
+        push_list_item(
+            columns_sink(blocks, columns),
+            list_buf,
+            &header,
+            &body,
+            cite,
+            file.links(),
+        );
+        return Ok(());
+    }
+
+    flush_list(columns_sink(blocks, columns), list_buf);
+    if header.role == TextRole::Toc {
+        push_blocks(blocks, columns, expand_toc_print(&header, headings));
+        return Ok(());
+    }
+    if header.role.is_float_list() {
+        let (candidates, kind) = if header.role == TextRole::Lof {
+            (figures, FloatListKind::Figures)
+        } else {
+            (tables, FloatListKind::Tables)
+        };
+        push_blocks(
+            blocks,
+            columns,
+            expand_float_list_print(&header, candidates, kind),
+        );
+        return Ok(());
+    }
+    if let Some(title) = nonempty_label(header.title.as_deref()) {
+        push_block(blocks, columns, title_paragraph(title));
+    }
+    push_block(
+        blocks,
+        columns,
+        map_text_block(entry.chunk_id, &header, &body, profile, cite, file.links()),
+    );
+    if let Some(caption) = nonempty_label(header.caption.as_deref()) {
+        push_block(blocks, columns, caption_paragraph(caption));
+    }
+    Ok(())
 }
 
 fn columns_sink<'a>(

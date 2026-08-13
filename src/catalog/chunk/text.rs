@@ -555,52 +555,8 @@ impl TextHeader {
     /// spans are invalid.
     pub fn validate(&self, body: &str) -> Result<()> {
         validate_spans(body, &self.spans)?;
-        if let Some(table) = &self.table {
-            if self.role != TextRole::Table {
-                return Err(TesError::InvalidTextHeader {
-                    message: "table payload requires role=table".into(),
-                });
-            }
-            for (ri, row) in table.rows.iter().enumerate() {
-                for (ci, cell) in row.cells.iter().enumerate() {
-                    validate_spans(&cell.text, &cell.spans).map_err(|e| match e {
-                        TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
-                            message: format!("table[{ri}][{ci}]: {message}"),
-                        },
-                        other => other,
-                    })?;
-                    if matches!(cell.rowspan, Some(0)) || matches!(cell.colspan, Some(0)) {
-                        return Err(TesError::InvalidTextHeader {
-                            message: format!("table[{ri}][{ci}]: rowspan/colspan must be >= 1"),
-                        });
-                    }
-                }
-            }
-        }
-        if let Some(panes) = &self.panes {
-            if self.role != TextRole::Row {
-                return Err(TesError::InvalidTextHeader {
-                    message: "panes payload requires role=row".into(),
-                });
-            }
-            if panes.len() < 2 {
-                return Err(TesError::InvalidTextHeader {
-                    message: "row requires at least 2 panes".into(),
-                });
-            }
-            for (i, pane) in panes.iter().enumerate() {
-                validate_spans(&pane.text, &pane.spans).map_err(|e| match e {
-                    TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
-                        message: format!("row pane[{i}]: {message}"),
-                    },
-                    other => other,
-                })?;
-            }
-        } else if self.role == TextRole::Row {
-            return Err(TesError::InvalidTextHeader {
-                message: "role=row requires panes".into(),
-            });
-        }
+        self.validate_table_payload()?;
+        self.validate_panes_payload()?;
         if self.code_lang.is_some() && self.role != TextRole::CodeBlock {
             return Err(TesError::InvalidTextHeader {
                 message: "code_lang is only valid on code_block".into(),
@@ -608,6 +564,71 @@ impl TextHeader {
         }
         self.validate_block_label("title", self.title.as_deref())?;
         self.validate_block_label("caption", self.caption.as_deref())?;
+        self.validate_heading_level()?;
+        self.validate_list_nav_fields()?;
+        self.validate_columns_fields()?;
+        self.validate_list_indent_fields()?;
+        Ok(())
+    }
+
+    fn validate_table_payload(&self) -> Result<()> {
+        let Some(table) = &self.table else {
+            return Ok(());
+        };
+        if self.role != TextRole::Table {
+            return Err(TesError::InvalidTextHeader {
+                message: "table payload requires role=table".into(),
+            });
+        }
+        for (ri, row) in table.rows.iter().enumerate() {
+            for (ci, cell) in row.cells.iter().enumerate() {
+                validate_spans(&cell.text, &cell.spans).map_err(|e| match e {
+                    TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
+                        message: format!("table[{ri}][{ci}]: {message}"),
+                    },
+                    other => other,
+                })?;
+                if matches!(cell.rowspan, Some(0)) || matches!(cell.colspan, Some(0)) {
+                    return Err(TesError::InvalidTextHeader {
+                        message: format!("table[{ri}][{ci}]: rowspan/colspan must be >= 1"),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_panes_payload(&self) -> Result<()> {
+        let Some(panes) = &self.panes else {
+            if self.role == TextRole::Row {
+                return Err(TesError::InvalidTextHeader {
+                    message: "role=row requires panes".into(),
+                });
+            }
+            return Ok(());
+        };
+        if self.role != TextRole::Row {
+            return Err(TesError::InvalidTextHeader {
+                message: "panes payload requires role=row".into(),
+            });
+        }
+        if panes.len() < 2 {
+            return Err(TesError::InvalidTextHeader {
+                message: "row requires at least 2 panes".into(),
+            });
+        }
+        for (i, pane) in panes.iter().enumerate() {
+            validate_spans(&pane.text, &pane.spans).map_err(|e| match e {
+                TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
+                    message: format!("row pane[{i}]: {message}"),
+                },
+                other => other,
+            })?;
+        }
+        Ok(())
+    }
+
+    fn validate_heading_level(&self) -> Result<()> {
         if self.role == TextRole::Heading
             && let Some(level) = self.level
             && !(1..=6).contains(&level)
@@ -616,6 +637,10 @@ impl TextHeader {
                 message: format!("heading level {level} must be 1..=6"),
             });
         }
+        Ok(())
+    }
+
+    fn validate_list_nav_fields(&self) -> Result<()> {
         if self.toc_depth.is_some() && self.role != TextRole::Toc {
             return Err(TesError::InvalidTextHeader {
                 message: "toc_depth is only valid on toc".into(),
@@ -649,6 +674,10 @@ impl TextHeader {
                 message: format!("toc_depth {depth} must be 1..=6"),
             });
         }
+        Ok(())
+    }
+
+    fn validate_columns_fields(&self) -> Result<()> {
         if self.columns_count.is_some() && self.role != TextRole::Columns {
             return Err(TesError::InvalidTextHeader {
                 message: "columns_count is only valid on columns".into(),
@@ -667,6 +696,10 @@ impl TextHeader {
                 message: format!("columns_count {count} must be 1..=6"),
             });
         }
+        Ok(())
+    }
+
+    fn validate_list_indent_fields(&self) -> Result<()> {
         if self.list_depth.is_some() && self.role != TextRole::ListItem {
             return Err(TesError::InvalidTextHeader {
                 message: "list_depth is only valid on list_item".into(),

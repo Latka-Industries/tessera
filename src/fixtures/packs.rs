@@ -252,8 +252,7 @@ fn write_stub_shell(pack_dir: &Path, id: &str) -> Result<()> {
     fs::write(
         pack_dir.join("manifest.json"),
         format!(
-            "{{\n  \"id\": \"{}\",\n  \"version\": \"0.1.0\",\n  \"compatible_layout\": 0,\n  \"doc_kind_default\": \"note\",\n  \"themes\": {{\n    \"print\": \"themes/print.css\"\n  }},\n  \"export_targets\": [\"pdf\"]\n}}\n",
-            id
+            "{{\n  \"id\": \"{id}\",\n  \"version\": \"0.1.0\",\n  \"compatible_layout\": 0,\n  \"doc_kind_default\": \"note\",\n  \"themes\": {{\n    \"print\": \"themes/print.css\"\n  }},\n  \"export_targets\": [\"pdf\"]\n}}\n"
         ),
     )?;
     fs::write(themes.join("print.css"), STUB_CSS)?;
@@ -375,7 +374,7 @@ gap = 16.0\n\
     Ok(())
 }
 
-/// Shared header/footer band knobs for column smoke packs (same as page_chrome defaults).
+/// Shared header/footer band knobs for column smoke packs (same as `page_chrome` defaults).
 fn page_chrome_bands_toml() -> &'static str {
     "[page.header]\n\
 enabled = true\n\
@@ -450,7 +449,16 @@ for doc in {docs}; do
 done
 ```
 
-## Hyphenation (THI-394)
+{extra_smoke}
+"#,
+        docs = CHROME_SMOKE_DOCS.join(" "),
+        extra_smoke = packs_readme_extra_smoke(),
+    )
+}
+
+fn packs_readme_extra_smoke() -> String {
+    format!(
+        r#"## Hyphenation (THI-394)
 
 See [`hyphen_on/README.md`](hyphen_on/README.md). Pair with
 [`../samples/hyphen_dense.tes`](../samples/hyphen_dense.tes):
@@ -499,7 +507,7 @@ done
 ## List of figures / tables (THI-395)
 
 [`../samples/lists_of_floats.tes`](../samples/lists_of_floats.tes) seals
-`\lof` / `\lot` before captioned figures and tables. Smoke with page chrome:
+`\lof` / `\lot` before titled figures and tables. Smoke with page chrome:
 
 ```bash
 mkdir -p tmp/thi-395-smoke
@@ -510,7 +518,6 @@ cargo run -q --bin tes --features native-pdf -- export \
   -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
 ```
 "#,
-        docs = CHROME_SMOKE_DOCS.join(" "),
         hyphen_loop = HYPHEN_PACKS
             .iter()
             .map(|p| p.id)

@@ -38,7 +38,6 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
              to see page digits.",
         )
         .expect("intro");
-
     session
         .add_text_chunk(&TextHeader::lof_titled("List of Figures"), "")
         .expect("lof");
@@ -46,12 +45,26 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
         .add_text_chunk(&TextHeader::lot_titled("List of Tables"), "")
         .expect("lot");
 
+    add_sample_figures(&mut session);
+    add_sample_tables(&mut session);
+
+    session
+        .add_text_chunk(
+            &TextHeader::paragraph(),
+            "End. Untitled floats are omitted from LOF/LOT (default source=title).",
+        )
+        .expect("outro");
+
+    session.encode_file().expect("lists_of_floats")
+}
+
+fn add_sample_figures(session: &mut TesWriterSession) {
     session
         .add_text_chunk(&TextHeader::heading(1), "Figures")
         .expect("h1 figures");
-    let image_id = add_swatch_image(&mut session).expect("image");
+    let image_id = add_swatch_image(session).expect("image");
     add_flow_figure(
-        &mut session,
+        session,
         image_id,
         "Harbor swatch",
         Some("Harbor morning"),
@@ -65,7 +78,7 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
         )
         .expect("between");
     add_flow_figure(
-        &mut session,
+        session,
         image_id,
         "Second swatch",
         Some("Second harbor view"),
@@ -73,17 +86,20 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
     )
     .expect("figure 2");
     add_flow_figure(
-        &mut session,
+        session,
         image_id,
         "No title swatch",
         None,
         Some("Caption-only — omitted unless source=caption."),
     )
     .expect("figure caption-only");
+}
 
+fn add_sample_tables(session: &mut TesWriterSession) {
     session
         .add_text_chunk(&TextHeader::heading(1), "Tables")
         .expect("h1 tables");
+
     let mut table_a = TextHeader::table(TableData {
         rows: vec![
             TableRow {
@@ -121,13 +137,4 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
     session
         .add_text_chunk(&table_c, "")
         .expect("table caption-only");
-
-    session
-        .add_text_chunk(
-            &TextHeader::paragraph(),
-            "End. Untitled floats are omitted from LOF/LOT (default source=title).",
-        )
-        .expect("outro");
-
-    session.encode_file().expect("lists_of_floats")
 }

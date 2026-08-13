@@ -35,6 +35,15 @@ pub(super) enum Segment {
     },
 }
 
+/// Bare empty-body markers accepted without braces (`\toc`, `\lof`, …).
+const BARE_MARKERS: &[(&str, &str)] = &[
+    ("\\toc", "toc"),
+    ("\\lof", "lof"),
+    ("\\lot", "lot"),
+    ("\\columns", "columns"),
+    ("\\endcolumns", "endcolumns"),
+];
+
 pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
     let mut segments = Vec::new();
     let mut i = scan_tessprek_preamble(lines, 0).body_start;
@@ -59,125 +68,14 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             continue;
         }
 
-        // Bare `\toc` (no braces) — attrs-only TOC with defaults.
-        if trimmed == "\\toc" {
-            segments.push(Segment::Directive {
-                start,
-                end: i + 1,
-                kind: "toc".into(),
-                map: BTreeMap::new(),
-                body: String::new(),
-            });
-            i += 1;
-            continue;
-        }
-
-        // Bare `\lof` / `\lot` (THI-395).
-        if trimmed == "\\lof" || trimmed == "\\lot" {
-            let kind = trimmed.trim_start_matches('\\').to_owned();
-            segments.push(Segment::Directive {
-                start,
-                end: i + 1,
-                kind,
-                map: BTreeMap::new(),
-                body: String::new(),
-            });
-            i += 1;
-            continue;
-        }
-
-        // Bare `\columns` / `\endcolumns` (THI-391).
-        if trimmed == "\\columns" {
-            segments.push(Segment::Directive {
-                start,
-                end: i + 1,
-                kind: "columns".into(),
-                map: BTreeMap::new(),
-                body: String::new(),
-            });
-            i += 1;
-            continue;
-        }
-        if trimmed == "\\endcolumns" {
-            segments.push(Segment::Directive {
-                start,
-                end: i + 1,
-                kind: "endcolumns".into(),
-                map: BTreeMap::new(),
-                body: String::new(),
-            });
+        if let Some(kind) = bare_marker_kind(trimmed) {
+            segments.push(empty_directive(start, i + 1, kind));
             i += 1;
             continue;
         }
 
         if let Some((kind, prefix)) = match_body_opener(trimmed) {
-            let (attrs, cmd_end) = take_brace_command(lines, i, prefix, kind)?;
-            i = cmd_end;
-            // `\layout{…}` carries op lines, not flat key=value attrs.
-            if kind == "layout" {
-                segments.push(Segment::Directive {
-                    start,
-                    end: i,
-                    kind: kind.to_owned(),
-                    map: BTreeMap::new(),
-                    body: attrs,
-                });
-                continue;
-            }
-            let map = parse_attrs(&attrs, line_no)?;
-            match kind {
-                "block" => {
-                    let body_start = i;
-                    i = next_boundary(lines, i);
-                    segments.push(Segment::Markdown {
-                        start,
-                        body_start,
-                        end: i,
-                        preserve: Some(map),
-                    });
-                }
-                "slide" | "attachment" | "cite" | "quote" | "ref" | "toc" | "columns" => {
-                    segments.push(Segment::Directive {
-                        start,
-                        end: i,
-                        kind: kind.to_owned(),
-                        map,
-                        body: String::new(),
-                    });
-                }
-                "figure" => {
-                    // Prefer attrs-only (`alt=`). Optional legacy Markdown body:
-                    // `![alt](media:N)` on the following lines.
-                    let mut body = String::new();
-                    let j = skip_blank_lines(lines, i);
-                    if lines
-                        .get(j)
-                        .is_some_and(|l| l.trim().starts_with("![") && l.contains("](media:"))
-                    {
-                        i = next_boundary(lines, j);
-                        body = trim_block_body(&lines[j..i]);
-                    }
-                    segments.push(Segment::Directive {
-                        start,
-                        end: i,
-                        kind: kind.to_owned(),
-                        map,
-                        body,
-                    });
-                }
-                _ => {
-                    let body_start = i;
-                    i = next_boundary(lines, i);
-                    let body = trim_block_body(&lines[body_start..i]);
-                    segments.push(Segment::Directive {
-                        start,
-                        end: i,
-                        kind: kind.to_owned(),
-                        map,
-                        body,
-                    });
-                }
-            }
+            i = push_brace_directive(&mut segments, lines, start, i, line_no, kind, prefix)?;
         } else {
             i = next_boundary(lines, i);
             // Skip all-blank runs (shouldn't happen after trim gate above).
@@ -195,17 +93,107 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
     Ok(segments)
 }
 
+fn bare_marker_kind(trimmed: &str) -> Option<&'static str> {
+    BARE_MARKERS
+        .iter()
+        .find_map(|&(token, kind)| (trimmed == token).then_some(kind))
+}
+
+fn empty_directive(start: usize, end: usize, kind: &str) -> Segment {
+    Segment::Directive {
+        start,
+        end,
+        kind: kind.to_owned(),
+        map: BTreeMap::new(),
+        body: String::new(),
+    }
+}
+
+fn push_brace_directive(
+    segments: &mut Vec<Segment>,
+    lines: &[&str],
+    start: usize,
+    i: usize,
+    line_no: usize,
+    kind: &str,
+    prefix: &str,
+) -> Result<usize> {
+    let (attrs, mut i) = take_brace_command(lines, i, prefix, kind)?;
+    // `\layout{…}` carries op lines, not flat key=value attrs.
+    if kind == "layout" {
+        segments.push(Segment::Directive {
+            start,
+            end: i,
+            kind: kind.to_owned(),
+            map: BTreeMap::new(),
+            body: attrs,
+        });
+        return Ok(i);
+    }
+    let map = parse_attrs(&attrs, line_no)?;
+    match kind {
+        "block" => {
+            let body_start = i;
+            i = next_boundary(lines, i);
+            segments.push(Segment::Markdown {
+                start,
+                body_start,
+                end: i,
+                preserve: Some(map),
+            });
+        }
+        "slide" | "attachment" | "cite" | "quote" | "ref" | "toc" | "lof" | "lot" | "columns" => {
+            segments.push(Segment::Directive {
+                start,
+                end: i,
+                kind: kind.to_owned(),
+                map,
+                body: String::new(),
+            });
+        }
+        "figure" => {
+            // Prefer attrs-only (`alt=`). Optional legacy Markdown body:
+            // `![alt](media:N)` on the following lines.
+            let mut body = String::new();
+            let j = skip_blank_lines(lines, i);
+            if lines
+                .get(j)
+                .is_some_and(|l| l.trim().starts_with("![") && l.contains("](media:"))
+            {
+                i = next_boundary(lines, j);
+                body = trim_block_body(&lines[j..i]);
+            }
+            segments.push(Segment::Directive {
+                start,
+                end: i,
+                kind: kind.to_owned(),
+                map,
+                body,
+            });
+        }
+        _ => {
+            let body_start = i;
+            i = next_boundary(lines, i);
+            let body = trim_block_body(&lines[body_start..i]);
+            segments.push(Segment::Directive {
+                start,
+                end: i,
+                kind: kind.to_owned(),
+                map,
+                body,
+            });
+        }
+    }
+    Ok(i)
+}
+
 fn next_boundary(lines: &[&str], mut i: usize) -> usize {
     while i < lines.len() {
         let trimmed = lines[i].trim();
         if match_body_opener(trimmed).is_some()
             || trimmed.starts_with("\\row{")
             || trimmed == "\\row"
-            || trimmed == "\\toc"
-            || trimmed == "\\lof"
-            || trimmed == "\\lot"
-            || trimmed == "\\columns"
-            || trimmed == "\\endcolumns"
+            || bare_marker_kind(trimmed).is_some()
         {
             break;
         }

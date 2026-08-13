@@ -3,6 +3,8 @@
 //! Sealed [`TextRole::Toc`](crate::catalog::TextRole::Toc) is a live marker;
 //! print/HTML expand it from the document's heading structure.
 
+use std::fmt::Write as _;
+
 use crate::catalog::chunk::{TextHeader, TextRole};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
@@ -91,7 +93,7 @@ pub fn expand_toc_html(chunk_id: u64, header: &TextHeader, headings: &[TocHeadin
     let included = filter_headings(header, headings);
     let mut html = format!("  <nav class=\"toc\" data-chunk-id=\"{chunk_id}\">\n");
     if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
-        html.push_str(&format!("    <h2>{}</h2>\n", escape_html(title)));
+        let _ = writeln!(html, "    <h2>{}</h2>", escape_html(title));
     }
     if included.is_empty() {
         html.push_str("  </nav>\n");
@@ -131,11 +133,12 @@ fn toc_html_list(headings: &[TocHeading], labels: &[String], depth: u32) -> Stri
         } else {
             format!("{label} {}", headings[i].text)
         };
-        html.push_str(&format!(
+        let _ = write!(
+            html,
             "      <li><a href=\"#chunk-{}\">{}</a>",
             headings[i].chunk_id,
             escape_html(&title)
-        ));
+        );
         i += 1;
         let child_start = i;
         while i < headings.len() && headings[i].level > depth {

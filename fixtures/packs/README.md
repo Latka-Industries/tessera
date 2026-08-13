@@ -97,7 +97,7 @@ done
 ## List of figures / tables (THI-395)
 
 [`../samples/lists_of_floats.tes`](../samples/lists_of_floats.tes) seals
-`\lof` / `\lot` before captioned figures and tables. Smoke with page chrome:
+`\lof` / `\lot` before titled figures and tables. Smoke with page chrome:
 
 ```bash
 mkdir -p tmp/thi-395-smoke
@@ -107,3 +107,4 @@ cargo run -q --bin tes --features native-pdf -- export \
   --template-root fixtures/packs --template page_chrome \
   -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
 ```
+

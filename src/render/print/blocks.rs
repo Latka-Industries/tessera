@@ -56,10 +56,12 @@ pub(crate) fn map_text_block(
             display: true,
             latex: body.trim().to_owned(),
         },
-        // Expanded in `map_entries` via `expand_toc_print` / `expand_float_list_print`.
-        TextRole::Toc | TextRole::Lof | TextRole::Lot => PrintBlock::paragraph(runs()),
-        // Folded in `map_entries` into `PrintBlock::Columns`.
-        TextRole::Columns | TextRole::ColumnsEnd => PrintBlock::paragraph(runs()),
+        // Expanded / folded in `map_entries` (list-nav + columns markers).
+        TextRole::Toc
+        | TextRole::Lof
+        | TextRole::Lot
+        | TextRole::Columns
+        | TextRole::ColumnsEnd => PrintBlock::paragraph(runs()),
     }
 }
 

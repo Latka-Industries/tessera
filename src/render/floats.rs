@@ -4,6 +4,8 @@
 //! [`TextRole::Lot`](crate::catalog::TextRole::Lot) are live markers;
 //! print/HTML expand them from figure/table labels (default: **title** only).
 
+use std::fmt::Write as _;
+
 use crate::catalog::chunk::{FloatListSource, TextHeader, TextRole};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
@@ -127,7 +129,7 @@ pub fn expand_float_list_html(
     let class = kind.html_class();
     let mut html = format!("  <nav class=\"{class}\" data-chunk-id=\"{chunk_id}\">\n");
     if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
-        html.push_str(&format!("    <h2>{}</h2>\n", escape_html(title)));
+        let _ = writeln!(html, "    <h2>{}</h2>", escape_html(title));
     }
     if entries.is_empty() {
         html.push_str("  </nav>\n");
@@ -136,11 +138,12 @@ pub fn expand_float_list_html(
     html.push_str("    <ol>\n");
     for entry in entries {
         let label = format!("{} {}. {}", kind.noun(), entry.number, entry.text);
-        html.push_str(&format!(
-            "      <li><a href=\"#chunk-{}\">{}</a></li>\n",
+        let _ = writeln!(
+            html,
+            "      <li><a href=\"#chunk-{}\">{}</a></li>",
             entry.chunk_id,
             escape_html(&label)
-        ));
+        );
     }
     html.push_str("    </ol>\n");
     html.push_str("  </nav>\n");
