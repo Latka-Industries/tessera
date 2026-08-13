@@ -273,6 +273,24 @@ cargo run -q --bin tes --features native-pdf -- export \
   -o tmp/thi-393-smoke/manuscript_chapters__page_chrome.pdf
 ```
 
+### List of figures / tables (THI-395)
+
+Tessprek `\lof` / `\lot` (and braced attrs) seal as `TextRole::Lof` /
+`TextRole::Lot` (live markers). Print expands captioned or titled figures /
+tables into `PrintBlock::TocEntry` lines with `Figure N.` / `Table N.` prefixes,
+optional leaders / page digits (same knobs as `\toc` pages/leaders), and
+`f-{chunk_id}` / `t-{chunk_id}` destinations on the float blocks. See
+`docs/tessprek.md` and `fixtures/samples/lists_of_floats.tes`.
+
+```bash
+mkdir -p tmp/thi-395-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/lists_of_floats.tes \
+  --pdf --backend native \
+  --template-root fixtures/packs --template page_chrome \
+  -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
+```
+
 ### Body columns (THI-391)
 
 Tessprek `\columns` / `\columns{n=… gap=…}` … `\endcolumns` seals as

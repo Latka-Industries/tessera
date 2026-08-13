@@ -328,6 +328,32 @@ Native PDF also builds a **reader outline / bookmarks** tree from those same
 heading dests (THI-393) — sidebar navigation, independent of whether `\toc`
 appears in the body. See [glossary — PDF outline](glossary.md).
 
+### `\lof` / `\lof{…}` · `\lot` / `\lot{…}` (THI-395)
+
+In-document **list of figures** / **list of tables** (LaTeX `\listoffigures` /
+`\listoftables` stand-ins). Same live-marker model as `\toc`: place anywhere in
+reading order; print/HTML expand from captioned (or titled) floats in the whole
+document.
+
+```text
+\lof
+\lof{title="List of Figures"}
+\lot{title="Tables" page_numbers=false}
+\lof{leaders=false}
+```
+
+| Attr | Meaning |
+| --- | --- |
+| `title` | Optional label above the list (strong paragraph in print) |
+| `page_numbers` | Page column (default **on**; weave resolves from `f-*` / `t-*` dests). Set `false` to omit. |
+| `leaders` | Dotted leaders between title and page (default **on**). |
+
+Seals as `TextRole::Lof` / `TextRole::Lot` (empty body). Round-trip re-emits
+`\lof` / `\lot` — not a frozen Markdown list. Native PDF expands to
+`PrintBlock::TocEntry` with `Figure N.` / `Table N.` prefixes; HTML expands to
+`<nav class="lof|lot">` ordered links to `#chunk-N`. Floats without title and
+caption are skipped.
+
 ### `\columns` / `\columns{…}` … `\endcolumns` (THI-391)
 
 Continuous multi-column **body flow** (newspaper / article). Distinct from

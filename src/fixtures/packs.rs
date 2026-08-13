@@ -492,6 +492,20 @@ for pack in {columns_loop}; do
     -o "tmp/thi-391-smoke/article_columns__${{pack}}.pdf"
 done
 ```
+
+## List of figures / tables (THI-395)
+
+[`../samples/lists_of_floats.tes`](../samples/lists_of_floats.tes) seals
+`\lof` / `\lot` before captioned figures and tables. Smoke with page chrome:
+
+```bash
+mkdir -p tmp/thi-395-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/lists_of_floats.tes \
+  --pdf --backend native \
+  --template-root fixtures/packs --template page_chrome \
+  -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
+```
 "#,
         docs = CHROME_SMOKE_DOCS.join(" "),
         hyphen_loop = HYPHEN_PACKS

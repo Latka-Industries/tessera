@@ -9,6 +9,7 @@ mod common;
 mod field_notes;
 mod figure_align;
 mod hyphen_dense;
+mod lists_of_floats;
 mod manuscript;
 mod showcase;
 mod studio_brief;
@@ -19,6 +20,7 @@ pub use block_captions::encode_block_captions;
 pub use field_notes::encode_field_notes;
 pub use figure_align::encode_figure_align;
 pub use hyphen_dense::encode_hyphen_dense;
+pub use lists_of_floats::encode_lists_of_floats;
 pub use manuscript::encode_manuscript_chapters;
 pub use showcase::encode_tessprek_showcase;
 pub use studio_brief::encode_studio_brief;
@@ -46,6 +48,7 @@ pub fn write_all(dir: &Path) -> Result<()> {
         ("manuscript_chapters.tes", encode_manuscript_chapters()),
         ("hyphen_dense.tes", encode_hyphen_dense()),
         ("article_columns.tes", encode_article_columns()),
+        ("lists_of_floats.tes", encode_lists_of_floats()),
     ];
     for (name, bytes) in files {
         fs::write(dir.join(name), bytes)?;

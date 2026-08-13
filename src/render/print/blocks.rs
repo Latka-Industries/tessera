@@ -20,6 +20,7 @@ use crate::io::export::{
 
 use super::heading_dest_id;
 use super::runs::{body_to_runs, cell_to_runs};
+use crate::render::floats::{FloatListKind, float_dest_id};
 
 pub(crate) fn map_text_block(
     chunk_id: u64,
@@ -49,14 +50,14 @@ pub(crate) fn map_text_block(
             lang: header.code_lang.clone(),
             text: body.to_owned(),
         },
-        TextRole::Table => map_table(header, body, cite, links),
+        TextRole::Table => map_table(chunk_id, header, body, cite, links),
         TextRole::Row => map_row(header, cite, links),
         TextRole::Math => PrintBlock::Math {
             display: true,
             latex: body.trim().to_owned(),
         },
-        // Expanded in `map_entries` via `expand_toc_print`.
-        TextRole::Toc => PrintBlock::paragraph(runs()),
+        // Expanded in `map_entries` via `expand_toc_print` / `expand_float_list_print`.
+        TextRole::Toc | TextRole::Lof | TextRole::Lot => PrintBlock::paragraph(runs()),
         // Folded in `map_entries` into `PrintBlock::Columns`.
         TextRole::Columns | TextRole::ColumnsEnd => PrintBlock::paragraph(runs()),
     }
@@ -91,6 +92,7 @@ fn heading_break(level: u8, profile: &PrintProfileId) -> BreakHint {
 }
 
 fn map_table(
+    chunk_id: u64,
     header: &TextHeader,
     body: &str,
     _cite: CiteProj<'_>,
@@ -104,7 +106,7 @@ fn map_table(
                 cells: row.cells.iter().map(|c| c.text.clone()).collect(),
             })
             .collect();
-        return PrintBlock::Table { rows };
+        return PrintBlock::table_dest(rows, float_dest_id(FloatListKind::Tables, chunk_id));
     }
     let rows: Vec<TableRow> = body
         .lines()
@@ -112,7 +114,7 @@ fn map_table(
             cells: line.split('\t').map(str::to_owned).collect(),
         })
         .collect();
-    PrintBlock::Table { rows }
+    PrintBlock::table_dest(rows, float_dest_id(FloatListKind::Tables, chunk_id))
 }
 
 pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<PrintBlock> {
@@ -145,6 +147,7 @@ pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Prin
         // Plain caption runs — weave `[caption]` knobs (italic/size/band) own paint.
         caption: plain_label_runs(figure.caption.as_deref()),
         placement: map_figure_placement(&figure.placement),
+        dest_id: Some(float_dest_id(FloatListKind::Figures, entry.chunk_id)),
     })
 }
 

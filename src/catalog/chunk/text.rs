@@ -38,6 +38,14 @@ pub enum TextRole {
     /// Live marker: print/HTML expand from heading chunks. Body is empty.
     /// Not vault/hub nav.
     Toc,
+    /// In-document list of figures (Tessprek `\lof` / `\lof{…}`; THI-395).
+    ///
+    /// Live marker: print/HTML expand from captioned/titled figures. Body empty.
+    Lof,
+    /// In-document list of tables (Tessprek `\lot` / `\lot{…}`; THI-395).
+    ///
+    /// Live marker: print/HTML expand from captioned/titled tables. Body empty.
+    Lot,
     /// Multi-column body region open (Tessprek `\columns` / `\columns{…}`; THI-391).
     ///
     /// Empty body marker. Distinct from [`TextRole::Row`] (meta hfill panes).
@@ -64,6 +72,8 @@ impl TextRole {
             Self::Row => "row",
             Self::Math => "math",
             Self::Toc => "toc",
+            Self::Lof => "lof",
+            Self::Lot => "lot",
             Self::Columns => "columns",
             Self::ColumnsEnd => "columns_end",
         }
@@ -180,9 +190,10 @@ pub struct TextHeader {
     /// Absent means 3 (H1–H3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_depth: Option<u32>,
-    /// Page numbers on TOC lines when `role` is [`TextRole::Toc`].
+    /// Page numbers on TOC / LOF / LOT lines when `role` is [`TextRole::Toc`],
+    /// [`TextRole::Lof`], or [`TextRole::Lot`].
     /// Absent means **on** for print (`toc_pages_or_default`); weave resolves
-    /// digits from heading destinations. Set `false` to omit the page column.
+    /// digits from destinations. Set `false` to omit the page column.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_pages: Option<bool>,
     /// Section numbers (`1`, `1.1`, …) on TOC lines when `role` is [`TextRole::Toc`].
@@ -190,7 +201,8 @@ pub struct TextHeader {
     /// also get band indent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_sections: Option<bool>,
-    /// Dotted leaders between title and page when `role` is [`TextRole::Toc`].
+    /// Dotted leaders between title and page when `role` is [`TextRole::Toc`],
+    /// [`TextRole::Lof`], or [`TextRole::Lot`].
     /// Absent means **on** (`toc_leaders_or_default`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_leaders: Option<bool>,
@@ -242,6 +254,34 @@ impl TextHeader {
     #[must_use]
     pub fn toc() -> Self {
         Self::with_role(TextRole::Toc)
+    }
+
+    /// In-document list-of-figures marker (empty body; expand at print/HTML).
+    #[must_use]
+    pub fn lof() -> Self {
+        Self::with_role(TextRole::Lof)
+    }
+
+    /// List of figures with an optional title above the list.
+    #[must_use]
+    pub fn lof_titled(title: impl Into<String>) -> Self {
+        let mut h = Self::lof();
+        h.title = Some(title.into());
+        h
+    }
+
+    /// In-document list-of-tables marker (empty body; expand at print/HTML).
+    #[must_use]
+    pub fn lot() -> Self {
+        Self::with_role(TextRole::Lot)
+    }
+
+    /// List of tables with an optional title above the list.
+    #[must_use]
+    pub fn lot_titled(title: impl Into<String>) -> Self {
+        let mut h = Self::lot();
+        h.title = Some(title.into());
+        h
     }
 
     /// Multi-column body open marker (empty body; default 2 columns).
@@ -331,6 +371,8 @@ impl TextHeader {
                     | TextRole::Row
                     | TextRole::Math
                     | TextRole::Toc
+                    | TextRole::Lof
+                    | TextRole::Lot
                     | TextRole::Columns
                     | TextRole::ColumnsEnd
             )
@@ -435,7 +477,12 @@ impl TextHeader {
         let ok = match name {
             "title" => matches!(
                 self.role,
-                TextRole::Table | TextRole::Math | TextRole::CodeBlock | TextRole::Toc
+                TextRole::Table
+                    | TextRole::Math
+                    | TextRole::CodeBlock
+                    | TextRole::Toc
+                    | TextRole::Lof
+                    | TextRole::Lot
             ),
             _ => matches!(
                 self.role,
@@ -445,7 +492,7 @@ impl TextHeader {
         if !ok {
             return Err(TesError::InvalidTextHeader {
                 message: format!(
-                    "{name} is only valid on table, math, or code_block (title also on toc)"
+                    "{name} is only valid on table, math, or code_block (title also on toc/lof/lot)"
                 ),
             });
         }
@@ -527,9 +574,14 @@ impl TextHeader {
                 message: "toc_depth is only valid on toc".into(),
             });
         }
-        if self.toc_pages.is_some() && self.role != TextRole::Toc {
+        if self.toc_pages.is_some()
+            && !matches!(
+                self.role,
+                TextRole::Toc | TextRole::Lof | TextRole::Lot
+            )
+        {
             return Err(TesError::InvalidTextHeader {
-                message: "toc_pages is only valid on toc".into(),
+                message: "toc_pages is only valid on toc, lof, or lot".into(),
             });
         }
         if self.toc_sections.is_some() && self.role != TextRole::Toc {
@@ -537,9 +589,14 @@ impl TextHeader {
                 message: "toc_sections is only valid on toc".into(),
             });
         }
-        if self.toc_leaders.is_some() && self.role != TextRole::Toc {
+        if self.toc_leaders.is_some()
+            && !matches!(
+                self.role,
+                TextRole::Toc | TextRole::Lof | TextRole::Lot
+            )
+        {
             return Err(TesError::InvalidTextHeader {
-                message: "toc_leaders is only valid on toc".into(),
+                message: "toc_leaders is only valid on toc, lof, or lot".into(),
             });
         }
         if self.role == TextRole::Toc
@@ -652,6 +709,8 @@ impl TextHeader {
             }
             TextRole::Math => format!("$$\n{body}\n$$"),
             TextRole::Toc => render_toc_tessprek(self),
+            TextRole::Lof => render_float_list_tessprek(self, "lof"),
+            TextRole::Lot => render_float_list_tessprek(self, "lot"),
             TextRole::Columns => render_columns_tessprek(self),
             TextRole::ColumnsEnd => "\\endcolumns".into(),
             TextRole::Paragraph => spanned,
@@ -688,6 +747,29 @@ fn render_toc_tessprek(header: &TextHeader) -> String {
         "\\toc".into()
     } else {
         format!("\\toc{{{}}}", parts.join(" "))
+    }
+}
+
+/// Tessprek projection: `\lof` / `\lot` or braced attrs (THI-395).
+fn render_float_list_tessprek(header: &TextHeader, cmd: &str) -> String {
+    let mut parts = Vec::new();
+    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(format!("title=\"{title}\""));
+    }
+    match header.toc_pages {
+        Some(false) => parts.push("page_numbers=false".into()),
+        Some(true) => parts.push("page_numbers=true".into()),
+        None => {}
+    }
+    match header.toc_leaders {
+        Some(false) => parts.push("leaders=false".into()),
+        Some(true) => parts.push("leaders=true".into()),
+        None => {}
+    }
+    if parts.is_empty() {
+        format!("\\{cmd}")
+    } else {
+        format!("\\{cmd}{{{}}}", parts.join(" "))
     }
 }
 

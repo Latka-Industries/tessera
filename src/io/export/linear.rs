@@ -159,6 +159,8 @@ fn append_linear_text(
         | TextRole::Table
         | TextRole::Row
         | TextRole::Toc
+        | TextRole::Lof
+        | TextRole::Lot
         | TextRole::Columns
         | TextRole::ColumnsEnd => {
             if header.role == TextRole::Table {
@@ -167,7 +169,11 @@ fn append_linear_text(
             let structured = match header.role {
                 TextRole::Table => header.table.is_some(),
                 TextRole::Row => header.panes.is_some(),
-                TextRole::Toc | TextRole::Columns | TextRole::ColumnsEnd => true,
+                TextRole::Toc
+                | TextRole::Lof
+                | TextRole::Lot
+                | TextRole::Columns
+                | TextRole::ColumnsEnd => true,
                 _ => false,
             };
             if structured {

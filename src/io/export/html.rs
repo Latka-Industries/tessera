@@ -18,6 +18,9 @@ use super::common::{
     html_class_attr, image_src, selected_content_entries,
 };
 use super::layout_proj::layout_html;
+use crate::render::floats::{
+    FloatListKind, collect_figures, collect_tables, expand_float_list_html,
+};
 use crate::render::toc::{collect_headings, expand_toc_html};
 
 pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
@@ -34,6 +37,8 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
         style,
     };
     let headings = collect_headings(file, &entries)?;
+    let figures = collect_figures(file, &entries)?;
+    let tables = collect_tables(file, &entries)?;
     let doc_id = file.catalog().map_or("", |catalog| catalog.doc_id.as_str());
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
@@ -57,6 +62,20 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
                     close_all_lists(&mut article, &mut list_stack);
                     if header.role == TextRole::Toc {
                         article.push_str(&expand_toc_html(entry.chunk_id, &header, &headings));
+                    } else if header.role == TextRole::Lof {
+                        article.push_str(&expand_float_list_html(
+                            entry.chunk_id,
+                            &header,
+                            &figures,
+                            FloatListKind::Figures,
+                        ));
+                    } else if header.role == TextRole::Lot {
+                        article.push_str(&expand_float_list_html(
+                            entry.chunk_id,
+                            &header,
+                            &tables,
+                            FloatListKind::Tables,
+                        ));
                     } else if header.role == TextRole::Columns {
                         article.push_str(&columns_open_html(entry.chunk_id, &header));
                     } else if header.role == TextRole::ColumnsEnd {
@@ -303,9 +322,15 @@ fn render_text_chunk_html(
             html.push_str(&text_caption_html(header.caption.as_deref()));
             html
         }
-        // Expanded in `export_html` via `expand_toc_html`.
+        // Expanded in `export_html` via `expand_toc_html` / `expand_float_list_html`.
         TextRole::Toc => {
             format!("  <nav class=\"toc\" data-chunk-id=\"{chunk_id}\"{class}></nav>\n")
+        }
+        TextRole::Lof => {
+            format!("  <nav class=\"lof\" data-chunk-id=\"{chunk_id}\"{class}></nav>\n")
+        }
+        TextRole::Lot => {
+            format!("  <nav class=\"lot\" data-chunk-id=\"{chunk_id}\"{class}></nav>\n")
         }
         // Emitted in `export_html` open/close path.
         TextRole::Columns => columns_open_html(chunk_id, header),

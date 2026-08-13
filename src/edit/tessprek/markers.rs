@@ -48,6 +48,10 @@ pub const SLIDE_PREFIX: &str = "\\slide{";
 pub const LAYOUT_PREFIX: &str = "\\layout{";
 /// In-document TOC: `\toc{depth=… title="…"}` (THI-390). Bare `\toc` also accepted.
 pub const TOC_PREFIX: &str = "\\toc{";
+/// List of figures: `\lof{title="…"}` (THI-395). Bare `\lof` also accepted.
+pub const LOF_PREFIX: &str = "\\lof{";
+/// List of tables: `\lot{title="…"}` (THI-395). Bare `\lot` also accepted.
+pub const LOT_PREFIX: &str = "\\lot{";
 /// Multi-column body open: `\columns{n=… gap=…}` (THI-391). Bare `\columns` also accepted.
 pub const COLUMNS_PREFIX: &str = "\\columns{";
 /// Multi-column body close: `\endcolumns` (THI-391).
@@ -114,6 +118,8 @@ pub const TOC_ATTR_KEYS: &[&str] = &[
     "section_numbers",
     "leaders",
 ];
+/// Preferred attribute keys for `\lof{…}` / `\lot{…}` (THI-395).
+pub const FLOAT_LIST_ATTR_KEYS: &[&str] = &["title", "page_numbers", "leaders"];
 /// Preferred attribute keys for `\columns{…}` (THI-391).
 pub const COLUMNS_ATTR_KEYS: &[&str] = &["n", "gap"];
 /// Preferred attribute keys for `\attach{…}`.
@@ -133,6 +139,7 @@ pub fn command_attr_keys(kind: &str) -> Option<&'static [&'static str]> {
         "slide" => SLIDE_ATTR_KEYS,
         "layout" => LAYOUT_ATTR_KEYS,
         "toc" => TOC_ATTR_KEYS,
+        "lof" | "lot" => FLOAT_LIST_ATTR_KEYS,
         "columns" => COLUMNS_ATTR_KEYS,
         "attach" | "attachment" => ATTACH_ATTR_KEYS,
         "media" => MEDIA_ATTR_KEYS,
@@ -158,6 +165,8 @@ pub const BODY_COMMANDS: &[(&str, &str)] = &[
     (SLIDE_PREFIX, "slide"),
     (LAYOUT_PREFIX, "layout"),
     (TOC_PREFIX, "toc"),
+    (LOF_PREFIX, "lof"),
+    (LOT_PREFIX, "lot"),
     (COLUMNS_PREFIX, "columns"),
     (ATTACH_PREFIX, "attachment"),
 ];

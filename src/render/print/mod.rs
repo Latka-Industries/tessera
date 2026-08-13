@@ -7,6 +7,7 @@
 mod blocks;
 mod cite;
 mod lists;
+mod lof;
 mod runs;
 mod toc;
 
@@ -25,11 +26,13 @@ use crate::io::bib::BibEntry;
 use crate::io::cite::{CiteProj, projection_maps};
 use crate::io::export::{chapter_slice, cite_number_map, decode_text_entry};
 use crate::layout::DocKind;
+use crate::render::floats::{FloatListKind, collect_figures, collect_tables};
 use crate::render::toc::collect_headings;
 
 use blocks::{map_figure, map_layout, map_slide, map_text_block};
 use cite::{append_print_references, push_cite_block};
 use lists::{PendingListItem, flush_list, push_list_item};
+use lof::expand_float_list_print;
 use toc::expand_toc_print;
 
 /// Options for building a [`PrintDocument`] from a `.tes` file.
@@ -158,6 +161,8 @@ fn map_entries(
     };
 
     let headings = collect_headings(file, entries)?;
+    let figures = collect_figures(file, entries)?;
+    let tables = collect_tables(file, entries)?;
 
     let mut blocks = Vec::new();
     let mut list_buf: Vec<PendingListItem> = Vec::new();
@@ -201,6 +206,22 @@ fn map_entries(
                             &mut blocks,
                             &mut columns,
                             expand_toc_print(&header, &headings),
+                        );
+                        continue;
+                    }
+                    if header.role == TextRole::Lof {
+                        push_blocks(
+                            &mut blocks,
+                            &mut columns,
+                            expand_float_list_print(&header, &figures, FloatListKind::Figures),
+                        );
+                        continue;
+                    }
+                    if header.role == TextRole::Lot {
+                        push_blocks(
+                            &mut blocks,
+                            &mut columns,
+                            expand_float_list_print(&header, &tables, FloatListKind::Tables),
                         );
                         continue;
                     }

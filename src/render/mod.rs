@@ -21,6 +21,7 @@ pub mod pdf;
 pub mod preview;
 #[cfg(feature = "native-pdf")]
 pub mod print;
+pub mod floats;
 pub mod template;
 pub mod toc;
 #[cfg(feature = "native-pdf")]

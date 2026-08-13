@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::catalog::chunk::{CitePayload, TextHeader};
+use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
 use crate::catalog::media::FigureRef;
 use crate::catalog::slide::SlidePayload;
 use crate::error::Result;
@@ -139,6 +139,8 @@ pub(crate) fn decode_named_directive(
         "slide" => decode_slide_block(map, line_no),
         "layout" => decode_layout_block(body, line_no),
         "toc" => decode_toc_block(map, line_no),
+        "lof" => decode_float_list_block(map, line_no, TextRole::Lof),
+        "lot" => decode_float_list_block(map, line_no, TextRole::Lot),
         "columns" => decode_columns_block(map, line_no),
         "endcolumns" => Ok(ContentBlock::Text {
             chunk_id: None,
@@ -201,6 +203,42 @@ fn parse_toc_bool(raw: &str, attr: &str, line_no: usize) -> Result<bool> {
             format!("toc {attr} must be true/false, got '{other}'"),
         )),
     }
+}
+
+fn decode_float_list_block(
+    map: &BTreeMap<String, String>,
+    line_no: usize,
+    role: TextRole,
+) -> Result<ContentBlock> {
+    let mut header = match role {
+        TextRole::Lof => TextHeader::lof(),
+        TextRole::Lot => TextHeader::lot(),
+        _ => unreachable!("float list roles only"),
+    };
+    if let Some(title) = map.get("title").cloned().filter(|s| !s.is_empty()) {
+        header.title = Some(title);
+    }
+    if let Some(raw) = map.get("page_numbers") {
+        header.toc_pages = Some(parse_toc_bool(raw, "page_numbers", line_no)?);
+    }
+    if let Some(raw) = map.get("leaders") {
+        header.toc_leaders = Some(parse_toc_bool(raw, "leaders", line_no)?);
+    }
+    if map.contains_key("depth") || map.contains_key("section_numbers") {
+        return Err(parse_err(
+            line_no,
+            1,
+            "depth/section_numbers are only valid on \\toc",
+        ));
+    }
+    Ok(ContentBlock::Text {
+        chunk_id: None,
+        header,
+        body: String::new(),
+        pending_links: Vec::new(),
+        pending_cites: Vec::new(),
+        pending_fonts: Vec::new(),
+    })
 }
 
 fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {

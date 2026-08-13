@@ -72,6 +72,20 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             continue;
         }
 
+        // Bare `\lof` / `\lot` (THI-395).
+        if trimmed == "\\lof" || trimmed == "\\lot" {
+            let kind = trimmed.trim_start_matches('\\').to_owned();
+            segments.push(Segment::Directive {
+                start,
+                end: i + 1,
+                kind,
+                map: BTreeMap::new(),
+                body: String::new(),
+            });
+            i += 1;
+            continue;
+        }
+
         // Bare `\columns` / `\endcolumns` (THI-391).
         if trimmed == "\\columns" {
             segments.push(Segment::Directive {
@@ -188,6 +202,8 @@ fn next_boundary(lines: &[&str], mut i: usize) -> usize {
             || trimmed.starts_with("\\row{")
             || trimmed == "\\row"
             || trimmed == "\\toc"
+            || trimmed == "\\lof"
+            || trimmed == "\\lot"
             || trimmed == "\\columns"
             || trimmed == "\\endcolumns"
         {

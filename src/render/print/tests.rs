@@ -586,7 +586,12 @@ fn figure_title_and_caption_use_figure_fields() {
     let file = open_bytes("fig_title.tes", session.encode_file().unwrap());
     let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
     match &doc.blocks[0] {
-        PrintBlock::Figure { title, caption, .. } => {
+        PrintBlock::Figure {
+            title,
+            caption,
+            dest_id,
+            ..
+        } => {
             assert_eq!(title.len(), 1);
             assert_eq!(title[0].text, "Hero");
             assert!(
@@ -599,7 +604,94 @@ fn figure_title_and_caption_use_figure_fields() {
                 !caption[0].style.emphasis,
                 "caption runs are plain; weave [caption] knobs own italic: {caption:?}"
             );
+            assert!(
+                dest_id.as_ref().is_some_and(|d| d.starts_with("f-")),
+                "expected figure dest_id f-*: {dest_id:?}"
+            );
         }
         other => panic!("expected Figure, got {other:?}"),
     }
+}
+
+#[test]
+fn lof_and_lot_expand_to_toc_entries() {
+    use crate::catalog::chunk::{TableCell, TableData, TableRow};
+    use crate::catalog::media::{FigureRef, ImagePayload, ImagePlacement};
+    use crate::fixtures::v0::PNG_1X1;
+
+    let mut session = TesWriterSession::create("floats.tes", DocKind::Note);
+    session
+        .add_text_chunk(&TextHeader::lof_titled("Figures"), "")
+        .expect("lof");
+    session
+        .add_text_chunk(&TextHeader::lot_titled("Tables"), "")
+        .expect("lot");
+    let image_id = session
+        .add_image_chunk(&ImagePayload {
+            media_type: "image/png".into(),
+            width_px: 1,
+            height_px: 1,
+            data: PNG_1X1.to_vec(),
+        })
+        .expect("image");
+    session
+        .add_figure(&FigureRef {
+            image_chunk_id: image_id,
+            alt_text: "alt".into(),
+            title: None,
+            caption: Some("A still".into()),
+            placement: ImagePlacement::Flow,
+        })
+        .expect("figure");
+    let mut table = TextHeader::table(TableData {
+        rows: vec![TableRow {
+            cells: vec![TableCell {
+                text: "A".into(),
+                spans: Vec::new(),
+                align: None,
+                is_header: true,
+                rowspan: None,
+                colspan: None,
+            }],
+        }],
+    });
+    table.caption = Some("Grid".into());
+    session.add_text_chunk(&table, "").expect("table");
+
+    let file = open_bytes("floats.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+
+    let entries: Vec<_> = doc
+        .blocks
+        .iter()
+        .filter_map(|b| match b {
+            PrintBlock::TocEntry {
+                title,
+                dest_id,
+                page_label,
+                ..
+            } => Some((
+                title.iter().map(|r| r.text.as_str()).collect::<String>(),
+                dest_id.clone(),
+                page_label.clone(),
+            )),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        entries.iter().any(|(t, d, p)| {
+            t.starts_with("Figure 1. A still")
+                && d.as_ref().is_some_and(|id| id.starts_with("f-"))
+                && p.is_none()
+        }),
+        "expected LOF TocEntry: {entries:?}"
+    );
+    assert!(
+        entries.iter().any(|(t, d, p)| {
+            t.starts_with("Table 1. Grid")
+                && d.as_ref().is_some_and(|id| id.starts_with("t-"))
+                && p.is_none()
+        }),
+        "expected LOT TocEntry: {entries:?}"
+    );
 }

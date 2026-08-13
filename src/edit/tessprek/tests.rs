@@ -158,6 +158,59 @@ fn round_trip_toc_directive() {
 }
 
 #[test]
+fn round_trip_lof_lot_directives() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\lof{title=\"Figures\"}\n\
+\n\
+\\lot{title=\"Tables\" page_numbers=false}\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 2);
+    match &blocks[0] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Lof);
+            assert_eq!(header.title.as_deref(), Some("Figures"));
+            assert!(body.is_empty());
+        }
+        _ => panic!("expected lof"),
+    }
+    match &blocks[1] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Lot);
+            assert_eq!(header.title.as_deref(), Some("Tables"));
+            assert_eq!(header.toc_pages, Some(false));
+        }
+        _ => panic!("expected lot"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\lof{"), "{out}");
+    assert!(out.contains("\\lot{"), "{out}");
+    assert!(out.contains("title=\"Figures\""), "{out}");
+    assert!(out.contains("page_numbers=false"), "{out}");
+
+    let bare = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\lof\n\
+\n\
+\\lot\n\
+";
+    let bare_blocks = decode_tessprek(bare).expect("bare lof/lot");
+    match &bare_blocks[0] {
+        ContentBlock::Text { header, .. } => assert_eq!(header.role, TextRole::Lof),
+        _ => panic!("expected bare lof"),
+    }
+    match &bare_blocks[1] {
+        ContentBlock::Text { header, .. } => assert_eq!(header.role, TextRole::Lot),
+        _ => panic!("expected bare lot"),
+    }
+}
+
+#[test]
 fn round_trip_text_classes() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("note.tes");

@@ -16,7 +16,7 @@ use super::layout_ops::layout_op_parts;
 use super::markers::{
     ATTACH_PREFIX, BLOCK_PREFIX, BRACE_SUFFIX, CITE_PREFIX, COLUMNS_PREFIX, FIGURE_PREFIX, FORMAT,
     IDS_PREFIX, LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX,
-    TESSERA_PREFIX, TOC_PREFIX, VERSION,
+    TESSERA_PREFIX, TOC_PREFIX, LOF_PREFIX, LOT_PREFIX, VERSION,
 };
 use super::types::{TessprekDocMeta, TessprekMediaEntry};
 use super::util::{kv_attr, quoted_attr};
@@ -61,6 +61,16 @@ pub fn encode_content_blocks(
             } => {
                 if header.role == TextRole::Toc {
                     write_toc_directive(&mut out, header);
+                    out.push('\n');
+                    continue;
+                }
+                if header.role == TextRole::Lof {
+                    write_float_list_directive(&mut out, header, "lof", LOF_PREFIX);
+                    out.push('\n');
+                    continue;
+                }
+                if header.role == TextRole::Lot {
+                    write_float_list_directive(&mut out, header, "lot", LOT_PREFIX);
                     out.push('\n');
                     continue;
                 }
@@ -393,6 +403,33 @@ fn write_toc_directive(out: &mut String, header: &TextHeader) {
         let _ = writeln!(out, "\\toc");
     } else {
         write_brace_block(out, TOC_PREFIX, &parts);
+    }
+}
+
+fn write_float_list_directive(
+    out: &mut String,
+    header: &TextHeader,
+    bare: &str,
+    prefix: &str,
+) {
+    let mut parts = Vec::new();
+    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(quoted_attr("title", title));
+    }
+    match header.toc_pages {
+        Some(false) => parts.push("page_numbers=false".into()),
+        Some(true) => parts.push("page_numbers=true".into()),
+        None => {}
+    }
+    match header.toc_leaders {
+        Some(false) => parts.push("leaders=false".into()),
+        Some(true) => parts.push("leaders=true".into()),
+        None => {}
+    }
+    if parts.is_empty() {
+        let _ = writeln!(out, "\\{bare}");
+    } else {
+        write_brace_block(out, prefix, &parts);
     }
 }
 
