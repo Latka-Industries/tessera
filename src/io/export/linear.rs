@@ -155,14 +155,19 @@ fn append_linear_text(
             out.push_str("\n$$\n");
             append_linear_caption(out, header.caption.as_deref());
         }
-        TextRole::Paragraph | TextRole::Table | TextRole::Row | TextRole::Toc => {
+        TextRole::Paragraph
+        | TextRole::Table
+        | TextRole::Row
+        | TextRole::Toc
+        | TextRole::Columns
+        | TextRole::ColumnsEnd => {
             if header.role == TextRole::Table {
                 append_linear_title(out, header.title.as_deref());
             }
             let structured = match header.role {
                 TextRole::Table => header.table.is_some(),
                 TextRole::Row => header.panes.is_some(),
-                TextRole::Toc => true,
+                TextRole::Toc | TextRole::Columns | TextRole::ColumnsEnd => true,
                 _ => false,
             };
             if structured {

@@ -257,6 +257,15 @@ flush-right (weave-resolved when `page_numbers` is on), and `dest_id` /
 heading `h-{chunk_id}` for clickable GoTo. See `docs/tessprek.md` and
 `fixtures/samples/manuscript_chapters.tes` (Contents after front matter).
 
+### Body columns (THI-391)
+
+Tessprek `\columns` / `\columns{n=… gap=…}` … `\endcolumns` seals as
+`TextRole::Columns` / `ColumnsEnd` (empty markers). Print folds the intervening
+chunks into weave `PrintBlock::Columns { count, gap, children }` — continuous
+newspaper flow, not `\row` meta panes. Pack `weave.toml` may set
+`[body_columns] gap=…` (prose root convenience). Sample:
+`fixtures/samples/article_columns.tes`.
+
 Native PDF also emits a **sidebar outline** (`/Outlines`) from the same heading
 `dest_id`s (THI-393): bookmark tree in the reader, not body content. Distinct
 from vault hub / Tesscriptor TOC panes. Outline includes every heading with a
@@ -281,6 +290,7 @@ cargo run -q --bin tes --features native-pdf -- export \
 | --- | --- |
 | Text `heading` level N | `Heading { level: N, dest_id: h-{chunk_id}, … }`; level 1 + `manuscript` → `PageAlways` |
 | Text `toc` | Expanded `TocEntry` lines (+ optional title paragraph); not a frozen sealed list |
+| Text `columns` / `columns_end` | Folded into `PrintBlock::Columns` (THI-391); distinct from `Row` |
 | `paragraph` / quote / code / list | Matching blocks; inline spans → `TextRun` styles |
 | Text chunk `title` | `Paragraph` with `style.strong` (label stand-in; no non-figure title IR) |
 | Text chunk `caption` | `Paragraph` with `style.emphasis` (stand-in; weave `[caption]` is figure-only) |

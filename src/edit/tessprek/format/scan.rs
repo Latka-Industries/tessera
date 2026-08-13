@@ -72,6 +72,30 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             continue;
         }
 
+        // Bare `\columns` / `\endcolumns` (THI-391).
+        if trimmed == "\\columns" {
+            segments.push(Segment::Directive {
+                start,
+                end: i + 1,
+                kind: "columns".into(),
+                map: BTreeMap::new(),
+                body: String::new(),
+            });
+            i += 1;
+            continue;
+        }
+        if trimmed == "\\endcolumns" {
+            segments.push(Segment::Directive {
+                start,
+                end: i + 1,
+                kind: "endcolumns".into(),
+                map: BTreeMap::new(),
+                body: String::new(),
+            });
+            i += 1;
+            continue;
+        }
+
         if let Some((kind, prefix)) = match_body_opener(trimmed) {
             let (attrs, cmd_end) = take_brace_command(lines, i, prefix, kind)?;
             i = cmd_end;
@@ -98,7 +122,7 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
                         preserve: Some(map),
                     });
                 }
-                "slide" | "attachment" | "cite" | "quote" | "ref" | "toc" => {
+                "slide" | "attachment" | "cite" | "quote" | "ref" | "toc" | "columns" => {
                     segments.push(Segment::Directive {
                         start,
                         end: i,
@@ -164,6 +188,8 @@ fn next_boundary(lines: &[&str], mut i: usize) -> usize {
             || trimmed.starts_with("\\row{")
             || trimmed == "\\row"
             || trimmed == "\\toc"
+            || trimmed == "\\columns"
+            || trimmed == "\\endcolumns"
         {
             break;
         }

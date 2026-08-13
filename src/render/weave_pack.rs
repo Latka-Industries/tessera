@@ -25,6 +25,7 @@ const PROSE_ROOT_SECTIONS: &[&str] = &[
     "text",
     "cite",
     "link",
+    "body_columns",
 ];
 
 /// Category keys on [`LayoutKnobs`].

@@ -3,6 +3,7 @@
 //! These are for exploring Tessprek chunk shapes in Neovim / CLI. Regenerate with
 //! `cargo run --example gen_sample_fixtures`. Do not assert on-disk bytes in CI.
 
+mod article_columns;
 mod block_captions;
 mod common;
 mod field_notes;
@@ -13,6 +14,7 @@ mod showcase;
 mod studio_brief;
 mod text_roles;
 
+pub use article_columns::encode_article_columns;
 pub use block_captions::encode_block_captions;
 pub use field_notes::encode_field_notes;
 pub use figure_align::encode_figure_align;
@@ -43,6 +45,7 @@ pub fn write_all(dir: &Path) -> Result<()> {
         ("figure_align.tes", encode_figure_align()),
         ("manuscript_chapters.tes", encode_manuscript_chapters()),
         ("hyphen_dense.tes", encode_hyphen_dense()),
+        ("article_columns.tes", encode_article_columns()),
     ];
     for (name, bytes) in files {
         fs::write(dir.join(name), bytes)?;

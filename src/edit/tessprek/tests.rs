@@ -55,6 +55,64 @@ fn round_trip_row_directive() {
 }
 
 #[test]
+fn round_trip_columns_directive() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2,3,4}\n\
+\n\
+\\columns{n=2 gap=14}\n\
+\n\
+First flowing paragraph.\n\
+\n\
+## Mid heading\n\
+\n\
+\\endcolumns\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 4);
+    match &blocks[0] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Columns);
+            assert_eq!(header.columns_count, Some(2));
+            assert_eq!(header.columns_gap, Some(14));
+            assert!(body.is_empty());
+        }
+        _ => panic!("expected columns open"),
+    }
+    match &blocks[3] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::ColumnsEnd);
+            assert!(body.is_empty());
+        }
+        _ => panic!("expected columns end"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\columns{"), "{out}");
+    assert!(out.contains("n=2"), "{out}");
+    assert!(out.contains("gap=14"), "{out}");
+    assert!(out.contains("\\endcolumns"), "{out}");
+
+    let bare = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\columns\n\
+\n\
+\\endcolumns\n\
+";
+    let bare_blocks = decode_tessprek(bare).expect("bare columns");
+    match &bare_blocks[0] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Columns);
+            assert!(header.columns_count.is_none());
+            assert!(header.columns_gap.is_none());
+            assert_eq!(header.columns_count_or_default(), 2);
+        }
+        _ => panic!("expected bare columns"),
+    }
+}
+
+#[test]
 fn round_trip_toc_directive() {
     let input = "\
 \\tessera{format=tessprek version=2}\n\

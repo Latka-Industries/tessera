@@ -558,6 +558,27 @@ mod tests {
         assert!(bytes.len() > 200);
     }
 
+    #[cfg(feature = "native-pdf")]
+    #[test]
+    fn export_pdf_native_article_columns() {
+        let dir = tempdir().unwrap();
+        let tes = dir.path().join("cols.tes");
+        fs::write(&tes, crate::fixtures::samples::encode_article_columns()).unwrap();
+        let out = dir.path().join("article_columns.pdf");
+        export_pdf(
+            &tes,
+            &out,
+            &PdfExportOptions {
+                backend: PdfBackend::Native,
+                ..PdfExportOptions::default()
+            },
+        )
+        .unwrap();
+        let bytes = fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+        assert!(bytes.len() > 200);
+    }
+
     #[test]
     fn export_pdf_when_chrome_available() {
         let Ok(chrome) = find_chrome() else {

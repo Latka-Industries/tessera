@@ -57,6 +57,8 @@ pub(crate) fn map_text_block(
         },
         // Expanded in `map_entries` via `expand_toc_print`.
         TextRole::Toc => PrintBlock::paragraph(runs()),
+        // Folded in `map_entries` into `PrintBlock::Columns`.
+        TextRole::Columns | TextRole::ColumnsEnd => PrintBlock::paragraph(runs()),
     }
 }
 

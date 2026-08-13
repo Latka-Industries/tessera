@@ -162,14 +162,32 @@ fn map_entries(
     let mut blocks = Vec::new();
     let mut list_buf: Vec<PendingListItem> = Vec::new();
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
+    // Open `\columns` region: count, gap, children (THI-391). Soft-flush at EOF.
+    let mut columns: Option<(u8, Option<u16>, Vec<PrintBlock>)> = None;
 
     for entry in entries {
         match entry.chunk_type {
             ChunkType::Text => {
                 let (header, body) = decode_text_entry(file, entry)?;
+                if header.role == TextRole::Columns {
+                    flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
+                    // Nested open: flush previous region, then start a new one.
+                    flush_columns(&mut blocks, &mut columns);
+                    columns = Some((
+                        header.columns_count_or_default(),
+                        header.columns_gap,
+                        Vec::new(),
+                    ));
+                    continue;
+                }
+                if header.role == TextRole::ColumnsEnd {
+                    flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
+                    flush_columns(&mut blocks, &mut columns);
+                    continue;
+                }
                 if header.role == TextRole::ListItem {
                     push_list_item(
-                        &mut blocks,
+                        columns_sink(&mut blocks, &mut columns),
                         &mut list_buf,
                         &header,
                         &body,
@@ -177,52 +195,100 @@ fn map_entries(
                         file.links(),
                     );
                 } else {
-                    flush_list(&mut blocks, &mut list_buf);
+                    flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
                     if header.role == TextRole::Toc {
-                        blocks.extend(expand_toc_print(&header, &headings));
+                        push_blocks(
+                            &mut blocks,
+                            &mut columns,
+                            expand_toc_print(&header, &headings),
+                        );
                         continue;
                     }
                     if let Some(title) = nonempty_label(header.title.as_deref()) {
-                        blocks.push(title_paragraph(title));
+                        push_block(&mut blocks, &mut columns, title_paragraph(title));
                     }
-                    blocks.push(map_text_block(
-                        entry.chunk_id,
-                        &header,
-                        &body,
-                        profile,
-                        cite,
-                        file.links(),
-                    ));
+                    push_block(
+                        &mut blocks,
+                        &mut columns,
+                        map_text_block(
+                            entry.chunk_id,
+                            &header,
+                            &body,
+                            profile,
+                            cite,
+                            file.links(),
+                        ),
+                    );
                     // Non-figure captions: no Caption IR yet (weave `[caption]` is figure-only).
                     if let Some(caption) = nonempty_label(header.caption.as_deref()) {
-                        blocks.push(caption_paragraph(caption));
+                        push_block(&mut blocks, &mut columns, caption_paragraph(caption));
                     }
                 }
             }
             ChunkType::Figure => {
-                flush_list(&mut blocks, &mut list_buf);
-                blocks.push(map_figure(file, entry)?);
+                flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
+                push_block(&mut blocks, &mut columns, map_figure(file, entry)?);
             }
             ChunkType::Slide => {
-                flush_list(&mut blocks, &mut list_buf);
-                blocks.push(map_slide(file, entry)?);
+                flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
+                push_block(&mut blocks, &mut columns, map_slide(file, entry)?);
             }
             ChunkType::Layout => {
-                flush_list(&mut blocks, &mut list_buf);
-                blocks.push(map_layout(file, entry)?);
+                flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
+                push_block(&mut blocks, &mut columns, map_layout(file, entry)?);
             }
             ChunkType::Cite => {
-                flush_list(&mut blocks, &mut list_buf);
-                push_cite_block(file, entry, &cite_numbers, &mut blocks, &mut bib_items)?;
+                flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
+                // Cite helper pushes onto a Vec; buffer then re-home into columns.
+                let mut cite_blocks = Vec::new();
+                push_cite_block(file, entry, &cite_numbers, &mut cite_blocks, &mut bib_items)?;
+                push_blocks(&mut blocks, &mut columns, cite_blocks);
             }
             ChunkType::Attachment => {
                 // Attachments are not prose print blocks.
-                flush_list(&mut blocks, &mut list_buf);
+                flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
             }
             _ => {}
         }
     }
-    flush_list(&mut blocks, &mut list_buf);
+    flush_list(columns_sink(&mut blocks, &mut columns), &mut list_buf);
+    flush_columns(&mut blocks, &mut columns);
     append_print_references(&mut blocks, &mut bib_items);
     Ok(blocks)
+}
+
+fn columns_sink<'a>(
+    blocks: &'a mut Vec<PrintBlock>,
+    columns: &'a mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
+) -> &'a mut Vec<PrintBlock> {
+    if let Some((_, _, children)) = columns {
+        children
+    } else {
+        blocks
+    }
+}
+
+fn push_block(
+    blocks: &mut Vec<PrintBlock>,
+    columns: &mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
+    block: PrintBlock,
+) {
+    columns_sink(blocks, columns).push(block);
+}
+
+fn push_blocks(
+    blocks: &mut Vec<PrintBlock>,
+    columns: &mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
+    extra: Vec<PrintBlock>,
+) {
+    columns_sink(blocks, columns).extend(extra);
+}
+
+fn flush_columns(
+    blocks: &mut Vec<PrintBlock>,
+    columns: &mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
+) {
+    if let Some((count, gap, children)) = columns.take() {
+        blocks.push(PrintBlock::columns(count, gap, children));
+    }
 }

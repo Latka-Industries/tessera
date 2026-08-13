@@ -9,7 +9,7 @@ use crate::catalog::DocumentCatalog;
 use crate::catalog::chunk::{CitePayload, InlineKind, InlineSpan, TextHeader};
 use crate::catalog::file::TesFile;
 use crate::catalog::session::TesWriterSession;
-use crate::fixtures::samples::encode_manuscript_chapters;
+use crate::fixtures::samples::{encode_article_columns, encode_manuscript_chapters};
 use crate::fixtures::v0::{encode_note_one_chunk, encode_note_three_chunks, encode_research_cite};
 use crate::io::bib::BibEntry;
 use crate::layout::DocKind;
@@ -156,6 +156,42 @@ fn manuscript_chapters_profile_and_h1_breaks() {
             .iter()
             .any(|b| matches!(b, PrintBlock::List { .. })),
         "TOC should not expand to a bullet List"
+    );
+}
+
+#[test]
+fn article_columns_maps_print_block_columns() {
+    let file = open_bytes("article_columns.tes", encode_article_columns());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    let cols: Vec<_> = doc
+        .blocks
+        .iter()
+        .filter_map(|b| match b {
+            PrintBlock::Columns {
+                count,
+                gap,
+                children,
+            } => Some((*count, *gap, children.len())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(cols.len(), 1, "expected one Columns region, got: {cols:?}");
+    assert_eq!(cols[0].0, 2);
+    assert_eq!(cols[0].1, Some(14));
+    assert!(
+        cols[0].2 >= 3,
+        "expected paragraphs + mid heading as children, got {}",
+        cols[0].2
+    );
+    assert!(
+        doc.blocks.iter().any(|b| matches!(
+            b,
+            PrintBlock::Heading {
+                level: 1,
+                ..
+            }
+        )),
+        "title heading should stay outside Columns"
     );
 }
 

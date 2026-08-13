@@ -38,6 +38,16 @@ pub enum TextRole {
     /// Live marker: print/HTML expand from heading chunks. Body is empty.
     /// Not vault/hub nav.
     Toc,
+    /// Multi-column body region open (Tessprek `\columns` / `\columns{…}`; THI-391).
+    ///
+    /// Empty body marker. Distinct from [`TextRole::Row`] (meta hfill panes).
+    /// Print folds following chunks until [`TextRole::ColumnsEnd`] into
+    /// weave `PrintBlock::Columns`.
+    Columns,
+    /// Multi-column body region close (Tessprek `\endcolumns`; THI-391).
+    ///
+    /// Empty body end marker pairing [`TextRole::Columns`].
+    ColumnsEnd,
 }
 
 impl TextRole {
@@ -54,6 +64,8 @@ impl TextRole {
             Self::Row => "row",
             Self::Math => "math",
             Self::Toc => "toc",
+            Self::Columns => "columns",
+            Self::ColumnsEnd => "columns_end",
         }
     }
 }
@@ -182,6 +194,13 @@ pub struct TextHeader {
     /// Absent means **on** (`toc_leaders_or_default`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_leaders: Option<bool>,
+    /// Column count when `role` is [`TextRole::Columns`]. Absent means 2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns_count: Option<u8>,
+    /// Gap between columns in points when `role` is [`TextRole::Columns`].
+    /// Absent → weave pack `[body_columns].gap`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns_gap: Option<u16>,
 }
 
 impl TextHeader {
@@ -208,6 +227,8 @@ impl TextHeader {
             toc_pages: None,
             toc_sections: None,
             toc_leaders: None,
+            columns_count: None,
+            columns_gap: None,
         }
     }
 
@@ -221,6 +242,33 @@ impl TextHeader {
     #[must_use]
     pub fn toc() -> Self {
         Self::with_role(TextRole::Toc)
+    }
+
+    /// Multi-column body open marker (empty body; default 2 columns).
+    #[must_use]
+    pub fn columns() -> Self {
+        Self::with_role(TextRole::Columns)
+    }
+
+    /// Multi-column body open with count and optional gap (points).
+    #[must_use]
+    pub fn columns_with(count: u8, gap: Option<u16>) -> Self {
+        let mut h = Self::columns();
+        h.columns_count = Some(count.clamp(1, 6));
+        h.columns_gap = gap;
+        h
+    }
+
+    /// Multi-column body close marker (empty body).
+    #[must_use]
+    pub fn columns_end() -> Self {
+        Self::with_role(TextRole::ColumnsEnd)
+    }
+
+    /// Effective column count (absent → 2).
+    #[must_use]
+    pub fn columns_count_or_default(&self) -> u8 {
+        self.columns_count.unwrap_or(2).clamp(1, 6)
     }
 
     /// TOC with optional title and max heading depth.
@@ -273,11 +321,18 @@ impl TextHeader {
             || self.toc_pages.is_some()
             || self.toc_sections.is_some()
             || self.toc_leaders.is_some()
+            || self.columns_count.is_some()
+            || self.columns_gap.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
             || self.indent.is_some_and(|n| n > 0)
             || matches!(
                 self.role,
-                TextRole::Table | TextRole::Row | TextRole::Math | TextRole::Toc
+                TextRole::Table
+                    | TextRole::Row
+                    | TextRole::Math
+                    | TextRole::Toc
+                    | TextRole::Columns
+                    | TextRole::ColumnsEnd
             )
     }
 
@@ -495,6 +550,24 @@ impl TextHeader {
                 message: format!("toc_depth {depth} must be 1..=6"),
             });
         }
+        if self.columns_count.is_some() && self.role != TextRole::Columns {
+            return Err(TesError::InvalidTextHeader {
+                message: "columns_count is only valid on columns".into(),
+            });
+        }
+        if self.columns_gap.is_some() && self.role != TextRole::Columns {
+            return Err(TesError::InvalidTextHeader {
+                message: "columns_gap is only valid on columns".into(),
+            });
+        }
+        if self.role == TextRole::Columns
+            && let Some(count) = self.columns_count
+            && !(1..=6).contains(&count)
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("columns_count {count} must be 1..=6"),
+            });
+        }
         if self.list_depth.is_some() && self.role != TextRole::ListItem {
             return Err(TesError::InvalidTextHeader {
                 message: "list_depth is only valid on list_item".into(),
@@ -579,6 +652,8 @@ impl TextHeader {
             }
             TextRole::Math => format!("$$\n{body}\n$$"),
             TextRole::Toc => render_toc_tessprek(self),
+            TextRole::Columns => render_columns_tessprek(self),
+            TextRole::ColumnsEnd => "\\endcolumns".into(),
             TextRole::Paragraph => spanned,
         }
     }
@@ -613,6 +688,22 @@ fn render_toc_tessprek(header: &TextHeader) -> String {
         "\\toc".into()
     } else {
         format!("\\toc{{{}}}", parts.join(" "))
+    }
+}
+
+/// Tessprek projection: `\columns` or `\columns{n=… gap=…}`.
+fn render_columns_tessprek(header: &TextHeader) -> String {
+    let mut parts = Vec::new();
+    if let Some(n) = header.columns_count {
+        parts.push(format!("n={n}"));
+    }
+    if let Some(gap) = header.columns_gap {
+        parts.push(format!("gap={gap}"));
+    }
+    if parts.is_empty() {
+        "\\columns".into()
+    } else {
+        format!("\\columns{{{}}}", parts.join(" "))
     }
 }
 

@@ -139,6 +139,15 @@ pub(crate) fn decode_named_directive(
         "slide" => decode_slide_block(map, line_no),
         "layout" => decode_layout_block(body, line_no),
         "toc" => decode_toc_block(map, line_no),
+        "columns" => decode_columns_block(map, line_no),
+        "endcolumns" => Ok(ContentBlock::Text {
+            chunk_id: None,
+            header: TextHeader::columns_end(),
+            body: String::new(),
+            pending_links: Vec::new(),
+            pending_cites: Vec::new(),
+            pending_fonts: Vec::new(),
+        }),
         "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
             line_no,
@@ -192,6 +201,38 @@ fn parse_toc_bool(raw: &str, attr: &str, line_no: usize) -> Result<bool> {
             format!("toc {attr} must be true/false, got '{other}'"),
         )),
     }
+}
+
+fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
+    let mut header = TextHeader::columns();
+    if let Some(n) = optional_u32(map, "n") {
+        if !(1..=6).contains(&n) {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("columns n={n} must be 1..=6"),
+            ));
+        }
+        header.columns_count = Some(u8::try_from(n).unwrap_or(2));
+    }
+    if let Some(gap) = optional_u32(map, "gap") {
+        if gap > u32::from(u16::MAX) {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("columns gap={gap} exceeds u16"),
+            ));
+        }
+        header.columns_gap = Some(u16::try_from(gap).unwrap_or(0));
+    }
+    Ok(ContentBlock::Text {
+        chunk_id: None,
+        header,
+        body: String::new(),
+        pending_links: Vec::new(),
+        pending_cites: Vec::new(),
+        pending_fonts: Vec::new(),
+    })
 }
 
 fn decode_figure_block(

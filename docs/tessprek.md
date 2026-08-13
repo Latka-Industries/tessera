@@ -328,6 +328,41 @@ Native PDF also builds a **reader outline / bookmarks** tree from those same
 heading dests (THI-393) — sidebar navigation, independent of whether `\toc`
 appears in the body. See [glossary — PDF outline](glossary.md).
 
+### `\columns` / `\columns{…}` … `\endcolumns` (THI-391)
+
+Continuous multi-column **body flow** (newspaper / article). Distinct from
+`\row` (meta hfill panes) and deck two-column slides.
+
+```text
+\columns{n=2}
+First flowing paragraph…
+
+## Mid heading spans full measure
+
+More column body…
+\endcolumns
+
+\columns{n=2 gap=14}
+…
+\endcolumns
+
+\columns
+…   # n defaults to 2
+\endcolumns
+```
+
+| Attr | Meaning |
+| --- | --- |
+| `n` | Column count (1–6; default **2**; weave clamps to 2..=6 at layout) |
+| `gap` | Gap between columns in points; omit → pack `[body_columns].gap` |
+
+Seals as empty-body markers `TextRole::Columns` / `TextRole::ColumnsEnd`
+(`columns_count`, `columns_gap`). Print folds intervening chunks into weave
+`PrintBlock::Columns`. Nested `\columns` soft-flushes the previous region and
+starts a new one; unclosed regions flush at EOF. HTML emits
+`<div class="tes-columns" style="columns: N; column-gap: Xpt">` … `</div>`
+(headings get `column-span: all`).
+
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 
 No body; attachment bytes are never projected into Tessprek (inert — see

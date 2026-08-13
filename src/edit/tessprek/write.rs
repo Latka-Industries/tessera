@@ -14,8 +14,8 @@ use crate::io::font::PendingFont;
 use super::super::ContentBlock;
 use super::layout_ops::layout_op_parts;
 use super::markers::{
-    ATTACH_PREFIX, BLOCK_PREFIX, BRACE_SUFFIX, CITE_PREFIX, FIGURE_PREFIX, FORMAT, IDS_PREFIX,
-    LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX,
+    ATTACH_PREFIX, BLOCK_PREFIX, BRACE_SUFFIX, CITE_PREFIX, COLUMNS_PREFIX, FIGURE_PREFIX, FORMAT,
+    IDS_PREFIX, LAYOUT_PREFIX, MEDIA_PREFIX, QUOTE_PREFIX, REF_PREFIX, SLIDE_PREFIX, TESSERA_PREFIX,
     TOC_PREFIX, VERSION,
 };
 use super::types::{TessprekDocMeta, TessprekMediaEntry};
@@ -61,6 +61,16 @@ pub fn encode_content_blocks(
             } => {
                 if header.role == TextRole::Toc {
                     write_toc_directive(&mut out, header);
+                    out.push('\n');
+                    continue;
+                }
+                if header.role == TextRole::Columns {
+                    write_columns_directive(&mut out, header);
+                    out.push('\n');
+                    continue;
+                }
+                if header.role == TextRole::ColumnsEnd {
+                    let _ = writeln!(out, "\\endcolumns");
                     out.push('\n');
                     continue;
                 }
@@ -383,6 +393,21 @@ fn write_toc_directive(out: &mut String, header: &TextHeader) {
         let _ = writeln!(out, "\\toc");
     } else {
         write_brace_block(out, TOC_PREFIX, &parts);
+    }
+}
+
+fn write_columns_directive(out: &mut String, header: &TextHeader) {
+    let mut parts = Vec::new();
+    if let Some(n) = header.columns_count {
+        parts.push(format!("n={n}"));
+    }
+    if let Some(gap) = header.columns_gap {
+        parts.push(format!("gap={gap}"));
+    }
+    if parts.is_empty() {
+        let _ = writeln!(out, "\\columns");
+    } else {
+        write_brace_block(out, COLUMNS_PREFIX, &parts);
     }
 }
 
