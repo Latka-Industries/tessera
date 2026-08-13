@@ -324,6 +324,10 @@ Seals as `TextRole::Toc` (empty body; live marker). Round-trip re-emits `\toc` /
 `PrintBlock::TocEntry` (clickable `h-{chunk_id}` dests); HTML expands to a nested
 list of links to `#chunk-N`.
 
+Native PDF also builds a **reader outline / bookmarks** tree from those same
+heading dests (THI-393) — sidebar navigation, independent of whether `\toc`
+appears in the body. See [glossary — PDF outline](glossary.md).
+
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 
 No body; attachment bytes are never projected into Tessprek (inert — see

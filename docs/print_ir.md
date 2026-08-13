@@ -248,7 +248,7 @@ Pack `weave.toml` `[wrap]` merges onto weave prose wrap knobs:
 
 See `fixtures/packs/hyphen_on` vs `hyphen_off` + `fixtures/samples/hyphen_dense.tes`.
 
-### In-document TOC (THI-390)
+### In-document TOC (THI-390) vs PDF outline (THI-393)
 
 Tessprek `\toc` / `\toc{…}` seals as `TextRole::Toc` (live marker). Print expands
 from heading chunks into `PrintBlock::TocEntry` lines: section numbers + nested
@@ -257,15 +257,20 @@ flush-right (weave-resolved when `page_numbers` is on), and `dest_id` /
 heading `h-{chunk_id}` for clickable GoTo. See `docs/tessprek.md` and
 `fixtures/samples/manuscript_chapters.tes` (Contents after front matter).
 
-Smoke with page chrome:
+Native PDF also emits a **sidebar outline** (`/Outlines`) from the same heading
+`dest_id`s (THI-393): bookmark tree in the reader, not body content. Distinct
+from vault hub / Tesscriptor TOC panes. Outline includes every heading with a
+resolvable dest; `\toc depth` only filters the in-body list.
+
+Smoke with page chrome (TOC + bookmarks):
 
 ```bash
-mkdir -p tmp/thi-390-smoke
+mkdir -p tmp/thi-393-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/manuscript_chapters.tes \
   --pdf --backend native \
   --template-root fixtures/packs --template page_chrome \
-  -o tmp/thi-390-smoke/manuscript_chapters__page_chrome.pdf
+  -o tmp/thi-393-smoke/manuscript_chapters__page_chrome.pdf
 ```
 
 ---
