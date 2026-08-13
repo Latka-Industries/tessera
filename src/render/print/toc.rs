@@ -5,6 +5,7 @@ use ariadnes_weave::{InlineStyle, PrintBlock, TextRun};
 use crate::catalog::chunk::TextHeader;
 use crate::render::toc::{TocHeading, filter_headings, section_number_labels};
 
+use super::heading_dest_id;
 use super::title_paragraph;
 
 /// Expand a sealed TOC marker into print IR blocks.
@@ -36,7 +37,7 @@ pub(super) fn expand_toc_print(header: &TextHeader, headings: &[TocHeading]) -> 
     let leaders = header.toc_leaders_or_default();
 
     for (i, h) in owned.iter().enumerate() {
-        let dest_id = Some(format!("h-{}", h.chunk_id));
+        let dest_id = Some(heading_dest_id(h.chunk_id));
         let title_text = match labels.get(i).map(String::as_str).filter(|s| !s.is_empty()) {
             Some(num) => format!("{num} {}", h.text),
             None => h.text.clone(),

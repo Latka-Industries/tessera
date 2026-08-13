@@ -128,6 +128,12 @@ pub(crate) fn title_paragraph(text: impl Into<String>) -> PrintBlock {
     single_run_paragraph(TextRun::strong(text))
 }
 
+/// Print IR destination id for a heading chunk (TOC GoTo + PDF outline; THI-390/393).
+#[must_use]
+pub(crate) fn heading_dest_id(chunk_id: u64) -> String {
+    format!("h-{chunk_id}")
+}
+
 /// Non-figure chunk caption stand-in — italic `Paragraph` until a Caption IR exists.
 /// Figure captions use `Figure.caption` + weave `[caption]` knobs instead.
 pub(crate) fn caption_paragraph(text: impl Into<String>) -> PrintBlock {

@@ -18,6 +18,7 @@ use crate::io::export::{
     decode_figure_entry, decode_layout_entry, decode_slide_entry, decode_text_entry,
 };
 
+use super::heading_dest_id;
 use super::runs::{body_to_runs, cell_to_runs};
 
 pub(crate) fn map_text_block(
@@ -36,7 +37,7 @@ pub(crate) fn map_text_block(
                 level,
                 runs(),
                 heading_break(level, profile),
-                format!("h-{chunk_id}"),
+                heading_dest_id(chunk_id),
             )
         }
         // ListItem: isolated items should have been coalesced; paragraph fallback.
