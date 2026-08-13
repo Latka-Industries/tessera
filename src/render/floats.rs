@@ -2,60 +2,64 @@
 //!
 //! Sealed [`TextRole::Lof`](crate::catalog::TextRole::Lof) /
 //! [`TextRole::Lot`](crate::catalog::TextRole::Lot) are live markers;
-//! print/HTML expand them from captioned (or titled) figures and tables.
+//! print/HTML expand them from figure/table labels (default: **title** only).
 
-use crate::catalog::chunk::{TextHeader, TextRole};
+use crate::catalog::chunk::{FloatListSource, TextHeader, TextRole};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
 use crate::error::Result;
 use crate::io::export::{decode_figure_entry, decode_text_entry, escape_html};
 
-/// One float considered for LOF / LOT inclusion.
+/// Raw float label fields before LOF/LOT `source=` filtering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FloatCandidate {
+    /// Source chunk id (HTML `#chunk-N` / print `f-N` / `t-N` dest).
+    pub chunk_id: u64,
+    /// Figure/table title (above the float).
+    pub title: Option<String>,
+    /// Figure/table caption (below the float).
+    pub caption: Option<String>,
+}
+
+/// One float included in a LOF / LOT after `source=` filtering.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FloatEntry {
-    /// 1-based figure or table number in document order.
+    /// 1-based number among included entries for this list.
     pub number: u32,
-    /// Caption text, else title (whichever is non-empty).
+    /// Label text from title or caption per [`FloatListSource`].
     pub text: String,
     /// Source chunk id (HTML `#chunk-N` / print `f-N` / `t-N` dest).
     pub chunk_id: u64,
 }
 
-/// Collect figures that have a non-empty title and/or caption.
+/// Collect figure title/caption fields (no filtering yet).
 ///
 /// # Errors
 ///
 /// Returns decode errors from figure chunk payloads.
-pub fn collect_figures(file: &TesFile, entries: &[&ChunkIndexEntry]) -> Result<Vec<FloatEntry>> {
+pub fn collect_figures(file: &TesFile, entries: &[&ChunkIndexEntry]) -> Result<Vec<FloatCandidate>> {
     let mut out = Vec::new();
-    let mut number = 0_u32;
     for entry in entries {
         if entry.chunk_type != ChunkType::Figure {
             continue;
         }
         let figure = decode_figure_entry(file, entry)?;
-        let text = float_label(figure.caption.as_deref(), figure.title.as_deref());
-        let Some(text) = text else {
-            continue;
-        };
-        number = number.saturating_add(1);
-        out.push(FloatEntry {
-            number,
-            text,
+        out.push(FloatCandidate {
             chunk_id: entry.chunk_id,
+            title: nonempty_owned(figure.title.as_deref()),
+            caption: nonempty_owned(figure.caption.as_deref()),
         });
     }
     Ok(out)
 }
 
-/// Collect tables that have a non-empty title and/or caption.
+/// Collect table title/caption fields (no filtering yet).
 ///
 /// # Errors
 ///
 /// Returns decode errors from text chunk payloads.
-pub fn collect_tables(file: &TesFile, entries: &[&ChunkIndexEntry]) -> Result<Vec<FloatEntry>> {
+pub fn collect_tables(file: &TesFile, entries: &[&ChunkIndexEntry]) -> Result<Vec<FloatCandidate>> {
     let mut out = Vec::new();
-    let mut number = 0_u32;
     for entry in entries {
         if entry.chunk_type != ChunkType::Text {
             continue;
@@ -64,26 +68,46 @@ pub fn collect_tables(file: &TesFile, entries: &[&ChunkIndexEntry]) -> Result<Ve
         if header.role != TextRole::Table {
             continue;
         }
-        let text = float_label(header.caption.as_deref(), header.title.as_deref());
-        let Some(text) = text else {
+        out.push(FloatCandidate {
+            chunk_id: entry.chunk_id,
+            title: nonempty_owned(header.title.as_deref()),
+            caption: nonempty_owned(header.caption.as_deref()),
+        });
+    }
+    Ok(out)
+}
+
+/// Filter candidates by a LOF/LOT marker's `source=` knob and number them.
+#[must_use]
+pub fn select_float_entries(
+    candidates: &[FloatCandidate],
+    source: FloatListSource,
+) -> Vec<FloatEntry> {
+    let mut out = Vec::new();
+    let mut number = 0_u32;
+    for c in candidates {
+        let Some(text) = float_label(c, source) else {
             continue;
         };
         number = number.saturating_add(1);
         out.push(FloatEntry {
             number,
             text,
-            chunk_id: entry.chunk_id,
+            chunk_id: c.chunk_id,
         });
     }
-    Ok(out)
+    out
 }
 
-fn float_label(caption: Option<&str>, title: Option<&str>) -> Option<String> {
-    caption
-        .or(title)
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
+fn nonempty_owned(s: Option<&str>) -> Option<String> {
+    s.map(str::trim).filter(|t| !t.is_empty()).map(str::to_owned)
+}
+
+fn float_label(c: &FloatCandidate, source: FloatListSource) -> Option<String> {
+    match source {
+        FloatListSource::Title => c.title.clone(),
+        FloatListSource::Caption => c.caption.clone(),
+    }
 }
 
 /// Expand a sealed LOF / LOT marker to HTML.
@@ -91,9 +115,10 @@ fn float_label(caption: Option<&str>, title: Option<&str>) -> Option<String> {
 pub fn expand_float_list_html(
     chunk_id: u64,
     header: &TextHeader,
-    entries: &[FloatEntry],
+    candidates: &[FloatCandidate],
     kind: FloatListKind,
 ) -> String {
+    let entries = select_float_entries(candidates, header.float_list_source_or_default());
     let class = kind.html_class();
     let mut html = format!("  <nav class=\"{class}\" data-chunk-id=\"{chunk_id}\">\n");
     if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
@@ -160,8 +185,10 @@ pub fn float_dest_id(kind: FloatListKind, chunk_id: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{FloatEntry, FloatListKind, expand_float_list_html, float_dest_id};
-    use crate::catalog::chunk::TextHeader;
+    use super::{
+        FloatCandidate, FloatListKind, expand_float_list_html, float_dest_id, select_float_entries,
+    };
+    use crate::catalog::chunk::{FloatListSource, TextHeader};
 
     #[test]
     fn dest_ids_match_prefixes() {
@@ -170,15 +197,45 @@ mod tests {
     }
 
     #[test]
+    fn select_title_skips_caption_only() {
+        let candidates = [
+            FloatCandidate {
+                chunk_id: 1,
+                title: Some("Harbor".into()),
+                caption: Some("long caption".into()),
+            },
+            FloatCandidate {
+                chunk_id: 2,
+                title: None,
+                caption: Some("caption only".into()),
+            },
+        ];
+        let entries = select_float_entries(&candidates, FloatListSource::Title);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].text, "Harbor");
+        assert_eq!(entries[0].number, 1);
+    }
+
+    #[test]
+    fn select_caption_skips_title_only() {
+        let candidates = [FloatCandidate {
+            chunk_id: 1,
+            title: Some("Harbor".into()),
+            caption: None,
+        }];
+        assert!(select_float_entries(&candidates, FloatListSource::Caption).is_empty());
+    }
+
+    #[test]
     fn html_lists_entries() {
         let header = TextHeader::lof_titled("Figures");
         let html = expand_float_list_html(
             9,
             &header,
-            &[FloatEntry {
-                number: 1,
-                text: "A still".into(),
+            &[FloatCandidate {
                 chunk_id: 4,
+                title: Some("A still".into()),
+                caption: None,
             }],
             FloatListKind::Figures,
         );

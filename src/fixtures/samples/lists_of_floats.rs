@@ -5,9 +5,10 @@ use crate::layout::DocKind;
 
 use super::common::{add_flow_figure, add_swatch_image, catalog, cell};
 
-/// Document with `\lof` / `\lot` before captioned figures and tables.
+/// Document with `\lof` / `\lot` before titled figures and tables.
 ///
-/// Pair with `page_chrome` so page digits resolve on the list lines.
+/// Default `source=title`: caption-only floats are omitted. Pair with
+/// `page_chrome` so page digits resolve on the list lines.
 ///
 /// # Panics
 ///
@@ -32,8 +33,9 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
     session
         .add_text_chunk(
             &TextHeader::paragraph(),
-            "Front matter lists expand from later captioned figures and tables \
-             (Tessprek \\lof / \\lot). Export with page_chrome to see page digits.",
+            "Front matter lists expand from later float titles (Tessprek \\lof / \\lot, \
+             default source=title). Untitled floats are omitted. Export with page_chrome \
+             to see page digits.",
         )
         .expect("intro");
 
@@ -66,10 +68,18 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
         &mut session,
         image_id,
         "Second swatch",
-        None,
-        Some("Caption-only figure (no title) still appears in the list."),
+        Some("Second harbor view"),
+        Some("Caption is ignored by default LOF."),
     )
     .expect("figure 2");
+    add_flow_figure(
+        &mut session,
+        image_id,
+        "No title swatch",
+        None,
+        Some("Caption-only — omitted unless source=caption."),
+    )
+    .expect("figure caption-only");
 
     session
         .add_text_chunk(&TextHeader::heading(1), "Tables")
@@ -85,7 +95,7 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
         ],
     });
     table_a.title = Some("Site counts".into());
-    table_a.caption = Some("First table caption for the LOT.".into());
+    table_a.caption = Some("First table caption (ignored by default LOT).".into());
     session.add_text_chunk(&table_a, "").expect("table 1");
 
     let mut table_b = TextHeader::table(TableData {
@@ -98,13 +108,22 @@ pub fn encode_lists_of_floats() -> Vec<u8> {
             },
         ],
     });
-    table_b.caption = Some("Title-less table; caption alone is enough.".into());
+    table_b.title = Some("Depth readings".into());
+    table_b.caption = Some("Second table caption.".into());
     session.add_text_chunk(&table_b, "").expect("table 2");
+
+    let mut table_c = TextHeader::table(TableData {
+        rows: vec![TableRow {
+            cells: vec![cell("X", true)],
+        }],
+    });
+    table_c.caption = Some("Caption-only table — omitted unless source=caption.".into());
+    session.add_text_chunk(&table_c, "").expect("table caption-only");
 
     session
         .add_text_chunk(
             &TextHeader::paragraph(),
-            "End. Uncaptioned floats are omitted from LOF/LOT.",
+            "End. Untitled floats are omitted from LOF/LOT (default source=title).",
         )
         .expect("outro");
 

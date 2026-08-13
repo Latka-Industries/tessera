@@ -276,11 +276,12 @@ cargo run -q --bin tes --features native-pdf -- export \
 ### List of figures / tables (THI-395)
 
 Tessprek `\lof` / `\lot` (and braced attrs) seal as `TextRole::Lof` /
-`TextRole::Lot` (live markers). Print expands captioned or titled figures /
-tables into `PrintBlock::TocEntry` lines with `Figure N.` / `Table N.` prefixes,
-optional leaders / page digits (same knobs as `\toc` pages/leaders), and
-`f-{chunk_id}` / `t-{chunk_id}` destinations on the float blocks. See
-`docs/tessprek.md` and `fixtures/samples/lists_of_floats.tes`.
+`TextRole::Lot` (live markers). Print expands float **titles** (default
+`source=title`; untitled omitted) — or captions when `source=caption` — into
+`PrintBlock::TocEntry` lines with `Figure N.` / `Table N.` prefixes,
+optional leaders / page digits, and `f-{chunk_id}` / `t-{chunk_id}` destinations
+on the float blocks. See `docs/tessprek.md` and
+`fixtures/samples/lists_of_floats.tes`.
 
 ```bash
 mkdir -p tmp/thi-395-smoke

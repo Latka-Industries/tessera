@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::*;
 use crate::catalog::TesFile;
-use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
+use crate::catalog::chunk::{CitePayload, FloatListSource, TextHeader, TextRole};
 use crate::catalog::media::{FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
 use crate::catalog::{DocumentCatalog, TesWriterSession};
@@ -163,7 +163,7 @@ fn round_trip_lof_lot_directives() {
 \\tessera{format=tessprek version=2}\n\
 \\ids{1,2}\n\
 \n\
-\\lof{title=\"Figures\"}\n\
+\\lof{title=\"Figures\" source=caption}\n\
 \n\
 \\lot{title=\"Tables\" page_numbers=false}\n\
 ";
@@ -173,6 +173,7 @@ fn round_trip_lof_lot_directives() {
         ContentBlock::Text { header, body, .. } => {
             assert_eq!(header.role, TextRole::Lof);
             assert_eq!(header.title.as_deref(), Some("Figures"));
+            assert_eq!(header.float_list_source, Some(FloatListSource::Caption));
             assert!(body.is_empty());
         }
         _ => panic!("expected lof"),
@@ -189,6 +190,7 @@ fn round_trip_lof_lot_directives() {
     assert!(out.contains("\\lof{"), "{out}");
     assert!(out.contains("\\lot{"), "{out}");
     assert!(out.contains("title=\"Figures\""), "{out}");
+    assert!(out.contains("source=caption"), "{out}");
     assert!(out.contains("page_numbers=false"), "{out}");
 
     let bare = "\

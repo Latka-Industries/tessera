@@ -638,7 +638,7 @@ fn lof_and_lot_expand_to_toc_entries() {
         .add_figure(&FigureRef {
             image_chunk_id: image_id,
             alt_text: "alt".into(),
-            title: None,
+            title: Some("Hero".into()),
             caption: Some("A still".into()),
             placement: ImagePlacement::Flow,
         })
@@ -655,7 +655,8 @@ fn lof_and_lot_expand_to_toc_entries() {
             }],
         }],
     });
-    table.caption = Some("Grid".into());
+    table.title = Some("Grid".into());
+    table.caption = Some("ignored by default".into());
     session.add_text_chunk(&table, "").expect("table");
 
     let file = open_bytes("floats.tes", session.encode_file().unwrap());
@@ -680,11 +681,11 @@ fn lof_and_lot_expand_to_toc_entries() {
         .collect();
     assert!(
         entries.iter().any(|(t, d, p)| {
-            t.starts_with("Figure 1. A still")
+            t.starts_with("Figure 1. Hero")
                 && d.as_ref().is_some_and(|id| id.starts_with("f-"))
                 && p.is_none()
         }),
-        "expected LOF TocEntry: {entries:?}"
+        "expected LOF TocEntry from title: {entries:?}"
     );
     assert!(
         entries.iter().any(|(t, d, p)| {
@@ -692,6 +693,6 @@ fn lof_and_lot_expand_to_toc_entries() {
                 && d.as_ref().is_some_and(|id| id.starts_with("t-"))
                 && p.is_none()
         }),
-        "expected LOT TocEntry: {entries:?}"
+        "expected LOT TocEntry from title: {entries:?}"
     );
 }

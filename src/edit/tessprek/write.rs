@@ -426,6 +426,9 @@ fn write_float_list_directive(
         Some(true) => parts.push("leaders=true".into()),
         None => {}
     }
+    if let Some(source) = header.float_list_source {
+        parts.push(format!("source={}", source.as_str()));
+    }
     if parts.is_empty() {
         let _ = writeln!(out, "\\{bare}");
     } else {

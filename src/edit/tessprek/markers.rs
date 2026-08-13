@@ -119,7 +119,7 @@ pub const TOC_ATTR_KEYS: &[&str] = &[
     "leaders",
 ];
 /// Preferred attribute keys for `\lof{…}` / `\lot{…}` (THI-395).
-pub const FLOAT_LIST_ATTR_KEYS: &[&str] = &["title", "page_numbers", "leaders"];
+pub const FLOAT_LIST_ATTR_KEYS: &[&str] = &["title", "page_numbers", "leaders", "source"];
 /// Preferred attribute keys for `\columns{…}` (THI-391).
 pub const COLUMNS_ATTR_KEYS: &[&str] = &["n", "gap"];
 /// Preferred attribute keys for `\attach{…}`.

@@ -3,21 +3,22 @@
 use ariadnes_weave::{InlineStyle, PrintBlock, TextRun};
 
 use crate::catalog::chunk::TextHeader;
-use crate::render::floats::{FloatEntry, FloatListKind, float_dest_id};
+use crate::render::floats::{FloatCandidate, FloatListKind, float_dest_id, select_float_entries};
 
 use super::title_paragraph;
 
 /// Expand a sealed LOF / LOT marker into print IR blocks.
 ///
 /// Default look: [`PrintBlock::TocEntry`] lines with `Figure N.` / `Table N.`
-/// prefixes, optional dotted leaders, optional page column (weave-resolved when
-/// `page_label` is `None`), and `f-{chunk_id}` / `t-{chunk_id}` destinations.
+/// prefixes from float **titles** (`source=title`, default; untitled omitted).
+/// Optional `source=caption`. Page digits weave-resolve from `f-*` / `t-*`.
 #[must_use]
 pub(super) fn expand_float_list_print(
     header: &TextHeader,
-    entries: &[FloatEntry],
+    candidates: &[FloatCandidate],
     kind: FloatListKind,
 ) -> Vec<PrintBlock> {
+    let entries = select_float_entries(candidates, header.float_list_source_or_default());
     let mut blocks = Vec::new();
     if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
         blocks.push(title_paragraph(title));

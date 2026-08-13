@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
+use crate::catalog::chunk::{CitePayload, FloatListSource, TextHeader, TextRole};
 use crate::catalog::media::FigureRef;
 use crate::catalog::slide::SlidePayload;
 use crate::error::Result;
@@ -223,6 +223,19 @@ fn decode_float_list_block(
     }
     if let Some(raw) = map.get("leaders") {
         header.toc_leaders = Some(parse_toc_bool(raw, "leaders", line_no)?);
+    }
+    if let Some(raw) = map.get("source") {
+        header.float_list_source = Some(match raw.as_str() {
+            "title" => FloatListSource::Title,
+            "caption" => FloatListSource::Caption,
+            other => {
+                return Err(parse_err(
+                    line_no,
+                    1,
+                    format!("lof/lot source must be title or caption, got '{other}'"),
+                ));
+            }
+        });
     }
     if map.contains_key("depth") || map.contains_key("section_numbers") {
         return Err(parse_err(

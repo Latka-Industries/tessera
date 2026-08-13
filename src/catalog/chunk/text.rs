@@ -13,6 +13,27 @@ pub const TEXT_HEADER_MAX_BYTES: usize = 4 * 1024;
 /// Max UTF-8 bytes for optional title / caption on table / math / `code_block`.
 pub const TEXT_CAPTION_MAX: usize = 1024;
 
+/// Which float field `\lof` / `\lot` list from (THI-395).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FloatListSource {
+    /// Figure/table `title` (default). Untitled floats are omitted.
+    Title,
+    /// Figure/table `caption`. Uncaptioned floats are omitted.
+    Caption,
+}
+
+impl FloatListSource {
+    /// Tessprek / JSON wire name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Title => "title",
+            Self::Caption => "caption",
+        }
+    }
+}
+
 /// Semantic role of a text chunk body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -40,11 +61,13 @@ pub enum TextRole {
     Toc,
     /// In-document list of figures (Tessprek `\lof` / `\lof{…}`; THI-395).
     ///
-    /// Live marker: print/HTML expand from captioned/titled figures. Body empty.
+    /// Live marker: print/HTML expand from titled figures (default) or captions
+    /// when `source=caption`. Body empty.
     Lof,
     /// In-document list of tables (Tessprek `\lot` / `\lot{…}`; THI-395).
     ///
-    /// Live marker: print/HTML expand from captioned/titled tables. Body empty.
+    /// Live marker: print/HTML expand from titled tables (default) or captions
+    /// when `source=caption`. Body empty.
     Lot,
     /// Multi-column body region open (Tessprek `\columns` / `\columns{…}`; THI-391).
     ///
@@ -206,6 +229,10 @@ pub struct TextHeader {
     /// Absent means **on** (`toc_leaders_or_default`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_leaders: Option<bool>,
+    /// Which float field LOF/LOT lines use when `role` is [`TextRole::Lof`] or
+    /// [`TextRole::Lot`]. Absent means [`FloatListSource::Title`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub float_list_source: Option<FloatListSource>,
     /// Column count when `role` is [`TextRole::Columns`]. Absent means 2.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub columns_count: Option<u8>,
@@ -239,6 +266,7 @@ impl TextHeader {
             toc_pages: None,
             toc_sections: None,
             toc_leaders: None,
+            float_list_source: None,
             columns_count: None,
             columns_gap: None,
         }
@@ -346,6 +374,12 @@ impl TextHeader {
         self.toc_leaders.unwrap_or(true)
     }
 
+    /// Which float field LOF/LOT use (absent → [`FloatListSource::Title`]).
+    #[must_use]
+    pub fn float_list_source_or_default(&self) -> FloatListSource {
+        self.float_list_source.unwrap_or(FloatListSource::Title)
+    }
+
     /// Whether this header uses additive layout-v1 fields (`text_spans` feature).
     #[must_use]
     pub fn uses_layout_v1_features(&self) -> bool {
@@ -361,6 +395,7 @@ impl TextHeader {
             || self.toc_pages.is_some()
             || self.toc_sections.is_some()
             || self.toc_leaders.is_some()
+            || self.float_list_source.is_some()
             || self.columns_count.is_some()
             || self.columns_gap.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
@@ -599,6 +634,13 @@ impl TextHeader {
                 message: "toc_leaders is only valid on toc, lof, or lot".into(),
             });
         }
+        if self.float_list_source.is_some()
+            && !matches!(self.role, TextRole::Lof | TextRole::Lot)
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: "float_list_source is only valid on lof or lot".into(),
+            });
+        }
         if self.role == TextRole::Toc
             && let Some(depth) = self.toc_depth
             && !(1..=6).contains(&depth)
@@ -765,6 +807,10 @@ fn render_float_list_tessprek(header: &TextHeader, cmd: &str) -> String {
         Some(false) => parts.push("leaders=false".into()),
         Some(true) => parts.push("leaders=true".into()),
         None => {}
+    }
+    if let Some(source) = header.float_list_source {
+        // Default is title; only emit when sealed explicitly (incl. title).
+        parts.push(format!("source={}", source.as_str()));
     }
     if parts.is_empty() {
         format!("\\{cmd}")

@@ -101,7 +101,7 @@ Terms used consistently across Tessera docs, issues, and code.
 | `hub` | Vault map-of-content (ordered links); **not** in-document `\toc` |
 | `index` | Vault catalog sidecar |
 | **In-document TOC** | Tessprek `\toc` → sealed `TextRole::Toc`; expands at print/HTML from headings (THI-390). Distinct from hub / Tesscriptor TOC panes. |
-| **LOF / LOT** | Tessprek `\lof` / `\lot` → sealed `TextRole::Lof` / `Lot`; expands from captioned/titled figures and tables (THI-395). |
+| **LOF / LOT** | Tessprek `\lof` / `\lot` → sealed `TextRole::Lof` / `Lot`; expands from float titles by default (`source=title` or `caption`; THI-395). |
 | **PDF outline** | Native PDF sidebar bookmarks from heading `dest_id`s (THI-393). Same heading walk as `\toc`, different surface — not body content and not vault hub. |
 | **Body columns** | Tessprek `\columns`…`\endcolumns` → `TextRole::Columns` / `ColumnsEnd`; print → weave `PrintBlock::Columns` (THI-391). Not `\row` meta panes. |
 

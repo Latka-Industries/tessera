@@ -332,14 +332,13 @@ appears in the body. See [glossary — PDF outline](glossary.md).
 
 In-document **list of figures** / **list of tables** (LaTeX `\listoffigures` /
 `\listoftables` stand-ins). Same live-marker model as `\toc`: place anywhere in
-reading order; print/HTML expand from captioned (or titled) floats in the whole
-document.
+reading order; print/HTML expand from float **titles** by default.
 
 ```text
 \lof
 \lof{title="List of Figures"}
 \lot{title="Tables" page_numbers=false}
-\lof{leaders=false}
+\lof{source=caption}
 ```
 
 | Attr | Meaning |
@@ -347,12 +346,12 @@ document.
 | `title` | Optional label above the list (strong paragraph in print) |
 | `page_numbers` | Page column (default **on**; weave resolves from `f-*` / `t-*` dests). Set `false` to omit. |
 | `leaders` | Dotted leaders between title and page (default **on**). |
+| `source` | Float field for list lines: `title` (default) or `caption`. Floats missing that field are **omitted**. |
 
 Seals as `TextRole::Lof` / `TextRole::Lot` (empty body). Round-trip re-emits
 `\lof` / `\lot` — not a frozen Markdown list. Native PDF expands to
 `PrintBlock::TocEntry` with `Figure N.` / `Table N.` prefixes; HTML expands to
-`<nav class="lof|lot">` ordered links to `#chunk-N`. Floats without title and
-caption are skipped.
+`<nav class="lof|lot">` ordered links to `#chunk-N`.
 
 ### `\columns` / `\columns{…}` … `\endcolumns` (THI-391)
 
