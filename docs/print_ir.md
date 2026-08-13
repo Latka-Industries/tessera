@@ -236,6 +236,18 @@ Pack `weave.toml` (or master `[weave.page.*]`) merges onto weave page knobs:
 `resume@0` densify still forces header+footer off. Live `{heading}` is deferred.
 See weave `docs/layout-knobs.md` (Page chrome).
 
+### Wrap / hyphenation (`ariadnes-weave` path / THI-394)
+
+Pack `weave.toml` `[wrap]` merges onto weave prose wrap knobs:
+
+| Key | Meaning |
+| --- | --- |
+| `hyphenate` | Soft-hyphenate ASCII letter words (bundled `true`; resume densify off) |
+| `orphan_lines` / `widow_lines` | Min lines glued at paragraph start / end |
+| `[indent].step` | Narrow the measure for smoke (e.g. `48` with chunk indent) |
+
+See `fixtures/packs/hyphen_on` vs `hyphen_off` + `fixtures/samples/hyphen_dense.tes`.
+
 ---
 
 ## Tessera mapping (prose MVP)

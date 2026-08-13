@@ -18,11 +18,13 @@ const PROSE_ROOT_SECTIONS: &[&str] = &[
     "quote",
     "code",
     "list",
+    "indent",
     "figure",
     "caption",
     "wrap",
     "text",
     "cite",
+    "link",
 ];
 
 /// Category keys on [`LayoutKnobs`].
@@ -233,6 +235,26 @@ format = "{title}"
         assert_eq!(knobs.page.footer.align, ariadnes_weave::ChromeAlign::Right);
         assert!(knobs.page.header.enabled);
         assert_eq!(knobs.page.header.format, "{title}");
+    }
+
+    #[test]
+    fn wrap_and_indent_root_sections_merge() {
+        let knobs = merge_weave_toml(
+            r#"
+[indent]
+step = 48.0
+
+[wrap]
+hyphenate = false
+orphan_lines = 3
+widow_lines = 3
+"#,
+        )
+        .unwrap();
+        assert!((knobs.prose.indent.step - 48.0).abs() < f32::EPSILON);
+        assert!(!knobs.prose.wrap.hyphenate);
+        assert_eq!(knobs.prose.wrap.orphan_lines, 3);
+        assert_eq!(knobs.prose.wrap.widow_lines, 3);
     }
 
     #[test]

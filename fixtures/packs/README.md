@@ -47,3 +47,19 @@ for doc in manuscript_chapters field_notes studio_brief; do
   done
 done
 ```
+
+## Hyphenation (THI-394)
+
+See [`hyphen_on/README.md`](hyphen_on/README.md). Pair with
+[`../samples/hyphen_dense.tes`](../samples/hyphen_dense.tes):
+
+```bash
+mkdir -p tmp/thi-394-smoke
+for pack in hyphen_on hyphen_off hyphen_widows_3; do
+  cargo run -q --bin tes --features native-pdf -- export \
+    fixtures/samples/hyphen_dense.tes \
+    --pdf --backend native \
+    --template-root fixtures/packs --template "$pack" \
+    -o "tmp/thi-394-smoke/${pack}.pdf"
+done
+```

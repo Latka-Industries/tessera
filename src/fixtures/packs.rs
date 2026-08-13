@@ -153,6 +153,43 @@ const CHROME_PACKS: &[ChromePack] = &[
     },
 ];
 
+/// One hyphen_* pack (THI-394): wrap hyphenate + widow/orphan + narrow indent.
+struct HyphenPack {
+    id: &'static str,
+    comment: &'static str,
+    knobs: &'static str,
+    hyphenate: bool,
+    orphan_lines: u32,
+    widow_lines: u32,
+}
+
+const HYPHEN_PACKS: &[HyphenPack] = &[
+    HyphenPack {
+        id: "hyphen_on",
+        comment: "THI-394: hyphenate on, orphans/widows 2, narrow indent band.",
+        knobs: "`hyphenate = true`, orphan/widow 2, `indent.step = 48`",
+        hyphenate: true,
+        orphan_lines: 2,
+        widow_lines: 2,
+    },
+    HyphenPack {
+        id: "hyphen_off",
+        comment: "THI-394: hyphenate off (same narrow band) for eyeball compare.",
+        knobs: "`hyphenate = false`, orphan/widow 2, `indent.step = 48`",
+        hyphenate: false,
+        orphan_lines: 2,
+        widow_lines: 2,
+    },
+    HyphenPack {
+        id: "hyphen_widows_3",
+        comment: "THI-394: hyphenate on with widow_lines = 3.",
+        knobs: "`hyphenate = true`, `widow_lines = 3`",
+        hyphenate: true,
+        orphan_lines: 2,
+        widow_lines: 3,
+    },
+];
+
 const STUB_CSS: &str = "/* stub — native PDF ignores pack CSS; required by TemplatePack::load */\nbody { margin: 0; }\n";
 
 const CHROME_SMOKE_DOCS: &[&str] = &["manuscript_chapters", "field_notes", "studio_brief"];
@@ -170,8 +207,12 @@ pub fn write_all(dir: &Path) -> Result<()> {
     for pack in CHROME_PACKS {
         write_chrome_pack(dir, pack)?;
     }
+    for pack in HYPHEN_PACKS {
+        write_hyphen_pack(dir, pack)?;
+    }
     fs::write(dir.join("README.md"), packs_readme())?;
     fs::write(dir.join("page_chrome").join("README.md"), chrome_readme())?;
+    fs::write(dir.join("hyphen_on").join("README.md"), hyphen_readme())?;
     Ok(())
 }
 
@@ -249,6 +290,36 @@ bottom_clearance = 18.0\n",
     Ok(())
 }
 
+fn write_hyphen_pack(root: &Path, pack: &HyphenPack) -> Result<()> {
+    let pack_dir = root.join(pack.id);
+    write_stub_shell(&pack_dir, pack.id)?;
+    fs::write(
+        pack_dir.join("weave.toml"),
+        format!(
+            "# {}\n\
+\n\
+[indent]\n\
+step = 48.0\n\
+\n\
+[wrap]\n\
+hyphenate = {}\n\
+orphan_lines = {}\n\
+widow_lines = {}\n\
+\n\
+[page.header]\n\
+enabled = true\n\
+format = \"{{title}}\"\n\
+align = \"left\"\n\
+\n\
+[page.content]\n\
+top_clearance = 18.0\n\
+",
+            pack.comment, pack.hyphenate, pack.orphan_lines, pack.widow_lines
+        ),
+    )?;
+    Ok(())
+}
+
 fn packs_readme() -> String {
     let figure_ids: Vec<&str> = FIGURE_PACKS.iter().map(|p| p.id).collect();
     let figure_loop = figure_ids.join(" ");
@@ -302,8 +373,29 @@ for doc in {docs}; do
   done
 done
 ```
+
+## Hyphenation (THI-394)
+
+See [`hyphen_on/README.md`](hyphen_on/README.md). Pair with
+[`../samples/hyphen_dense.tes`](../samples/hyphen_dense.tes):
+
+```bash
+mkdir -p tmp/thi-394-smoke
+for pack in {hyphen_loop}; do
+  cargo run -q --bin tes --features native-pdf -- export \
+    fixtures/samples/hyphen_dense.tes \
+    --pdf --backend native \
+    --template-root fixtures/packs --template "$pack" \
+    -o "tmp/thi-394-smoke/${{pack}}.pdf"
+done
+```
 "#,
         docs = CHROME_SMOKE_DOCS.join(" "),
+        hyphen_loop = HYPHEN_PACKS
+            .iter()
+            .map(|p| p.id)
+            .collect::<Vec<_>>()
+            .join(" "),
     )
 }
 
@@ -336,5 +428,33 @@ done
 "#,
         docs = CHROME_SMOKE_DOCS.join(" / "),
         packs = chrome_ids.join(" "),
+    )
+}
+
+fn hyphen_readme() -> String {
+    let mut table = String::from("| Pack | Shows |\n| --- | --- |\n");
+    for pack in HYPHEN_PACKS {
+        let _ = writeln!(table, "| `{}` | {} |", pack.id, pack.knobs);
+    }
+    let ids: Vec<&str> = HYPHEN_PACKS.iter().map(|p| p.id).collect();
+    format!(
+        r#"# Hyphenation smoke packs (THI-394)
+
+Narrow indent band (`indent.step = 48`) + dense long words in
+[`../../samples/hyphen_dense.tes`](../../samples/hyphen_dense.tes).
+Compare `hyphen_on` vs `hyphen_off` side by side.
+
+{table}
+```bash
+mkdir -p tmp/thi-394-smoke
+for pack in {packs}; do
+  cargo run -q --bin tes -- export fixtures/samples/hyphen_dense.tes \
+    --pdf --backend native \
+    --template-root fixtures/packs --template "$pack" \
+    -o "tmp/thi-394-smoke/${{pack}}.pdf"
+done
+```
+"#,
+        packs = ids.join(" "),
     )
 }
