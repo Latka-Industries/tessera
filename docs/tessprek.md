@@ -306,18 +306,21 @@ from heading chunks.
 ```text
 \toc
 \toc{depth=2 title="Contents"}
-\toc{depth=3 page_numbers=true}
+\toc{depth=3 page_numbers=false}
+\toc{section_numbers=false}
 ```
 
 | Attr | Meaning |
 | --- | --- |
 | `depth` | Max heading level to include (1–6; default 3) |
 | `title` | Optional label above the list (strong paragraph in print) |
-| `page_numbers` | Request page refs; first cut stubs `—` via `\row`-style panes |
+| `page_numbers` | Page column on TOC lines (default **on**; weave resolves from heading dests). Set `false` to omit. |
+| `section_numbers` | Hierarchical prefixes `1`, `1.1`, … (default **on**). Set `false` to omit. |
 
 Seals as `TextRole::Toc` (empty body; live marker). Round-trip re-emits `\toc` /
-`\toc{…}` — not a frozen Markdown list. Native PDF / HTML expand from the
-document's headings at emit time.
+`\toc{…}` — not a frozen Markdown list. Native PDF expands to weave
+`PrintBlock::TocEntry` (clickable `h-{chunk_id}` dests); HTML expands to a nested
+list of links to `#chunk-N`.
 
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 

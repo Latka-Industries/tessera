@@ -364,8 +364,15 @@ fn write_toc_directive(out: &mut String, header: &TextHeader) {
     if let Some(depth) = header.toc_depth {
         parts.push(format!("depth={depth}"));
     }
-    if header.toc_pages == Some(true) {
-        parts.push("page_numbers=true".into());
+    match header.toc_pages {
+        Some(false) => parts.push("page_numbers=false".into()),
+        Some(true) => parts.push("page_numbers=true".into()),
+        None => {}
+    }
+    match header.toc_sections {
+        Some(false) => parts.push("section_numbers=false".into()),
+        Some(true) => parts.push("section_numbers=true".into()),
+        None => {}
     }
     if parts.is_empty() {
         let _ = writeln!(out, "\\toc");

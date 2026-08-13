@@ -168,10 +168,15 @@ pub struct TextHeader {
     /// Absent means 3 (H1–H3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_depth: Option<u32>,
-    /// Request page numbers on TOC lines when `role` is [`TextRole::Toc`].
-    /// First cut stubs leaders (no resolved page refs yet).
+    /// Page numbers on TOC lines when `role` is [`TextRole::Toc`].
+    /// Absent means **on** for print (`toc_pages_or_default`); weave resolves
+    /// digits from heading destinations. Set `false` to omit the page column.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub toc_pages: Option<bool>,
+    /// Section numbers (`1`, `1.1`, …) on TOC lines when `role` is [`TextRole::Toc`].
+    /// Absent means **on** (`toc_sections_or_default`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toc_sections: Option<bool>,
 }
 
 impl TextHeader {
@@ -196,6 +201,7 @@ impl TextHeader {
             panes: None,
             toc_depth: None,
             toc_pages: None,
+            toc_sections: None,
         }
     }
 
@@ -228,6 +234,18 @@ impl TextHeader {
         self.toc_depth.unwrap_or(3).clamp(1, 6)
     }
 
+    /// Whether print TOC should show a page column (absent → `true`).
+    #[must_use]
+    pub fn toc_pages_or_default(&self) -> bool {
+        self.toc_pages.unwrap_or(true)
+    }
+
+    /// Whether TOC lines get hierarchical section numbers (absent → `true`).
+    #[must_use]
+    pub fn toc_sections_or_default(&self) -> bool {
+        self.toc_sections.unwrap_or(true)
+    }
+
     /// Whether this header uses additive layout-v1 fields (`text_spans` feature).
     #[must_use]
     pub fn uses_layout_v1_features(&self) -> bool {
@@ -241,6 +259,7 @@ impl TextHeader {
             || self.panes.is_some()
             || self.toc_depth.is_some()
             || self.toc_pages.is_some()
+            || self.toc_sections.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
             || self.indent.is_some_and(|n| n > 0)
             || matches!(
@@ -445,6 +464,11 @@ impl TextHeader {
                 message: "toc_pages is only valid on toc".into(),
             });
         }
+        if self.toc_sections.is_some() && self.role != TextRole::Toc {
+            return Err(TesError::InvalidTextHeader {
+                message: "toc_sections is only valid on toc".into(),
+            });
+        }
         if self.role == TextRole::Toc
             && let Some(depth) = self.toc_depth
             && !(1..=6).contains(&depth)
@@ -551,8 +575,16 @@ fn render_toc_tessprek(header: &TextHeader) -> String {
     if let Some(depth) = header.toc_depth {
         parts.push(format!("depth={depth}"));
     }
-    if header.toc_pages == Some(true) {
-        parts.push("page_numbers=true".into());
+    // Defaults are on; only emit explicit `false` (or legacy `true` when sealed).
+    match header.toc_pages {
+        Some(false) => parts.push("page_numbers=false".into()),
+        Some(true) => parts.push("page_numbers=true".into()),
+        None => {}
+    }
+    match header.toc_sections {
+        Some(false) => parts.push("section_numbers=false".into()),
+        Some(true) => parts.push("section_numbers=true".into()),
+        None => {}
     }
     if parts.is_empty() {
         "\\toc".into()

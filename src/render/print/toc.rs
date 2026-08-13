@@ -1,13 +1,17 @@
-//! Print IR expansion for sealed [`TextRole::Toc`] (THI-390).
+//! Print IR expansion for sealed [`TextRole::Toc`] (THI-390 / THI-390 defaults).
 
-use ariadnes_weave::{ListItem, PrintBlock, TextRun};
+use ariadnes_weave::{InlineStyle, PrintBlock, TextRun};
 
 use crate::catalog::chunk::TextHeader;
-use crate::render::toc::{TocHeading, filter_headings};
+use crate::render::toc::{TocHeading, filter_headings, section_number_labels};
 
 use super::title_paragraph;
 
 /// Expand a sealed TOC marker into print IR blocks.
+///
+/// Default look: [`PrintBlock::TocEntry`] lines with section numbers, optional
+/// page column (weave-resolved when `page_label` is `None`), and `h-{chunk_id}`
+/// destinations matching heading `dest_id`s.
 #[must_use]
 pub(super) fn expand_toc_print(header: &TextHeader, headings: &[TocHeading]) -> Vec<PrintBlock> {
     let included = filter_headings(header, headings);
@@ -19,64 +23,37 @@ pub(super) fn expand_toc_print(header: &TextHeader, headings: &[TocHeading]) -> 
     if included.is_empty() {
         return blocks;
     }
-    if header.toc_pages == Some(true) {
-        // Stub leaders until weave resolves heading pages (THI-393 follow-on).
-        for h in &included {
-            let indent = h.level.saturating_sub(1);
-            blocks.push(PrintBlock::row_indent(
-                vec![
-                    vec![TextRun::plain(h.text.clone())],
-                    vec![TextRun::plain("—")],
-                ],
-                indent,
-            ));
-        }
+
+    let owned: Vec<TocHeading> = included.iter().map(|h| (*h).clone()).collect();
+    let labels = if header.toc_sections_or_default() {
+        section_number_labels(&owned)
     } else {
-        let min_level = included.iter().map(|h| h.level).min().unwrap_or(1);
-        blocks.push(PrintBlock::List {
-            ordered: false,
-            items: nest_toc_items(&included, min_level),
-            indent: 0,
-        });
+        vec![String::new(); owned.len()]
+    };
+    let min_level = owned.iter().map(|h| h.level).min().unwrap_or(1);
+    let pages = header.toc_pages_or_default();
+
+    for (i, h) in owned.iter().enumerate() {
+        let dest_id = Some(format!("h-{}", h.chunk_id));
+        let title_text = match labels.get(i).map(String::as_str).filter(|s| !s.is_empty()) {
+            Some(num) => format!("{num} {}", h.text),
+            None => h.text.clone(),
+        };
+        let mut run = TextRun::plain(title_text);
+        run.style = InlineStyle {
+            link: true,
+            ..InlineStyle::default()
+        };
+        // `None` → weave resolves page digits from `dest_id`.
+        // `Some("")` → no page column (pages explicitly off).
+        let page_label = if pages { None } else { Some(String::new()) };
+        let indent = h.level.saturating_sub(min_level);
+        blocks.push(PrintBlock::toc_entry(
+            vec![run],
+            page_label,
+            dest_id,
+            indent,
+        ));
     }
     blocks
-}
-
-fn nest_toc_items(headings: &[&TocHeading], depth: u32) -> Vec<ListItem> {
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < headings.len() {
-        if headings[i].level < depth {
-            break;
-        }
-        while i < headings.len() && headings[i].level > depth {
-            let sub = headings[i].level;
-            let start = i;
-            i += 1;
-            while i < headings.len() && headings[i].level > sub {
-                i += 1;
-            }
-            out.extend(nest_toc_items(&headings[start..i], sub));
-        }
-        if i >= headings.len() || headings[i].level < depth {
-            break;
-        }
-        let runs = vec![TextRun::plain(headings[i].text.clone())];
-        i += 1;
-        let child_start = i;
-        while i < headings.len() && headings[i].level > depth {
-            i += 1;
-        }
-        let children = if child_start < i {
-            vec![PrintBlock::List {
-                ordered: false,
-                items: nest_toc_items(&headings[child_start..i], depth + 1),
-                indent: 0,
-            }]
-        } else {
-            Vec::new()
-        };
-        out.push(ListItem { runs, children });
-    }
-    out
 }

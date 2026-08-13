@@ -11,7 +11,7 @@
 //! ```
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tessera_doc::catalog::index::{ChunkType, chunk_flags};
 use tessera_doc::catalog::{
@@ -162,7 +162,7 @@ fn main() {
     }
 }
 
-fn write_feature_note(dir: &PathBuf, name: &str, doc_id: &str, title: &str, features: FeatureSet) {
+fn write_feature_note(dir: &Path, name: &str, doc_id: &str, title: &str, features: FeatureSet) {
     let path = dir.join(name);
     let _ = fs::remove_file(&path);
     let mut session = TesWriterSession::create(&path, DocKind::Note);

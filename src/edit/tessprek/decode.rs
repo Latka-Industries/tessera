@@ -164,17 +164,10 @@ fn decode_toc_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<Co
         header.toc_depth = Some(depth);
     }
     if let Some(raw) = map.get("page_numbers") {
-        header.toc_pages = Some(match raw.as_str() {
-            "true" | "1" | "yes" => true,
-            "false" | "0" | "no" => false,
-            other => {
-                return Err(parse_err(
-                    line_no,
-                    1,
-                    format!("toc page_numbers must be true/false, got '{other}'"),
-                ));
-            }
-        });
+        header.toc_pages = Some(parse_toc_bool(raw, "page_numbers", line_no)?);
+    }
+    if let Some(raw) = map.get("section_numbers") {
+        header.toc_sections = Some(parse_toc_bool(raw, "section_numbers", line_no)?);
     }
     Ok(ContentBlock::Text {
         chunk_id: None,
@@ -184,6 +177,18 @@ fn decode_toc_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<Co
         pending_cites: Vec::new(),
         pending_fonts: Vec::new(),
     })
+}
+
+fn parse_toc_bool(raw: &str, attr: &str, line_no: usize) -> Result<bool> {
+    match raw {
+        "true" | "1" | "yes" => Ok(true),
+        "false" | "0" | "no" => Ok(false),
+        other => Err(parse_err(
+            line_no,
+            1,
+            format!("toc {attr} must be true/false, got '{other}'"),
+        )),
+    }
 }
 
 fn decode_figure_block(

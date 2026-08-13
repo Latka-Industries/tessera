@@ -179,7 +179,14 @@ fn map_entries(
                     if let Some(title) = nonempty_label(header.title.as_deref()) {
                         blocks.push(title_paragraph(title));
                     }
-                    blocks.push(map_text_block(&header, &body, profile, cite, file.links()));
+                    blocks.push(map_text_block(
+                        entry.chunk_id,
+                        &header,
+                        &body,
+                        profile,
+                        cite,
+                        file.links(),
+                    ));
                     // Non-figure captions: no Caption IR yet (weave `[caption]` is figure-only).
                     if let Some(caption) = nonempty_label(header.caption.as_deref()) {
                         blocks.push(caption_paragraph(caption));

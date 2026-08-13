@@ -21,6 +21,7 @@ use crate::io::export::{
 use super::runs::{body_to_runs, cell_to_runs};
 
 pub(crate) fn map_text_block(
+    chunk_id: u64,
     header: &TextHeader,
     body: &str,
     profile: &PrintProfileId,
@@ -31,11 +32,12 @@ pub(crate) fn map_text_block(
     match header.role {
         TextRole::Heading => {
             let level = u8::try_from(header.level.unwrap_or(1).clamp(1, 6)).unwrap_or(1);
-            PrintBlock::Heading {
+            PrintBlock::heading_dest(
                 level,
-                runs: runs(),
-                break_before: heading_break(level, profile),
-            }
+                runs(),
+                heading_break(level, profile),
+                format!("h-{chunk_id}"),
+            )
         }
         // ListItem: isolated items should have been coalesced; paragraph fallback.
         TextRole::Paragraph | TextRole::ListItem => {

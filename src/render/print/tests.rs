@@ -109,7 +109,7 @@ fn manuscript_chapters_profile_and_h1_breaks() {
         .collect();
     assert_eq!(h1s.len(), 3);
     assert!(h1s.iter().all(|(_, br)| *br == BreakHint::PageAlways));
-    // THI-390: sealed `\toc` expands to title + nested list of chapters/scenes.
+    // THI-390: sealed `\toc` expands to title + TocEntry lines (section + dest).
     let toc_title = doc.blocks.iter().find_map(|b| match b {
         PrintBlock::Paragraph { runs, .. } => {
             let t: String = runs.iter().map(|r| r.text.as_str()).collect();
@@ -118,11 +118,44 @@ fn manuscript_chapters_profile_and_h1_breaks() {
         _ => None,
     });
     assert_eq!(toc_title.as_deref(), Some("Contents"));
+    let toc_entries: Vec<_> = doc
+        .blocks
+        .iter()
+        .filter_map(|b| match b {
+            PrintBlock::TocEntry {
+                title,
+                dest_id,
+                page_label,
+                ..
+            } => Some((
+                title.iter().map(|r| r.text.as_str()).collect::<String>(),
+                dest_id.clone(),
+                page_label.clone(),
+            )),
+            _ => None,
+        })
+        .collect();
     assert!(
-        doc.blocks
+        toc_entries.len() >= 3,
+        "expected TOC TocEntry blocks, got: {toc_entries:?}"
+    );
+    assert!(
+        toc_entries.iter().all(|(_, dest, page)| {
+            dest.as_ref().is_some_and(|d| d.starts_with("h-")) && page.is_none()
+        }),
+        "expected dest_id h-* and page_label None (resolve): {toc_entries:?}"
+    );
+    assert!(
+        toc_entries
+            .iter()
+            .any(|(t, _, _)| t.starts_with('1') && t.contains("Chapter")),
+        "expected section-numbered chapter entry: {toc_entries:?}"
+    );
+    assert!(
+        !doc.blocks
             .iter()
             .any(|b| matches!(b, PrintBlock::List { .. })),
-        "expected TOC list block"
+        "TOC should not expand to a bullet List"
     );
 }
 

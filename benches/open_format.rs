@@ -59,7 +59,7 @@ fn long_tes_path() -> &'static Path {
                 .expect("tempdir");
             let path = dir.path().join("lorem_long.tes");
             import_markdown_v0(
-                &fixture("assets/markdown/lorem_long.md"),
+                fixture("assets/markdown/lorem_long.md"),
                 &path,
                 &import_opts(),
             )
