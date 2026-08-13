@@ -1,18 +1,21 @@
 # Print IR (`ariadnes-weave`)
 
-**Status (Tessera 0.2.9):** prose print-tree builder + CLI `--backend native`
+**Status (Tessera 0.2.10):** prose print-tree builder + CLI `--backend native`
 shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Requires
-**`ariadnes-weave` ≥ 0.2.9** (resume densify / N-pane `Row` / authored indent;
-figure title/caption IR + `style.underline` since 0.2.8; quote italic + aesthetic
-knobs since 0.2.7; `TextRun.face` pins since 0.2.2; category default fonts via
-`[text|heading|quote|cite].font` in pack `weave.toml` — THI-360). Pack
-`fonts.toml` → `EmitOptions::pinned_faces` and `weave.toml` → layout knobs
-(D23). Caption/underline bridge (THI-349) maps figure fields and inline
-underline into weave. THI-324 maps sealed `TextRole::Row`, `\icon` Font spans,
-and `\block{indent=N}` into weave `PrintBlock::Row` / run indent; `--theme-id
-resume` selects weave `resume@0`. Layout quality beyond prose (THI-291+
-tables/math/decks; OS fonts THI-311) continues in **`ariadnes-weave`** under
-epic THI-256.
+**`ariadnes-weave` ≥ 0.2.10** (long-doc: page chrome, hyphen/widows, `TocEntry`,
+`/Outlines`, `Columns`, figure/table `dest_id`; resume densify / N-pane `Row` /
+authored indent since 0.2.9; figure title/caption IR + `style.underline` since
+0.2.8; quote italic + aesthetic knobs since 0.2.7; `TextRun.face` pins since
+0.2.2; category default fonts via `[text|heading|quote|cite].font` in pack
+`weave.toml` — THI-360). Pack `fonts.toml` → `EmitOptions::pinned_faces` and
+`weave.toml` → layout knobs (D23). Caption/underline bridge (THI-349) maps
+figure fields and inline underline into weave. THI-324 maps sealed
+`TextRole::Row`, `\icon` Font spans, and `\block{indent=N}` into weave
+`PrintBlock::Row` / run indent; `--theme-id resume` selects weave `resume@0`.
+THI-316 long-doc slice maps `\toc` / `\lof` / `\lot` / `\columns` (+ pack chrome
+/ wrap knobs) into weave TOC/columns/outline/float dests. Layout quality beyond
+prose (THI-291+ tables/math/decks; OS fonts THI-311; footnotes THI-396) continues
+in **`ariadnes-weave`** / Tessera under epic THI-256 / THI-316.
 
 Tessera builds the IR from `.tes` (`render::print`) and calls the crate
 (`ariadnes_weave::emit_pdf`). Cargo feature `native-pdf` (default) gates the
@@ -350,13 +353,13 @@ tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
 ```
 
 Default stays `chromium` until native is promoted; both backends ship since 0.2.0
-(`ariadnes-weave` **0.2.9+** for resume densify / Row / indent; **0.2.8+** for
-figure title/caption + underline; category fonts
-+ aesthetic knobs since 0.2.7). Native CLI uses bundled faces plus optional pack
-`fonts.toml` pins and `weave.toml` knob overlays when `--template` /
-`--template-root` resolve a pack. See
-[Host-pinned faces](#host-pinned-faces-ariadnes-weave--022) for the library pin
-path.
+(`ariadnes-weave` **0.2.10+** for long-doc chrome / hyphen / TOC / columns /
+outline / float dests; **0.2.9+** for resume densify / Row / indent; **0.2.8+**
+for figure title/caption + underline; category fonts + aesthetic knobs since
+0.2.7). Native CLI uses bundled faces plus optional pack `fonts.toml` pins and
+`weave.toml` knob overlays when `--template` / `--template-root` resolve a pack.
+See [Host-pinned faces](#host-pinned-faces-ariadnes-weave--022) for the library
+pin path.
 
 ---
 
@@ -366,4 +369,4 @@ path.
 2. Scaffold `ariadnes-weave` (THI-289) — done
 3. Tessera print-tree builder, prose (THI-290) — done (0.2.0)
 4. Pagination + CLI wiring (THI-294) — done (0.2.0, `--backend native`)
-5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363); caption/underline bridge (Tessera 0.2.8 / weave 0.2.8 / THI-349); resume row/icon/indent (Tessera 0.2.9 / weave 0.2.9 / THI-324)
+5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363); caption/underline bridge (Tessera 0.2.8 / weave 0.2.8 / THI-349); resume row/icon/indent (Tessera 0.2.9 / weave 0.2.9 / THI-324); long-doc toc/columns/chrome/lof (Tessera 0.2.10 / weave 0.2.10 / THI-390..395)

@@ -1,11 +1,13 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.2.9** (document-depth wire: Tessprek v2,
+**Status:** M0–M11 shipped; crate **0.2.10** (document-depth wire: Tessprek v2,
 captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering; **D23** pack
 authoring complete — category fonts, master `tessera.toml`, pack-aware LSP;
 native print caption/underline bridge via **`ariadnes-weave` ≥ 0.2.8** /
 THI-349; resume dogfood wire via weave **0.2.9** / THI-324 — `\row`, `\icon`,
-`\block{indent=N}`, multi-arg `\phrase`, `--theme-id resume`). Chromium remains
+`\block{indent=N}`, multi-arg `\phrase`, `--theme-id resume`; long-doc print via
+weave **0.2.10** / THI-390..395 — `\toc` / `\lof` / `\lot`, `\columns`, page
+chrome + hyphen knobs, PDF outline). Chromium remains
 the default PDF backend. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
@@ -27,8 +29,10 @@ blocks (`\layout` / `place`/`vspace`/`rule`) land with THI-361..365; Tesscriptor
 op-list UI is later (THI-366). **0.2.8** pins weave **0.2.8** and bridges
 figure title/caption + inline underline (THI-349). **0.2.9** pins weave
 **0.2.9** and lands THI-324 resume print/Tessprek surface (`\row` / `\icon` /
-indent / multi-arg phrases). Richer native layout (tables/math/decks, OS fonts)
-continues on that track. This is an implementation plan, not a release schedule.
+indent / multi-arg phrases). **0.2.10** pins weave **0.2.10** and lands the
+THI-316 long-doc print slice (`\toc` / `\lof` / `\lot` / `\columns`, chrome,
+hyphen, outline). Footnotes / article dogfood / per-chunk align remain open
+(THI-396..398). This is an implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -276,8 +280,9 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **Native PDF dogfood:** manuscript / resume packs (THI-324); promote
-   `--backend native` when ready (THI-350).
+1. **Native PDF long-doc follow-ons:** footnotes (THI-396), article/report
+   dogfood (THI-397), per-chunk text align (THI-398); promote `--backend native`
+   when ready (THI-350).
 2. **Tesscriptor later:** layout op-list UI (THI-366) when that track resumes.
 3. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 4. **open format / bench:** MIME/magic conformance cases and claim-backed
@@ -287,7 +292,8 @@ freeze. CRDT/live cursors are not part of M10.
    category fonts 0.2.6 (THI-360); D24 layout blocks (THI-361..365); D23 close
    0.2.7 (THI-367 / THI-369 / save stability; epic THI-351); caption/underline
    bridge 0.2.8 (THI-349 / weave 0.2.8); resume Tessprek/print 0.2.9
-   (THI-324 / 386 / 387 / weave 0.2.9).
+   (THI-324 / 386 / 387 / weave 0.2.9); long-doc print 0.2.10
+   (THI-390..395 / weave 0.2.10).
 
 ---
 

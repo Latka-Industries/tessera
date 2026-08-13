@@ -8,7 +8,7 @@
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
 **In active development — layout v0 wire may change before a stable v1.**
-Crate **0.2.9** ships native PDF via `ariadnes-weave` **0.2.9+** (alongside Chromium print): Tessprek `\row` / `\icon` / `\block{indent=N}`, multi-arg `\phrase`, and resume densify (`--theme-id resume`) from THI-324, on top of the D23 pack surface and THI-349 caption/underline bridge.
+Crate **0.2.10** ships native PDF via `ariadnes-weave` **0.2.10+** (alongside Chromium print): long-doc Tessprek/print — `\toc` / `\lof` / `\lot`, `\columns`, page chrome + hyphen/widow knobs, PDF outline (THI-316 slice) — on top of resume `\row` / `\icon` / indent (THI-324) and the D23 / THI-349 surface.
 
 ## What it does today
 
