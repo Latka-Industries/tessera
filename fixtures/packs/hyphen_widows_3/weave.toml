@@ -1,0 +1,17 @@
+# THI-394: hyphenate on with widow_lines = 3.
+
+[indent]
+step = 48.0
+
+[wrap]
+hyphenate = true
+orphan_lines = 2
+widow_lines = 3
+
+[page.header]
+enabled = true
+format = "{title}"
+align = "left"
+
+[page.content]
+top_clearance = 18.0

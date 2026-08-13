@@ -20,5 +20,6 @@ pub use codec::{
 pub use inline::{InlineKind, InlineSpan, TextAlign, is_ascii_ident, is_font_id};
 pub use table::{TableCell, TableData, TableRow};
 pub use text::{
-    ListKind, OrderedListNumbering, TEXT_CAPTION_MAX, TEXT_HEADER_MAX_BYTES, TextHeader, TextRole,
+    FloatListSource, ListKind, OrderedListNumbering, TEXT_CAPTION_MAX, TEXT_HEADER_MAX_BYTES,
+    TextHeader, TextRole,
 };

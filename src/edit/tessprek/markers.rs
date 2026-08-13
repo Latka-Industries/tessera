@@ -46,6 +46,16 @@ pub const REF_PREFIX: &str = "\\ref{";
 pub const SLIDE_PREFIX: &str = "\\slide{";
 /// Layout directive: `\layout{ place … / vspace=… / rule … }` (D24).
 pub const LAYOUT_PREFIX: &str = "\\layout{";
+/// In-document TOC: `\toc{depth=… title="…"}` (THI-390). Bare `\toc` also accepted.
+pub const TOC_PREFIX: &str = "\\toc{";
+/// List of figures: `\lof{title="…"}` (THI-395). Bare `\lof` also accepted.
+pub const LOF_PREFIX: &str = "\\lof{";
+/// List of tables: `\lot{title="…"}` (THI-395). Bare `\lot` also accepted.
+pub const LOT_PREFIX: &str = "\\lot{";
+/// Multi-column body open: `\columns{n=… gap=…}` (THI-391). Bare `\columns` also accepted.
+pub const COLUMNS_PREFIX: &str = "\\columns{";
+/// Multi-column body close: `\endcolumns` (THI-391).
+pub const ENDCOLUMNS: &str = "\\endcolumns";
 /// Meta-row directive opener: `\row{left}{right}…` (2+ content braces).
 pub const ROW_PREFIX: &str = "\\row{";
 /// Attachment directive: `\attach{filename=… media_type=… sha256=…}`.
@@ -100,6 +110,18 @@ pub const QUOTE_ATTR_KEYS: &[&str] = &[
 pub const SLIDE_ATTR_KEYS: &[&str] = &["layout", "regions"];
 /// Preferred attribute keys / op hints for `\layout{…}` (D24).
 pub const LAYOUT_ATTR_KEYS: &[&str] = &["place", "vspace", "rule", "frac", "em", "content"];
+/// Preferred attribute keys for `\toc{…}` (THI-390).
+pub const TOC_ATTR_KEYS: &[&str] = &[
+    "depth",
+    "title",
+    "page_numbers",
+    "section_numbers",
+    "leaders",
+];
+/// Preferred attribute keys for `\lof{…}` / `\lot{…}` (THI-395).
+pub const FLOAT_LIST_ATTR_KEYS: &[&str] = &["title", "page_numbers", "leaders", "source"];
+/// Preferred attribute keys for `\columns{…}` (THI-391).
+pub const COLUMNS_ATTR_KEYS: &[&str] = &["n", "gap"];
 /// Preferred attribute keys for `\attach{…}`.
 pub const ATTACH_ATTR_KEYS: &[&str] = &["chunk", "filename", "media_type", "sha256", "caption"];
 /// Preferred attribute keys for `\media{…}` header rows.
@@ -116,6 +138,9 @@ pub fn command_attr_keys(kind: &str) -> Option<&'static [&'static str]> {
         "quote" | "ref" => QUOTE_ATTR_KEYS,
         "slide" => SLIDE_ATTR_KEYS,
         "layout" => LAYOUT_ATTR_KEYS,
+        "toc" => TOC_ATTR_KEYS,
+        "lof" | "lot" => FLOAT_LIST_ATTR_KEYS,
+        "columns" => COLUMNS_ATTR_KEYS,
         "attach" | "attachment" => ATTACH_ATTR_KEYS,
         "media" => MEDIA_ATTR_KEYS,
         _ => return None,
@@ -139,6 +164,10 @@ pub const BODY_COMMANDS: &[(&str, &str)] = &[
     (REF_PREFIX, "ref"),
     (SLIDE_PREFIX, "slide"),
     (LAYOUT_PREFIX, "layout"),
+    (TOC_PREFIX, "toc"),
+    (LOF_PREFIX, "lof"),
+    (LOT_PREFIX, "lot"),
+    (COLUMNS_PREFIX, "columns"),
     (ATTACH_PREFIX, "attachment"),
 ];
 

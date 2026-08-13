@@ -20,7 +20,7 @@ Markdown has no syntax for.
 | Content | Wire form |
 | --- | --- |
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
-| Figure, biblio cite, quote, ref, slide, layout, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\attach{…}` |
+| Figure, biblio cite, quote, ref, slide, layout, toc, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\toc{…}` / `\attach{…}` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
 | Named FA icon | `\icon{name}` → same Font seal (`fab`/`fas` + glyph); encode prefers `\icon` when known |
@@ -296,6 +296,93 @@ Seals as `TextRole::Row` + `panes` (cell-shaped: text + spans). Native PDF maps
 to weave `PrintBlock::Row` (last pane natural-width flush-end; earlier panes
 share leftover measure). One-row GFM tables stay tables — use `\row` for
 meta/hfill layout.
+
+### `\toc` / `\toc{…}` (THI-390)
+
+In-document table of contents (LaTeX `\tableofcontents` stand-in). **Not** the
+vault/hub TOC pane — this is sealed body content that expands at print/HTML
+from heading chunks.
+
+```text
+\toc
+\toc{depth=2 title="Contents"}
+\toc{depth=3 page_numbers=false}
+\toc{section_numbers=false}
+\toc{leaders=false}
+```
+
+| Attr | Meaning |
+| --- | --- |
+| `depth` | Max heading level to include (1–6; default 3) |
+| `title` | Optional label above the list (strong paragraph in print) |
+| `page_numbers` | Page column on TOC lines (default **on**; weave resolves from heading dests). Set `false` to omit. |
+| `section_numbers` | Hierarchical prefixes `1`, `1.1`, … **and band indent** for nested levels (default **on**). |
+| `leaders` | Dotted leaders between title and page (default **on**). Set `false` for a plain gap. |
+
+Seals as `TextRole::Toc` (empty body; live marker). Round-trip re-emits `\toc` /
+`\toc{…}` — not a frozen Markdown list. Native PDF expands to weave
+`PrintBlock::TocEntry` (clickable `h-{chunk_id}` dests); HTML expands to a nested
+list of links to `#chunk-N`.
+
+Native PDF also builds a **reader outline / bookmarks** tree from those same
+heading dests (THI-393) — sidebar navigation, independent of whether `\toc`
+appears in the body. See [glossary — PDF outline](glossary.md).
+
+### `\lof` / `\lof{…}` · `\lot` / `\lot{…}` (THI-395)
+
+In-document **list of figures** / **list of tables** (LaTeX `\listoffigures` /
+`\listoftables` stand-ins). Same live-marker model as `\toc`: place anywhere in
+reading order; print/HTML expand from float **titles** by default.
+
+```text
+\lof
+\lof{title="List of Figures"}
+\lot{title="Tables" page_numbers=false}
+\lof{source=caption}
+```
+
+| Attr | Meaning |
+| --- | --- |
+| `title` | Optional label above the list (strong paragraph in print) |
+| `page_numbers` | Page column (default **on**; weave resolves from `f-*` / `t-*` dests). Set `false` to omit. |
+| `leaders` | Dotted leaders between title and page (default **on**). |
+| `source` | Float field for list lines: `title` (default) or `caption`. Floats missing that field are **omitted**. |
+
+Seals as `TextRole::Lof` / `TextRole::Lot` (empty body). Round-trip re-emits
+`\lof` / `\lot` — not a frozen Markdown list. Native PDF expands to
+`PrintBlock::TocEntry` with `Figure N.` / `Table N.` prefixes; HTML expands to
+`<nav class="lof|lot">` ordered links to `#chunk-N`.
+
+### `\columns` / `\columns{…}` … `\endcolumns` (THI-391)
+
+Continuous multi-column **body flow** (newspaper / article). Distinct from
+`\row` (meta hfill panes) and deck two-column slides.
+
+```text
+\columns{n=2 gap=16}
+Lorem… (fills left, then right)
+
+## Mid heading spans full measure
+
+More lorem…
+\endcolumns
+
+\columns{n=3 gap=12}
+Lorem… (three narrower bands)
+\endcolumns
+```
+
+| Attr | Meaning |
+| --- | --- |
+| `n` | Column count (1–6; default **2**; weave clamps to 2..=6 at layout) |
+| `gap` | Gap between columns in points; omit → pack `[body_columns].gap` |
+
+Seals as empty-body markers `TextRole::Columns` / `TextRole::ColumnsEnd`
+(`columns_count`, `columns_gap`). Print folds intervening chunks into weave
+`PrintBlock::Columns`. Nested `\columns` soft-flushes the previous region and
+starts a new one; unclosed regions flush at EOF. HTML emits
+`<div class="tes-columns" style="columns: N; column-gap: Xpt">` … `</div>`
+(headings get `column-span: all`).
 
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 

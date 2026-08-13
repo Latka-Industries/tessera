@@ -3,6 +3,7 @@
 #
 # Convenience prose sections may sit at the root ([quote], [text], [cite], …)
 # or under [prose.*]. Other categories use [table.*] / [deck.*] / [math.*] / [page.*].
+# Page chrome knobs: see fixtures/packs/page_chrome/weave.toml + weave defaults/page.toml.
 
 [quote]
 # Distinct from bundled indent (18) so pack overlay is easy to spot in tests.

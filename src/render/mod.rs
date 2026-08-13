@@ -14,6 +14,7 @@
 //! - [`pdf`] — print-theme HTML → headless Chromium PDF (+ native when enabled).
 //! - [`print`] — `.tes` → ariadnes-weave `PrintDocument` (`native-pdf` feature).
 
+pub mod floats;
 pub mod pack_fonts;
 mod pack_master;
 pub mod pack_text;
@@ -22,5 +23,6 @@ pub mod preview;
 #[cfg(feature = "native-pdf")]
 pub mod print;
 pub mod template;
+pub mod toc;
 #[cfg(feature = "native-pdf")]
 pub mod weave_pack;

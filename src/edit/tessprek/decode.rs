@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::catalog::chunk::CitePayload;
+use crate::catalog::chunk::{CitePayload, FloatListSource, TextHeader, TextRole};
 use crate::catalog::media::FigureRef;
 use crate::catalog::slide::SlidePayload;
 use crate::error::Result;
@@ -138,6 +138,18 @@ pub(crate) fn decode_named_directive(
         "ref" => decode_ref_block(map, line_no),
         "slide" => decode_slide_block(map, line_no),
         "layout" => decode_layout_block(body, line_no),
+        "toc" => decode_toc_block(map, line_no),
+        "lof" => decode_float_list_block(map, line_no, TextRole::Lof),
+        "lot" => decode_float_list_block(map, line_no, TextRole::Lot),
+        "columns" => decode_columns_block(map, line_no),
+        "endcolumns" => Ok(ContentBlock::Text {
+            chunk_id: None,
+            header: TextHeader::columns_end(),
+            body: String::new(),
+            pending_links: Vec::new(),
+            pending_cites: Vec::new(),
+            pending_fonts: Vec::new(),
+        }),
         "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
             line_no,
@@ -145,6 +157,131 @@ pub(crate) fn decode_named_directive(
             format!("unknown tessprek directive '\\{other}{{...}}'"),
         )),
     }
+}
+
+fn decode_toc_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
+    let mut header = TextHeader::toc();
+    apply_list_nav_common_attrs(&mut header, map, line_no)?;
+    if let Some(depth) = optional_u32(map, "depth") {
+        if !(1..=6).contains(&depth) {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("toc depth={depth} must be 1..=6"),
+            ));
+        }
+        header.toc_depth = Some(depth);
+    }
+    if let Some(raw) = map.get("section_numbers") {
+        header.toc_sections = Some(parse_toc_bool(raw, "section_numbers", line_no)?);
+    }
+    Ok(empty_marker_text(header))
+}
+
+fn parse_toc_bool(raw: &str, attr: &str, line_no: usize) -> Result<bool> {
+    match raw {
+        "true" | "1" | "yes" => Ok(true),
+        "false" | "0" | "no" => Ok(false),
+        other => Err(parse_err(
+            line_no,
+            1,
+            format!("toc {attr} must be true/false, got '{other}'"),
+        )),
+    }
+}
+
+fn decode_float_list_block(
+    map: &BTreeMap<String, String>,
+    line_no: usize,
+    role: TextRole,
+) -> Result<ContentBlock> {
+    let mut header = match role {
+        TextRole::Lof => TextHeader::lof(),
+        TextRole::Lot => TextHeader::lot(),
+        _ => unreachable!("float list roles only"),
+    };
+    apply_list_nav_common_attrs(&mut header, map, line_no)?;
+    if let Some(raw) = map.get("source") {
+        header.float_list_source = Some(match raw.as_str() {
+            "title" => FloatListSource::Title,
+            "caption" => FloatListSource::Caption,
+            other => {
+                return Err(parse_err(
+                    line_no,
+                    1,
+                    format!("lof/lot source must be title or caption, got '{other}'"),
+                ));
+            }
+        });
+    }
+    if map.contains_key("depth") || map.contains_key("section_numbers") {
+        return Err(parse_err(
+            line_no,
+            1,
+            "depth/section_numbers are only valid on \\toc",
+        ));
+    }
+    Ok(empty_marker_text(header))
+}
+
+fn apply_list_nav_common_attrs(
+    header: &mut TextHeader,
+    map: &BTreeMap<String, String>,
+    line_no: usize,
+) -> Result<()> {
+    if let Some(title) = map.get("title").cloned().filter(|s| !s.is_empty()) {
+        header.title = Some(title);
+    }
+    if let Some(raw) = map.get("page_numbers") {
+        header.toc_pages = Some(parse_toc_bool(raw, "page_numbers", line_no)?);
+    }
+    if let Some(raw) = map.get("leaders") {
+        header.toc_leaders = Some(parse_toc_bool(raw, "leaders", line_no)?);
+    }
+    Ok(())
+}
+
+fn empty_marker_text(header: TextHeader) -> ContentBlock {
+    ContentBlock::Text {
+        chunk_id: None,
+        header,
+        body: String::new(),
+        pending_links: Vec::new(),
+        pending_cites: Vec::new(),
+        pending_fonts: Vec::new(),
+    }
+}
+
+fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {
+    let mut header = TextHeader::columns();
+    if let Some(n) = optional_u32(map, "n") {
+        if !(1..=6).contains(&n) {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("columns n={n} must be 1..=6"),
+            ));
+        }
+        header.columns_count = Some(u8::try_from(n).unwrap_or(2));
+    }
+    if let Some(gap) = optional_u32(map, "gap") {
+        if gap > u32::from(u16::MAX) {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("columns gap={gap} exceeds u16"),
+            ));
+        }
+        header.columns_gap = Some(u16::try_from(gap).unwrap_or(0));
+    }
+    Ok(ContentBlock::Text {
+        chunk_id: None,
+        header,
+        body: String::new(),
+        pending_links: Vec::new(),
+        pending_cites: Vec::new(),
+        pending_fonts: Vec::new(),
+    })
 }
 
 fn decode_figure_block(

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::*;
 use crate::catalog::TesFile;
-use crate::catalog::chunk::{CitePayload, TextHeader, TextRole};
+use crate::catalog::chunk::{CitePayload, FloatListSource, TextHeader, TextRole};
 use crate::catalog::media::{FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
 use crate::catalog::{DocumentCatalog, TesWriterSession};
@@ -52,6 +52,164 @@ fn round_trip_row_directive() {
         out.contains("\\row{Left}{Mid}{Right}") || out.contains("{Left}{Mid}{Right}"),
         "{out}"
     );
+}
+
+#[test]
+fn round_trip_columns_directive() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2,3,4}\n\
+\n\
+\\columns{n=2 gap=14}\n\
+\n\
+First flowing paragraph.\n\
+\n\
+## Mid heading\n\
+\n\
+\\endcolumns\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 4);
+    match &blocks[0] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Columns);
+            assert_eq!(header.columns_count, Some(2));
+            assert_eq!(header.columns_gap, Some(14));
+            assert!(body.is_empty());
+        }
+        _ => panic!("expected columns open"),
+    }
+    match &blocks[3] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::ColumnsEnd);
+            assert!(body.is_empty());
+        }
+        _ => panic!("expected columns end"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\columns{"), "{out}");
+    assert!(out.contains("n=2"), "{out}");
+    assert!(out.contains("gap=14"), "{out}");
+    assert!(out.contains("\\endcolumns"), "{out}");
+
+    let bare = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\columns\n\
+\n\
+\\endcolumns\n\
+";
+    let bare_blocks = decode_tessprek(bare).expect("bare columns");
+    match &bare_blocks[0] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Columns);
+            assert!(header.columns_count.is_none());
+            assert!(header.columns_gap.is_none());
+            assert_eq!(header.columns_count_or_default(), 2);
+        }
+        _ => panic!("expected bare columns"),
+    }
+}
+
+#[test]
+fn round_trip_toc_directive() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2,3}\n\
+\n\
+\\toc{depth=2 title=\"Contents\"}\n\
+\n\
+# Chapter 1\n\
+\n\
+## Scene\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 3);
+    match &blocks[0] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Toc);
+            assert_eq!(header.title.as_deref(), Some("Contents"));
+            assert_eq!(header.toc_depth, Some(2));
+            assert!(body.is_empty());
+        }
+        _ => panic!("expected toc"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\toc{") || out.contains("\\toc\n"), "{out}");
+    assert!(out.contains("title=\"Contents\""), "{out}");
+    assert!(out.contains("depth=2"), "{out}");
+
+    let bare = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
+\n\
+\\toc\n\
+";
+    let bare_blocks = decode_tessprek(bare).expect("bare toc");
+    match &bare_blocks[0] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Toc);
+            assert!(header.title.is_none());
+            assert!(header.toc_depth.is_none());
+        }
+        _ => panic!("expected bare toc"),
+    }
+}
+
+#[test]
+fn round_trip_lof_lot_directives() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\lof{title=\"Figures\" source=caption}\n\
+\n\
+\\lot{title=\"Tables\" page_numbers=false}\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 2);
+    match &blocks[0] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Lof);
+            assert_eq!(header.title.as_deref(), Some("Figures"));
+            assert_eq!(header.float_list_source, Some(FloatListSource::Caption));
+            assert!(body.is_empty());
+        }
+        _ => panic!("expected lof"),
+    }
+    match &blocks[1] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Lot);
+            assert_eq!(header.title.as_deref(), Some("Tables"));
+            assert_eq!(header.toc_pages, Some(false));
+        }
+        _ => panic!("expected lot"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\lof{"), "{out}");
+    assert!(out.contains("\\lot{"), "{out}");
+    assert!(out.contains("title=\"Figures\""), "{out}");
+    assert!(out.contains("source=caption"), "{out}");
+    assert!(out.contains("page_numbers=false"), "{out}");
+
+    let bare = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\lof\n\
+\n\
+\\lot\n\
+";
+    let bare_blocks = decode_tessprek(bare).expect("bare lof/lot");
+    match &bare_blocks[0] {
+        ContentBlock::Text { header, .. } => assert_eq!(header.role, TextRole::Lof),
+        _ => panic!("expected bare lof"),
+    }
+    match &bare_blocks[1] {
+        ContentBlock::Text { header, .. } => assert_eq!(header.role, TextRole::Lot),
+        _ => panic!("expected bare lot"),
+    }
 }
 
 #[test]

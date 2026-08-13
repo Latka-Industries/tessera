@@ -223,13 +223,104 @@ Optional category defaults (`[text|heading|quote|cite].font` pin ids) apply when
 `TextRun.face` is unset; explicit `\font{id}{…}` / `TextRun.face` still wins
 (THI-360).
 
+### Page chrome (`ariadnes-weave` path / THI-392)
+
+Pack `weave.toml` (or master `[weave.page.*]`) merges onto weave page knobs:
+
+| Key | Meaning |
+| --- | --- |
+| `[page.footer].enabled` / `format` / `align` | Page-number footer (`{page}`, `{pages}`, `{title}`) |
+| `[page.header].*` | Running header (bundled off; same tokens) |
+| `[page.content].top_clearance` / `bottom_clearance` | Reserve when header/footer enabled |
+
+`resume@0` densify still forces header+footer off. Live `{heading}` is deferred.
+See weave `docs/layout-knobs.md` (Page chrome).
+
+### Wrap / hyphenation (`ariadnes-weave` path / THI-394)
+
+Pack `weave.toml` `[wrap]` merges onto weave prose wrap knobs:
+
+| Key | Meaning |
+| --- | --- |
+| `hyphenate` | Soft-hyphenate ASCII letter words (bundled `true`; resume densify off) |
+| `orphan_lines` / `widow_lines` | Min lines glued at paragraph start / end |
+| `[indent].step` | Narrow the measure for smoke (e.g. `48` with chunk indent) |
+
+See `fixtures/packs/hyphen_on` vs `hyphen_off` + `fixtures/samples/hyphen_dense.tes`.
+
+### In-document TOC (THI-390) vs PDF outline (THI-393)
+
+Tessprek `\toc` / `\toc{…}` seals as `TextRole::Toc` (live marker). Print expands
+from heading chunks into `PrintBlock::TocEntry` lines: section numbers + nested
+band indent (default on), dotted leaders (`leaders`, default on), page digits
+flush-right (weave-resolved when `page_numbers` is on), and `dest_id` /
+heading `h-{chunk_id}` for clickable GoTo. See `docs/tessprek.md` and
+`fixtures/samples/manuscript_chapters.tes` (Contents after front matter).
+
+Native PDF also emits a **sidebar outline** (`/Outlines`) from the same heading
+`dest_id`s (THI-393): bookmark tree in the reader, not body content. Distinct
+from vault hub / Tesscriptor TOC panes. Outline includes every heading with a
+resolvable dest; `\toc depth` only filters the in-body list.
+
+Smoke with page chrome (TOC + bookmarks):
+
+```bash
+mkdir -p tmp/thi-393-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/manuscript_chapters.tes \
+  --pdf --backend native \
+  --template-root fixtures/packs --template page_chrome \
+  -o tmp/thi-393-smoke/manuscript_chapters__page_chrome.pdf
+```
+
+### List of figures / tables (THI-395)
+
+Tessprek `\lof` / `\lot` (and braced attrs) seal as `TextRole::Lof` /
+`TextRole::Lot` (live markers). Print expands float **titles** (default
+`source=title`; untitled omitted) — or captions when `source=caption` — into
+`PrintBlock::TocEntry` lines with `Figure N.` / `Table N.` prefixes,
+optional leaders / page digits, and `f-{chunk_id}` / `t-{chunk_id}` destinations
+on the float blocks. See `docs/tessprek.md` and
+`fixtures/samples/lists_of_floats.tes`.
+
+```bash
+mkdir -p tmp/thi-395-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/lists_of_floats.tes \
+  --pdf --backend native \
+  --template-root fixtures/packs --template page_chrome \
+  -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
+```
+
+### Body columns (THI-391)
+
+Tessprek `\columns` / `\columns{n=… gap=…}` … `\endcolumns` seals as
+`TextRole::Columns` / `ColumnsEnd` (empty markers). Print folds the intervening
+chunks into weave `PrintBlock::Columns { count, gap, children }` — continuous
+newspaper flow, not `\row` meta panes. Pack `weave.toml` may set
+`[body_columns] gap=…` and `[paragraph] text_align = "justify"` (align is
+pack-global). Sample: `fixtures/samples/article_columns.tes`.
+
+```bash
+mkdir -p tmp/thi-391-smoke
+for pack in columns_left columns_justify; do
+  cargo run -q --bin tes --features native-pdf -- export \
+    fixtures/samples/article_columns.tes \
+    --pdf --backend native \
+    --template-root fixtures/packs --template "$pack" \
+    -o "tmp/thi-391-smoke/article_columns__${pack}.pdf"
+done
+```
+
 ---
 
 ## Tessera mapping (prose MVP)
 
 | `.tes` | Print IR |
 | --- | --- |
-| Text `heading` level N | `Heading { level: N, … }`; level 1 + `manuscript` → `PageAlways` |
+| Text `heading` level N | `Heading { level: N, dest_id: h-{chunk_id}, … }`; level 1 + `manuscript` → `PageAlways` |
+| Text `toc` | Expanded `TocEntry` lines (+ optional title paragraph); not a frozen sealed list |
+| Text `columns` / `columns_end` | Folded into `PrintBlock::Columns` (THI-391); distinct from `Row` |
 | `paragraph` / quote / code / list | Matching blocks; inline spans → `TextRun` styles |
 | Text chunk `title` | `Paragraph` with `style.strong` (label stand-in; no non-figure title IR) |
 | Text chunk `caption` | `Paragraph` with `style.emphasis` (stand-in; weave `[caption]` is figure-only) |

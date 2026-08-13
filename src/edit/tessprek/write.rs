@@ -58,6 +58,13 @@ pub fn encode_content_blocks(
                 pending_fonts,
                 ..
             } => {
+                if header.role.is_list_nav()
+                    || matches!(header.role, TextRole::Columns | TextRole::ColumnsEnd)
+                {
+                    let _ = writeln!(out, "{}", header.render_markdown(""));
+                    out.push('\n');
+                    continue;
+                }
                 let ordered_index = ordered.take_for_text(header);
                 // One `\block{indent=N}` per list run — not before every item.
                 let mut attr_header = header.clone();

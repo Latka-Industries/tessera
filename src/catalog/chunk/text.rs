@@ -13,6 +13,27 @@ pub const TEXT_HEADER_MAX_BYTES: usize = 4 * 1024;
 /// Max UTF-8 bytes for optional title / caption on table / math / `code_block`.
 pub const TEXT_CAPTION_MAX: usize = 1024;
 
+/// Which float field `\lof` / `\lot` list from (THI-395).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FloatListSource {
+    /// Figure/table `title` (default). Untitled floats are omitted.
+    Title,
+    /// Figure/table `caption`. Uncaptioned floats are omitted.
+    Caption,
+}
+
+impl FloatListSource {
+    /// Tessprek / JSON wire name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Title => "title",
+            Self::Caption => "caption",
+        }
+    }
+}
+
 /// Semantic role of a text chunk body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -33,6 +54,31 @@ pub enum TextRole {
     Row,
     /// Display math; body is LaTeX source.
     Math,
+    /// In-document table of contents (Tessprek `\toc` / `\toc{…}`; THI-390).
+    ///
+    /// Live marker: print/HTML expand from heading chunks. Body is empty.
+    /// Not vault/hub nav.
+    Toc,
+    /// In-document list of figures (Tessprek `\lof` / `\lof{…}`; THI-395).
+    ///
+    /// Live marker: print/HTML expand from titled figures (default) or captions
+    /// when `source=caption`. Body empty.
+    Lof,
+    /// In-document list of tables (Tessprek `\lot` / `\lot{…}`; THI-395).
+    ///
+    /// Live marker: print/HTML expand from titled tables (default) or captions
+    /// when `source=caption`. Body empty.
+    Lot,
+    /// Multi-column body region open (Tessprek `\columns` / `\columns{…}`; THI-391).
+    ///
+    /// Empty body marker. Distinct from [`TextRole::Row`] (meta hfill panes).
+    /// Print folds following chunks until [`TextRole::ColumnsEnd`] into
+    /// weave `PrintBlock::Columns`.
+    Columns,
+    /// Multi-column body region close (Tessprek `\endcolumns`; THI-391).
+    ///
+    /// Empty body end marker pairing [`TextRole::Columns`].
+    ColumnsEnd,
 }
 
 impl TextRole {
@@ -48,7 +94,24 @@ impl TextRole {
             Self::Table => "table",
             Self::Row => "row",
             Self::Math => "math",
+            Self::Toc => "toc",
+            Self::Lof => "lof",
+            Self::Lot => "lot",
+            Self::Columns => "columns",
+            Self::ColumnsEnd => "columns_end",
         }
+    }
+
+    /// In-document list-nav markers (`\toc` / `\lof` / `\lot`).
+    #[must_use]
+    pub const fn is_list_nav(self) -> bool {
+        matches!(self, Self::Toc | Self::Lof | Self::Lot)
+    }
+
+    /// List-of-floats markers (`\lof` / `\lot`).
+    #[must_use]
+    pub const fn is_float_list(self) -> bool {
+        matches!(self, Self::Lof | Self::Lot)
     }
 }
 
@@ -158,6 +221,37 @@ pub struct TextHeader {
     /// Ordered panes when `role` is [`TextRole::Row`] (Tessprek `\row{…}{…}`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panes: Option<Vec<TableCell>>,
+    /// Max heading level (1–6) included when `role` is [`TextRole::Toc`].
+    /// Absent means 3 (H1–H3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toc_depth: Option<u32>,
+    /// Page numbers on TOC / LOF / LOT lines when `role` is [`TextRole::Toc`],
+    /// [`TextRole::Lof`], or [`TextRole::Lot`].
+    /// Absent means **on** for print (`toc_pages_or_default`); weave resolves
+    /// digits from destinations. Set `false` to omit the page column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toc_pages: Option<bool>,
+    /// Section numbers (`1`, `1.1`, …) on TOC lines when `role` is [`TextRole::Toc`].
+    /// Absent means **on** (`toc_sections_or_default`). When on, nested levels
+    /// also get band indent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toc_sections: Option<bool>,
+    /// Dotted leaders between title and page when `role` is [`TextRole::Toc`],
+    /// [`TextRole::Lof`], or [`TextRole::Lot`].
+    /// Absent means **on** (`toc_leaders_or_default`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toc_leaders: Option<bool>,
+    /// Which float field LOF/LOT lines use when `role` is [`TextRole::Lof`] or
+    /// [`TextRole::Lot`]. Absent means [`FloatListSource::Title`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub float_list_source: Option<FloatListSource>,
+    /// Column count when `role` is [`TextRole::Columns`]. Absent means 2.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns_count: Option<u8>,
+    /// Gap between columns in points when `role` is [`TextRole::Columns`].
+    /// Absent → weave pack `[body_columns].gap`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns_gap: Option<u16>,
 }
 
 impl TextHeader {
@@ -180,6 +274,13 @@ impl TextHeader {
             caption: None,
             table: None,
             panes: None,
+            toc_depth: None,
+            toc_pages: None,
+            toc_sections: None,
+            toc_leaders: None,
+            float_list_source: None,
+            columns_count: None,
+            columns_gap: None,
         }
     }
 
@@ -187,6 +288,108 @@ impl TextHeader {
     #[must_use]
     pub fn paragraph() -> Self {
         Self::with_role(TextRole::Paragraph)
+    }
+
+    /// In-document TOC marker (empty body; expand at print/HTML).
+    #[must_use]
+    pub fn toc() -> Self {
+        Self::with_role(TextRole::Toc)
+    }
+
+    /// In-document list-of-figures marker (empty body; expand at print/HTML).
+    #[must_use]
+    pub fn lof() -> Self {
+        Self::with_role(TextRole::Lof)
+    }
+
+    /// List of figures with an optional title above the list.
+    #[must_use]
+    pub fn lof_titled(title: impl Into<String>) -> Self {
+        let mut h = Self::lof();
+        h.title = Some(title.into());
+        h
+    }
+
+    /// In-document list-of-tables marker (empty body; expand at print/HTML).
+    #[must_use]
+    pub fn lot() -> Self {
+        Self::with_role(TextRole::Lot)
+    }
+
+    /// List of tables with an optional title above the list.
+    #[must_use]
+    pub fn lot_titled(title: impl Into<String>) -> Self {
+        let mut h = Self::lot();
+        h.title = Some(title.into());
+        h
+    }
+
+    /// Multi-column body open marker (empty body; default 2 columns).
+    #[must_use]
+    pub fn columns() -> Self {
+        Self::with_role(TextRole::Columns)
+    }
+
+    /// Multi-column body open with count and optional gap (points).
+    #[must_use]
+    pub fn columns_with(count: u8, gap: Option<u16>) -> Self {
+        let mut h = Self::columns();
+        h.columns_count = Some(count.clamp(1, 6));
+        h.columns_gap = gap;
+        h
+    }
+
+    /// Multi-column body close marker (empty body).
+    #[must_use]
+    pub fn columns_end() -> Self {
+        Self::with_role(TextRole::ColumnsEnd)
+    }
+
+    /// Effective column count (absent → 2).
+    #[must_use]
+    pub fn columns_count_or_default(&self) -> u8 {
+        self.columns_count.unwrap_or(2).clamp(1, 6)
+    }
+
+    /// TOC with optional title and max heading depth.
+    #[must_use]
+    pub fn toc_titled(title: impl Into<String>, depth: u32) -> Self {
+        let mut h = Self::toc();
+        h.title = Some(title.into());
+        if depth != 3 {
+            h.toc_depth = Some(depth.clamp(1, 6));
+        }
+        h
+    }
+
+    /// Effective TOC max heading depth (absent → 3).
+    #[must_use]
+    pub fn toc_depth_or_default(&self) -> u32 {
+        self.toc_depth.unwrap_or(3).clamp(1, 6)
+    }
+
+    /// Whether print TOC should show a page column (absent → `true`).
+    #[must_use]
+    pub fn toc_pages_or_default(&self) -> bool {
+        self.toc_pages.unwrap_or(true)
+    }
+
+    /// Whether TOC lines get hierarchical section numbers (absent → `true`).
+    #[must_use]
+    pub fn toc_sections_or_default(&self) -> bool {
+        self.toc_sections.unwrap_or(true)
+    }
+
+    /// Whether TOC lines get dotted leaders (absent → `true`).
+    #[must_use]
+    pub fn toc_leaders_or_default(&self) -> bool {
+        self.toc_leaders.unwrap_or(true)
+    }
+
+    /// Which float field LOF/LOT use (absent → [`FloatListSource::Title`]).
+    #[must_use]
+    pub fn float_list_source_or_default(&self) -> FloatListSource {
+        self.float_list_source.unwrap_or(FloatListSource::Title)
     }
 
     /// Whether this header uses additive layout-v1 fields (`text_spans` feature).
@@ -200,9 +403,26 @@ impl TextHeader {
             || self.caption.is_some()
             || self.table.is_some()
             || self.panes.is_some()
+            || self.toc_depth.is_some()
+            || self.toc_pages.is_some()
+            || self.toc_sections.is_some()
+            || self.toc_leaders.is_some()
+            || self.float_list_source.is_some()
+            || self.columns_count.is_some()
+            || self.columns_gap.is_some()
             || self.list_depth.is_some_and(|d| d > 1)
             || self.indent.is_some_and(|n| n > 0)
-            || matches!(self.role, TextRole::Table | TextRole::Row | TextRole::Math)
+            || matches!(
+                self.role,
+                TextRole::Table
+                    | TextRole::Row
+                    | TextRole::Math
+                    | TextRole::Toc
+                    | TextRole::Lof
+                    | TextRole::Lot
+                    | TextRole::Columns
+                    | TextRole::ColumnsEnd
+            )
     }
 
     /// Effective print band indent level (absent → 0).
@@ -301,12 +521,26 @@ impl TextHeader {
                 message: format!("{name} exceeds {TEXT_CAPTION_MAX} bytes"),
             });
         }
-        if !matches!(
-            self.role,
-            TextRole::Table | TextRole::Math | TextRole::CodeBlock
-        ) {
+        let ok = match name {
+            "title" => matches!(
+                self.role,
+                TextRole::Table
+                    | TextRole::Math
+                    | TextRole::CodeBlock
+                    | TextRole::Toc
+                    | TextRole::Lof
+                    | TextRole::Lot
+            ),
+            _ => matches!(
+                self.role,
+                TextRole::Table | TextRole::Math | TextRole::CodeBlock
+            ),
+        };
+        if !ok {
             return Err(TesError::InvalidTextHeader {
-                message: format!("{name} is only valid on table, math, or code_block"),
+                message: format!(
+                    "{name} is only valid on table, math, or code_block (title also on toc/lof/lot)"
+                ),
             });
         }
         Ok(())
@@ -321,52 +555,8 @@ impl TextHeader {
     /// spans are invalid.
     pub fn validate(&self, body: &str) -> Result<()> {
         validate_spans(body, &self.spans)?;
-        if let Some(table) = &self.table {
-            if self.role != TextRole::Table {
-                return Err(TesError::InvalidTextHeader {
-                    message: "table payload requires role=table".into(),
-                });
-            }
-            for (ri, row) in table.rows.iter().enumerate() {
-                for (ci, cell) in row.cells.iter().enumerate() {
-                    validate_spans(&cell.text, &cell.spans).map_err(|e| match e {
-                        TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
-                            message: format!("table[{ri}][{ci}]: {message}"),
-                        },
-                        other => other,
-                    })?;
-                    if matches!(cell.rowspan, Some(0)) || matches!(cell.colspan, Some(0)) {
-                        return Err(TesError::InvalidTextHeader {
-                            message: format!("table[{ri}][{ci}]: rowspan/colspan must be >= 1"),
-                        });
-                    }
-                }
-            }
-        }
-        if let Some(panes) = &self.panes {
-            if self.role != TextRole::Row {
-                return Err(TesError::InvalidTextHeader {
-                    message: "panes payload requires role=row".into(),
-                });
-            }
-            if panes.len() < 2 {
-                return Err(TesError::InvalidTextHeader {
-                    message: "row requires at least 2 panes".into(),
-                });
-            }
-            for (i, pane) in panes.iter().enumerate() {
-                validate_spans(&pane.text, &pane.spans).map_err(|e| match e {
-                    TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
-                        message: format!("row pane[{i}]: {message}"),
-                    },
-                    other => other,
-                })?;
-            }
-        } else if self.role == TextRole::Row {
-            return Err(TesError::InvalidTextHeader {
-                message: "role=row requires panes".into(),
-            });
-        }
+        self.validate_table_payload()?;
+        self.validate_panes_payload()?;
         if self.code_lang.is_some() && self.role != TextRole::CodeBlock {
             return Err(TesError::InvalidTextHeader {
                 message: "code_lang is only valid on code_block".into(),
@@ -374,6 +564,71 @@ impl TextHeader {
         }
         self.validate_block_label("title", self.title.as_deref())?;
         self.validate_block_label("caption", self.caption.as_deref())?;
+        self.validate_heading_level()?;
+        self.validate_list_nav_fields()?;
+        self.validate_columns_fields()?;
+        self.validate_list_indent_fields()?;
+        Ok(())
+    }
+
+    fn validate_table_payload(&self) -> Result<()> {
+        let Some(table) = &self.table else {
+            return Ok(());
+        };
+        if self.role != TextRole::Table {
+            return Err(TesError::InvalidTextHeader {
+                message: "table payload requires role=table".into(),
+            });
+        }
+        for (ri, row) in table.rows.iter().enumerate() {
+            for (ci, cell) in row.cells.iter().enumerate() {
+                validate_spans(&cell.text, &cell.spans).map_err(|e| match e {
+                    TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
+                        message: format!("table[{ri}][{ci}]: {message}"),
+                    },
+                    other => other,
+                })?;
+                if matches!(cell.rowspan, Some(0)) || matches!(cell.colspan, Some(0)) {
+                    return Err(TesError::InvalidTextHeader {
+                        message: format!("table[{ri}][{ci}]: rowspan/colspan must be >= 1"),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_panes_payload(&self) -> Result<()> {
+        let Some(panes) = &self.panes else {
+            if self.role == TextRole::Row {
+                return Err(TesError::InvalidTextHeader {
+                    message: "role=row requires panes".into(),
+                });
+            }
+            return Ok(());
+        };
+        if self.role != TextRole::Row {
+            return Err(TesError::InvalidTextHeader {
+                message: "panes payload requires role=row".into(),
+            });
+        }
+        if panes.len() < 2 {
+            return Err(TesError::InvalidTextHeader {
+                message: "row requires at least 2 panes".into(),
+            });
+        }
+        for (i, pane) in panes.iter().enumerate() {
+            validate_spans(&pane.text, &pane.spans).map_err(|e| match e {
+                TesError::InvalidTextHeader { message } => TesError::InvalidTextHeader {
+                    message: format!("row pane[{i}]: {message}"),
+                },
+                other => other,
+            })?;
+        }
+        Ok(())
+    }
+
+    fn validate_heading_level(&self) -> Result<()> {
         if self.role == TextRole::Heading
             && let Some(level) = self.level
             && !(1..=6).contains(&level)
@@ -382,6 +637,69 @@ impl TextHeader {
                 message: format!("heading level {level} must be 1..=6"),
             });
         }
+        Ok(())
+    }
+
+    fn validate_list_nav_fields(&self) -> Result<()> {
+        if self.toc_depth.is_some() && self.role != TextRole::Toc {
+            return Err(TesError::InvalidTextHeader {
+                message: "toc_depth is only valid on toc".into(),
+            });
+        }
+        if self.toc_pages.is_some() && !self.role.is_list_nav() {
+            return Err(TesError::InvalidTextHeader {
+                message: "toc_pages is only valid on toc, lof, or lot".into(),
+            });
+        }
+        if self.toc_sections.is_some() && self.role != TextRole::Toc {
+            return Err(TesError::InvalidTextHeader {
+                message: "toc_sections is only valid on toc".into(),
+            });
+        }
+        if self.toc_leaders.is_some() && !self.role.is_list_nav() {
+            return Err(TesError::InvalidTextHeader {
+                message: "toc_leaders is only valid on toc, lof, or lot".into(),
+            });
+        }
+        if self.float_list_source.is_some() && !self.role.is_float_list() {
+            return Err(TesError::InvalidTextHeader {
+                message: "float_list_source is only valid on lof or lot".into(),
+            });
+        }
+        if self.role == TextRole::Toc
+            && let Some(depth) = self.toc_depth
+            && !(1..=6).contains(&depth)
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("toc_depth {depth} must be 1..=6"),
+            });
+        }
+        Ok(())
+    }
+
+    fn validate_columns_fields(&self) -> Result<()> {
+        if self.columns_count.is_some() && self.role != TextRole::Columns {
+            return Err(TesError::InvalidTextHeader {
+                message: "columns_count is only valid on columns".into(),
+            });
+        }
+        if self.columns_gap.is_some() && self.role != TextRole::Columns {
+            return Err(TesError::InvalidTextHeader {
+                message: "columns_gap is only valid on columns".into(),
+            });
+        }
+        if self.role == TextRole::Columns
+            && let Some(count) = self.columns_count
+            && !(1..=6).contains(&count)
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("columns_count {count} must be 1..=6"),
+            });
+        }
+        Ok(())
+    }
+
+    fn validate_list_indent_fields(&self) -> Result<()> {
         if self.list_depth.is_some() && self.role != TextRole::ListItem {
             return Err(TesError::InvalidTextHeader {
                 message: "list_depth is only valid on list_item".into(),
@@ -465,8 +783,76 @@ impl TextHeader {
                 }
             }
             TextRole::Math => format!("$$\n{body}\n$$"),
+            TextRole::Toc => render_toc_tessprek(self),
+            TextRole::Lof => render_float_list_tessprek(self, "lof"),
+            TextRole::Lot => render_float_list_tessprek(self, "lot"),
+            TextRole::Columns => render_columns_tessprek(self),
+            TextRole::ColumnsEnd => "\\endcolumns".into(),
             TextRole::Paragraph => spanned,
         }
+    }
+}
+
+/// Tessprek projection: `\toc` or `\toc{depth=… title="…"}`.
+fn render_toc_tessprek(header: &TextHeader) -> String {
+    let mut parts = Vec::new();
+    push_list_nav_title(&mut parts, header);
+    if let Some(depth) = header.toc_depth {
+        parts.push(format!("depth={depth}"));
+    }
+    push_optional_bool_attr(&mut parts, "page_numbers", header.toc_pages);
+    push_optional_bool_attr(&mut parts, "section_numbers", header.toc_sections);
+    push_optional_bool_attr(&mut parts, "leaders", header.toc_leaders);
+    finish_list_nav_cmd("toc", &parts)
+}
+
+/// Tessprek projection: `\lof` / `\lot` or braced attrs (THI-395).
+fn render_float_list_tessprek(header: &TextHeader, cmd: &str) -> String {
+    let mut parts = Vec::new();
+    push_list_nav_title(&mut parts, header);
+    push_optional_bool_attr(&mut parts, "page_numbers", header.toc_pages);
+    push_optional_bool_attr(&mut parts, "leaders", header.toc_leaders);
+    if let Some(source) = header.float_list_source {
+        parts.push(format!("source={}", source.as_str()));
+    }
+    finish_list_nav_cmd(cmd, &parts)
+}
+
+fn push_list_nav_title(parts: &mut Vec<String>, header: &TextHeader) {
+    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(format!("title=\"{title}\""));
+    }
+}
+
+fn push_optional_bool_attr(parts: &mut Vec<String>, key: &str, value: Option<bool>) {
+    match value {
+        Some(false) => parts.push(format!("{key}=false")),
+        Some(true) => parts.push(format!("{key}=true")),
+        None => {}
+    }
+}
+
+fn finish_list_nav_cmd(cmd: &str, parts: &[String]) -> String {
+    if parts.is_empty() {
+        format!("\\{cmd}")
+    } else {
+        format!("\\{cmd}{{{}}}", parts.join(" "))
+    }
+}
+
+/// Tessprek projection: `\columns` or `\columns{n=… gap=…}`.
+fn render_columns_tessprek(header: &TextHeader) -> String {
+    let mut parts = Vec::new();
+    if let Some(n) = header.columns_count {
+        parts.push(format!("n={n}"));
+    }
+    if let Some(gap) = header.columns_gap {
+        parts.push(format!("gap={gap}"));
+    }
+    if parts.is_empty() {
+        "\\columns".into()
+    } else {
+        format!("\\columns{{{}}}", parts.join(" "))
     }
 }
 

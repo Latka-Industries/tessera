@@ -95,11 +95,11 @@ pub(crate) fn append_print_references(
         return;
     }
     bib_items.sort_by_key(|(n, _)| *n);
-    blocks.push(PrintBlock::Heading {
-        level: 2,
-        runs: vec![TextRun::plain("References")],
-        break_before: BreakHint::KeepWithNext,
-    });
+    blocks.push(PrintBlock::heading(
+        2,
+        vec![TextRun::plain("References")],
+        BreakHint::KeepWithNext,
+    ));
     for (n, entry) in bib_items.iter() {
         blocks.push(plain_paragraph(format!(
             "{n}. {}",

@@ -13,7 +13,7 @@ pub(super) fn markdown_escape_alt(value: &str) -> String {
     value.replace('[', "\\[").replace(']', "\\]")
 }
 
-pub(super) fn escape_html(value: &str) -> String {
+pub(crate) fn escape_html(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for ch in value.chars() {
         match ch {

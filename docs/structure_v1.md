@@ -107,8 +107,9 @@ Block-level author intent is also typed:
   `list_depth`). Points = `level ×` weave `prose.indent.step` (resume densify
   uses 14pt). Absent / 0 = content margin.
 
-Soft wrap, hyphenation, columns, widows/orphans, and pagination belong to the
-renderer. Intentional hard breaks remain content.
+Soft wrap, hyphenation, widows/orphans, and pagination belong to the renderer.
+Intentional hard breaks remain content. Authored multi-column body flow is
+Tessprek `\columns`…`\endcolumns` → weave `PrintBlock::Columns` (THI-391).
 
 ---
 

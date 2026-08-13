@@ -34,6 +34,9 @@ pub fn encode_manuscript_chapters() -> Vec<u8> {
         )
         .expect("front matter");
     session
+        .add_text_chunk(&TextHeader::toc_titled("Contents", 2), "")
+        .expect("toc");
+    session
         .add_text_chunk(&TextHeader::heading(1), "Chapter 1 — The Quay")
         .expect("ch1");
     session

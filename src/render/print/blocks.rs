@@ -18,9 +18,12 @@ use crate::io::export::{
     decode_figure_entry, decode_layout_entry, decode_slide_entry, decode_text_entry,
 };
 
+use super::heading_dest_id;
 use super::runs::{body_to_runs, cell_to_runs};
+use crate::render::floats::{FloatListKind, float_dest_id};
 
 pub(crate) fn map_text_block(
+    chunk_id: u64,
     header: &TextHeader,
     body: &str,
     profile: &PrintProfileId,
@@ -31,11 +34,12 @@ pub(crate) fn map_text_block(
     match header.role {
         TextRole::Heading => {
             let level = u8::try_from(header.level.unwrap_or(1).clamp(1, 6)).unwrap_or(1);
-            PrintBlock::Heading {
+            PrintBlock::heading_dest(
                 level,
-                runs: runs(),
-                break_before: heading_break(level, profile),
-            }
+                runs(),
+                heading_break(level, profile),
+                heading_dest_id(chunk_id),
+            )
         }
         // ListItem: isolated items should have been coalesced; paragraph fallback.
         TextRole::Paragraph | TextRole::ListItem => {
@@ -46,12 +50,18 @@ pub(crate) fn map_text_block(
             lang: header.code_lang.clone(),
             text: body.to_owned(),
         },
-        TextRole::Table => map_table(header, body, cite, links),
+        TextRole::Table => map_table(chunk_id, header, body, cite, links),
         TextRole::Row => map_row(header, cite, links),
         TextRole::Math => PrintBlock::Math {
             display: true,
             latex: body.trim().to_owned(),
         },
+        // Expanded / folded in `map_entries` (list-nav + columns markers).
+        TextRole::Toc
+        | TextRole::Lof
+        | TextRole::Lot
+        | TextRole::Columns
+        | TextRole::ColumnsEnd => PrintBlock::paragraph(runs()),
     }
 }
 
@@ -84,6 +94,7 @@ fn heading_break(level: u8, profile: &PrintProfileId) -> BreakHint {
 }
 
 fn map_table(
+    chunk_id: u64,
     header: &TextHeader,
     body: &str,
     _cite: CiteProj<'_>,
@@ -97,7 +108,7 @@ fn map_table(
                 cells: row.cells.iter().map(|c| c.text.clone()).collect(),
             })
             .collect();
-        return PrintBlock::Table { rows };
+        return PrintBlock::table_dest(rows, float_dest_id(FloatListKind::Tables, chunk_id));
     }
     let rows: Vec<TableRow> = body
         .lines()
@@ -105,7 +116,7 @@ fn map_table(
             cells: line.split('\t').map(str::to_owned).collect(),
         })
         .collect();
-    PrintBlock::Table { rows }
+    PrintBlock::table_dest(rows, float_dest_id(FloatListKind::Tables, chunk_id))
 }
 
 pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<PrintBlock> {
@@ -126,19 +137,20 @@ pub(crate) fn map_figure(file: &TesFile, entry: &ChunkIndexEntry) -> Result<Prin
         chunk_id: image_entry.chunk_id,
         message: e.to_string(),
     })?;
-    Ok(PrintBlock::Figure {
-        image: PrintImage {
+    Ok(PrintBlock::figure_dest(
+        PrintImage {
             bytes: image.data,
             media_type: image.media_type,
             width_px: (image.width_px > 0).then_some(image.width_px),
             height_px: (image.height_px > 0).then_some(image.height_px),
         },
-        alt: figure.alt_text,
-        title: plain_label_runs(figure.title.as_deref()),
+        figure.alt_text,
+        plain_label_runs(figure.title.as_deref()),
         // Plain caption runs — weave `[caption]` knobs (italic/size/band) own paint.
-        caption: plain_label_runs(figure.caption.as_deref()),
-        placement: map_figure_placement(&figure.placement),
-    })
+        plain_label_runs(figure.caption.as_deref()),
+        map_figure_placement(&figure.placement),
+        float_dest_id(FloatListKind::Figures, entry.chunk_id),
+    ))
 }
 
 /// Optional figure title/caption → zero or one plain [`TextRun`].

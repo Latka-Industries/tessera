@@ -18,6 +18,10 @@ use super::common::{
     html_class_attr, image_src, selected_content_entries,
 };
 use super::layout_proj::layout_html;
+use crate::render::floats::{
+    FloatListKind, collect_figures, collect_tables, expand_float_list_html,
+};
+use crate::render::toc::{collect_headings, expand_toc_html};
 
 pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<String> {
     if options.chunk_id.is_none() && options.chapter.is_none() && file_has_slides(file) {
@@ -32,6 +36,9 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
         keys: &cite_keys,
         style,
     };
+    let headings = collect_headings(file, &entries)?;
+    let figures = collect_figures(file, &entries)?;
+    let tables = collect_tables(file, &entries)?;
     let doc_id = file.catalog().map_or("", |catalog| catalog.doc_id.as_str());
     let mut article = format!("<article data-doc-id=\"{}\">\n", escape_html(doc_id));
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
@@ -53,13 +60,35 @@ pub(super) fn export_html(file: &TesFile, options: &ExportOptions) -> Result<Str
                     );
                 } else {
                     close_all_lists(&mut article, &mut list_stack);
-                    article.push_str(&render_text_chunk_html(
-                        entry.chunk_id,
-                        &header,
-                        &body,
-                        file.links(),
-                        Some(cite),
-                    ));
+                    if header.role == TextRole::Toc {
+                        article.push_str(&expand_toc_html(entry.chunk_id, &header, &headings));
+                    } else if header.role == TextRole::Lof {
+                        article.push_str(&expand_float_list_html(
+                            entry.chunk_id,
+                            &header,
+                            &figures,
+                            FloatListKind::Figures,
+                        ));
+                    } else if header.role == TextRole::Lot {
+                        article.push_str(&expand_float_list_html(
+                            entry.chunk_id,
+                            &header,
+                            &tables,
+                            FloatListKind::Tables,
+                        ));
+                    } else if header.role == TextRole::Columns {
+                        article.push_str(&columns_open_html(entry.chunk_id, &header));
+                    } else if header.role == TextRole::ColumnsEnd {
+                        article.push_str("  </div>\n");
+                    } else {
+                        article.push_str(&render_text_chunk_html(
+                            entry.chunk_id,
+                            &header,
+                            &body,
+                            file.links(),
+                            Some(cite),
+                        ));
+                    }
                 }
             }
             ChunkType::Figure => {
@@ -293,7 +322,30 @@ fn render_text_chunk_html(
             html.push_str(&text_caption_html(header.caption.as_deref()));
             html
         }
+        // Expanded in `export_html` via `expand_toc_html` / `expand_float_list_html`.
+        TextRole::Toc => {
+            format!("  <nav class=\"toc\" data-chunk-id=\"{chunk_id}\"{class}></nav>\n")
+        }
+        TextRole::Lof => {
+            format!("  <nav class=\"lof\" data-chunk-id=\"{chunk_id}\"{class}></nav>\n")
+        }
+        TextRole::Lot => {
+            format!("  <nav class=\"lot\" data-chunk-id=\"{chunk_id}\"{class}></nav>\n")
+        }
+        // Emitted in `export_html` open/close path.
+        TextRole::Columns => columns_open_html(chunk_id, header),
+        TextRole::ColumnsEnd => "  </div>\n".into(),
     }
+}
+
+fn columns_open_html(chunk_id: u64, header: &TextHeader) -> String {
+    let n = header.columns_count_or_default();
+    let mut style = format!("columns: {n}");
+    if let Some(gap) = header.columns_gap {
+        let _ = write!(style, "; column-gap: {gap}pt");
+    }
+    let class = html_class_attr(&header.classes);
+    format!("  <div class=\"tes-columns\" data-chunk-id=\"{chunk_id}\"{class} style=\"{style}\">\n")
 }
 
 fn text_title_html(title: Option<&str>) -> String {
@@ -587,6 +639,8 @@ fn append_html_bibliography(article: &mut String, bib_items: &mut [(usize, BibEn
 
 fn html_theme_styles(options: &ExportOptions) -> String {
     let mut styles = String::new();
+    // Multi-column body (THI-391): headings span full measure inside `.tes-columns`.
+    styles.push_str("<style>\n.tes-columns :is(h1,h2,h3,h4,h5,h6){column-span:all}\n</style>\n");
     if let Some(css) = &options.embedded_css {
         styles.push_str("<style>\n");
         styles.push_str(css);
