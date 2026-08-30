@@ -1,6 +1,6 @@
 //! Coalesce consecutive list-item chunks into nested weave lists.
 
-use ariadnes_weave::{ListItem, PrintBlock, TextRun};
+use ariadnes_weave::{ListItem, PrintBlock, TextAlign as WeaveAlign, TextRun};
 
 use crate::catalog::chunk::{ListKind, TextHeader};
 use crate::io::cite::CiteProj;
@@ -12,6 +12,7 @@ pub(crate) struct PendingListItem {
     depth: u32,
     kind: ListKind,
     indent: u32,
+    align: Option<WeaveAlign>,
     runs: Vec<TextRun>,
 }
 
@@ -35,6 +36,7 @@ pub(crate) fn push_list_item(
         depth,
         kind,
         indent: header.indent_or_default(),
+        align: super::map_text_align(header.align),
         runs: body_to_runs(body, &header.spans, Some(cite), links),
     });
 }
@@ -51,10 +53,12 @@ fn coalesce_list(items: &[PendingListItem]) -> PrintBlock {
     let ordered = matches!(items.first().map(|i| i.kind), Some(ListKind::Ordered));
     let min_depth = items.iter().map(|i| i.depth).min().unwrap_or(1);
     let indent = items.iter().map(|i| i.indent).find(|&n| n > 0).unwrap_or(0);
+    let text_align = items.iter().find_map(|i| i.align);
     PrintBlock::List {
         ordered,
         items: nest_list_items(items, min_depth, indent),
         indent,
+        text_align,
     }
 }
 
@@ -106,10 +110,12 @@ fn child_lists(items: &[PendingListItem], depth: u32, band_indent: u32) -> Vec<P
             }
             end += 1;
         }
+        let text_align = items[start..end].iter().find_map(|i| i.align);
         out.push(PrintBlock::List {
             ordered: matches!(kind, ListKind::Ordered),
             items: nest_list_items(&items[start..end], depth, band_indent),
             indent: band_indent,
+            text_align,
         });
         start = end;
     }

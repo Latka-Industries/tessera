@@ -2,7 +2,7 @@
 
 use std::fmt::Write as _;
 
-use crate::catalog::chunk::{ListKind, TextHeader, TextRole};
+use crate::catalog::chunk::{ListKind, TextAlign, TextHeader, TextRole};
 use crate::catalog::file::TesFile;
 use crate::catalog::index::{ChunkIndexEntry, ChunkType};
 use crate::catalog::media::{ImagePayload, ImagePlacement};
@@ -243,7 +243,10 @@ fn render_text_chunk_html(
             format!("  <h{level} id=\"chunk-{chunk_id}\"{class}>{inner}</h{level}>\n")
         }
         TextRole::Paragraph => {
-            format!("  <p data-chunk-id=\"{chunk_id}\"{class}>{inner}</p>\n")
+            format!(
+                "  <p data-chunk-id=\"{chunk_id}\"{class}{align}>{inner}</p>\n",
+                align = html_text_align_attr(header.align)
+            )
         }
         TextRole::ListItem => {
             // Isolated list items (e.g. slide regions) still need a wrapping list.
@@ -254,7 +257,10 @@ fn render_text_chunk_html(
             out
         }
         TextRole::Blockquote => {
-            format!("  <blockquote data-chunk-id=\"{chunk_id}\"{class}>{inner}</blockquote>\n")
+            format!(
+                "  <blockquote data-chunk-id=\"{chunk_id}\"{class}{align}>{inner}</blockquote>\n",
+                align = html_text_align_attr(header.align)
+            )
         }
         TextRole::CodeBlock => {
             let escaped = escape_html(body);
@@ -344,8 +350,17 @@ fn columns_open_html(chunk_id: u64, header: &TextHeader) -> String {
     if let Some(gap) = header.columns_gap {
         let _ = write!(style, "; column-gap: {gap}pt");
     }
+    if let Some(align) = header.align {
+        let _ = write!(style, "; text-align: {}", align.as_str());
+    }
     let class = html_class_attr(&header.classes);
     format!("  <div class=\"tes-columns\" data-chunk-id=\"{chunk_id}\"{class} style=\"{style}\">\n")
+}
+
+fn html_text_align_attr(align: Option<TextAlign>) -> String {
+    align.map_or(String::new(), |a| {
+        format!(" style=\"text-align: {}\"", a.as_str())
+    })
 }
 
 fn text_title_html(title: Option<&str>) -> String {

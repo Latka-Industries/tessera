@@ -579,6 +579,27 @@ mod tests {
         assert!(bytes.len() > 200);
     }
 
+    #[cfg(feature = "native-pdf")]
+    #[test]
+    fn export_pdf_native_mixed_align() {
+        let dir = tempdir().unwrap();
+        let tes = dir.path().join("mixed.tes");
+        fs::write(&tes, crate::fixtures::samples::encode_mixed_align()).unwrap();
+        let out = dir.path().join("mixed_align.pdf");
+        export_pdf(
+            &tes,
+            &out,
+            &PdfExportOptions {
+                backend: PdfBackend::Native,
+                ..PdfExportOptions::default()
+            },
+        )
+        .unwrap();
+        let bytes = fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+        assert!(bytes.len() > 200);
+    }
+
     #[test]
     fn export_pdf_when_chrome_available() {
         let Ok(chrome) = find_chrome() else {

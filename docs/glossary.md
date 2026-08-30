@@ -103,7 +103,7 @@ Terms used consistently across Tessera docs, issues, and code.
 | **In-document TOC** | Tessprek `\toc` → sealed `TextRole::Toc`; expands at print/HTML from headings (THI-390). Distinct from hub / Tesscriptor TOC panes. |
 | **LOF / LOT** | Tessprek `\lof` / `\lot` → sealed `TextRole::Lof` / `Lot`; expands from float titles by default (`source=title` or `caption`; THI-395). |
 | **PDF outline** | Native PDF sidebar bookmarks from heading `dest_id`s (THI-393). Same heading walk as `\toc`, different surface — not body content and not vault hub. |
-| **Body columns** | Tessprek `\columns`…`\endcolumns` → `TextRole::Columns` / `ColumnsEnd`; print → weave `PrintBlock::Columns` (THI-391). Not `\row` meta panes. |
+| **Body columns** | Tessprek `\columns`…`\endcolumns` → `TextRole::Columns` / `ColumnsEnd`; print → weave `PrintBlock::Columns` (THI-391). Optional `\columns{align=…}` region default (THI-398). Not `\row` meta panes. |
 
 See [README — Writing modes](../README.md#writing-one-format-many-kinds-of-work).
 

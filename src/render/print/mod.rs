@@ -16,7 +16,10 @@ mod tests;
 
 use std::path::PathBuf;
 
-use ariadnes_weave::{InlineStyle, PrintBlock, PrintDocument, PrintMeta, PrintProfileId, TextRun};
+use ariadnes_weave::{
+    InlineStyle, PrintBlock, PrintDocument, PrintMeta, PrintProfileId, TextAlign as WeaveAlign,
+    TextRun,
+};
 
 use crate::catalog::chunk::TextRole;
 use crate::catalog::file::TesFile;
@@ -194,7 +197,7 @@ fn map_entries(
     let mut list_buf: Vec<PendingListItem> = Vec::new();
     let mut bib_items: Vec<(usize, BibEntry)> = Vec::new();
     // Open `\columns` region: count, gap, children (THI-391). Soft-flush at EOF.
-    let mut columns: Option<(u8, Option<u16>, Vec<PrintBlock>)> = None;
+    let mut columns: Option<OpenColumns> = None;
 
     for entry in entries {
         match entry.chunk_type {
@@ -251,17 +254,18 @@ fn push_text_entry(
     tables: &[crate::render::floats::FloatCandidate],
     blocks: &mut Vec<PrintBlock>,
     list_buf: &mut Vec<PendingListItem>,
-    columns: &mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
+    columns: &mut Option<OpenColumns>,
 ) -> Result<()> {
     let (header, body) = decode_text_entry(file, entry)?;
     if header.role == TextRole::Columns {
         flush_list(columns_sink(blocks, columns), list_buf);
         flush_columns(blocks, columns);
-        *columns = Some((
-            header.columns_count_or_default(),
-            header.columns_gap,
-            Vec::new(),
-        ));
+        *columns = Some(OpenColumns {
+            count: header.columns_count_or_default(),
+            gap: header.columns_gap,
+            text_align: map_text_align(header.align),
+            children: Vec::new(),
+        });
         return Ok(());
     }
     if header.role == TextRole::ColumnsEnd {
@@ -313,38 +317,55 @@ fn push_text_entry(
     Ok(())
 }
 
+/// Open `\columns` region while folding children (THI-391 / THI-398).
+struct OpenColumns {
+    count: u8,
+    gap: Option<u16>,
+    text_align: Option<WeaveAlign>,
+    children: Vec<PrintBlock>,
+}
+
 fn columns_sink<'a>(
     blocks: &'a mut Vec<PrintBlock>,
-    columns: &'a mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
+    columns: &'a mut Option<OpenColumns>,
 ) -> &'a mut Vec<PrintBlock> {
-    if let Some((_, _, children)) = columns {
-        children
+    if let Some(open) = columns {
+        &mut open.children
     } else {
         blocks
     }
 }
 
-fn push_block(
-    blocks: &mut Vec<PrintBlock>,
-    columns: &mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
-    block: PrintBlock,
-) {
+fn push_block(blocks: &mut Vec<PrintBlock>, columns: &mut Option<OpenColumns>, block: PrintBlock) {
     columns_sink(blocks, columns).push(block);
 }
 
 fn push_blocks(
     blocks: &mut Vec<PrintBlock>,
-    columns: &mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
+    columns: &mut Option<OpenColumns>,
     extra: Vec<PrintBlock>,
 ) {
     columns_sink(blocks, columns).extend(extra);
 }
 
-fn flush_columns(
-    blocks: &mut Vec<PrintBlock>,
-    columns: &mut Option<(u8, Option<u16>, Vec<PrintBlock>)>,
-) {
-    if let Some((count, gap, children)) = columns.take() {
-        blocks.push(PrintBlock::columns(count, gap, children));
+fn flush_columns(blocks: &mut Vec<PrintBlock>, columns: &mut Option<OpenColumns>) {
+    if let Some(open) = columns.take() {
+        blocks.push(PrintBlock::columns_align(
+            open.count,
+            open.gap,
+            open.children,
+            open.text_align,
+        ));
     }
+}
+
+pub(crate) fn map_text_align(
+    align: Option<crate::catalog::chunk::TextAlign>,
+) -> Option<WeaveAlign> {
+    align.map(|a| match a {
+        crate::catalog::chunk::TextAlign::Start => WeaveAlign::Left,
+        crate::catalog::chunk::TextAlign::Center => WeaveAlign::Center,
+        crate::catalog::chunk::TextAlign::End => WeaveAlign::Right,
+        crate::catalog::chunk::TextAlign::Justify => WeaveAlign::Justify,
+    })
 }

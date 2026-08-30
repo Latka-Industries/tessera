@@ -117,8 +117,6 @@ dependencies = [
 [[package]]
 name = "ariadnes-weave"
 version = "0.2.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f774bf6147c0494ba1194314f4f250e4ab47a555a8551ce1b58d5ff24ffb4d23"
 dependencies = [
  "image",
  "miniz_oxide",

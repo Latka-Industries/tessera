@@ -203,7 +203,11 @@ pub struct TextHeader {
     /// Optional BCP-47 language override for this block.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lang: Option<String>,
-    /// Optional semantic alignment.
+    /// Optional semantic alignment (`start` / `center` / `end` / `justify`).
+    ///
+    /// On prose chunks, print maps this onto weave `PrintBlock` `text_align`.
+    /// On [`TextRole::Columns`], it is a region default for children that omit
+    /// their own align (THI-398).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub align: Option<TextAlign>,
     /// Optional programming language when `role` is [`TextRole::CodeBlock`].
@@ -840,7 +844,7 @@ fn finish_list_nav_cmd(cmd: &str, parts: &[String]) -> String {
     }
 }
 
-/// Tessprek projection: `\columns` or `\columns{n=… gap=…}`.
+/// Tessprek projection: `\columns` or `\columns{n=… gap=… align=…}`.
 fn render_columns_tessprek(header: &TextHeader) -> String {
     let mut parts = Vec::new();
     if let Some(n) = header.columns_count {
@@ -848,6 +852,9 @@ fn render_columns_tessprek(header: &TextHeader) -> String {
     }
     if let Some(gap) = header.columns_gap {
         parts.push(format!("gap={gap}"));
+    }
+    if let Some(align) = header.align {
+        parts.push(format!("align={}", align.as_str()));
     }
     if parts.is_empty() {
         "\\columns".into()

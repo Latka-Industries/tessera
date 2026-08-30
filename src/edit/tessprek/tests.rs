@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::*;
 use crate::catalog::TesFile;
-use crate::catalog::chunk::{CitePayload, FloatListSource, TextHeader, TextRole};
+use crate::catalog::chunk::{CitePayload, FloatListSource, TextAlign, TextHeader, TextRole};
 use crate::catalog::media::{FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
 use crate::catalog::{DocumentCatalog, TesWriterSession};
@@ -75,6 +75,7 @@ First flowing paragraph.\n\
             assert_eq!(header.role, TextRole::Columns);
             assert_eq!(header.columns_count, Some(2));
             assert_eq!(header.columns_gap, Some(14));
+            assert!(header.align.is_none());
             assert!(body.is_empty());
         }
         _ => panic!("expected columns open"),
@@ -106,10 +107,39 @@ First flowing paragraph.\n\
             assert_eq!(header.role, TextRole::Columns);
             assert!(header.columns_count.is_none());
             assert!(header.columns_gap.is_none());
+            assert!(header.align.is_none());
             assert_eq!(header.columns_count_or_default(), 2);
         }
         _ => panic!("expected bare columns"),
     }
+}
+
+#[test]
+fn round_trip_columns_align_attr() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2,3}\n\
+\n\
+\\columns{align=justify}\n\
+\n\
+Justified column body.\n\
+\n\
+\\endcolumns\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 3);
+    match &blocks[0] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Columns);
+            assert_eq!(header.align, Some(TextAlign::Justify));
+            assert!(header.columns_count.is_none());
+        }
+        _ => panic!("expected columns open"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\columns{"), "{out}");
+    assert!(out.contains("align=justify"), "{out}");
+    assert!(out.contains("\\endcolumns"), "{out}");
 }
 
 #[test]

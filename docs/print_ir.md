@@ -297,12 +297,24 @@ cargo run -q --bin tes --features native-pdf -- export \
 
 ### Body columns (THI-391)
 
-Tessprek `\columns` / `\columns{n=… gap=…}` … `\endcolumns` seals as
+Tessprek `\columns` / `\columns{n=… gap=… align=…}` … `\endcolumns` seals as
 `TextRole::Columns` / `ColumnsEnd` (empty markers). Print folds the intervening
-chunks into weave `PrintBlock::Columns { count, gap, children }` — continuous
-newspaper flow, not `\row` meta panes. Pack `weave.toml` may set
-`[body_columns] gap=…` and `[paragraph] text_align = "justify"` (align is
-pack-global). Sample: `fixtures/samples/article_columns.tes`.
+chunks into weave `PrintBlock::Columns { count, gap, children, text_align }` —
+continuous newspaper flow, not `\row` meta panes. Pack `weave.toml` may set
+`[body_columns] gap=…` and `[paragraph] text_align` as the **document fallback**.
+Per-chunk Tessera `TextHeader.align` maps `Start→Left`, `End→Right`, `Center`,
+`Justify` onto weave `text_align`. `\columns{align=justify}` is a region default
+for children that omit their own align. Quotes stay flush start unless the chunk
+or enclosing columns set align. Samples: `fixtures/samples/article_columns.tes`
+(count/gap smoke) and `fixtures/samples/mixed_align.tes` (THI-398 mixed align).
+
+```bash
+mkdir -p tmp/thi-398-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/mixed_align.tes \
+  --pdf --backend native \
+  -o tmp/thi-398-smoke/mixed_align.pdf
+```
 
 ```bash
 mkdir -p tmp/thi-391-smoke
@@ -323,8 +335,8 @@ done
 | --- | --- |
 | Text `heading` level N | `Heading { level: N, dest_id: h-{chunk_id}, … }`; level 1 + `manuscript` → `PageAlways` |
 | Text `toc` | Expanded `TocEntry` lines (+ optional title paragraph); not a frozen sealed list |
-| Text `columns` / `columns_end` | Folded into `PrintBlock::Columns` (THI-391); distinct from `Row` |
-| `paragraph` / quote / code / list | Matching blocks; inline spans → `TextRun` styles |
+| Text `columns` / `columns_end` | Folded into `PrintBlock::Columns` (THI-391); optional `text_align` region default (THI-398); distinct from `Row` |
+| `paragraph` / quote / code / list | Matching blocks; optional `text_align` from `TextHeader.align` (THI-398); inline spans → `TextRun` styles |
 | Text chunk `title` | `Paragraph` with `style.strong` (label stand-in; no non-figure title IR) |
 | Text chunk `caption` | `Paragraph` with `style.emphasis` (stand-in; weave `[caption]` is figure-only) |
 | Figure title | `Figure.title` runs (plain; weave title band / `title_text_align`) |

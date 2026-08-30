@@ -25,16 +25,17 @@ pub(crate) fn body_to_runs(
     body_to_runs_projected(&body, &spans, links)
 }
 
-/// Table cells often still carry Tessprek `\font{id}{…}` scaffolding (not sealed
-/// as cell spans). Strip macros and apply [`InlineKind::Font`] before run split,
-/// remapping any existing cell spans (links, emphasis) onto the stripped text.
+/// Table / row cells often still carry Tessprek `\font{id}{…}` / `\icon{…}`
+/// scaffolding (not sealed as cell spans). Strip macros and apply
+/// [`InlineKind::Font`] before run split, remapping any existing cell spans
+/// (links, emphasis) onto the stripped text.
 pub(crate) fn cell_to_runs(
     text: &str,
     spans: &[InlineSpan],
     cite: Option<CiteProj<'_>>,
     links: &[LinkEntry],
 ) -> Vec<TextRun> {
-    if !text.contains("\\font{") {
+    if !text.contains("\\font{") && !text.contains("\\icon{") {
         return body_to_runs(text, spans, cite, links);
     }
     let Ok(extracted) = extract_inline_fonts_mapped(text) else {

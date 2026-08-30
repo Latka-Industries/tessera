@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::catalog::chunk::{CitePayload, FloatListSource, TextHeader, TextRole};
+use crate::catalog::chunk::{CitePayload, FloatListSource, TextAlign, TextHeader, TextRole};
 use crate::catalog::media::FigureRef;
 use crate::catalog::slide::SlidePayload;
 use crate::error::Result;
@@ -273,6 +273,10 @@ fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Resul
             ));
         }
         header.columns_gap = Some(u16::try_from(gap).unwrap_or(0));
+    }
+    if let Some(name) = map.get("align") {
+        header.align =
+            Some(TextAlign::from_name(name).map_err(|e| parse_err(line_no, 1, format!("{e}")))?);
     }
     Ok(ContentBlock::Text {
         chunk_id: None,

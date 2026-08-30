@@ -44,9 +44,7 @@ pub(crate) fn push_cite_block(
         CiteTessprekKind::Quote => {
             let quote = cite.quote.trim();
             if !quote.is_empty() {
-                blocks.push(PrintBlock::Quote {
-                    runs: vec![TextRun::plain(quote)],
-                });
+                blocks.push(PrintBlock::quote(vec![TextRun::plain(quote)]));
             }
         }
         CiteTessprekKind::Ref => {
