@@ -277,7 +277,31 @@ fn render_text_chunk_html(
         // Emitted in `export_html` open/close path.
         TextRole::Columns => columns_open_html(chunk_id, header),
         TextRole::ColumnsEnd => "  </div>\n".into(),
+        TextRole::Callout => html_callout(chunk_id, header, &inner),
     }
+}
+
+fn html_callout(chunk_id: u64, header: &TextHeader, inner: &str) -> String {
+    let kind = header.callout_kind.as_deref().unwrap_or("note");
+    let title = escape_html(&header.callout_band_title());
+    let class = if header.classes.is_empty() {
+        format!("tes-callout tes-callout-{kind}")
+    } else {
+        format!(
+            "tes-callout tes-callout-{kind} {}",
+            escape_html(&header.classes.join(" "))
+        )
+    };
+    let mut html =
+        format!("  <aside class=\"{class}\" data-chunk-id=\"{chunk_id}\" data-kind=\"{kind}\">\n");
+    html.push_str(&format!(
+        "    <p class=\"tes-callout-title\"><strong>{title}</strong></p>\n"
+    ));
+    if !inner.is_empty() {
+        html.push_str(&format!("    <p>{inner}</p>\n"));
+    }
+    html.push_str("  </aside>\n");
+    html
 }
 
 fn html_isolated_list_item(

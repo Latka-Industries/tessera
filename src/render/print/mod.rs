@@ -305,7 +305,9 @@ fn push_text_entry(
         );
         return Ok(());
     }
-    if let Some(title) = nonempty_label(header.title.as_deref()) {
+    if header.role != TextRole::Callout
+        && let Some(title) = nonempty_label(header.title.as_deref())
+    {
         push_block(blocks, columns, title_paragraph(title));
     }
     push_block(

@@ -17,3 +17,6 @@ master): [docs/decisions.md — D23](../docs/decisions.md).
 | --- | --- |
 | [`minimal/`](minimal/) | Sparse siblings |
 | [`master_pack/`](master_pack/) | Master `tessera.toml` only |
+| [`article/`](article/) | Journal chrome + abstract/keyword/author bands (THI-411) |
+| [`frontmatter/`](frontmatter/) | Roman page labels + even/odd chrome (THI-413) |
+| [`review/`](review/) | `[body].line_numbers` gutter (THI-415) |

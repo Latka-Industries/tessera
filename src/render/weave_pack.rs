@@ -26,6 +26,8 @@ const PROSE_ROOT_SECTIONS: &[&str] = &[
     "cite",
     "link",
     "body_columns",
+    "body",
+    "callout",
 ];
 
 /// Category keys on [`LayoutKnobs`].
@@ -277,6 +279,34 @@ text_align = "justify"
             knobs.prose.caption.text_align,
             ariadnes_weave::FigureTextAlign::Justify
         );
+    }
+
+    #[test]
+    fn body_line_numbers_and_page_roman_merge() {
+        let knobs = merge_weave_toml(
+            r#"
+[body]
+line_numbers = true
+
+[page.numbers]
+style = "roman"
+
+[page.header]
+align_even = "right"
+format_even = "{title}"
+"#,
+        )
+        .unwrap();
+        assert!(knobs.prose.body.numbers);
+        assert_eq!(
+            knobs.page.numbers.style,
+            ariadnes_weave::PageNumberStyle::Roman
+        );
+        assert_eq!(
+            knobs.page.header.align_even,
+            Some(ariadnes_weave::ChromeAlign::Right)
+        );
+        assert_eq!(knobs.page.header.format_even.as_deref(), Some("{title}"));
     }
 
     #[test]

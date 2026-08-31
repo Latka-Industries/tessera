@@ -183,6 +183,7 @@ fn format_block_hover(block: &ContentBlock) -> String {
             {
                 let _ = write!(out, " (h{level})");
             }
+            push_opt_field(&mut out, "kind", header.callout_kind.as_deref());
             if let Some(lang) = header.code_lang.as_deref().or(header.lang.as_deref()) {
                 push_field(&mut out, "lang", lang);
             }

@@ -74,7 +74,10 @@ pub fn encode_content_blocks(
                 if header.role == TextRole::ListItem && i > 0 && blocks[i - 1].is_list_item() {
                     attr_header.indent = None;
                 }
-                write_block_directive(&mut out, &attr_header);
+                // Callout title/kind live on `\theorem` / `\callout`, not `\block`.
+                if header.role != TextRole::Callout {
+                    write_block_directive(&mut out, &attr_header);
+                }
                 out.push_str(
                     render_text_body(
                         header,

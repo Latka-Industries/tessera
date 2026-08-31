@@ -1,0 +1,6 @@
+# Review line-number gutter (THI-415). ACM/rho/compositionality are witnesses.
+# Not lineno.sty. Off in bundled knobs; this pack turns it on. Each `\columns`
+# band gets its own gutter.
+
+[body]
+line_numbers = true

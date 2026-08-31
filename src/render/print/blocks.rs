@@ -67,6 +67,11 @@ pub(crate) fn map_text_block(
             display: true,
             latex: body.trim().to_owned(),
         },
+        TextRole::Callout => PrintBlock::callout(
+            header.callout_kind.clone().unwrap_or_else(|| "note".into()),
+            vec![TextRun::plain(header.callout_band_title())],
+            runs(),
+        ),
     }
 }
 

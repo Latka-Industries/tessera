@@ -133,6 +133,17 @@ blockquote {
   page-break-inside: avoid;
 }
 
+aside.tes-callout {
+  margin: 2em 0;
+  padding-left: 0.5in;
+  border-left: 2pt solid var(--tes-ink);
+  page-break-inside: avoid;
+}
+
+.tes-callout-title {
+  margin: 0 0 0.5em;
+}
+
 pre {
   margin: 2em 0;
   padding: 0;

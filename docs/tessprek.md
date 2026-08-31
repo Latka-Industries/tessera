@@ -20,7 +20,7 @@ Markdown has no syntax for.
 | Content | Wire form |
 | --- | --- |
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
-| Figure, biblio cite, quote, ref, slide, layout, toc, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\toc{…}` / `\attach{…}` |
+| Figure, biblio cite, quote, ref, slide, layout, toc, attachment, titled band | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\toc{…}` / `\attach{…}` / `\theorem{…}` / `\callout{…}` / `\proof` / `\abstract` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Footnote / endnote | `\footnote{body}` / `\endnote{body}` in prose → `InlineKind::Note` (THI-396). Marker is a ZWSP in the sealed body; encode restores the command. Native print maps to weave `PrintBlock::Note` + `TextRun.note_id`. Note body is plain text in v1 (no nested Tessprek). |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
@@ -398,6 +398,37 @@ previous region and starts a new one; unclosed regions flush at EOF. HTML emits
 `<div class="tes-columns" style="columns: N; column-gap: Xpt; text-align: …">`
 … `</div>` (headings get `column-span: all`). Per-chunk `\block{align=…}` still
 overrides the region default on that chunk.
+
+### `\theorem{kind=definition title="…"}` / `\proof` / `\callout{kind=note title="…"}` / `\abstract`
+
+Named titled band (THI-414 / THI-412 / THI-411). Attrs in braces; **one following
+paragraph** is the body (stops at a blank line or the next command). Same sealed
+role for every kind: `TextRole::Callout` + `callout_kind` + optional `title`.
+
+```text
+\theorem{kind=definition title="Trace minimale"}
+Une trace minimale est une trace dont le support ne peut pas être réduit.
+
+\proof
+Immediate from the definition of support.
+
+\callout{kind=note title="Note"}
+Rho-shaped aside (same paint as the definition).
+
+\abstract
+Full-width abstract band. Keywords are `\callout{kind=keywords title="Keywords"}`.
+```
+
+| Command | Default `kind` | Encode |
+| --- | --- | --- |
+| `\theorem{kind=… title=…}` | `theorem` | theorem-family kinds (`definition` / `theorem` / `lemma` / `corollary` / `remark`) |
+| `\proof` / `\proof{title=…}` | `proof` | `kind=proof` |
+| `\callout{kind=… title=…}` | `note` | everything else (`note` / `info` / `question` / `answer` / `author` / `keywords` / …) |
+| `\abstract` / `\abstract{title=…}` | `abstract` | `kind=abstract` |
+
+Print maps to weave `PrintBlock::Callout` (one paint; Tessera owns the visible
+label, e.g. `Definition (Trace minimale).`). HTML: `<aside class="tes-callout tes-callout-{kind}">`.
+No product auto-numbering. jimis / rho / frostybee are witnesses, not classes to clone.
 
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 

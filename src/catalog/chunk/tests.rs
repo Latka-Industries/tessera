@@ -269,6 +269,28 @@ fn caption_rejected_on_paragraph() {
 }
 
 #[test]
+fn callout_header_round_trip_and_band_title() {
+    let header = TextHeader::callout("definition", Some("Trace minimale".into()));
+    assert!(header.uses_layout_v1_features());
+    assert_eq!(header.callout_band_title(), "Definition (Trace minimale).");
+    let bytes = encode_text_payload(&header, "Une trace minimale est une trace.").unwrap();
+    let (h2, body) = decode_text_payload(&bytes).unwrap();
+    assert_eq!(h2, header);
+    assert_eq!(body, "Une trace minimale est une trace.");
+    let proof = TextHeader::callout("proof", None);
+    assert_eq!(proof.callout_band_title(), "Proof.");
+    let note = TextHeader::callout("note", Some("Note".into()));
+    assert_eq!(note.callout_band_title(), "Note");
+}
+
+#[test]
+fn callout_kind_rejected_on_paragraph() {
+    let mut header = TextHeader::paragraph();
+    header.callout_kind = Some("note".into());
+    assert!(encode_text_payload(&header, "hi").is_err());
+}
+
+#[test]
 fn cite_payload_round_trip() {
     let cite = CitePayload {
         quote: "We measured …".into(),

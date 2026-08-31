@@ -1,0 +1,27 @@
+# Thesis/book front-matter chrome (THI-413). mimosis/eleatic are witnesses.
+# No `\frontmatter` Tessprek command: unnumbered headings + `\toc`, then body.
+# Roman `{page}` + even/odd header align. Switch to arabic by overlaying
+# `[page.numbers] style = "arabic"` on a later body pack, or a second export.
+
+[page.numbers]
+style = "roman"
+
+[page.header]
+enabled = true
+format = "{title}"
+align = "left"
+align_even = "right"
+format_even = "{title}"
+font_size = 9.0
+y_margin_factor = 0.55
+
+[page.footer]
+enabled = true
+format = "{page}"
+align = "center"
+font_size = 9.0
+y_margin_factor = 0.45
+
+[page.content]
+top_clearance = 18.0
+bottom_clearance = 18.0

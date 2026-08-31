@@ -170,4 +170,13 @@ fn add_text_roles_quote_code_math_table(session: &mut TesWriterSession) {
     });
     table.caption = Some("Role ↔ Markdown cues".into());
     session.add_text_chunk(&table, "").expect("table");
+    session
+        .add_text_chunk(&TextHeader::heading(2), "Titled band")
+        .expect("h2c");
+    session
+        .add_text_chunk(
+            &TextHeader::callout("definition", Some("Trace minimale".into())),
+            "Une trace minimale est une trace dont le support ne peut pas être réduit.",
+        )
+        .expect("def");
 }
