@@ -2,14 +2,16 @@
 
 use std::path::PathBuf;
 
-use ariadnes_weave::{BreakHint, PrintBlock};
+use ariadnes_weave::{BreakHint, PrintBlock, TextAlign};
 
 use super::*;
 use crate::catalog::DocumentCatalog;
 use crate::catalog::chunk::{CitePayload, InlineKind, InlineSpan, TextHeader};
 use crate::catalog::file::TesFile;
 use crate::catalog::session::TesWriterSession;
-use crate::fixtures::samples::{encode_article_columns, encode_manuscript_chapters};
+use crate::fixtures::samples::{
+    encode_article_columns, encode_manuscript_chapters, encode_mixed_align,
+};
 use crate::fixtures::v0::{encode_note_one_chunk, encode_note_three_chunks, encode_research_cite};
 use crate::io::bib::BibEntry;
 use crate::layout::DocKind;
@@ -171,6 +173,7 @@ fn article_columns_maps_print_block_columns() {
                 count,
                 gap,
                 children,
+                ..
             } => Some((*count, *gap, children.len())),
             _ => None,
         })
@@ -200,6 +203,65 @@ fn article_columns_maps_print_block_columns() {
             .any(|b| matches!(b, PrintBlock::Heading { level: 1, .. })),
         "title heading should stay outside Columns"
     );
+}
+
+#[test]
+fn mixed_align_maps_print_block_text_align() {
+    let file = open_bytes("mixed_align.tes", encode_mixed_align());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+
+    let lead = doc.blocks.iter().find_map(|b| match b {
+        PrintBlock::Paragraph {
+            runs, text_align, ..
+        } if runs.iter().any(|r| r.text.contains("Lead stays flush")) => Some(*text_align),
+        _ => None,
+    });
+    assert_eq!(lead, Some(Some(TextAlign::Left)));
+
+    let cols = doc.blocks.iter().find_map(|b| match b {
+        PrintBlock::Columns {
+            count,
+            text_align,
+            children,
+            ..
+        } => Some((*count, *text_align, children.len())),
+        _ => None,
+    });
+    assert_eq!(
+        cols.map(|(n, align, _)| (n, align)),
+        Some((2, Some(TextAlign::Justify)))
+    );
+    let children = match &doc
+        .blocks
+        .iter()
+        .find(|b| matches!(b, PrintBlock::Columns { .. }))
+    {
+        Some(PrintBlock::Columns { children, .. }) => children,
+        _ => panic!("expected Columns region"),
+    };
+    assert!(
+        children.iter().all(|c| match c {
+            PrintBlock::Paragraph { text_align, .. } => text_align.is_none(),
+            _ => true,
+        }),
+        "column children should omit text_align and inherit the region: {children:?}"
+    );
+
+    let center = doc.blocks.iter().find_map(|b| match b {
+        PrintBlock::Paragraph {
+            runs, text_align, ..
+        } if runs.iter().any(|r| r.text.contains("centered aside")) => Some(*text_align),
+        _ => None,
+    });
+    assert_eq!(center, Some(Some(TextAlign::Center)));
+
+    let close = doc.blocks.iter().find_map(|b| match b {
+        PrintBlock::Paragraph {
+            runs, text_align, ..
+        } if runs.iter().any(|r| r.text.contains("Closing full-measure")) => Some(*text_align),
+        _ => None,
+    });
+    assert_eq!(close, Some(Some(TextAlign::Left)));
 }
 
 #[test]
@@ -255,7 +317,7 @@ fn research_cite_quote_maps_to_print_quote() {
         .iter()
         .find(|b| matches!(b, PrintBlock::Quote { .. }))
     {
-        Some(PrintBlock::Quote { runs }) => {
+        Some(PrintBlock::Quote { runs, .. }) => {
             let text: String = runs.iter().map(|r| r.text.as_str()).collect();
             assert!(text.contains("We measured"), "{text}");
         }
@@ -376,7 +438,7 @@ fn cite_quote_ref_biblio_and_inline_markers() {
     assert!(
         doc.blocks.iter().any(|b| matches!(
             b,
-            PrintBlock::Quote { runs } if runs.iter().any(|r| r.text.contains("Quoted passage"))
+            PrintBlock::Quote { runs, .. } if runs.iter().any(|r| r.text.contains("Quoted passage"))
         )),
         "expected quote block: {doc:?}"
     );
@@ -694,5 +756,101 @@ fn lof_and_lot_expand_to_toc_entries() {
                 && p.is_none()
         }),
         "expected LOT TocEntry from title: {entries:?}"
+    );
+}
+
+#[test]
+fn row_pane_icon_macro_becomes_font_run() {
+    use crate::catalog::chunk::TableCell;
+    use crate::catalog::icon_by_name;
+
+    let icon = icon_by_name("github").expect("github icon");
+    let mut session = TesWriterSession::create("row_icon.tes", DocKind::Note);
+    session
+        .add_text_chunk(
+            &TextHeader::row(vec![
+                TableCell {
+                    text: "UBLX \\icon{github}".into(),
+                    spans: Vec::new(),
+                    align: None,
+                    is_header: false,
+                    rowspan: None,
+                    colspan: None,
+                },
+                TableCell {
+                    text: "right".into(),
+                    spans: Vec::new(),
+                    align: None,
+                    is_header: false,
+                    rowspan: None,
+                    colspan: None,
+                },
+            ]),
+            "",
+        )
+        .expect("row");
+    let file = open_bytes("row_icon.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    match &doc.blocks[0] {
+        PrintBlock::Row { panes, .. } => {
+            let joined: String = panes[0].iter().map(|r| r.text.as_str()).collect();
+            assert!(
+                !joined.contains("\\icon{"),
+                "row pane must expand \\icon, got {panes:?}"
+            );
+            assert!(
+                panes[0]
+                    .iter()
+                    .any(|r| r.face.as_deref() == Some(icon.face)
+                        && r.text == icon.glyph.to_string()),
+                "expected fab/fas glyph run, got {panes:?}"
+            );
+        }
+        other => panic!("expected Row, got {other:?}"),
+    }
+}
+
+#[test]
+fn footnote_span_maps_to_weave_note() {
+    use crate::catalog::chunk::{NOTE_MARKER, NoteKind};
+    let catalog = DocumentCatalog::new(
+        "00000000-0000-0000-0000-000000000396",
+        "Footnote specimen",
+        "2026-01-01T00:00:00Z",
+        "2026-01-01T00:00:00Z",
+        DocKind::Note,
+    );
+    let mut session = TesWriterSession::create("print_notes.tes", DocKind::Note);
+    session.set_catalog(catalog).unwrap();
+    let marker_start = u32::try_from("See ".len()).unwrap();
+    let body = format!("See {NOTE_MARKER} now.");
+    let marker_end = marker_start + u32::try_from(NOTE_MARKER.len()).unwrap();
+    let mut header = TextHeader::paragraph();
+    header.spans.push(InlineSpan {
+        start: marker_start,
+        end: marker_end,
+        kind: InlineKind::Note {
+            kind: NoteKind::Footnote,
+            body: "A clarification.".into(),
+        },
+    });
+    session.add_text_chunk(&header, &body).unwrap();
+    let file = open_bytes("print_notes.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    assert!(
+        doc.blocks.iter().any(|b| matches!(
+            b,
+            PrintBlock::Paragraph { runs, .. }
+                if runs.iter().any(|r| r.note_id.is_some())
+        )),
+        "expected a run with note_id, got {:?}",
+        doc.blocks
+    );
+    assert!(
+        doc.blocks
+            .iter()
+            .any(|b| matches!(b, PrintBlock::Note { .. })),
+        "expected PrintBlock::Note def, got {:?}",
+        doc.blocks
     );
 }

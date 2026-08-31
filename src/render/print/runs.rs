@@ -20,28 +20,30 @@ pub(crate) fn body_to_runs(
     spans: &[InlineSpan],
     cite: Option<CiteProj<'_>>,
     links: &[LinkEntry],
+    note_scope: u64,
 ) -> Vec<TextRun> {
     let (body, spans) = project_inline_citations(body, spans, cite);
-    body_to_runs_projected(&body, &spans, links)
+    body_to_runs_projected(&body, &spans, links, note_scope)
 }
 
-/// Table cells often still carry Tessprek `\font{id}{…}` scaffolding (not sealed
-/// as cell spans). Strip macros and apply [`InlineKind::Font`] before run split,
-/// remapping any existing cell spans (links, emphasis) onto the stripped text.
+/// Table / row cells often still carry Tessprek `\font{id}{…}` / `\icon{…}`
+/// scaffolding (not sealed as cell spans). Strip macros and apply
+/// [`InlineKind::Font`] before run split, remapping any existing cell spans
+/// (links, emphasis) onto the stripped text.
 pub(crate) fn cell_to_runs(
     text: &str,
     spans: &[InlineSpan],
     cite: Option<CiteProj<'_>>,
     links: &[LinkEntry],
 ) -> Vec<TextRun> {
-    if !text.contains("\\font{") {
-        return body_to_runs(text, spans, cite, links);
+    if !text.contains("\\font{") && !text.contains("\\icon{") {
+        return body_to_runs(text, spans, cite, links, 0);
     }
     let Ok(extracted) = extract_inline_fonts_mapped(text) else {
-        return body_to_runs(text, spans, cite, links);
+        return body_to_runs(text, spans, cite, links, 0);
     };
     if extracted.pending.is_empty() {
-        return body_to_runs(text, spans, cite, links);
+        return body_to_runs(text, spans, cite, links, 0);
     }
     let mut merged: Vec<InlineSpan> = spans
         .iter()
@@ -59,7 +61,7 @@ pub(crate) fn cell_to_runs(
         end: f.end,
         kind: InlineKind::Font { font_id: f.font_id },
     }));
-    body_to_runs(&extracted.body, &merged, cite, links)
+    body_to_runs(&extracted.body, &merged, cite, links, 0)
 }
 
 fn project_inline_citations(
@@ -117,7 +119,12 @@ fn project_inline_citations(
     (body, spans)
 }
 
-fn body_to_runs_projected(body: &str, spans: &[InlineSpan], links: &[LinkEntry]) -> Vec<TextRun> {
+fn body_to_runs_projected(
+    body: &str,
+    spans: &[InlineSpan],
+    links: &[LinkEntry],
+    note_scope: u64,
+) -> Vec<TextRun> {
     if body.is_empty() {
         return Vec::new();
     }
@@ -146,6 +153,7 @@ fn body_to_runs_projected(body: &str, spans: &[InlineSpan], links: &[LinkEntry])
         let mut style = InlineStyle::default();
         let mut face: Option<String> = None;
         let mut link_uri: Option<String> = None;
+        let mut note_id: Option<String> = None;
         for span in spans {
             let start = span.start as usize;
             let end = span.end as usize;
@@ -164,6 +172,9 @@ fn body_to_runs_projected(body: &str, spans: &[InlineSpan], links: &[LinkEntry])
                             style.link = true;
                         }
                     }
+                    InlineKind::Note { .. } => {
+                        note_id = Some(print_note_id(note_scope, span.start, span.end, &span.kind));
+                    }
                     _ => {}
                 }
             }
@@ -173,6 +184,7 @@ fn body_to_runs_projected(body: &str, spans: &[InlineSpan], links: &[LinkEntry])
             style,
             face,
             link_uri,
+            note_id,
         });
     }
     runs
@@ -201,6 +213,41 @@ fn apply_inline_kind(style: &mut InlineStyle, kind: &InlineKind) {
         InlineKind::Link { .. } => style.link = true,
         InlineKind::Citation { .. } => style.cite = true,
         InlineKind::Underline => style.underline = true,
-        InlineKind::Font { .. } => {}
+        InlineKind::Font { .. } | InlineKind::Note { .. } => {}
     }
+}
+
+pub(crate) fn print_note_id(chunk_id: u64, start: u32, end: u32, kind: &InlineKind) -> String {
+    let tag = match kind {
+        InlineKind::Note {
+            kind: crate::catalog::NoteKind::Endnote,
+            ..
+        } => "e",
+        _ => "n",
+    };
+    format!("{tag}{chunk_id}-{start}-{end}")
+}
+
+pub(crate) fn collect_print_notes(
+    chunk_id: u64,
+    spans: &[InlineSpan],
+) -> Vec<ariadnes_weave::PrintBlock> {
+    use ariadnes_weave::{NoteKind as WeaveNoteKind, PrintBlock, TextRun};
+    spans
+        .iter()
+        .filter_map(|span| {
+            let InlineKind::Note { kind, body } = &span.kind else {
+                return None;
+            };
+            let weave_kind = match kind {
+                crate::catalog::NoteKind::Footnote => WeaveNoteKind::Footnote,
+                crate::catalog::NoteKind::Endnote => WeaveNoteKind::Endnote,
+            };
+            Some(PrintBlock::note(
+                print_note_id(chunk_id, span.start, span.end, &span.kind),
+                weave_kind,
+                vec![TextRun::plain(body.clone())],
+            ))
+        })
+        .collect()
 }

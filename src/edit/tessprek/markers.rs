@@ -38,6 +38,10 @@ pub const TEXT_PREFIX: &str = "\\text{";
 pub const FIGURE_PREFIX: &str = "\\figure{";
 /// Cite directive: bibliography stub `\cite{label=… [author=…] …}` (attrs only).
 pub const CITE_PREFIX: &str = "\\cite{";
+/// Inline footnote: `\footnote{body}` (THI-396). Not a body-line directive.
+pub const FOOTNOTE_PREFIX: &str = "\\footnote{";
+/// Inline endnote: `\endnote{body}` (THI-396). Not a body-line directive.
+pub const ENDNOTE_PREFIX: &str = "\\endnote{";
 /// Quote directive: passage from a doc/chunk `\quote{target_… quote="…"}`.
 pub const QUOTE_PREFIX: &str = "\\quote{";
 /// Ref directive: pointer to a doc/chunk `\ref{target_…}` (no excerpt).
@@ -52,7 +56,8 @@ pub const TOC_PREFIX: &str = "\\toc{";
 pub const LOF_PREFIX: &str = "\\lof{";
 /// List of tables: `\lot{title="…"}` (THI-395). Bare `\lot` also accepted.
 pub const LOT_PREFIX: &str = "\\lot{";
-/// Multi-column body open: `\columns{n=… gap=…}` (THI-391). Bare `\columns` also accepted.
+/// Multi-column body open: `\columns{n=… gap=… align=…}` (THI-391 / THI-398).
+/// Bare `\columns` also accepted.
 pub const COLUMNS_PREFIX: &str = "\\columns{";
 /// Multi-column body close: `\endcolumns` (THI-391).
 pub const ENDCOLUMNS: &str = "\\endcolumns";
@@ -120,8 +125,8 @@ pub const TOC_ATTR_KEYS: &[&str] = &[
 ];
 /// Preferred attribute keys for `\lof{…}` / `\lot{…}` (THI-395).
 pub const FLOAT_LIST_ATTR_KEYS: &[&str] = &["title", "page_numbers", "leaders", "source"];
-/// Preferred attribute keys for `\columns{…}` (THI-391).
-pub const COLUMNS_ATTR_KEYS: &[&str] = &["n", "gap"];
+/// Preferred attribute keys for `\columns{…}` (THI-391 / THI-398).
+pub const COLUMNS_ATTR_KEYS: &[&str] = &["n", "gap", "align"];
 /// Preferred attribute keys for `\attach{…}`.
 pub const ATTACH_ATTR_KEYS: &[&str] = &["chunk", "filename", "media_type", "sha256", "caption"];
 /// Preferred attribute keys for `\media{…}` header rows.

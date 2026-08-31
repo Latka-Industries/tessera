@@ -22,6 +22,7 @@ Markdown has no syntax for.
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
 | Figure, biblio cite, quote, ref, slide, layout, toc, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\toc{…}` / `\attach{…}` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
+| Footnote / endnote | `\footnote{body}` / `\endnote{body}` in prose → `InlineKind::Note` (THI-396). Marker is a ZWSP in the sealed body; encode restores the command. Native print maps to weave `PrintBlock::Note` + `TextRun.note_id`. Note body is plain text in v1 (no nested Tessprek). |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
 | Named FA icon | `\icon{name}` → same Font seal (`fab`/`fas` + glyph); encode prefers `\icon` when known |
 | Pack phrase (expand) | `\phrase{key}{arg…}` → ordinary Tessprek at format (lossy; not sealed). `{arg}`/`$1` and `{argN}`/`$N` |
@@ -216,7 +217,10 @@ fn main() {}
   `  - nested` only bumps `list_depth`. Also attaches to a following `\row{…}`
   when the `\block` body is otherwise empty.
 
-Also accepted: `class`, `lang`, `align`. Everything else — role, heading level,
+Also accepted: `class`, `lang`, `align` (`start` / `center` / `end` / `justify`).
+Print maps `align` onto weave per-block `text_align` (`start→left`, `end→right`);
+omit to inherit from enclosing `\columns{align=…}` or pack `[paragraph] text_align`
+(THI-398). Everything else — role, heading level,
 list kind/depth, fence language, table structure — comes from Markdown. When a
 `\block{}` precedes a multi-block Markdown run, attrs apply to **at least the
 first** resulting block (`indent` additionally spreads across a consecutive
@@ -367,8 +371,8 @@ Lorem… (fills left, then right)
 More lorem…
 \endcolumns
 
-\columns{n=3 gap=12}
-Lorem… (three narrower bands)
+\columns{n=2 gap=14 align=justify}
+Lorem… (children inherit justify)
 \endcolumns
 ```
 
@@ -376,13 +380,15 @@ Lorem… (three narrower bands)
 | --- | --- |
 | `n` | Column count (1–6; default **2**; weave clamps to 2..=6 at layout) |
 | `gap` | Gap between columns in points; omit → pack `[body_columns].gap` |
+| `align` | Region default for children that omit chunk align: `start` / `center` / `end` / `justify` (sealed Tessera names; print maps `start→left`, `end→right`). Omit → pack `[paragraph] text_align` |
 
 Seals as empty-body markers `TextRole::Columns` / `TextRole::ColumnsEnd`
-(`columns_count`, `columns_gap`). Print folds intervening chunks into weave
-`PrintBlock::Columns`. Nested `\columns` soft-flushes the previous region and
-starts a new one; unclosed regions flush at EOF. HTML emits
-`<div class="tes-columns" style="columns: N; column-gap: Xpt">` … `</div>`
-(headings get `column-span: all`).
+(`columns_count`, `columns_gap`, optional `align`). Print folds intervening
+chunks into weave `PrintBlock::Columns`. Nested `\columns` soft-flushes the
+previous region and starts a new one; unclosed regions flush at EOF. HTML emits
+`<div class="tes-columns" style="columns: N; column-gap: Xpt; text-align: …">`
+… `</div>` (headings get `column-span: all`). Per-chunk `\block{align=…}` still
+overrides the region default on that chunk.
 
 ### `\attach{filename="…" media_type=… sha256=HEX [caption="…"]}`
 

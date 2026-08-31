@@ -159,6 +159,7 @@ fn text_block(
             .collect();
     }
     let (body, pending_cites) = extract_inline_cites(&extracted.body)?;
+    let (body, pending_notes) = super::super::inline_note::extract_inline_notes(&body)?;
     Ok(ContentBlock::Text {
         chunk_id,
         header,
@@ -166,6 +167,7 @@ fn text_block(
         pending_links,
         pending_cites,
         pending_fonts: extracted.pending,
+        pending_notes,
     })
 }
 

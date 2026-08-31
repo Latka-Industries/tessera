@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::catalog::chunk::{CitePayload, FloatListSource, TextHeader, TextRole};
+use crate::catalog::chunk::{CitePayload, FloatListSource, TextAlign, TextHeader, TextRole};
 use crate::catalog::media::FigureRef;
 use crate::catalog::slide::SlidePayload;
 use crate::error::Result;
@@ -149,6 +149,7 @@ pub(crate) fn decode_named_directive(
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
             pending_fonts: Vec::new(),
+            pending_notes: Vec::new(),
         }),
         "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
@@ -249,6 +250,7 @@ fn empty_marker_text(header: TextHeader) -> ContentBlock {
         pending_links: Vec::new(),
         pending_cites: Vec::new(),
         pending_fonts: Vec::new(),
+        pending_notes: Vec::new(),
     }
 }
 
@@ -274,6 +276,10 @@ fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Resul
         }
         header.columns_gap = Some(u16::try_from(gap).unwrap_or(0));
     }
+    if let Some(name) = map.get("align") {
+        header.align =
+            Some(TextAlign::from_name(name).map_err(|e| parse_err(line_no, 1, format!("{e}")))?);
+    }
     Ok(ContentBlock::Text {
         chunk_id: None,
         header,
@@ -281,6 +287,7 @@ fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Resul
         pending_links: Vec::new(),
         pending_cites: Vec::new(),
         pending_fonts: Vec::new(),
+        pending_notes: Vec::new(),
     })
 }
 

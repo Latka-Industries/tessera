@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use super::*;
 use crate::catalog::TesFile;
-use crate::catalog::chunk::{CitePayload, FloatListSource, TextHeader, TextRole};
+use crate::catalog::chunk::{CitePayload, FloatListSource, TextAlign, TextHeader, TextRole};
 use crate::catalog::media::{FigureRef, ImagePlacement};
 use crate::catalog::slide::{SlidePayload, SlideRegion};
 use crate::catalog::{DocumentCatalog, TesWriterSession};
@@ -75,6 +75,7 @@ First flowing paragraph.\n\
             assert_eq!(header.role, TextRole::Columns);
             assert_eq!(header.columns_count, Some(2));
             assert_eq!(header.columns_gap, Some(14));
+            assert!(header.align.is_none());
             assert!(body.is_empty());
         }
         _ => panic!("expected columns open"),
@@ -106,10 +107,39 @@ First flowing paragraph.\n\
             assert_eq!(header.role, TextRole::Columns);
             assert!(header.columns_count.is_none());
             assert!(header.columns_gap.is_none());
+            assert!(header.align.is_none());
             assert_eq!(header.columns_count_or_default(), 2);
         }
         _ => panic!("expected bare columns"),
     }
+}
+
+#[test]
+fn round_trip_columns_align_attr() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2,3}\n\
+\n\
+\\columns{align=justify}\n\
+\n\
+Justified column body.\n\
+\n\
+\\endcolumns\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 3);
+    match &blocks[0] {
+        ContentBlock::Text { header, .. } => {
+            assert_eq!(header.role, TextRole::Columns);
+            assert_eq!(header.align, Some(TextAlign::Justify));
+            assert!(header.columns_count.is_none());
+        }
+        _ => panic!("expected columns open"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\columns{"), "{out}");
+    assert!(out.contains("align=justify"), "{out}");
+    assert!(out.contains("\\endcolumns"), "{out}");
 }
 
 #[test]
@@ -272,6 +302,7 @@ fn round_trip_figure_cite_slide_attachment() {
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
             pending_fonts: Vec::new(),
+            pending_notes: Vec::new(),
         },
         ContentBlock::Figure {
             chunk_id: Some(2),
@@ -344,6 +375,7 @@ fn layout_place_vspace_rule_round_trip() {
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
             pending_fonts: Vec::new(),
+            pending_notes: Vec::new(),
         },
         ContentBlock::Layout {
             chunk_id: Some(2),
@@ -372,6 +404,7 @@ fn layout_place_vspace_rule_round_trip() {
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
             pending_fonts: Vec::new(),
+            pending_notes: Vec::new(),
         },
     ];
     let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
@@ -666,6 +699,33 @@ Prior work \\cite{keller2020} established the baseline.\n\
     );
     assert!(out.contains("Prior work"), "{out}");
     assert!(!out.contains("\\quote{"), "{out}");
+}
+
+#[test]
+fn inline_footnote_round_trips_in_tessprek() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
+\n\
+A claim\\footnote{A clarification.} holds.\n\
+";
+    let blocks = decode_tessprek(input).unwrap();
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        ContentBlock::Text {
+            body,
+            pending_notes,
+            ..
+        } => {
+            assert!(!body.contains("\\footnote{"), "{body}");
+            assert_eq!(pending_notes.len(), 1);
+            assert_eq!(pending_notes[0].body, "A clarification.");
+            assert_eq!(pending_notes[0].kind, crate::catalog::NoteKind::Footnote);
+        }
+        other => panic!("expected text, got {other:?}"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\footnote{A clarification.}"), "{out}");
 }
 
 #[test]

@@ -5,7 +5,9 @@ use crate::catalog::chunk::{OrderedListNumbering, TextHeader, TextRole};
 use crate::catalog::layout::LayoutPayload;
 use crate::catalog::media::{AttachmentPayload, FigureRef, ImagePlacement};
 use crate::catalog::slide::SlidePayload;
-use crate::catalog::{CitePayload, InlineKind, InlineSpan, LinkEntry, LinkKind, OutboundLink};
+use crate::catalog::{
+    CitePayload, InlineKind, InlineSpan, LinkEntry, LinkKind, NoteKind, OutboundLink, PendingNote,
+};
 use crate::io::cite::{
     CiteTessprekKind, PendingCite, cite_key_from_payload, cite_key_or_fallback, classify_cite,
 };
@@ -56,6 +58,7 @@ pub fn encode_content_blocks(
                 pending_links,
                 pending_cites,
                 pending_fonts,
+                pending_notes,
                 ..
             } => {
                 if header.role.is_list_nav()
@@ -79,6 +82,7 @@ pub fn encode_content_blocks(
                         pending_links,
                         pending_cites,
                         pending_fonts,
+                        pending_notes,
                         links,
                         &cite_keys,
                         ordered_index,
@@ -242,6 +246,7 @@ fn render_text_body(
     pending_links: &[OutboundLink],
     pending_cites: &[PendingCite],
     pending_fonts: &[PendingFont],
+    pending_notes: &[PendingNote],
     links: &[LinkEntry],
     cite_keys: &std::collections::BTreeMap<u64, String>,
     ordered_index: Option<u32>,
@@ -274,6 +279,25 @@ fn render_text_body(
         let replacements = pending_cites
             .iter()
             .map(|c| (c.start, c.end, format!("\\cite{{{}}}", c.key)))
+            .collect();
+        rewrite_ranges_rev(&mut body, replacements);
+    }
+
+    if !header
+        .spans
+        .iter()
+        .any(|s| matches!(s.kind, InlineKind::Note { .. }))
+        && !pending_notes.is_empty()
+    {
+        let replacements = pending_notes
+            .iter()
+            .map(|n| {
+                let cmd = match n.kind {
+                    NoteKind::Footnote => format!("\\footnote{{{}}}", n.body),
+                    NoteKind::Endnote => format!("\\endnote{{{}}}", n.body),
+                };
+                (n.start, n.end, cmd)
+            })
             .collect();
         rewrite_ranges_rev(&mut body, replacements);
     }

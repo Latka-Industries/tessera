@@ -18,6 +18,7 @@ mod encode;
 mod format;
 mod inline_cite;
 mod inline_font;
+mod inline_note;
 pub(crate) use inline_font::extract_inline_fonts_mapped;
 mod layout_ops;
 pub mod markers;

@@ -25,6 +25,8 @@ pub enum ContentBlock {
         pending_cites: Vec<cite::PendingCite>,
         /// Inline `\font{id}{text}` spans over [`Self::Text::body`] (Tessprek).
         pending_fonts: Vec<font::PendingFont>,
+        /// Inline `\footnote{…}` / `\endnote{…}` spans over [`Self::Text::body`].
+        pending_notes: Vec<crate::catalog::PendingNote>,
     },
     /// Figure chunk referencing an image payload.
     Figure {

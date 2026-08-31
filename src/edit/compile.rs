@@ -170,6 +170,7 @@ fn write_compiled_block(
             pending_links,
             pending_cites,
             pending_fonts,
+            pending_notes,
             ..
         } => {
             let mut header = header.clone();
@@ -201,6 +202,21 @@ fn write_compiled_block(
                         end: pending.end,
                         kind: InlineKind::Font {
                             font_id: pending.font_id.clone(),
+                        },
+                    });
+                }
+            }
+            if !pending_notes.is_empty() {
+                header
+                    .spans
+                    .retain(|s| !matches!(s.kind, InlineKind::Note { .. }));
+                for pending in pending_notes {
+                    header.spans.push(InlineSpan {
+                        start: pending.start,
+                        end: pending.end,
+                        kind: InlineKind::Note {
+                            kind: pending.kind,
+                            body: pending.body.clone(),
                         },
                     });
                 }
