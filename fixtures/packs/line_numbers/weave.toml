@@ -1,0 +1,3 @@
+# THI-415: review line-number gutter (per column). Off in bundled knobs.
+[body]
+line_numbers = true

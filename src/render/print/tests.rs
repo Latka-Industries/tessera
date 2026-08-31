@@ -10,7 +10,7 @@ use crate::catalog::chunk::{CitePayload, InlineKind, InlineSpan, TextHeader};
 use crate::catalog::file::TesFile;
 use crate::catalog::session::TesWriterSession;
 use crate::fixtures::samples::{
-    encode_article_columns, encode_manuscript_chapters, encode_mixed_align,
+    encode_article_bands, encode_article_columns, encode_manuscript_chapters, encode_mixed_align,
 };
 use crate::fixtures::v0::{encode_note_one_chunk, encode_note_three_chunks, encode_research_cite};
 use crate::io::bib::BibEntry;
@@ -903,4 +903,23 @@ fn theorem_and_callout_map_to_same_print_callout() {
     assert!(kinds[0].2.contains("trace minimale"));
     assert_eq!(kinds[1].0, "note");
     assert_eq!(kinds[1].1, "Note");
+}
+
+#[test]
+fn article_bands_maps_callouts_and_columns() {
+    let file = open_bytes("article_bands.tes", encode_article_bands());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    assert!(
+        doc.blocks.iter().any(|b| matches!(
+            b,
+            PrintBlock::Callout { callout_kind, .. } if callout_kind.as_str() == "definition"
+        )),
+        "expected definition callout"
+    );
+    assert!(
+        doc.blocks
+            .iter()
+            .any(|b| matches!(b, PrintBlock::Columns { count: 2, .. })),
+        "expected a 2-column region"
+    );
 }

@@ -1,0 +1,10 @@
+{
+  "id": "frontmatter_roman",
+  "version": "0.1.0",
+  "compatible_layout": 0,
+  "doc_kind_default": "note",
+  "themes": {
+    "print": "themes/print.css"
+  },
+  "export_targets": ["pdf"]
+}

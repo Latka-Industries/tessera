@@ -105,6 +105,49 @@ cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/lists_of_floats.tes \
   --pdf --backend native \
   --template-root fixtures/packs --template page_chrome \
-  -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
+    -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
+```
+
+## Titled bands / article chrome (THI-411 / 412 / 414 / 415)
+
+Product packs live under [`../../templates/`](../../templates/) (`article`, `frontmatter`, `review`).
+Smoke overlays here:
+
+* `line_numbers` — `[body].line_numbers = true`
+* `frontmatter_roman` — `[page.numbers] style = roman` + even-page header
+
+```bash
+mkdir -p tmp/thi-411-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/article_bands.tes \
+  --pdf --backend native \
+  --template-root templates --template article \
+  -o tmp/thi-411-smoke/article_bands__article.pdf
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/article_bands.tes \
+  --pdf --backend native \
+  --template-root fixtures/packs --template line_numbers \
+  -o tmp/thi-411-smoke/article_bands__line_numbers.pdf
+```
+
+## Article dogfood (THI-397)
+
+Tracked sample is [`../samples/article_bands.tes`](../samples/article_bands.tes)
+(original Tessera prose). Compare locally to gitignored
+`tmp/latex-goldens/` — do not vendor corpus `.tex`. Gap notes:
+[`../../docs/thi-397-jimis-gaps.md`](../../docs/thi-397-jimis-gaps.md).
+
+```bash
+mkdir -p tmp/thi-397-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/article_bands.tes \
+  --pdf --backend native \
+  --template-root templates --template article \
+  -o tmp/thi-397-smoke/article_bands-native.pdf
+cargo run -q --bin tes -- export \
+  fixtures/samples/article_bands.tes \
+  --pdf --backend chromium \
+  --template-root templates --template article \
+  -o tmp/thi-397-smoke/article_bands-chromium.pdf
 ```
 

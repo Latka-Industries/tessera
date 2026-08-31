@@ -11,6 +11,8 @@ tes export fixtures/samples/article_bands.tes --pdf --backend native \
   --template-root templates --template article -o tmp/article.pdf
 ```
 
+THI-397 dogfood: same sample vs a **local** gitignored golden (`tmp/latex-goldens/`, not in this repo). Gap notes: [`docs/thi-397-jimis-gaps.md`](../../docs/thi-397-jimis-gaps.md). Do not copy corpus `.tex` into `fixtures/`.
+
 ## Journal field → Tessera
 
 | Recurring class field | Tessera |
