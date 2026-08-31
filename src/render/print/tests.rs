@@ -10,7 +10,7 @@ use crate::catalog::chunk::{CitePayload, InlineKind, InlineSpan, TextHeader};
 use crate::catalog::file::TesFile;
 use crate::catalog::session::TesWriterSession;
 use crate::fixtures::samples::{
-    encode_article_columns, encode_manuscript_chapters, encode_mixed_align,
+    encode_article_columns, encode_jimis_article, encode_manuscript_chapters, encode_mixed_align,
 };
 use crate::fixtures::v0::{encode_note_one_chunk, encode_note_three_chunks, encode_research_cite};
 use crate::io::bib::BibEntry;
@@ -903,4 +903,38 @@ fn theorem_and_callout_map_to_same_print_callout() {
     assert!(kinds[0].2.contains("trace minimale"));
     assert_eq!(kinds[1].0, "note");
     assert_eq!(kinds[1].1, "Note");
+}
+
+#[test]
+fn jimis_article_reseal_maps_bands_math_and_table() {
+    let file = open_bytes("jimis_article.tes", encode_jimis_article());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    fn walk<'a>(blocks: &'a [PrintBlock], out: &mut Vec<&'a PrintBlock>) {
+        for b in blocks {
+            out.push(b);
+            if let PrintBlock::Columns { children, .. } = b {
+                walk(children, out);
+            }
+        }
+    }
+    let mut flat = Vec::new();
+    walk(&doc.blocks, &mut flat);
+    assert!(
+        flat.iter().any(|b| matches!(
+            b,
+            PrintBlock::Callout { callout_kind, .. } if callout_kind.as_str() == "definition"
+        )),
+        "expected definition callout"
+    );
+    assert!(
+        flat.iter().any(|b| matches!(
+            b,
+            PrintBlock::Math { display: true, latex } if latex.contains(r"\bar{x}_w")
+        )),
+        "expected weighted-mean math"
+    );
+    assert!(
+        flat.iter().any(|b| matches!(b, PrintBlock::Table { .. })),
+        "expected table"
+    );
 }

@@ -11,6 +11,13 @@ tes export fixtures/samples/article_bands.tes --pdf --backend native \
   --template-root templates --template article -o tmp/article.pdf
 ```
 
+Article dogfood reseal (THI-397): [`fixtures/samples/jimis_article.tes`](../../fixtures/samples/) vs `tmp/latex-goldens/jimis-article/main.pdf`. Gap notes: [`docs/thi-397-jimis-gaps.md`](../../docs/thi-397-jimis-gaps.md).
+
+```bash
+tes export fixtures/samples/jimis_article.tes --pdf --backend native \
+  --template-root templates --template article -o tmp/thi-397-smoke/jimis-native.pdf
+```
+
 ## Journal field → Tessera
 
 | Recurring class field | Tessera |

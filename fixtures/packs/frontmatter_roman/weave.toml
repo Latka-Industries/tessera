@@ -1,0 +1,23 @@
+# THI-413: roman page labels + even-page chrome. No \frontmatter command.
+[page.numbers]
+style = "roman"
+
+[page.header]
+enabled = true
+format = "{title}"
+align = "left"
+align_even = "right"
+format_even = "{title}"
+font_size = 9.0
+y_margin_factor = 0.55
+
+[page.footer]
+enabled = true
+format = "{page}"
+align = "center"
+font_size = 9.0
+y_margin_factor = 0.45
+
+[page.content]
+top_clearance = 18.0
+bottom_clearance = 18.0

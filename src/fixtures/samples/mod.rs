@@ -10,6 +10,7 @@ mod common;
 mod field_notes;
 mod figure_align;
 mod hyphen_dense;
+mod jimis_article;
 mod lists_of_floats;
 mod manuscript;
 mod mixed_align;
@@ -23,6 +24,7 @@ pub use block_captions::encode_block_captions;
 pub use field_notes::encode_field_notes;
 pub use figure_align::encode_figure_align;
 pub use hyphen_dense::encode_hyphen_dense;
+pub use jimis_article::encode_jimis_article;
 pub use lists_of_floats::encode_lists_of_floats;
 pub use manuscript::encode_manuscript_chapters;
 pub use mixed_align::encode_mixed_align;
@@ -53,6 +55,7 @@ pub fn write_all(dir: &Path) -> Result<()> {
         ("hyphen_dense.tes", encode_hyphen_dense()),
         ("article_columns.tes", encode_article_columns()),
         ("article_bands.tes", encode_article_bands()),
+        ("jimis_article.tes", encode_jimis_article()),
         ("mixed_align.tes", encode_mixed_align()),
         ("lists_of_floats.tes", encode_lists_of_floats()),
     ];

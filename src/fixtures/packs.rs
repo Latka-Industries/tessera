@@ -580,6 +580,26 @@ cargo run -q --bin tes --features native-pdf -- export \
   --template-root fixtures/packs --template line_numbers \
   -o tmp/thi-411-smoke/article_bands__line_numbers.pdf
 ```
+
+## Article dogfood (THI-397)
+
+[`../samples/jimis_article.tes`](../samples/jimis_article.tes) reseals the
+jimis-article witness. Side-by-side with `tmp/latex-goldens/jimis-article/main.pdf`.
+Gap notes: [`../../docs/thi-397-jimis-gaps.md`](../../docs/thi-397-jimis-gaps.md).
+
+```bash
+mkdir -p tmp/thi-397-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/jimis_article.tes \
+  --pdf --backend native \
+  --template-root templates --template article \
+  -o tmp/thi-397-smoke/jimis-native.pdf
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/jimis_article.tes \
+  --pdf --backend chromium \
+  --template-root templates --template article \
+  -o tmp/thi-397-smoke/jimis-chromium.pdf
+```
 "#,
         hyphen_loop = HYPHEN_PACKS
             .iter()
