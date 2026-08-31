@@ -294,11 +294,12 @@ fn html_callout(chunk_id: u64, header: &TextHeader, inner: &str) -> String {
     };
     let mut html =
         format!("  <aside class=\"{class}\" data-chunk-id=\"{chunk_id}\" data-kind=\"{kind}\">\n");
-    html.push_str(&format!(
-        "    <p class=\"tes-callout-title\"><strong>{title}</strong></p>\n"
-    ));
+    let _ = writeln!(
+        html,
+        "    <p class=\"tes-callout-title\"><strong>{title}</strong></p>"
+    );
     if !inner.is_empty() {
-        html.push_str(&format!("    <p>{inner}</p>\n"));
+        let _ = writeln!(html, "    <p>{inner}</p>");
     }
     html.push_str("  </aside>\n");
     html
