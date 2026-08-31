@@ -57,7 +57,7 @@ retired — `decode_tessprek` rejects anything that isn't
 
 # Meeting notes
 
-- Ship Tessprek v2
+- Ship Tessprek v2\footnote{Inline notes are Tessprek, not Markdown `[^1]`.}
 - Update docs
 
 \figure{
@@ -248,6 +248,15 @@ document.
 **Inline** `\cite{key}` in prose resolves to a biblio cite chunk by `label` /
 `source.cite_key`, stores `InlineKind::Citation`, and exports as `[1]` or
 `[@key]` per catalog `cite_style_id`.
+
+### `\footnote{body}` / `\endnote{body}`
+
+Inline in prose (not body-line directives). Decode rewrites the command to a
+ZWSP marker and a pending note; seal stores `InlineKind::Note { kind, body }`.
+Encode restores `\footnote{…}` / `\endnote{…}`. Note body is plain text in v1
+(no nested Tessprek). Native print maps to weave `TextRun.note_id` plus a
+`PrintBlock::Note` def (footnote band vs end dump). HTML emits
+`<sup class="footnote|endnote" title="…">`.
 
 ### `\quote{[label=…] target_doc=UUID target_chunk=N [target_byte_start=N] [target_byte_end=N] [page=N] quote="…"}`
 

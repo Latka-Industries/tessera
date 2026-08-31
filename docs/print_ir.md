@@ -116,10 +116,10 @@ pub struct PrintProfileId {
 
 pub enum PrintBlock {
     Heading { level: u8, runs: Vec<TextRun>, break_before: BreakHint },
-    Paragraph { runs: Vec<TextRun> },
-    List { ordered: bool, items: Vec<ListItem> },
+    Paragraph { runs: Vec<TextRun>, text_align: Option<TextAlign> },
+    List { ordered: bool, items: Vec<ListItem>, text_align: Option<TextAlign> },
     Code { lang: Option<String>, text: String },
-    Quote { runs: Vec<TextRun> },
+    Quote { runs: Vec<TextRun>, text_align: Option<TextAlign> },
     Table { rows: Vec<TableRow> },
     Figure {
         image: PrintImage,
@@ -137,6 +137,9 @@ pub enum PrintBlock {
     Layout {
         ops: Vec<LayoutOp>,
     },
+    /// Footnote / endnote def (THI-410). Not painted in body flow.
+    /// Field is `note_kind` (serde internal tag already uses `kind`).
+    Note { id: String, note_kind: NoteKind, runs: Vec<TextRun> },
     /// Explicit author/export break (e.g. chapter boundary).
     Break(BreakHint),
 }
@@ -154,6 +157,8 @@ pub struct TextRun {
     /// Optional pin id for `EmitOptions::pinned_faces` (host TTF).
     /// Tessera prose runs leave this `None` (Liberation style mapping).
     pub face: Option<String>,
+    /// Marker → `PrintBlock::Note.id` (THI-396 / 410).
+    pub note_id: Option<String>,
 }
 
 pub enum BreakHint {
@@ -355,6 +360,7 @@ done
 | Layout chunk (`place` / `vspace` / `rule`) | `Layout` (D24 / THI-363) — see [decisions.md — D24](decisions.md) |
 | Cite / quote / ref chunks | Mapped (THI-348): `\quote` → `Quote`; biblio stub → numbered `Paragraph`; `\ref` → short `Paragraph`; trailing `References` when biblio stubs exist |
 | Inline `Citation` spans | Rewritten to `[n]` / `[@key]` with `style.cite` (same numbering as HTML/Markdown) |
+| Inline `Note` spans | Marker run with `note_id` + `PrintBlock::Note` def (footnote band / endnote dump; THI-396 / 410) |
 | Attachment chunks | Skipped (not prose) |
 | THST / pending | Ignored for print body (sealed body only) |
 

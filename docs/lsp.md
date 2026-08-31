@@ -98,7 +98,8 @@ For a rich Tessprek buffer, open
 [`fixtures/samples/tessprek_showcase.tes`](../fixtures/samples/tessprek_showcase.tes)
 (see [fixtures/samples/README.md](../fixtures/samples/README.md)). Pack `\phrase`
 lives in [`phrases_demo.tessprek`](../fixtures/samples/phrases_demo.tessprek).
-Completions include `\font` / `\phrase` command snippets, plus **pack-aware**
+Completions include `\font` / `\phrase` / `\footnote` / `\endnote` command
+snippets, plus **pack-aware**
 ids inside `\font{…}` / `\phrase{…}` (and pack aliases after a typed prefix)
 resolved from the document `template_id` pack — sparse overlays or master
 `tessera.toml` (THI-369 / THI-367). Pack root: `TES_TEMPLATE_ROOT` or

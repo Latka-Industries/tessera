@@ -103,7 +103,7 @@ Optimized for **LLM context** — no markup, minimal noise.
 | Include | Exclude |
 | --- | --- |
 | Text chunk bodies in reading order | Heading `#` markers (structure via separate JSONL fields if needed) |
-| Resolved cite quotes as plain sentences | `\cite{}`, footnote markers |
+| Resolved cite quotes as plain sentences | `\cite{}`, `\footnote{}` / `\endnote{}` |
 | Layout place content (+ rough leading spaces); `---` for rules | Same lossy layout projection as Markdown (D24) |
 | Table cell text row-by-row | HTML/MD syntax |
 | Single `\n\n` between chunks | Chunk ids in prose (unless `--annotate`) |
@@ -254,6 +254,11 @@ hints as data attrs + minimal positioning styles (theme CSS owns chrome).
 biblio stubs and inline `\cite{key}` use numeric / `[@key]` markers plus the
 bibliography section. Native PDF still skips cite chunks (see [print_ir.md](print_ir.md)).
 
+**Notes:** `\footnote` / `\endnote` emit
+`<sup class="footnote|endnote" title="…">` (body in `title`; no extra note
+chunks). Native PDF places footnotes in the page band and endnotes after body
+([print_ir.md](print_ir.md)).
+
 **Phase:** implemented in Phase 6.
 
 Website/preview HTML and AI HTML are distinct profiles. The former may link a
@@ -308,6 +313,8 @@ Pack `fonts.toml` (id → relative `.ttf`/`.otf`) loads into
 `EmitOptions::pinned_faces` for sealed `\font{id}{…}` spans (D23 / THI-356).
 Category defaults (`[text|heading|quote|cite].font` = pin id) apply when a run
 has no `TextRun.face`; explicit `\font` still overrides (THI-360).
+`--backend native` with weave **0.2.11+** paints per-chunk `align`, `{heading}`
+chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396).
 
 | Flag | Behavior |
 | --- | --- |
