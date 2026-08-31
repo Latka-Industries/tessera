@@ -49,8 +49,8 @@ pub fn encode_article_bands() -> Vec<u8> {
         .expect("keywords");
     session
         .add_text_chunk(
-            &TextHeader::callout("definition", Some("Trace minimale".into())),
-            "Une trace minimale est une trace dont le support ne peut pas être réduit.",
+            &TextHeader::callout("definition", Some("Minimal support".into())),
+            "A support is minimal when no strictly smaller set of observations yields the same mean.",
         )
         .expect("definition");
     session
@@ -81,14 +81,35 @@ pub fn encode_article_bands() -> Vec<u8> {
     session
         .add_text_chunk(&TextHeader::columns_with(2, Some(16)), "")
         .expect("columns open");
-    session
-        .add_text_chunk(
-            &TextHeader::paragraph(),
+    for (tag, para) in [
+        (
+            "col1",
             "Body columns start after the full-width bands. Pair this sample with pack `article` \
-             (journal chrome) or `review` (line-number gutter). jimis is the wording witness, \
-             not a PDF to clone.",
-        )
-        .expect("col body");
+             (journal chrome) or `review` (line-number gutter). Corpus PDFs stay gitignored \
+             witnesses; this file is original Tessera prose, not a template clone.",
+        ),
+        (
+            "col2",
+            "A second paragraph is here so the native column packer can fill the left column \
+             and spill into the right. Weave still spans headings, callouts, figures, tables, \
+             and display math across the full measure; only running prose flows in the band.",
+        ),
+        (
+            "col3",
+            "Keep adding ordinary paragraphs when you want to see newspaper flow. Short \
+             single-paragraph regions look like one skinny column because they never fill \
+             the first column's page height.",
+        ),
+        (
+            "col4",
+            "Pack knobs for gap live in weave.toml `[body_columns]`. Count is on the \
+             Tessprek `\\columns{n=2}` opener, not on the pack.",
+        ),
+    ] {
+        session
+            .add_text_chunk(&TextHeader::paragraph(), para)
+            .expect(tag);
+    }
     session
         .add_text_chunk(&TextHeader::columns_end(), "")
         .expect("columns end");

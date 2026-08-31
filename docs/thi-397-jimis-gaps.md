@@ -1,71 +1,70 @@
-# THI-397 — jimis-article reseal gaps
+# THI-397 — article dogfood gaps
 
-Witness (read-only, gitignored): `tmp/latex-goldens/jimis-article/main.pdf`
-(1 page, A4, two-column French article). Corpus source:
-`tmp/latex-corpus/extra_latex_templates/jimis-article/main.tex`.
+**Do not copy corpus LaTeX into git.** Dropbox / `tmp/latex-corpus/` and
+`tmp/latex-goldens/` are local witnesses (gitignored). Tracked samples are
+original Tessera prose.
 
-Tessera reseal: [`fixtures/samples/jimis_article.tes`](../fixtures/samples/jimis_article.tes)
-via pack `article`. No new print primitives in this ticket.
+Witness (read-only): `tmp/latex-goldens/jimis-article/main.pdf` (1 page A4,
+two-column French article). Shape only — not a clone target and not a fixture.
+
+Tracked sample: [`fixtures/samples/article_bands.tes`](../fixtures/samples/article_bands.tes)
++ pack `article`.
 
 ```bash
 cargo run --example gen_sample_fixtures
 mkdir -p tmp/thi-397-smoke
 cargo run -q --bin tes --features native-pdf -- export \
-  fixtures/samples/jimis_article.tes --pdf --backend native \
+  fixtures/samples/article_bands.tes --pdf --backend native \
   --template-root templates --template article \
-  -o tmp/thi-397-smoke/jimis-native.pdf
+  -o tmp/thi-397-smoke/article_bands-native.pdf
 cargo run -q --bin tes -- export \
-  fixtures/samples/jimis_article.tes --pdf --backend chromium \
+  fixtures/samples/article_bands.tes --pdf --backend chromium \
   --template-root templates --template article \
-  -o tmp/thi-397-smoke/jimis-chromium.pdf
+  -o tmp/thi-397-smoke/article_bands-chromium.pdf
 ```
 
-Open side-by-side: golden `main.pdf` · native · Chromium.
+Open side-by-side: golden (local) · native · Chromium.
 
 ## Good enough (present)
 
-| jimis shape | Tessera |
+| Witness shape | Tessera sample |
 | --- | --- |
-| Title + two authors | H1 + `kind=author` bands |
-| Corresponding-author `\thanks` | footnote on Camille (THI-396) |
-| Abstract + mots-clés | `\abstract` title **Résumé** / `kind=keywords` title **Mots-clés** |
-| `definition[Trace minimale]` | `\theorem{kind=definition}` — same Callout paint (THI-414) |
-| Weighted-mean display `\bar` / `\frac` | `TextRole::Math` (weave 0.2.13 / THI-385) |
-| Two-column body | `\columns{n=2}` after the title block |
-| Numbered bibliography | H2 Références + two paragraphs (no in-text `\cite` in the source) |
+| Title + authors | H1 + `kind=author` band |
+| Abstract + keywords | `\abstract` / `kind=keywords` |
+| Named definition | `\theorem{kind=definition}` — same Callout paint (THI-414) |
+| Two-column body | `\columns{n=2}` after full-width bands (paragraphs only in the region) |
 | Running page | pack `{heading}` / `{page}` |
 
-## Measured this reseal
+## Native columns (why a short region looks one-col)
 
-| PDF | Pages | Size |
-| --- | --- | --- |
-| LaTeX golden | **1** | A4 |
-| Native (`--backend native`, weave 0.2.13) | **3** | A4 |
-| Chromium (`--backend chromium`) | **2** | **Letter** (pack HTML/CSS; not A4) |
+Weave `PrintBlock::Columns` flows **paragraphs / lists / quotes / code** down
+each column. Headings, callouts, figures, tables, and display math **span**
+full measure and flush the band (THI-391). A region with one short paragraph
+only fills column 0 — that is the packer, not a missing `\columns` emit.
 
-Native running header on page 1 is the last H2 on the page (`Protocole`), not a journal short title. Author names are titled bands, not `\maketitle` centered names. Display math paints; **inline `$x_i$` / `$m_i$` stay literal dollars** in both backends.
+`article_bands.tes` keeps titled bands full-width, then several paragraphs in
+`\columns` so the 2-col band can actually fill.
 
 ## Gaps — accept for 0.3.0 (already routed)
 
 | Gap | Where it lives |
 | --- | --- |
-| 3 native pages vs 1 TeX page (type size, margins, titled-band height, no column balance) | densify/geometry; **not** a clone target |
-| Native 2-col **spans** the table full measure; jimis `table[t]` sits in one column | [THI-391](https://linear.app/thicclatka/issue/THI-391) — locked |
-| No last-page column balancing (`balance.sty`) | THI-391 out |
-| Tight jimis geometry (2.2 cm / 1.7 cm, 10 pt, `columnsep=0.8 cm`) vs pack defaults | pack knobs; not a new ticket |
-| Chromium page is Letter, not A4 | HTML print CSS; not grown here |
-| Journal “JIMIS — volume à compléter” is a body paragraph, not `\date` / running chrome | static chrome in `weave.toml` is allowed; article pack keeps `{heading}`/`{page}` |
-| Theorem paint label is English **Definition (Trace minimale).** not **Définition 1** | Tessera-owned `callout_band_title`; not an amsthm clone |
-| Inline `$…$` in prose is not TeX | display `Math` role only; do not invent inline math in 397 |
-| `\ref{tab:trace}` dropped (prose says “le tableau suivant”) | `\ref` is a cite-family pointer, not a float counter |
-| Bibliography is heading + paragraphs, not `thebibliography`. Cite chunks would dump English **References** after `\endcolumns` | cite dump copy is English-only |
-| French babel hyphenation / T1 fonts vs weave ASCII hyphen + Liberation | accept |
-| Hyperref colored links | out |
+| Native 2-col **spans** tables/math/figures full measure; some witnesses put a table in one column | [THI-391](https://linear.app/thicclatka/issue/THI-391) — locked |
+| No last-page column balancing | THI-391 out |
+| Witness geometry (tight A4 10 pt two-col from page 1) vs pack defaults | pack knobs; not a new ticket |
+| Chromium HTML print may be Letter, not A4 | pack `print.css` |
+| Theorem paint label is English (`Definition (…)`.) | Tessera-owned `callout_band_title` |
+| Inline `$…$` in prose is not TeX | display `Math` role only |
+| Cite chunks dump an English **References** heading | not grown here |
 
 ## Chromium vs native
 
-Chromium: 2 Letter pages, CSS columns, HTML `<aside class="tes-callout">`. Native: 3 A4 pages, weave Callout + column flow. Neither matches the 1-page golden; they are not required to match each other. Files: `tmp/thi-397-smoke/jimis-native.pdf`, `tmp/thi-397-smoke/jimis-chromium.pdf`.
+Chromium uses pack CSS columns + `<aside class="tes-callout">`. Native uses
+weave Callout + column flow. They are not required to match each other or the
+LaTeX golden.
 
 ## Out of this ticket
 
-Homework callouts, thesis/book front matter, ACM class port, TikZ, publisher chrome. Optional 1-col witness `compositionality` was not resealed.
+Homework-only callouts, thesis/book front matter, ACM class port, TikZ,
+publisher chrome. Do not vendor corpus `.tex` / `.pdf` / starter prose in
+`fixtures/`.

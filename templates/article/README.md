@@ -11,12 +11,7 @@ tes export fixtures/samples/article_bands.tes --pdf --backend native \
   --template-root templates --template article -o tmp/article.pdf
 ```
 
-Article dogfood reseal (THI-397): [`fixtures/samples/jimis_article.tes`](../../fixtures/samples/) vs `tmp/latex-goldens/jimis-article/main.pdf`. Gap notes: [`docs/thi-397-jimis-gaps.md`](../../docs/thi-397-jimis-gaps.md).
-
-```bash
-tes export fixtures/samples/jimis_article.tes --pdf --backend native \
-  --template-root templates --template article -o tmp/thi-397-smoke/jimis-native.pdf
-```
+THI-397 dogfood: same sample vs a **local** gitignored golden (`tmp/latex-goldens/`, not in this repo). Gap notes: [`docs/thi-397-jimis-gaps.md`](../../docs/thi-397-jimis-gaps.md). Do not copy corpus `.tex` into `fixtures/`.
 
 ## Journal field → Tessera
 

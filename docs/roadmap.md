@@ -34,7 +34,7 @@ indent / multi-arg phrases). **0.2.10** pins weave **0.2.10** and lands the
 THI-316 long-doc print slice (`\toc` / `\lof` / `\lot` / `\columns`, chrome,
 hyphen, outline). **0.2.11** pins weave **0.2.11** and lands per-chunk align
 (THI-398), live `{heading}` chrome (THI-409), and footnotes/endnotes (THI-396).
-Article dogfood reseal is THI-397 (`jimis_article.tes` vs `tmp/latex-goldens/jimis-article/`; gap notes in `docs/thi-397-jimis-gaps.md`). This is an implementation plan, not a
+Article dogfood is THI-397 (`article_bands.tes` vs a local gitignored golden; gap notes in `docs/thi-397-jimis-gaps.md`). Corpus LaTeX is not vendored. This is an implementation plan, not a
 release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc

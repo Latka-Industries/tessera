@@ -583,22 +583,23 @@ cargo run -q --bin tes --features native-pdf -- export \
 
 ## Article dogfood (THI-397)
 
-[`../samples/jimis_article.tes`](../samples/jimis_article.tes) reseals the
-jimis-article witness. Side-by-side with `tmp/latex-goldens/jimis-article/main.pdf`.
-Gap notes: [`../../docs/thi-397-jimis-gaps.md`](../../docs/thi-397-jimis-gaps.md).
+Tracked sample is [`../samples/article_bands.tes`](../samples/article_bands.tes)
+(original Tessera prose). Compare locally to gitignored
+`tmp/latex-goldens/` — do not vendor corpus `.tex`. Gap notes:
+[`../../docs/thi-397-jimis-gaps.md`](../../docs/thi-397-jimis-gaps.md).
 
 ```bash
 mkdir -p tmp/thi-397-smoke
 cargo run -q --bin tes --features native-pdf -- export \
-  fixtures/samples/jimis_article.tes \
+  fixtures/samples/article_bands.tes \
   --pdf --backend native \
   --template-root templates --template article \
-  -o tmp/thi-397-smoke/jimis-native.pdf
-cargo run -q --bin tes --features native-pdf -- export \
-  fixtures/samples/jimis_article.tes \
+  -o tmp/thi-397-smoke/article_bands-native.pdf
+cargo run -q --bin tes -- export \
+  fixtures/samples/article_bands.tes \
   --pdf --backend chromium \
   --template-root templates --template article \
-  -o tmp/thi-397-smoke/jimis-chromium.pdf
+  -o tmp/thi-397-smoke/article_bands-chromium.pdf
 ```
 "#,
         hyphen_loop = HYPHEN_PACKS
