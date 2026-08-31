@@ -54,6 +54,7 @@ pub(super) fn decode_row_panes(panes: &[String], line_no: usize) -> Result<Conte
         pending_links,
         pending_cites: Vec::new(),
         pending_fonts: Vec::new(),
+        pending_notes: Vec::new(),
     })
 }
 

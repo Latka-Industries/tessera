@@ -799,11 +799,58 @@ fn row_pane_icon_macro_becomes_font_run() {
                 "row pane must expand \\icon, got {panes:?}"
             );
             assert!(
-                panes[0].iter().any(|r| r.face.as_deref() == Some(icon.face)
-                    && r.text == icon.glyph.to_string()),
+                panes[0]
+                    .iter()
+                    .any(|r| r.face.as_deref() == Some(icon.face)
+                        && r.text == icon.glyph.to_string()),
                 "expected fab/fas glyph run, got {panes:?}"
             );
         }
         other => panic!("expected Row, got {other:?}"),
     }
+}
+
+#[test]
+fn footnote_span_maps_to_weave_note() {
+    use crate::catalog::chunk::{NOTE_MARKER, NoteKind};
+    let catalog = DocumentCatalog::new(
+        "00000000-0000-0000-0000-000000000396",
+        "Footnote specimen",
+        "2026-01-01T00:00:00Z",
+        "2026-01-01T00:00:00Z",
+        DocKind::Note,
+    );
+    let mut session = TesWriterSession::create("print_notes.tes", DocKind::Note);
+    session.set_catalog(catalog).unwrap();
+    let marker_start = u32::try_from("See ".len()).unwrap();
+    let body = format!("See {NOTE_MARKER} now.");
+    let marker_end = marker_start + u32::try_from(NOTE_MARKER.len()).unwrap();
+    let mut header = TextHeader::paragraph();
+    header.spans.push(InlineSpan {
+        start: marker_start,
+        end: marker_end,
+        kind: InlineKind::Note {
+            kind: NoteKind::Footnote,
+            body: "A clarification.".into(),
+        },
+    });
+    session.add_text_chunk(&header, &body).unwrap();
+    let file = open_bytes("print_notes.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    assert!(
+        doc.blocks.iter().any(|b| matches!(
+            b,
+            PrintBlock::Paragraph { runs, .. }
+                if runs.iter().any(|r| r.note_id.is_some())
+        )),
+        "expected a run with note_id, got {:?}",
+        doc.blocks
+    );
+    assert!(
+        doc.blocks
+            .iter()
+            .any(|b| matches!(b, PrintBlock::Note { .. })),
+        "expected PrintBlock::Note def, got {:?}",
+        doc.blocks
+    );
 }

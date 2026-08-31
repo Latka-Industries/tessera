@@ -38,6 +38,10 @@ pub const TEXT_PREFIX: &str = "\\text{";
 pub const FIGURE_PREFIX: &str = "\\figure{";
 /// Cite directive: bibliography stub `\cite{label=… [author=…] …}` (attrs only).
 pub const CITE_PREFIX: &str = "\\cite{";
+/// Inline footnote: `\footnote{body}` (THI-396). Not a body-line directive.
+pub const FOOTNOTE_PREFIX: &str = "\\footnote{";
+/// Inline endnote: `\endnote{body}` (THI-396). Not a body-line directive.
+pub const ENDNOTE_PREFIX: &str = "\\endnote{";
 /// Quote directive: passage from a doc/chunk `\quote{target_… quote="…"}`.
 pub const QUOTE_PREFIX: &str = "\\quote{";
 /// Ref directive: pointer to a doc/chunk `\ref{target_…}` (no excerpt).

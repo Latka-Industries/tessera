@@ -87,7 +87,40 @@ pub enum InlineKind {
         /// Pack font id (ASCII identifier).
         font_id: String,
     },
+    /// Footnote or endnote callout (THI-396). Body is the note text.
+    Note {
+        /// Page-bottom vs end dump.
+        kind: NoteKind,
+        /// Note body (plain text in v1).
+        body: String,
+    },
 }
+
+/// Footnote vs endnote (Tessprek `\footnote` / `\endnote`; THI-396).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NoteKind {
+    /// Page-bottom band (weave `NoteKind::Footnote`).
+    Footnote,
+    /// Dump after last body block (weave `NoteKind::Endnote`).
+    Endnote,
+}
+
+/// Pending inline note from Tessprek `\footnote{…}` / `\endnote{…}` extraction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingNote {
+    /// Inclusive start byte offset in the rewritten body (ZWSP marker).
+    pub start: u32,
+    /// Exclusive end byte offset in the rewritten body.
+    pub end: u32,
+    /// Footnote vs endnote.
+    pub kind: NoteKind,
+    /// Note body from the brace.
+    pub body: String,
+}
+
+/// Zero-width marker left in the body so the sealed span is non-empty.
+pub const NOTE_MARKER: &str = "\u{200b}";
 
 /// Half-open UTF-8 byte range with a typed kind over a text body.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -299,6 +332,10 @@ fn wrap_markdown_span(inner: String, span: &InlineSpan, links: &[LinkEntry]) -> 
                 format!("\\font{{{font_id}}}{{{inner}}}")
             }
         }
+        InlineKind::Note { kind, body } => match kind {
+            NoteKind::Footnote => format!("\\footnote{{{body}}}"),
+            NoteKind::Endnote => format!("\\endnote{{{body}}}"),
+        },
     }
 }
 

@@ -17,7 +17,10 @@ pub use cite::CitePayload;
 pub use codec::{
     decode_text_payload, encode_text_payload, encode_u32_prefixed, split_u32_prefixed,
 };
-pub use inline::{InlineKind, InlineSpan, TextAlign, is_ascii_ident, is_font_id};
+pub use inline::{
+    InlineKind, InlineSpan, NOTE_MARKER, NoteKind, PendingNote, TextAlign, is_ascii_ident,
+    is_font_id,
+};
 pub use table::{TableCell, TableData, TableRow};
 pub use text::{
     FloatListSource, ListKind, OrderedListNumbering, TEXT_CAPTION_MAX, TEXT_HEADER_MAX_BYTES,

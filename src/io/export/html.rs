@@ -248,80 +248,16 @@ fn render_text_chunk_html(
                 align = html_text_align_attr(header.align)
             )
         }
-        TextRole::ListItem => {
-            // Isolated list items (e.g. slide regions) still need a wrapping list.
-            let mut out = String::new();
-            let mut stack = Vec::new();
-            append_list_item_html(&mut out, &mut stack, chunk_id, header, body, links, cite);
-            close_all_lists(&mut out, &mut stack);
-            out
-        }
+        TextRole::ListItem => html_isolated_list_item(chunk_id, header, body, links, cite),
         TextRole::Blockquote => {
             format!(
                 "  <blockquote data-chunk-id=\"{chunk_id}\"{class}{align}>{inner}</blockquote>\n",
                 align = html_text_align_attr(header.align)
             )
         }
-        TextRole::CodeBlock => {
-            let escaped = escape_html(body);
-            let lang = header
-                .code_lang
-                .as_deref()
-                .map(|l| format!(" class=\"language-{}\"", escape_html(l)))
-                .unwrap_or_default();
-            let mut html = text_title_html(header.title.as_deref());
-            let _ = writeln!(
-                html,
-                "  <pre data-chunk-id=\"{chunk_id}\"{class}><code{lang}>{escaped}</code></pre>"
-            );
-            html.push_str(&text_caption_html(header.caption.as_deref()));
-            html
-        }
-        TextRole::Table => {
-            let mut html = text_title_html(header.title.as_deref());
-            if let Some(table) = &header.table {
-                let mut rows = String::new();
-                for (i, row) in table.rows.iter().enumerate() {
-                    let cells = row.cells.iter().fold(String::new(), |mut acc, cell| {
-                        let tag = if cell.is_header || i == 0 { "th" } else { "td" };
-                        let _ = write!(acc, "<{tag}>{}</{tag}>", escape_html(cell.text.as_str()));
-                        acc
-                    });
-                    let _ = write!(rows, "<tr>{cells}</tr>");
-                }
-                let _ = writeln!(
-                    html,
-                    "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>"
-                );
-            } else {
-                let rows = body.lines().fold(String::new(), |mut acc, line| {
-                    let cells = line.split('\t').fold(String::new(), |mut acc, cell| {
-                        let _ = write!(acc, "<td>{}</td>", escape_html(cell));
-                        acc
-                    });
-                    let _ = write!(acc, "<tr>{cells}</tr>");
-                    acc
-                });
-                let _ = writeln!(
-                    html,
-                    "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>"
-                );
-            }
-            html.push_str(&text_caption_html(header.caption.as_deref()));
-            html
-        }
-        TextRole::Row => {
-            let panes = header.panes.as_deref().unwrap_or(&[]);
-            let cells = panes.iter().fold(String::new(), |mut acc, pane| {
-                let _ = write!(
-                    acc,
-                    "<span class=\"tes-row-pane\">{}</span>",
-                    escape_html(pane.text.as_str())
-                );
-                acc
-            });
-            format!("  <div class=\"tes-row\" data-chunk-id=\"{chunk_id}\"{class}>{cells}</div>\n")
-        }
+        TextRole::CodeBlock => html_code_block(chunk_id, header, body, &class),
+        TextRole::Table => html_table(chunk_id, header, body, &class),
+        TextRole::Row => html_row(chunk_id, header, &class),
         TextRole::Math => {
             let mut html = text_title_html(header.title.as_deref());
             html.push_str(&render_math_html(chunk_id, body, &class, true));
@@ -342,6 +278,84 @@ fn render_text_chunk_html(
         TextRole::Columns => columns_open_html(chunk_id, header),
         TextRole::ColumnsEnd => "  </div>\n".into(),
     }
+}
+
+fn html_isolated_list_item(
+    chunk_id: u64,
+    header: &TextHeader,
+    body: &str,
+    links: &[LinkEntry],
+    cite: Option<CiteProj<'_>>,
+) -> String {
+    // Isolated list items (e.g. slide regions) still need a wrapping list.
+    let mut out = String::new();
+    let mut stack = Vec::new();
+    append_list_item_html(&mut out, &mut stack, chunk_id, header, body, links, cite);
+    close_all_lists(&mut out, &mut stack);
+    out
+}
+
+fn html_code_block(chunk_id: u64, header: &TextHeader, body: &str, class: &str) -> String {
+    let escaped = escape_html(body);
+    let lang = header
+        .code_lang
+        .as_deref()
+        .map(|l| format!(" class=\"language-{}\"", escape_html(l)))
+        .unwrap_or_default();
+    let mut html = text_title_html(header.title.as_deref());
+    let _ = writeln!(
+        html,
+        "  <pre data-chunk-id=\"{chunk_id}\"{class}><code{lang}>{escaped}</code></pre>"
+    );
+    html.push_str(&text_caption_html(header.caption.as_deref()));
+    html
+}
+
+fn html_table(chunk_id: u64, header: &TextHeader, body: &str, class: &str) -> String {
+    let mut html = text_title_html(header.title.as_deref());
+    let rows = if let Some(table) = &header.table {
+        table
+            .rows
+            .iter()
+            .enumerate()
+            .fold(String::new(), |mut acc, (i, row)| {
+                let cells = row.cells.iter().fold(String::new(), |mut acc, cell| {
+                    let tag = if cell.is_header || i == 0 { "th" } else { "td" };
+                    let _ = write!(acc, "<{tag}>{}</{tag}>", escape_html(cell.text.as_str()));
+                    acc
+                });
+                let _ = write!(acc, "<tr>{cells}</tr>");
+                acc
+            })
+    } else {
+        body.lines().fold(String::new(), |mut acc, line| {
+            let cells = line.split('\t').fold(String::new(), |mut acc, cell| {
+                let _ = write!(acc, "<td>{}</td>", escape_html(cell));
+                acc
+            });
+            let _ = write!(acc, "<tr>{cells}</tr>");
+            acc
+        })
+    };
+    let _ = writeln!(
+        html,
+        "  <table data-chunk-id=\"{chunk_id}\"{class}><tbody>{rows}</tbody></table>"
+    );
+    html.push_str(&text_caption_html(header.caption.as_deref()));
+    html
+}
+
+fn html_row(chunk_id: u64, header: &TextHeader, class: &str) -> String {
+    let panes = header.panes.as_deref().unwrap_or(&[]);
+    let cells = panes.iter().fold(String::new(), |mut acc, pane| {
+        let _ = write!(
+            acc,
+            "<span class=\"tes-row-pane\">{}</span>",
+            escape_html(pane.text.as_str())
+        );
+        acc
+    });
+    format!("  <div class=\"tes-row\" data-chunk-id=\"{chunk_id}\"{class}>{cells}</div>\n")
 }
 
 fn columns_open_html(chunk_id: u64, header: &TextHeader) -> String {
@@ -548,11 +562,20 @@ fn apply_spans_html(
                 }
             }
             InlineKind::Font { font_id } => {
-                // HTML/serve marker only; draft CSS has no @font-face from pack pins yet.
                 format!(
                     "<span class=\"font\" data-font=\"{}\">{}</span>",
                     escape_html(font_id),
                     escape_html(&inner)
+                )
+            }
+            InlineKind::Note { kind, body } => {
+                let class = match kind {
+                    crate::catalog::NoteKind::Footnote => "footnote",
+                    crate::catalog::NoteKind::Endnote => "endnote",
+                };
+                format!(
+                    "<sup class=\"{class}\" title=\"{}\"></sup>",
+                    escape_html(body)
                 )
             }
         };

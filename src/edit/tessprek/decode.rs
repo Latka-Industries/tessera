@@ -149,6 +149,7 @@ pub(crate) fn decode_named_directive(
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
             pending_fonts: Vec::new(),
+            pending_notes: Vec::new(),
         }),
         "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
@@ -249,6 +250,7 @@ fn empty_marker_text(header: TextHeader) -> ContentBlock {
         pending_links: Vec::new(),
         pending_cites: Vec::new(),
         pending_fonts: Vec::new(),
+        pending_notes: Vec::new(),
     }
 }
 
@@ -285,6 +287,7 @@ fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Resul
         pending_links: Vec::new(),
         pending_cites: Vec::new(),
         pending_fonts: Vec::new(),
+        pending_notes: Vec::new(),
     })
 }
 

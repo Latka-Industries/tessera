@@ -122,6 +122,7 @@ fn emphasized_run(text: impl Into<String>) -> TextRun {
         },
         face: None,
         link_uri: None,
+        note_id: None,
     }
 }
 
@@ -281,6 +282,7 @@ fn push_text_entry(
             &body,
             cite,
             file.links(),
+            entry.chunk_id,
         );
         return Ok(());
     }
@@ -310,6 +312,11 @@ fn push_text_entry(
         blocks,
         columns,
         map_text_block(entry.chunk_id, &header, &body, profile, cite, file.links()),
+    );
+    push_blocks(
+        blocks,
+        columns,
+        crate::render::print::runs::collect_print_notes(entry.chunk_id, &header.spans),
     );
     if let Some(caption) = nonempty_label(header.caption.as_deref()) {
         push_block(blocks, columns, caption_paragraph(caption));

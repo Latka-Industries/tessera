@@ -30,6 +30,7 @@ pub fn encode_tessprek(file: &TesFile, source_hash: &str) -> Result<String> {
                     pending_links: Vec::new(),
                     pending_cites: Vec::new(),
                     pending_fonts: Vec::new(),
+                    pending_notes: Vec::new(),
                 }
             }
             ChunkType::Figure => {

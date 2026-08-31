@@ -30,7 +30,7 @@ pub(crate) fn map_text_block(
     cite: CiteProj<'_>,
     links: &[crate::catalog::link::LinkEntry],
 ) -> PrintBlock {
-    let runs = || body_to_runs(body, &header.spans, Some(cite), links);
+    let runs = || body_to_runs(body, &header.spans, Some(cite), links, chunk_id);
     match header.role {
         TextRole::Heading => {
             let level = u8::try_from(header.level.unwrap_or(1).clamp(1, 6)).unwrap_or(1);
@@ -42,7 +42,14 @@ pub(crate) fn map_text_block(
             )
         }
         // ListItem: isolated items should have been coalesced; paragraph fallback.
-        TextRole::Paragraph | TextRole::ListItem => PrintBlock::paragraph_align(
+        // Toc/Lof/Lot/Columns: expanded / folded in `map_entries`.
+        TextRole::Paragraph
+        | TextRole::ListItem
+        | TextRole::Toc
+        | TextRole::Lof
+        | TextRole::Lot
+        | TextRole::Columns
+        | TextRole::ColumnsEnd => PrintBlock::paragraph_align(
             runs(),
             header.indent_or_default(),
             super::map_text_align(header.align),
@@ -60,16 +67,6 @@ pub(crate) fn map_text_block(
             display: true,
             latex: body.trim().to_owned(),
         },
-        // Expanded / folded in `map_entries` (list-nav + columns markers).
-        TextRole::Toc
-        | TextRole::Lof
-        | TextRole::Lot
-        | TextRole::Columns
-        | TextRole::ColumnsEnd => PrintBlock::paragraph_align(
-            runs(),
-            header.indent_or_default(),
-            super::map_text_align(header.align),
-        ),
     }
 }
 
@@ -206,7 +203,7 @@ fn map_layout_op(op: &LayoutOp) -> WeaveLayoutOp {
             spans,
         } => WeaveLayoutOp::Place {
             skip: map_place_skip(*skip),
-            runs: body_to_runs(content, spans, None, &[]),
+            runs: body_to_runs(content, spans, None, &[], 0),
         },
         LayoutOp::Vspace { amount } => WeaveLayoutOp::Vspace {
             amount: map_vspace(*amount),

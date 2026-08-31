@@ -195,6 +195,7 @@ pub fn apply_ops_to_blocks(
                     pending_links: Vec::new(),
                     pending_cites: Vec::new(),
                     pending_fonts: Vec::new(),
+                    pending_notes: Vec::new(),
                 });
             }
             TesOp::DeleteChunk { chunk_id } => {

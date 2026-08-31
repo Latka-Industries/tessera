@@ -13,9 +13,11 @@ figure fields and inline underline into weave. THI-324 maps sealed
 `TextRole::Row`, `\icon` Font spans, and `\block{indent=N}` into weave
 `PrintBlock::Row` / run indent; `--theme-id resume` selects weave `resume@0`.
 THI-316 long-doc slice maps `\toc` / `\lof` / `\lot` / `\columns` (+ pack chrome
-/ wrap knobs) into weave TOC/columns/outline/float dests. Layout quality beyond
-prose (THI-291+ tables/math/decks; OS fonts THI-311; footnotes THI-396) continues
-in **`ariadnes-weave`** / Tessera under epic THI-256 / THI-316.
+/ wrap knobs) into weave TOC/columns/outline/float dests. THI-396 maps
+`\footnote{…}` / `\endnote{…}` to weave `PrintBlock::Note` and `TextRun.note_id`
+(page-bottom band vs end dump; collision with footer chrome is weave THI-410).
+Layout quality beyond prose (THI-291+ tables/math/decks; OS fonts THI-311)
+continues in **`ariadnes-weave`** / Tessera under epic THI-256 / THI-316.
 
 Tessera builds the IR from `.tes` (`render::print`) and calls the crate
 (`ariadnes_weave::emit_pdf`). Cargo feature `native-pdf` (default) gates the
@@ -232,12 +234,11 @@ Pack `weave.toml` (or master `[weave.page.*]`) merges onto weave page knobs:
 
 | Key | Meaning |
 | --- | --- |
-| `[page.footer].enabled` / `format` / `align` | Page-number footer (`{page}`, `{pages}`, `{title}`) |
+| `[page.footer].enabled` / `format` / `align` | Page-number footer (`{page}`, `{pages}`, `{title}`, `{heading}`) |
 | `[page.header].*` | Running header (bundled off; same tokens) |
 | `[page.content].top_clearance` / `bottom_clearance` | Reserve when header/footer enabled |
 
-`resume@0` densify still forces header+footer off. Live `{heading}` is deferred.
-See weave `docs/layout-knobs.md` (Page chrome).
+`resume@0` densify still forces header+footer off. `{heading}` is the last H1/H2 whose first content line is on this page or earlier (THI-409). See weave `docs/layout-knobs.md` (Page chrome).
 
 ### Wrap / hyphenation (`ariadnes-weave` path / THI-394)
 

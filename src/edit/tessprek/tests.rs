@@ -302,6 +302,7 @@ fn round_trip_figure_cite_slide_attachment() {
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
             pending_fonts: Vec::new(),
+            pending_notes: Vec::new(),
         },
         ContentBlock::Figure {
             chunk_id: Some(2),
@@ -374,6 +375,7 @@ fn layout_place_vspace_rule_round_trip() {
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
             pending_fonts: Vec::new(),
+            pending_notes: Vec::new(),
         },
         ContentBlock::Layout {
             chunk_id: Some(2),
@@ -402,6 +404,7 @@ fn layout_place_vspace_rule_round_trip() {
             pending_links: Vec::new(),
             pending_cites: Vec::new(),
             pending_fonts: Vec::new(),
+            pending_notes: Vec::new(),
         },
     ];
     let text = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
@@ -696,6 +699,33 @@ Prior work \\cite{keller2020} established the baseline.\n\
     );
     assert!(out.contains("Prior work"), "{out}");
     assert!(!out.contains("\\quote{"), "{out}");
+}
+
+#[test]
+fn inline_footnote_round_trips_in_tessprek() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
+\n\
+A claim\\footnote{A clarification.} holds.\n\
+";
+    let blocks = decode_tessprek(input).unwrap();
+    assert_eq!(blocks.len(), 1);
+    match &blocks[0] {
+        ContentBlock::Text {
+            body,
+            pending_notes,
+            ..
+        } => {
+            assert!(!body.contains("\\footnote{"), "{body}");
+            assert_eq!(pending_notes.len(), 1);
+            assert_eq!(pending_notes[0].body, "A clarification.");
+            assert_eq!(pending_notes[0].kind, crate::catalog::NoteKind::Footnote);
+        }
+        other => panic!("expected text, got {other:?}"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\footnote{A clarification.}"), "{out}");
 }
 
 #[test]

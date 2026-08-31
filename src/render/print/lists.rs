@@ -14,6 +14,7 @@ pub(crate) struct PendingListItem {
     indent: u32,
     align: Option<WeaveAlign>,
     runs: Vec<TextRun>,
+    notes: Vec<PrintBlock>,
 }
 
 pub(crate) fn push_list_item(
@@ -23,6 +24,7 @@ pub(crate) fn push_list_item(
     body: &str,
     cite: CiteProj<'_>,
     links: &[crate::catalog::link::LinkEntry],
+    chunk_id: u64,
 ) {
     let kind = header.list_kind.unwrap_or(ListKind::Bullet);
     let depth = header.list_depth_or_default();
@@ -37,7 +39,8 @@ pub(crate) fn push_list_item(
         kind,
         indent: header.indent_or_default(),
         align: super::map_text_align(header.align),
-        runs: body_to_runs(body, &header.spans, Some(cite), links),
+        runs: body_to_runs(body, &header.spans, Some(cite), links, chunk_id),
+        notes: super::runs::collect_print_notes(chunk_id, &header.spans),
     });
 }
 
@@ -46,7 +49,9 @@ pub(crate) fn flush_list(blocks: &mut Vec<PrintBlock>, list_buf: &mut Vec<Pendin
         return;
     }
     let items = std::mem::take(list_buf);
+    let notes: Vec<_> = items.iter().flat_map(|i| i.notes.iter().cloned()).collect();
     blocks.push(coalesce_list(&items));
+    blocks.extend(notes);
 }
 
 fn coalesce_list(items: &[PendingListItem]) -> PrintBlock {

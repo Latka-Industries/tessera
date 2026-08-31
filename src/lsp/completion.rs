@@ -203,6 +203,29 @@ fn push_inline_macro_snippets(
             "\\icon{${1:github}}$0".into(),
         ));
     }
+    if "footnote".starts_with(typed) || typed.is_empty() {
+        items.push(snippet_command_item(
+            "\\footnote",
+            "footnote (seal to InlineKind::Note)",
+            "Seal `\\footnote{body}` → inline note; native print paints a page-bottom band (THI-396).".into(),
+            line,
+            replace_start,
+            character,
+            "\\footnote{${1:note}}$0".into(),
+        ));
+    }
+    if "endnote".starts_with(typed) || typed.is_empty() {
+        items.push(snippet_command_item(
+            "\\endnote",
+            "endnote (seal to InlineKind::Note)",
+            "Seal `\\endnote{body}` → inline note dumped after the last body block (THI-396)."
+                .into(),
+            line,
+            replace_start,
+            character,
+            "\\endnote{${1:note}}$0".into(),
+        ));
+    }
 }
 
 fn push_pack_alias_items(

@@ -22,6 +22,7 @@ Markdown has no syntax for.
 | Heading, paragraph, list, blockquote, table, math, fenced code | Plain Markdown |
 | Figure, biblio cite, quote, ref, slide, layout, toc, attachment | `\figure{…}` / `\cite{…}` / `\quote{…}` / `\ref{…}` / `\slide{…}` / `\layout{…}` / `\toc{…}` / `\attach{…}` |
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
+| Footnote / endnote | `\footnote{body}` / `\endnote{body}` in prose → `InlineKind::Note` (THI-396). Marker is a ZWSP in the sealed body; encode restores the command. Native print maps to weave `PrintBlock::Note` + `TextRun.note_id`. Note body is plain text in v1 (no nested Tessprek). |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
 | Named FA icon | `\icon{name}` → same Font seal (`fab`/`fas` + glyph); encode prefers `\icon` when known |
 | Pack phrase (expand) | `\phrase{key}{arg…}` → ordinary Tessprek at format (lossy; not sealed). `{arg}`/`$1` and `{argN}`/`$N` |
