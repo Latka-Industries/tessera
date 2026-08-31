@@ -143,6 +143,100 @@ Justified column body.\n\
 }
 
 #[test]
+fn round_trip_theorem_proof_and_callout() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2,3,4,5}\n\
+\n\
+A preceding paragraph.\n\
+\n\
+\\theorem{kind=definition title=\"Trace minimale\"}\n\
+Une trace minimale est une trace.\n\
+\n\
+\\proof\n\
+By construction.\n\
+\n\
+\\callout{kind=note title=\"Note\"}\n\
+Rho-shaped aside.\n\
+\n\
+\\abstract\n\
+Keywords live on a later band.\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 5);
+    match &blocks[1] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Callout);
+            assert_eq!(header.callout_kind.as_deref(), Some("definition"));
+            assert_eq!(header.title.as_deref(), Some("Trace minimale"));
+            assert_eq!(body, "Une trace minimale est une trace.");
+        }
+        _ => panic!("expected theorem callout"),
+    }
+    match &blocks[2] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.callout_kind.as_deref(), Some("proof"));
+            assert_eq!(body, "By construction.");
+        }
+        _ => panic!("expected proof"),
+    }
+    match &blocks[3] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.callout_kind.as_deref(), Some("note"));
+            assert_eq!(header.title.as_deref(), Some("Note"));
+            assert_eq!(body, "Rho-shaped aside.");
+        }
+        _ => panic!("expected callout"),
+    }
+    match &blocks[4] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.callout_kind.as_deref(), Some("abstract"));
+            assert_eq!(body, "Keywords live on a later band.");
+        }
+        _ => panic!("expected abstract"),
+    }
+    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
+    assert!(out.contains("\\theorem{"), "{out}");
+    assert!(out.contains("kind=definition"), "{out}");
+    assert!(out.contains("title=\"Trace minimale\""), "{out}");
+    assert!(out.contains("\\proof"), "{out}");
+    assert!(out.contains("\\callout{"), "{out}");
+    assert!(out.contains("kind=note"), "{out}");
+    assert!(out.contains("\\abstract"), "{out}");
+    let again = decode_tessprek(&out).expect("re-decode");
+    assert_eq!(again.len(), 5);
+}
+
+#[test]
+fn theorem_body_stops_at_blank_line() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1,2}\n\
+\n\
+\\theorem{kind=lemma}\n\
+First sentence of the lemma.\n\
+\n\
+This paragraph is not in the lemma.\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert_eq!(blocks.len(), 2);
+    match &blocks[0] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.callout_kind.as_deref(), Some("lemma"));
+            assert_eq!(body, "First sentence of the lemma.");
+        }
+        _ => panic!("expected lemma"),
+    }
+    match &blocks[1] {
+        ContentBlock::Text { header, body, .. } => {
+            assert_eq!(header.role, TextRole::Paragraph);
+            assert!(body.contains("not in the lemma"));
+        }
+        _ => panic!("expected following paragraph"),
+    }
+}
+
+#[test]
 fn round_trip_toc_directive() {
     let input = "\
 \\tessera{format=tessprek version=2}\n\

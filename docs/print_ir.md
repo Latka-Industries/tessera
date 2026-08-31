@@ -2,7 +2,8 @@
 
 **Status (Tessera 0.2.11):** prose print-tree builder + CLI `--backend native`
 shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Requires
-**`ariadnes-weave` ≥ 0.2.11** (per-block `text_align`, live `{heading}` chrome,
+**`ariadnes-weave` ≥ 0.2.13** (titled-band `PrintBlock::Callout`; `[body].line_numbers`;
+roman/arabic `{page}` + even/odd chrome; per-block `text_align`, live `{heading}` chrome,
 `PrintBlock::Note` footnote band / endnote dump; long-doc: page chrome,
 hyphen/widows, `TocEntry`, `/Outlines`, `Columns`, figure/table `dest_id` since
 0.2.10; resume densify / N-pane `Row` / authored indent since 0.2.9; figure
@@ -18,6 +19,9 @@ selects weave `resume@0`. THI-316 long-doc slice maps `\toc` / `\lof` / `\lot` /
 dests. THI-398 maps per-chunk `align=` into weave `text_align`. THI-396 maps
 `\footnote{…}` / `\endnote{…}` to weave `PrintBlock::Note` and `TextRun.note_id`
 (page-bottom band vs end dump; collision with footer chrome is weave THI-410).
+THI-414 / THI-412 map `\theorem` / `\proof` / `\callout` / `\abstract` onto one
+`PrintBlock::Callout` (kind is IR-only). Pack `[body].line_numbers` (THI-415) and
+`[page.numbers]` / `align_even` (THI-413) overlay via `weave.toml`.
 Layout quality beyond prose (THI-291+ tables/math/decks; OS fonts THI-311)
 continues in **`ariadnes-weave`** / Tessera under epic THI-256 / THI-316.
 

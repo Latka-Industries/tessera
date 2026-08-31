@@ -44,6 +44,9 @@ const BARE_MARKERS: &[(&str, &str)] = &[
     ("\\endcolumns", "endcolumns"),
 ];
 
+/// Bare titled-band openers whose following paragraph is the body (THI-414 / 412).
+const BARE_BODY_MARKERS: &[(&str, &str)] = &[("\\proof", "proof"), ("\\abstract", "abstract")];
+
 pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
     let mut segments = Vec::new();
     let mut i = scan_tessprek_preamble(lines, 0).body_start;
@@ -74,6 +77,20 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
             continue;
         }
 
+        if let Some(kind) = bare_body_marker_kind(trimmed) {
+            i += 1;
+            let body_start = skip_blank_lines(lines, i);
+            i = next_para_end(lines, body_start);
+            segments.push(Segment::Directive {
+                start,
+                end: i,
+                kind: kind.to_owned(),
+                map: BTreeMap::new(),
+                body: trim_block_body(&lines[body_start..i]),
+            });
+            continue;
+        }
+
         if let Some((kind, prefix)) = match_body_opener(trimmed) {
             i = push_brace_directive(&mut segments, lines, start, i, line_no, kind, prefix)?;
         } else {
@@ -95,6 +112,12 @@ pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
 
 fn bare_marker_kind(trimmed: &str) -> Option<&'static str> {
     BARE_MARKERS
+        .iter()
+        .find_map(|&(token, kind)| (trimmed == token).then_some(kind))
+}
+
+fn bare_body_marker_kind(trimmed: &str) -> Option<&'static str> {
+    BARE_BODY_MARKERS
         .iter()
         .find_map(|&(token, kind)| (trimmed == token).then_some(kind))
 }
@@ -151,6 +174,18 @@ fn push_brace_directive(
                 body: String::new(),
             });
         }
+        "theorem" | "callout" | "proof" | "abstract" => {
+            let body_start = skip_blank_lines(lines, i);
+            i = next_para_end(lines, body_start);
+            let body = trim_block_body(&lines[body_start..i]);
+            segments.push(Segment::Directive {
+                start,
+                end: i,
+                kind: kind.to_owned(),
+                map,
+                body,
+            });
+        }
         "figure" => {
             // Prefer attrs-only (`alt=`). Optional legacy Markdown body:
             // `![alt](media:N)` on the following lines.
@@ -187,14 +222,28 @@ fn push_brace_directive(
     Ok(i)
 }
 
-fn next_boundary(lines: &[&str], mut i: usize) -> usize {
+fn next_para_end(lines: &[&str], mut i: usize) -> usize {
     while i < lines.len() {
         let trimmed = lines[i].trim();
-        if match_body_opener(trimmed).is_some()
-            || trimmed.starts_with("\\row{")
-            || trimmed == "\\row"
-            || bare_marker_kind(trimmed).is_some()
-        {
+        if trimmed.is_empty() || is_segment_boundary(trimmed) {
+            break;
+        }
+        i += 1;
+    }
+    i
+}
+
+fn is_segment_boundary(trimmed: &str) -> bool {
+    match_body_opener(trimmed).is_some()
+        || trimmed.starts_with("\\row{")
+        || trimmed == "\\row"
+        || bare_marker_kind(trimmed).is_some()
+        || bare_body_marker_kind(trimmed).is_some()
+}
+
+fn next_boundary(lines: &[&str], mut i: usize) -> usize {
+    while i < lines.len() {
+        if is_segment_boundary(lines[i].trim()) {
             break;
         }
         i += 1;

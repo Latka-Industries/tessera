@@ -304,6 +304,16 @@ fn command_snippet(surface: &str) -> (String, &'static str) {
             "\\slide{layout=${1:title_body} regions=\"${2:title:1,body:2}\"}$0".into(),
             "slide layout",
         ),
+        "theorem" => (
+            "\\theorem{kind=${1:definition} title=\"${2:}\"}\n${3:body}$0".into(),
+            "theorem / definition band",
+        ),
+        "proof" => ("\\proof\n${1:body}$0".into(), "proof band"),
+        "callout" => (
+            "\\callout{kind=${1:note} title=\"${2:Note}\"}\n${3:body}$0".into(),
+            "named callout / Q&A band",
+        ),
+        "abstract" => ("\\abstract\n${1:body}$0".into(), "abstract band"),
         "attach" => (
             "\\attach{filename=\"${1:file.pdf}\" media_type=${2:application/pdf} sha256=${3:}}$0"
                 .into(),

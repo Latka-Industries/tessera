@@ -632,7 +632,7 @@ pub fn base64_decode(input: &str) -> std::result::Result<Vec<u8>, String> {
         return Err("base64 length not a multiple of 4".into());
     }
     let mut out = Vec::with_capacity(filtered.len() / 4 * 3);
-    for chunk in filtered.chunks_exact(4) {
+    for chunk in filtered.as_chunks::<4>().0 {
         let pad = usize::from(chunk[2] == b'=') + usize::from(chunk[3] == b'=');
         let n0 = val(chunk[0])?;
         let n1 = val(chunk[1])?;

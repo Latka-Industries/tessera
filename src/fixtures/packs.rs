@@ -236,6 +236,40 @@ pub fn write_all(dir: &Path) -> Result<()> {
     for pack in COLUMNS_PACKS {
         write_columns_pack(dir, pack)?;
     }
+    write_toml_pack(
+        dir,
+        "line_numbers",
+        "# THI-415: review line-number gutter (per column). Off in bundled knobs.\n\
+[body]\n\
+line_numbers = true\n",
+    )?;
+    write_toml_pack(
+        dir,
+        "frontmatter_roman",
+        "# THI-413: roman page labels + even-page chrome. No \\frontmatter command.\n\
+[page.numbers]\n\
+style = \"roman\"\n\
+\n\
+[page.header]\n\
+enabled = true\n\
+format = \"{title}\"\n\
+align = \"left\"\n\
+align_even = \"right\"\n\
+format_even = \"{title}\"\n\
+font_size = 9.0\n\
+y_margin_factor = 0.55\n\
+\n\
+[page.footer]\n\
+enabled = true\n\
+format = \"{page}\"\n\
+align = \"center\"\n\
+font_size = 9.0\n\
+y_margin_factor = 0.45\n\
+\n\
+[page.content]\n\
+top_clearance = 18.0\n\
+bottom_clearance = 18.0\n",
+    )?;
     fs::write(dir.join("README.md"), packs_readme())?;
     fs::write(dir.join("page_chrome").join("README.md"), chrome_readme())?;
     fs::write(dir.join("hyphen_on").join("README.md"), hyphen_readme())?;
@@ -256,6 +290,13 @@ fn write_stub_shell(pack_dir: &Path, id: &str) -> Result<()> {
         ),
     )?;
     fs::write(themes.join("print.css"), STUB_CSS)?;
+    Ok(())
+}
+
+fn write_toml_pack(root: &Path, id: &str, weave: &str) -> Result<()> {
+    let pack_dir = root.join(id);
+    write_stub_shell(&pack_dir, id)?;
+    fs::write(pack_dir.join("weave.toml"), weave)?;
     Ok(())
 }
 
@@ -515,7 +556,29 @@ cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/lists_of_floats.tes \
   --pdf --backend native \
   --template-root fixtures/packs --template page_chrome \
-  -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
+    -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
+```
+
+## Titled bands / article chrome (THI-411 / 412 / 414 / 415)
+
+Product packs live under [`../../templates/`](../../templates/) (`article`, `frontmatter`, `review`).
+Smoke overlays here:
+
+* `line_numbers` — `[body].line_numbers = true`
+* `frontmatter_roman` — `[page.numbers] style = roman` + even-page header
+
+```bash
+mkdir -p tmp/thi-411-smoke
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/article_bands.tes \
+  --pdf --backend native \
+  --template-root templates --template article \
+  -o tmp/thi-411-smoke/article_bands__article.pdf
+cargo run -q --bin tes --features native-pdf -- export \
+  fixtures/samples/article_bands.tes \
+  --pdf --backend native \
+  --template-root fixtures/packs --template line_numbers \
+  -o tmp/thi-411-smoke/article_bands__line_numbers.pdf
 ```
 "#,
         hyphen_loop = HYPHEN_PACKS

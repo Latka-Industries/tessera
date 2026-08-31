@@ -1,0 +1,2 @@
+/* Native PDF ignores pack CSS; required by TemplatePack::load. */
+body { margin: 0; }

@@ -24,5 +24,5 @@ pub use inline::{
 pub use table::{TableCell, TableData, TableRow};
 pub use text::{
     FloatListSource, ListKind, OrderedListNumbering, TEXT_CAPTION_MAX, TEXT_HEADER_MAX_BYTES,
-    TextHeader, TextRole,
+    TextHeader, TextRole, is_theorem_kind,
 };

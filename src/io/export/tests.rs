@@ -264,6 +264,33 @@ fn html_renders_text_block_captions() {
 }
 
 #[test]
+fn html_renders_callout_aside() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("callout.tes");
+    let mut s = TesWriterSession::create(&path, DocKind::Document);
+    s.set_catalog(DocumentCatalog::new(
+        "b10e8400-e29b-41d4-a716-4466554400bb",
+        "Bands",
+        "2026-08-31T00:00:00Z",
+        "2026-08-31T00:00:00Z",
+        DocKind::Document,
+    ))
+    .unwrap();
+    s.add_text_chunk(
+        &TextHeader::callout("definition", Some("Trace minimale".into())),
+        "Une trace minimale est une trace.",
+    )
+    .unwrap();
+    s.commit().unwrap();
+
+    let file = crate::catalog::TesFile::open(&path).unwrap();
+    let html = export_file(&file, ExportView::Html, &ExportOptions::default()).unwrap();
+    assert!(html.contains("tes-callout-definition"), "{html}");
+    assert!(html.contains("Definition (Trace minimale)"), "{html}");
+    assert!(html.contains("<aside"), "{html}");
+}
+
+#[test]
 fn annotate_ai_text() {
     let dir = tempdir().unwrap();
     let path = write_note(dir.path());

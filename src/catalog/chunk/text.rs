@@ -79,6 +79,11 @@ pub enum TextRole {
     ///
     /// Empty body end marker pairing [`TextRole::Columns`].
     ColumnsEnd,
+    /// Titled band (theorem / definition / callout / Q&A / abstract).
+    ///
+    /// Tessprek `\theorem` / `\proof` / `\callout` / `\abstract` (THI-414 / 412).
+    /// Print maps to weave `PrintBlock::Callout`; `callout_kind` is IR-only.
+    Callout,
 }
 
 impl TextRole {
@@ -99,6 +104,7 @@ impl TextRole {
             Self::Lot => "lot",
             Self::Columns => "columns",
             Self::ColumnsEnd => "columns_end",
+            Self::Callout => "callout",
         }
     }
 
@@ -256,6 +262,11 @@ pub struct TextHeader {
     /// Absent → weave pack `[body_columns].gap`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub columns_gap: Option<u16>,
+    /// Band kind when `role` is [`TextRole::Callout`] (`definition`, `note`, …).
+    ///
+    /// IR-only for weave paint (one titled band). Tessera owns the visible label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub callout_kind: Option<String>,
 }
 
 impl TextHeader {
@@ -285,6 +296,7 @@ impl TextHeader {
             float_list_source: None,
             columns_count: None,
             columns_gap: None,
+            callout_kind: None,
         }
     }
 
@@ -347,6 +359,34 @@ impl TextHeader {
     #[must_use]
     pub fn columns_end() -> Self {
         Self::with_role(TextRole::ColumnsEnd)
+    }
+
+    /// Titled band (`\theorem` / `\callout` / `\proof` / `\abstract`).
+    #[must_use]
+    pub fn callout(kind: impl Into<String>, title: Option<String>) -> Self {
+        let mut h = Self::with_role(TextRole::Callout);
+        h.callout_kind = Some(kind.into());
+        h.title = title.filter(|s| !s.is_empty());
+        h
+    }
+
+    /// Visible band label (Tessera owns paint text; weave `callout_kind` is IR-only).
+    #[must_use]
+    pub fn callout_band_title(&self) -> String {
+        let kind = self.callout_kind.as_deref().unwrap_or("note");
+        let label = capitalize_ascii_ident(kind);
+        match self
+            .title
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            Some(title) if is_theorem_kind(kind) && kind != "proof" => {
+                format!("{label} ({title}).")
+            }
+            Some(title) => title.to_owned(),
+            None => format!("{label}."),
+        }
     }
 
     /// Effective column count (absent → 2).
@@ -426,7 +466,9 @@ impl TextHeader {
                     | TextRole::Lot
                     | TextRole::Columns
                     | TextRole::ColumnsEnd
+                    | TextRole::Callout
             )
+            || self.callout_kind.is_some()
     }
 
     /// Effective print band indent level (absent → 0).
@@ -534,6 +576,7 @@ impl TextHeader {
                     | TextRole::Toc
                     | TextRole::Lof
                     | TextRole::Lot
+                    | TextRole::Callout
             ),
             _ => matches!(
                 self.role,
@@ -543,7 +586,7 @@ impl TextHeader {
         if !ok {
             return Err(TesError::InvalidTextHeader {
                 message: format!(
-                    "{name} is only valid on table, math, or code_block (title also on toc/lof/lot)"
+                    "{name} is only valid on table, math, or code_block (title also on toc/lof/lot/callout)"
                 ),
             });
         }
@@ -571,6 +614,7 @@ impl TextHeader {
         self.validate_heading_level()?;
         self.validate_list_nav_fields()?;
         self.validate_columns_fields()?;
+        self.validate_callout_fields()?;
         self.validate_list_indent_fields()?;
         Ok(())
     }
@@ -703,6 +747,26 @@ impl TextHeader {
         Ok(())
     }
 
+    fn validate_callout_fields(&self) -> Result<()> {
+        if self.role == TextRole::Callout {
+            let Some(kind) = self.callout_kind.as_deref() else {
+                return Err(TesError::InvalidTextHeader {
+                    message: "role=callout requires callout_kind".into(),
+                });
+            };
+            if !super::is_ascii_ident(kind) || kind.len() > 32 {
+                return Err(TesError::InvalidTextHeader {
+                    message: "callout_kind must be an ASCII identifier (1..=32)".into(),
+                });
+            }
+        } else if self.callout_kind.is_some() {
+            return Err(TesError::InvalidTextHeader {
+                message: "callout_kind is only valid on callout".into(),
+            });
+        }
+        Ok(())
+    }
+
     fn validate_list_indent_fields(&self) -> Result<()> {
         if self.list_depth.is_some() && self.role != TextRole::ListItem {
             return Err(TesError::InvalidTextHeader {
@@ -792,8 +856,30 @@ impl TextHeader {
             TextRole::Lot => render_float_list_tessprek(self, "lot"),
             TextRole::Columns => render_columns_tessprek(self),
             TextRole::ColumnsEnd => "\\endcolumns".into(),
+            TextRole::Callout => render_callout_tessprek(self, &spanned),
             TextRole::Paragraph => spanned,
         }
+    }
+}
+
+/// Named-block kinds that encode as `\theorem{kind=…}` (THI-414).
+#[must_use]
+pub fn is_theorem_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "definition" | "theorem" | "lemma" | "corollary" | "remark" | "proof"
+    )
+}
+
+fn capitalize_ascii_ident(kind: &str) -> String {
+    let mut chars = kind.chars();
+    match chars.next() {
+        Some(first) => {
+            let mut out = first.to_uppercase().collect::<String>();
+            out.push_str(chars.as_str());
+            out
+        }
+        None => String::new(),
     }
 }
 
@@ -860,6 +946,36 @@ fn render_columns_tessprek(header: &TextHeader) -> String {
         "\\columns".into()
     } else {
         format!("\\columns{{{}}}", parts.join(" "))
+    }
+}
+
+/// Tessprek projection: `\theorem` / `\proof` / `\abstract` / `\callout` + body.
+fn render_callout_tessprek(header: &TextHeader, body: &str) -> String {
+    let kind = header.callout_kind.as_deref().unwrap_or("note");
+    let mut parts = Vec::new();
+    let cmd = if kind == "proof" {
+        "proof"
+    } else if kind == "abstract" {
+        "abstract"
+    } else if is_theorem_kind(kind) {
+        parts.push(format!("kind={kind}"));
+        "theorem"
+    } else {
+        parts.push(format!("kind={kind}"));
+        "callout"
+    };
+    if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
+        parts.push(format!("title=\"{title}\""));
+    }
+    let opener = if parts.is_empty() {
+        format!("\\{cmd}")
+    } else {
+        format!("\\{cmd}{{{}}}", parts.join(" "))
+    };
+    if body.is_empty() {
+        opener
+    } else {
+        format!("{opener}\n{body}")
     }
 }
 

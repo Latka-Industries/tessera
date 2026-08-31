@@ -142,15 +142,10 @@ pub(crate) fn decode_named_directive(
         "lof" => decode_float_list_block(map, line_no, TextRole::Lof),
         "lot" => decode_float_list_block(map, line_no, TextRole::Lot),
         "columns" => decode_columns_block(map, line_no),
-        "endcolumns" => Ok(ContentBlock::Text {
-            chunk_id: None,
-            header: TextHeader::columns_end(),
-            body: String::new(),
-            pending_links: Vec::new(),
-            pending_cites: Vec::new(),
-            pending_fonts: Vec::new(),
-            pending_notes: Vec::new(),
-        }),
+        "endcolumns" => Ok(empty_marker_text(TextHeader::columns_end())),
+        "theorem" | "callout" | "proof" | "abstract" => {
+            decode_callout_block(kind, map, body, line_no)
+        }
         "attachment" => decode_attachment_block(map, line_no),
         other => Err(parse_err(
             line_no,
@@ -252,6 +247,50 @@ fn empty_marker_text(header: TextHeader) -> ContentBlock {
         pending_fonts: Vec::new(),
         pending_notes: Vec::new(),
     }
+}
+
+fn decode_callout_block(
+    cmd: &str,
+    map: &BTreeMap<String, String>,
+    body: &str,
+    line_no: usize,
+) -> Result<ContentBlock> {
+    let default_kind = match cmd {
+        "proof" => "proof",
+        "abstract" => "abstract",
+        "theorem" => "theorem",
+        _ => "note",
+    };
+    let kind = map
+        .get("kind")
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(default_kind);
+    if !crate::catalog::chunk::is_ascii_ident(kind) || kind.len() > 32 {
+        return Err(parse_err(
+            line_no,
+            1,
+            format!("callout kind '{kind}' must be an ASCII identifier (1..=32)"),
+        ));
+    }
+    let title = map
+        .get("title")
+        .cloned()
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty());
+    let header = TextHeader::callout(kind, title);
+    let (body, pending_cites) = super::inline_cite::extract_inline_cites(body.trim())?;
+    let (body, pending_notes) = super::inline_note::extract_inline_notes(&body)?;
+    Ok(ContentBlock::Text {
+        chunk_id: None,
+        header,
+        body,
+        pending_links: Vec::new(),
+        pending_cites,
+        pending_fonts: Vec::new(),
+        pending_notes,
+    })
 }
 
 fn decode_columns_block(map: &BTreeMap<String, String>, line_no: usize) -> Result<ContentBlock> {

@@ -50,101 +50,150 @@ pub fn encode_content_blocks(
 
     let mut ordered = OrderedListNumbering::default();
     for (i, block) in blocks.iter().enumerate() {
-        let next = blocks.get(i + 1);
-        match block {
-            ContentBlock::Text {
-                header,
-                body,
-                pending_links,
-                pending_cites,
-                pending_fonts,
-                pending_notes,
-                ..
-            } => {
-                if header.role.is_list_nav()
-                    || matches!(header.role, TextRole::Columns | TextRole::ColumnsEnd)
-                {
-                    let _ = writeln!(out, "{}", header.render_markdown(""));
-                    out.push('\n');
-                    continue;
-                }
-                let ordered_index = ordered.take_for_text(header);
-                // One `\block{indent=N}` per list run — not before every item.
-                let mut attr_header = header.clone();
-                if header.role == TextRole::ListItem && i > 0 && blocks[i - 1].is_list_item() {
-                    attr_header.indent = None;
-                }
-                write_block_directive(&mut out, &attr_header);
-                out.push_str(
-                    render_text_body(
-                        header,
-                        body,
-                        pending_links,
-                        pending_cites,
-                        pending_fonts,
-                        pending_notes,
-                        links,
-                        &cite_keys,
-                        ordered_index,
-                    )
-                    .trim_end(),
-                );
-                // Tight lists: consecutive list items share a single newline
-                // (CommonMark). Blank line separates other blocks / list runs.
-                out.push_str(
-                    if block.is_list_item() && next.is_some_and(ContentBlock::is_list_item) {
-                        "\n"
-                    } else {
-                        "\n\n"
-                    },
-                );
-            }
-            other => {
-                ordered.clear();
-                match other {
-                    ContentBlock::Figure { figure, .. } => {
-                        write_figure_directive(&mut out, figure);
-                        out.push('\n');
-                    }
-                    ContentBlock::Cite { cite, .. } => {
-                        write_cite_family(&mut out, cite);
-                        out.push('\n');
-                    }
-                    ContentBlock::Slide { slide, .. } => {
-                        write_slide_directive(&mut out, slide);
-                        out.push('\n');
-                    }
-                    ContentBlock::Layout { layout, .. } => {
-                        write_layout_directive(&mut out, layout);
-                        out.push('\n');
-                    }
-                    ContentBlock::Attachment {
-                        chunk_id,
-                        filename,
-                        media_type,
-                        caption,
-                        sha256,
-                    } => {
-                        write_attachment_directive(
-                            &mut out,
-                            *chunk_id,
-                            &AttachmentPayload {
-                                filename: filename.clone(),
-                                media_type: media_type.clone(),
-                                caption: caption.clone(),
-                                sha256: sha256.clone(),
-                                // Bytes are not projected in Tessprek.
-                                data: Vec::new(),
-                            },
-                        );
-                        out.push('\n');
-                    }
-                    ContentBlock::Text { .. } => unreachable!("text handled above"),
-                }
-            }
-        }
+        write_encoded_block(&mut out, i, block, blocks, links, &cite_keys, &mut ordered);
     }
     out
+}
+
+fn write_encoded_block(
+    out: &mut String,
+    i: usize,
+    block: &ContentBlock,
+    blocks: &[ContentBlock],
+    links: &[LinkEntry],
+    cite_keys: &BTreeMap<u64, String>,
+    ordered: &mut OrderedListNumbering,
+) {
+    match block {
+        ContentBlock::Text {
+            header,
+            body,
+            pending_links,
+            pending_cites,
+            pending_fonts,
+            pending_notes,
+            ..
+        } => write_encoded_text(
+            out,
+            i,
+            block,
+            blocks,
+            header,
+            body,
+            pending_links,
+            pending_cites,
+            pending_fonts,
+            pending_notes,
+            links,
+            cite_keys,
+            ordered,
+        ),
+        other => {
+            ordered.clear();
+            write_encoded_directive(out, other);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_encoded_text(
+    out: &mut String,
+    i: usize,
+    block: &ContentBlock,
+    blocks: &[ContentBlock],
+    header: &TextHeader,
+    body: &str,
+    pending_links: &[OutboundLink],
+    pending_cites: &[PendingCite],
+    pending_fonts: &[PendingFont],
+    pending_notes: &[PendingNote],
+    links: &[LinkEntry],
+    cite_keys: &BTreeMap<u64, String>,
+    ordered: &mut OrderedListNumbering,
+) {
+    if header.role.is_list_nav() || matches!(header.role, TextRole::Columns | TextRole::ColumnsEnd)
+    {
+        let _ = writeln!(out, "{}", header.render_markdown(""));
+        out.push('\n');
+        return;
+    }
+    let ordered_index = ordered.take_for_text(header);
+    // One `\block{indent=N}` per list run — not before every item.
+    let mut attr_header = header.clone();
+    if header.role == TextRole::ListItem && i > 0 && blocks[i - 1].is_list_item() {
+        attr_header.indent = None;
+    }
+    // Callout title/kind live on `\theorem` / `\callout`, not `\block`.
+    if header.role != TextRole::Callout {
+        write_block_directive(out, &attr_header);
+    }
+    out.push_str(
+        render_text_body(
+            header,
+            body,
+            pending_links,
+            pending_cites,
+            pending_fonts,
+            pending_notes,
+            links,
+            cite_keys,
+            ordered_index,
+        )
+        .trim_end(),
+    );
+    // Tight lists: consecutive list items share a single newline
+    // (CommonMark). Blank line separates other blocks / list runs.
+    let next = blocks.get(i + 1);
+    out.push_str(
+        if block.is_list_item() && next.is_some_and(ContentBlock::is_list_item) {
+            "\n"
+        } else {
+            "\n\n"
+        },
+    );
+}
+
+fn write_encoded_directive(out: &mut String, block: &ContentBlock) {
+    match block {
+        ContentBlock::Figure { figure, .. } => {
+            write_figure_directive(out, figure);
+            out.push('\n');
+        }
+        ContentBlock::Cite { cite, .. } => {
+            write_cite_family(out, cite);
+            out.push('\n');
+        }
+        ContentBlock::Slide { slide, .. } => {
+            write_slide_directive(out, slide);
+            out.push('\n');
+        }
+        ContentBlock::Layout { layout, .. } => {
+            write_layout_directive(out, layout);
+            out.push('\n');
+        }
+        ContentBlock::Attachment {
+            chunk_id,
+            filename,
+            media_type,
+            caption,
+            sha256,
+        } => {
+            write_attachment_directive(
+                out,
+                *chunk_id,
+                &AttachmentPayload {
+                    filename: filename.clone(),
+                    media_type: media_type.clone(),
+                    caption: caption.clone(),
+                    sha256: sha256.clone(),
+                    // Bytes are not projected in Tessprek.
+                    data: Vec::new(),
+                },
+            );
+            out.push('\n');
+        }
+        ContentBlock::Text { .. } => unreachable!("text handled above"),
+    }
 }
 
 fn cite_keys_from_blocks(blocks: &[ContentBlock]) -> std::collections::BTreeMap<u64, String> {

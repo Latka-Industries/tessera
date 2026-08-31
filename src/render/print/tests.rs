@@ -854,3 +854,53 @@ fn footnote_span_maps_to_weave_note() {
         doc.blocks
     );
 }
+
+#[test]
+fn theorem_and_callout_map_to_same_print_callout() {
+    let mut session = TesWriterSession::create("bands.tes", crate::layout::DocKind::Document);
+    session
+        .add_text_chunk(
+            &TextHeader::callout("definition", Some("Trace minimale".into())),
+            "Une trace minimale est une trace.",
+        )
+        .unwrap();
+    session
+        .add_text_chunk(
+            &TextHeader::callout("note", Some("Note".into())),
+            "A rho-shaped aside.",
+        )
+        .unwrap();
+    let file = open_bytes("bands.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    let kinds: Vec<_> = doc
+        .blocks
+        .iter()
+        .filter_map(|b| match b {
+            PrintBlock::Callout {
+                callout_kind,
+                title,
+                body,
+            } => {
+                let title_joined: String = title.iter().map(|r| r.text.as_str()).collect();
+                let body_joined: String = body.iter().map(|r| r.text.as_str()).collect();
+                Some((callout_kind.as_str(), title_joined, body_joined))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        kinds.len(),
+        2,
+        "expected two Callout blocks, got {:?}",
+        doc.blocks
+    );
+    assert_eq!(kinds[0].0, "definition");
+    assert!(
+        kinds[0].1.contains("Definition (Trace minimale)"),
+        "{}",
+        kinds[0].1
+    );
+    assert!(kinds[0].2.contains("trace minimale"));
+    assert_eq!(kinds[1].0, "note");
+    assert_eq!(kinds[1].1, "Note");
+}

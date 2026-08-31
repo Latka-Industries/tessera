@@ -1,0 +1,28 @@
+# Journal-article print profile (THI-411). Not a publisher class.
+# Full-width title / authors / abstract / keywords, then `\columns{n=2}` body
+# (ACM/rho shape). jimis-style 2-col from page 1 is also pack-legal: wrap the
+# whole body including abstract. Vol/issue/DOI are static chrome strings here.
+
+[page.header]
+enabled = true
+format = "{heading}"
+align = "left"
+font_size = 9.0
+y_margin_factor = 0.55
+
+[page.footer]
+enabled = true
+format = "{page}"
+align = "center"
+font_size = 9.0
+y_margin_factor = 0.45
+
+[page.content]
+top_clearance = 18.0
+bottom_clearance = 18.0
+
+[body_columns]
+gap = 18.0
+
+[paragraph]
+text_align = "justify"

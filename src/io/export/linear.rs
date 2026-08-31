@@ -155,6 +155,11 @@ fn append_linear_text(
             out.push_str("\n$$\n");
             append_linear_caption(out, header.caption.as_deref());
         }
+        TextRole::Callout => {
+            let _ = writeln!(out, "**{}**", header.callout_band_title());
+            out.push_str(body.trim_end());
+            out.push('\n');
+        }
         TextRole::Paragraph
         | TextRole::Table
         | TextRole::Row
