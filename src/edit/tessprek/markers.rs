@@ -61,13 +61,15 @@ pub const LOT_PREFIX: &str = "\\lot{";
 pub const COLUMNS_PREFIX: &str = "\\columns{";
 /// Multi-column body close: `\endcolumns` (THI-391).
 pub const ENDCOLUMNS: &str = "\\endcolumns";
-/// Named theorem/definition band: `\theorem{kind=definition title="…"}` (THI-414).
+/// Labeled box: `\box{kind=definition title="…"}`. One following paragraph is the body.
+pub const BOX_PREFIX: &str = "\\box{";
+/// Legacy aliases — decode only; encode emits `\box`.
 pub const THEOREM_PREFIX: &str = "\\theorem{";
-/// Proof band: `\proof{title="…"}` (THI-414). Bare `\proof` also accepted.
+/// Legacy `\proof{…}` — decode only.
 pub const PROOF_PREFIX: &str = "\\proof{";
-/// Callout / Q&A / note band: `\callout{kind=note title="…"}` (THI-412).
+/// Legacy `\callout{…}` — decode only.
 pub const CALLOUT_PREFIX: &str = "\\callout{";
-/// Abstract band: `\abstract{title="…"}` (THI-411). Bare `\abstract` also accepted.
+/// Legacy `\abstract{…}` — decode only.
 pub const ABSTRACT_PREFIX: &str = "\\abstract{";
 /// Meta-row directive opener: `\row{left}{right}…` (2+ content braces).
 pub const ROW_PREFIX: &str = "\\row{";
@@ -135,7 +137,7 @@ pub const TOC_ATTR_KEYS: &[&str] = &[
 pub const FLOAT_LIST_ATTR_KEYS: &[&str] = &["title", "page_numbers", "leaders", "source"];
 /// Preferred attribute keys for `\columns{…}` (THI-391 / THI-398).
 pub const COLUMNS_ATTR_KEYS: &[&str] = &["n", "gap", "align"];
-/// Preferred attribute keys for `\theorem{…}` / `\callout{…}` / `\proof{…}` / `\abstract{…}`.
+/// Preferred attribute keys for `\box{…}` (and legacy `\theorem` / `\callout` / `\proof` / `\abstract`).
 pub const CALLOUT_ATTR_KEYS: &[&str] = &["kind", "title"];
 /// Preferred attribute keys for `\attach{…}`.
 pub const ATTACH_ATTR_KEYS: &[&str] = &["chunk", "filename", "media_type", "sha256", "caption"];
@@ -156,7 +158,7 @@ pub fn command_attr_keys(kind: &str) -> Option<&'static [&'static str]> {
         "toc" => TOC_ATTR_KEYS,
         "lof" | "lot" => FLOAT_LIST_ATTR_KEYS,
         "columns" => COLUMNS_ATTR_KEYS,
-        "theorem" | "callout" | "proof" | "abstract" => CALLOUT_ATTR_KEYS,
+        "box" | "theorem" | "callout" | "proof" | "abstract" => CALLOUT_ATTR_KEYS,
         "attach" | "attachment" => ATTACH_ATTR_KEYS,
         "media" => MEDIA_ATTR_KEYS,
         _ => return None,
@@ -184,16 +186,19 @@ pub const BODY_COMMANDS: &[(&str, &str)] = &[
     (LOF_PREFIX, "lof"),
     (LOT_PREFIX, "lot"),
     (COLUMNS_PREFIX, "columns"),
-    (THEOREM_PREFIX, "theorem"),
-    (PROOF_PREFIX, "proof"),
-    (CALLOUT_PREFIX, "callout"),
-    (ABSTRACT_PREFIX, "abstract"),
+    (BOX_PREFIX, "box"),
     (ATTACH_PREFIX, "attachment"),
 ];
 
 /// Legacy body openers — parsed as the same kinds as [`BODY_COMMANDS`].
 /// Not offered in completions; encode never emits these.
-pub const LEGACY_BODY_OPENERS: &[(&str, &str)] = &[(TEXT_PREFIX, "block")];
+pub const LEGACY_BODY_OPENERS: &[(&str, &str)] = &[
+    (TEXT_PREFIX, "block"),
+    (THEOREM_PREFIX, "theorem"),
+    (PROOF_PREFIX, "proof"),
+    (CALLOUT_PREFIX, "callout"),
+    (ABSTRACT_PREFIX, "abstract"),
+];
 
 /// Wire surface name for completions (`attachment` → `attach`).
 #[must_use]

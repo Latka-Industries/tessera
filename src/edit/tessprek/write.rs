@@ -123,7 +123,7 @@ fn write_encoded_text(
     if header.role == TextRole::ListItem && i > 0 && blocks[i - 1].is_list_item() {
         attr_header.indent = None;
     }
-    // Callout title/kind live on `\theorem` / `\callout`, not `\block`.
+    // Box title/kind live on `\box`, not `\block`.
     if header.role != TextRole::Callout {
         write_block_directive(out, &attr_header);
     }

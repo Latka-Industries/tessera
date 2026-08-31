@@ -18,11 +18,11 @@ THI-397 dogfood: same sample vs a **local** gitignored golden (`tmp/latex-golden
 | Recurring class field | Tessera |
 | --- | --- |
 | Title | catalog `title` / H1 |
-| Author + affiliation + email | `\callout{kind=author title="Name"}` + body; corresponding-author thanks → `\footnote` (THI-396) |
-| Abstract | `\abstract` (or `\callout{kind=abstract}`) + following paragraph |
-| Keywords | `\callout{kind=keywords title="Keywords"}` + body |
-| Theorem / definition / proof | `\theorem{kind=definition title="…"}` / `\proof` (THI-414) |
-| Note / info / Q&A | `\callout{kind=note\|question\|answer}` — **same** titled band (THI-412) |
+| Author + affiliation + email | `\box{kind=author title="Name"}` + body; corresponding-author thanks → `\footnote` (THI-396) |
+| Abstract | `\box{kind=abstract}` + following paragraph |
+| Keywords | `\box{kind=keywords title="Keywords"}` + body |
+| Theorem / definition / proof | `\box{kind=definition title="…"}` / `\box{kind=proof}` (THI-414) |
+| Note / info / Q&A | `\box{kind=note\|question\|answer}` — **same** labeled box (THI-412) |
 | Two-column body | `\columns{n=2}` after full-width bands (or wrap from page 1) |
 | Running head / page | `weave.toml` `{heading}` / `{page}` |
 | Vol / issue / DOI / received | static chrome `format` string in `weave.toml` (no `{doi}` token) |

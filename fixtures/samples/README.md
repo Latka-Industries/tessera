@@ -13,7 +13,7 @@ Hand-built multi-role `.tes` files for exploring Tessprek in Neovim / CLI.
 | `block_captions.tes` | Caption surface matrix |
 | `figure_align.tes` | Figure title/caption band tour (240×120 swatch) — pair with [`../packs/`](../packs/) `figure_*` weave overlays |
 | `article_columns.tes` | 2- then 3-column newspaper body (THI-391) |
-| `article_bands.tes` | Titled bands then `\columns` (THI-411 / 412 / 414). Original Tessera prose. |
+| `article_bands.tes` | Labeled boxes then `\columns` (THI-411 / 412 / 414). Original Tessera prose. |
 | `mixed_align.tes` | Per-chunk / columns `align` mix (THI-398): start lead, justify columns, center aside |
 | `manuscript_chapters.tes` | Fiction draft for `--chapter N` + `manuscript` theme |
 

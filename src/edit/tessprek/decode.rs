@@ -143,7 +143,7 @@ pub(crate) fn decode_named_directive(
         "lot" => decode_float_list_block(map, line_no, TextRole::Lot),
         "columns" => decode_columns_block(map, line_no),
         "endcolumns" => Ok(empty_marker_text(TextHeader::columns_end())),
-        "theorem" | "callout" | "proof" | "abstract" => {
+        "box" | "theorem" | "callout" | "proof" | "abstract" => {
             decode_callout_block(kind, map, body, line_no)
         }
         "attachment" => decode_attachment_block(map, line_no),
@@ -259,6 +259,7 @@ fn decode_callout_block(
         "proof" => "proof",
         "abstract" => "abstract",
         "theorem" => "theorem",
+        "box" => "note",
         _ => "note",
     };
     let kind = map
