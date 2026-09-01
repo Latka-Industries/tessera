@@ -63,14 +63,6 @@ pub const COLUMNS_PREFIX: &str = "\\columns{";
 pub const ENDCOLUMNS: &str = "\\endcolumns";
 /// Labeled box: `\box{kind=definition title="…"}`. One following paragraph is the body.
 pub const BOX_PREFIX: &str = "\\box{";
-/// Legacy aliases — decode only; encode emits `\box`.
-pub const THEOREM_PREFIX: &str = "\\theorem{";
-/// Legacy `\proof{…}` — decode only.
-pub const PROOF_PREFIX: &str = "\\proof{";
-/// Legacy `\callout{…}` — decode only.
-pub const CALLOUT_PREFIX: &str = "\\callout{";
-/// Legacy `\abstract{…}` — decode only.
-pub const ABSTRACT_PREFIX: &str = "\\abstract{";
 /// Meta-row directive opener: `\row{left}{right}…` (2+ content braces).
 pub const ROW_PREFIX: &str = "\\row{";
 /// Attachment directive: `\attach{filename=… media_type=… sha256=…}`.
@@ -137,7 +129,7 @@ pub const TOC_ATTR_KEYS: &[&str] = &[
 pub const FLOAT_LIST_ATTR_KEYS: &[&str] = &["title", "page_numbers", "leaders", "source"];
 /// Preferred attribute keys for `\columns{…}` (THI-391 / THI-398).
 pub const COLUMNS_ATTR_KEYS: &[&str] = &["n", "gap", "align"];
-/// Preferred attribute keys for `\box{…}` (and legacy `\theorem` / `\callout` / `\proof` / `\abstract`).
+/// Preferred attribute keys for `\box{…}`.
 pub const CALLOUT_ATTR_KEYS: &[&str] = &["kind", "title"];
 /// Preferred attribute keys for `\attach{…}`.
 pub const ATTACH_ATTR_KEYS: &[&str] = &["chunk", "filename", "media_type", "sha256", "caption"];
@@ -158,7 +150,7 @@ pub fn command_attr_keys(kind: &str) -> Option<&'static [&'static str]> {
         "toc" => TOC_ATTR_KEYS,
         "lof" | "lot" => FLOAT_LIST_ATTR_KEYS,
         "columns" => COLUMNS_ATTR_KEYS,
-        "box" | "theorem" | "callout" | "proof" | "abstract" => CALLOUT_ATTR_KEYS,
+        "box" => CALLOUT_ATTR_KEYS,
         "attach" | "attachment" => ATTACH_ATTR_KEYS,
         "media" => MEDIA_ATTR_KEYS,
         _ => return None,
@@ -192,13 +184,7 @@ pub const BODY_COMMANDS: &[(&str, &str)] = &[
 
 /// Legacy body openers — parsed as the same kinds as [`BODY_COMMANDS`].
 /// Not offered in completions; encode never emits these.
-pub const LEGACY_BODY_OPENERS: &[(&str, &str)] = &[
-    (TEXT_PREFIX, "block"),
-    (THEOREM_PREFIX, "theorem"),
-    (PROOF_PREFIX, "proof"),
-    (CALLOUT_PREFIX, "callout"),
-    (ABSTRACT_PREFIX, "abstract"),
-];
+pub const LEGACY_BODY_OPENERS: &[(&str, &str)] = &[(TEXT_PREFIX, "block")];
 
 /// Wire surface name for completions (`attachment` → `attach`).
 #[must_use]

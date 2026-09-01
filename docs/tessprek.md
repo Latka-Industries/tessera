@@ -422,7 +422,6 @@ Full-width abstract. Keywords are `\box{kind=keywords title="Keywords"}`.
 
 `kind=` is the label type (`definition`, `theorem`, `lemma`, `proof`, `note`,
 `question`, `author`, `keywords`, `abstract`, …). Encode always writes `\box`.
-Old `\theorem` / `\proof` / `\callout` / `\abstract` still decode.
 
 Print maps to weave `PrintBlock::Callout` (one paint; Tessera owns the visible
 label, e.g. `Definition (Trace minimale).`). HTML: `<aside class="tes-callout tes-callout-{kind}">`.

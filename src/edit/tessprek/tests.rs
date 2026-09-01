@@ -209,30 +209,25 @@ Keywords live on a later band.\n\
 }
 
 #[test]
-fn legacy_box_aliases_still_decode() {
+fn old_box_command_names_are_not_directives() {
     let input = "\
 \\tessera{format=tessprek version=2}\n\
-\\ids{1,2,3,4}\n\
+\\ids{1}\n\
 \n\
-\\theorem{kind=definition title=\"Trace minimale\"}\n\
-Une trace minimale est une trace.\n\
-\n\
-\\proof\n\
-By construction.\n\
-\n\
-\\callout{kind=note title=\"Note\"}\n\
-Rho-shaped aside.\n\
-\n\
-\\abstract\n\
-Keywords live on a later band.\n\
+\\theorem{kind=definition title=\"Trace\"}\n\
+Not a box.\n\
 ";
     let blocks = decode_tessprek(input).expect("decode");
-    assert_eq!(blocks.len(), 4);
-    let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
-    assert!(out.contains("\\box{kind=definition"), "{out}");
-    assert!(out.contains("\\box{kind=proof}"), "{out}");
-    assert!(out.contains("\\box{kind=note"), "{out}");
-    assert!(out.contains("\\box{kind=abstract}"), "{out}");
+    assert!(
+        blocks.iter().all(|b| !matches!(
+            b,
+            ContentBlock::Text {
+                header,
+                ..
+            } if header.role == TextRole::Callout
+        )),
+        "expected no labeled box, got {blocks:?}"
+    );
 }
 
 #[test]
