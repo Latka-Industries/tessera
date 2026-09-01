@@ -143,23 +143,23 @@ Justified column body.\n\
 }
 
 #[test]
-fn round_trip_theorem_proof_and_callout() {
+fn round_trip_box() {
     let input = "\
 \\tessera{format=tessprek version=2}\n\
 \\ids{1,2,3,4,5}\n\
 \n\
 A preceding paragraph.\n\
 \n\
-\\theorem{kind=definition title=\"Trace minimale\"}\n\
+\\box{kind=definition title=\"Trace minimale\"}\n\
 Une trace minimale est une trace.\n\
 \n\
-\\proof\n\
+\\box{kind=proof}\n\
 By construction.\n\
 \n\
-\\callout{kind=note title=\"Note\"}\n\
+\\box{kind=note title=\"Note\"}\n\
 Rho-shaped aside.\n\
 \n\
-\\abstract\n\
+\\box{kind=abstract}\n\
 Keywords live on a later band.\n\
 ";
     let blocks = decode_tessprek(input).expect("decode");
@@ -171,7 +171,7 @@ Keywords live on a later band.\n\
             assert_eq!(header.title.as_deref(), Some("Trace minimale"));
             assert_eq!(body, "Une trace minimale est une trace.");
         }
-        _ => panic!("expected theorem callout"),
+        _ => panic!("expected definition box"),
     }
     match &blocks[2] {
         ContentBlock::Text { header, body, .. } => {
@@ -186,7 +186,7 @@ Keywords live on a later band.\n\
             assert_eq!(header.title.as_deref(), Some("Note"));
             assert_eq!(body, "Rho-shaped aside.");
         }
-        _ => panic!("expected callout"),
+        _ => panic!("expected note"),
     }
     match &blocks[4] {
         ContentBlock::Text { header, body, .. } => {
@@ -196,24 +196,47 @@ Keywords live on a later band.\n\
         _ => panic!("expected abstract"),
     }
     let out = encode_content_blocks(&TessprekDocMeta::default(), &blocks, &[], &[]);
-    assert!(out.contains("\\theorem{"), "{out}");
+    assert!(out.contains("\\box{"), "{out}");
     assert!(out.contains("kind=definition"), "{out}");
     assert!(out.contains("title=\"Trace minimale\""), "{out}");
-    assert!(out.contains("\\proof"), "{out}");
-    assert!(out.contains("\\callout{"), "{out}");
+    assert!(out.contains("kind=proof"), "{out}");
     assert!(out.contains("kind=note"), "{out}");
-    assert!(out.contains("\\abstract"), "{out}");
+    assert!(out.contains("kind=abstract"), "{out}");
+    assert!(!out.contains("\\theorem"), "{out}");
+    assert!(!out.contains("\\callout"), "{out}");
     let again = decode_tessprek(&out).expect("re-decode");
     assert_eq!(again.len(), 5);
 }
 
 #[test]
-fn theorem_body_stops_at_blank_line() {
+fn old_box_command_names_are_not_directives() {
+    let input = "\
+\\tessera{format=tessprek version=2}\n\
+\\ids{1}\n\
+\n\
+\\theorem{kind=definition title=\"Trace\"}\n\
+Not a box.\n\
+";
+    let blocks = decode_tessprek(input).expect("decode");
+    assert!(
+        blocks.iter().all(|b| !matches!(
+            b,
+            ContentBlock::Text {
+                header,
+                ..
+            } if header.role == TextRole::Callout
+        )),
+        "expected no labeled box, got {blocks:?}"
+    );
+}
+
+#[test]
+fn box_body_stops_at_blank_line() {
     let input = "\
 \\tessera{format=tessprek version=2}\n\
 \\ids{1,2}\n\
 \n\
-\\theorem{kind=lemma}\n\
+\\box{kind=lemma}\n\
 First sentence of the lemma.\n\
 \n\
 This paragraph is not in the lemma.\n\

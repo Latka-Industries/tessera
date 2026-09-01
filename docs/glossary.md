@@ -107,7 +107,7 @@ Terms used consistently across Tessera docs, issues, and code.
 | **LOF / LOT** | Tessprek `\lof` / `\lot` → sealed `TextRole::Lof` / `Lot`; expands from float titles by default (`source=title` or `caption`; THI-395). |
 | **PDF outline** | Native PDF sidebar bookmarks from heading `dest_id`s (THI-393). Same heading walk as `\toc`, different surface — not body content and not vault hub. |
 | **Body columns** | Tessprek `\columns`…`\endcolumns` → `TextRole::Columns` / `ColumnsEnd`; print → weave `PrintBlock::Columns` (THI-391). Optional `\columns{align=…}` region default (THI-398). Not `\row` meta panes. |
-| **Titled band** | Tessprek `\theorem` / `\proof` / `\callout` / `\abstract` → `TextRole::Callout`; print → one weave `PrintBlock::Callout` (THI-414 / 412). Kind is IR-only; Tessera owns the visible label. |
+| **Labeled box** | Tessprek `\box{kind=… title=…}` → `TextRole::Callout`; print → one weave `PrintBlock::Callout` (THI-414 / 412). Kind is the label type. |
 
 See [README — Writing modes](../README.md#writing-one-format-many-kinds-of-work).
 

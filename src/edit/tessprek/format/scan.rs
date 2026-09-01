@@ -44,8 +44,8 @@ const BARE_MARKERS: &[(&str, &str)] = &[
     ("\\endcolumns", "endcolumns"),
 ];
 
-/// Bare titled-band openers whose following paragraph is the body (THI-414 / 412).
-const BARE_BODY_MARKERS: &[(&str, &str)] = &[("\\proof", "proof"), ("\\abstract", "abstract")];
+/// Bare labeled-box opener whose following paragraph is the body.
+const BARE_BODY_MARKERS: &[(&str, &str)] = &[("\\box", "box")];
 
 pub(super) fn scan_segments(lines: &[&str]) -> Result<Vec<Segment>> {
     let mut segments = Vec::new();
@@ -174,7 +174,7 @@ fn push_brace_directive(
                 body: String::new(),
             });
         }
-        "theorem" | "callout" | "proof" | "abstract" => {
+        "box" => {
             let body_start = skip_blank_lines(lines, i);
             i = next_para_end(lines, body_start);
             let body = trim_block_body(&lines[body_start..i]);

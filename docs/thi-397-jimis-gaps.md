@@ -31,7 +31,7 @@ Open side-by-side: golden (local) · native · Chromium.
 | --- | --- |
 | Title + authors | H1 + `kind=author` band |
 | Abstract + keywords | `\abstract` / `kind=keywords` |
-| Named definition | `\theorem{kind=definition}` — same Callout paint (THI-414) |
+| Named definition | `\box{kind=definition}` — same lined box paint (THI-414) |
 | Two-column body | `\columns{n=2}` after full-width bands (paragraphs only in the region) |
 | Running page | pack `{heading}` / `{page}` |
 

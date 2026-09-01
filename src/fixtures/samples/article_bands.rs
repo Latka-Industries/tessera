@@ -1,11 +1,11 @@
-//! Article front matter + titled bands for THI-411 / 412 / 414.
+//! Article front matter + labeled boxes for THI-411 / 412 / 414.
 
 use crate::catalog::{TesWriterSession, TextHeader};
 use crate::layout::DocKind;
 
 use super::common::catalog;
 
-/// Journal-shaped sample: authors, abstract, keywords, theorem, callout, 2-col body.
+/// Journal-shaped sample: authors, abstract, keywords, definition, note, 2-col body.
 ///
 /// # Panics
 ///

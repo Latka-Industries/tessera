@@ -19,7 +19,7 @@ selects weave `resume@0`. THI-316 long-doc slice maps `\toc` / `\lof` / `\lot` /
 dests. THI-398 maps per-chunk `align=` into weave `text_align`. THI-396 maps
 `\footnote{…}` / `\endnote{…}` to weave `PrintBlock::Note` and `TextRun.note_id`
 (page-bottom band vs end dump; collision with footer chrome is weave THI-410).
-THI-414 / THI-412 map `\theorem` / `\proof` / `\callout` / `\abstract` onto one
+THI-414 / THI-412 map `\box{kind=…}` onto one
 `PrintBlock::Callout` (kind is IR-only). Pack `[body].line_numbers` (THI-415) and
 `[page.numbers]` / `align_even` (THI-413) overlay via `weave.toml`.
 Layout quality beyond prose (THI-291+ tables/math/decks; OS fonts THI-311)

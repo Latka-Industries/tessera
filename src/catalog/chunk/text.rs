@@ -79,10 +79,10 @@ pub enum TextRole {
     ///
     /// Empty body end marker pairing [`TextRole::Columns`].
     ColumnsEnd,
-    /// Titled band (theorem / definition / callout / Q&A / abstract).
+    /// Labeled box (`\box{kind=… title=…}`).
     ///
-    /// Tessprek `\theorem` / `\proof` / `\callout` / `\abstract` (THI-414 / 412).
-    /// Print maps to weave `PrintBlock::Callout`; `callout_kind` is IR-only.
+    /// Print maps to weave `PrintBlock::Callout`; `callout_kind` is the type
+    /// (`definition`, `note`, `proof`, `abstract`, …).
     Callout,
 }
 
@@ -361,7 +361,7 @@ impl TextHeader {
         Self::with_role(TextRole::ColumnsEnd)
     }
 
-    /// Titled band (`\theorem` / `\callout` / `\proof` / `\abstract`).
+    /// Labeled box (`\box{kind=… title=…}`).
     #[must_use]
     pub fn callout(kind: impl Into<String>, title: Option<String>) -> Self {
         let mut h = Self::with_role(TextRole::Callout);
@@ -949,29 +949,14 @@ fn render_columns_tessprek(header: &TextHeader) -> String {
     }
 }
 
-/// Tessprek projection: `\theorem` / `\proof` / `\abstract` / `\callout` + body.
+/// Tessprek projection: `\box{kind=… title=…}` + body.
 fn render_callout_tessprek(header: &TextHeader, body: &str) -> String {
     let kind = header.callout_kind.as_deref().unwrap_or("note");
-    let mut parts = Vec::new();
-    let cmd = if kind == "proof" {
-        "proof"
-    } else if kind == "abstract" {
-        "abstract"
-    } else if is_theorem_kind(kind) {
-        parts.push(format!("kind={kind}"));
-        "theorem"
-    } else {
-        parts.push(format!("kind={kind}"));
-        "callout"
-    };
+    let mut parts = vec![format!("kind={kind}")];
     if let Some(title) = header.title.as_deref().filter(|s| !s.is_empty()) {
         parts.push(format!("title=\"{title}\""));
     }
-    let opener = if parts.is_empty() {
-        format!("\\{cmd}")
-    } else {
-        format!("\\{cmd}{{{}}}", parts.join(" "))
-    };
+    let opener = format!("\\box{{{}}}", parts.join(" "));
     if body.is_empty() {
         opener
     } else {
