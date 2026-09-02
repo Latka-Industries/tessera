@@ -1,13 +1,13 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.2.11** (document-depth wire: Tessprek v2,
+**Status:** M0–M11 shipped; crate **0.2.12** (document-depth wire: Tessprek v2,
 captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering; **D23** pack
 authoring complete — category fonts, master `tessera.toml`, pack-aware LSP;
 native print caption/underline bridge via **`ariadnes-weave` ≥ 0.2.8** /
 THI-349; resume dogfood wire via weave **0.2.9** / THI-324 — `\row`, `\icon`,
 `\block{indent=N}`, multi-arg `\phrase`, `--theme-id resume`; long-doc print via
 weave **0.2.10** / THI-390..395 — `\toc` / `\lof` / `\lot`, `\columns`, page
-chrome + hyphen knobs, PDF outline; **0.2.11** pins weave **0.2.14** — per-chunk
+chrome + hyphen knobs, PDF outline; **0.2.12** pins weave **0.2.14** — per-chunk
 `align`, `{heading}` chrome, `\footnote` / `\endnote`, and in-column headings /
 `\box` / math / tables). Chromium remains
 the default PDF backend. M10 history tools
@@ -34,10 +34,10 @@ figure title/caption + inline underline (THI-349). **0.2.9** pins weave
 indent / multi-arg phrases). **0.2.10** pins weave **0.2.10** and lands the
 THI-316 long-doc print slice (`\toc` / `\lof` / `\lot` / `\columns`, chrome,
 hyphen, outline). **0.2.11** landed per-chunk align
-(THI-398), live `{heading}` chrome (THI-409), and footnotes/endnotes (THI-396);
-the crate still **0.2.11**, now pinning weave **0.2.14** so native `\columns`
-keep headings / `\box` / math / tables (THI-416). Article dogfood (THI-397) is
-done (`article_bands.tes` vs a local gitignored golden; gap notes in
+(THI-398), live `{heading}` chrome (THI-409), and footnotes/endnotes (THI-396).
+**0.2.12** pins weave **0.2.14** so native `\columns` keep headings / `\box` /
+math / tables (THI-416), and ships `\box` plus article dogfood (THI-397;
+`article_bands.tes` vs a local gitignored golden; gap notes in
 `docs/thi-397-jimis-gaps.md`). Corpus LaTeX is not vendored. This is an
 implementation plan, not a release schedule.
 
@@ -300,8 +300,8 @@ freeze. CRDT/live cursors are not part of M10.
    bridge 0.2.8 (THI-349 / weave 0.2.8); resume Tessprek/print 0.2.9
    (THI-324 / 386 / 387 / weave 0.2.9); long-doc print 0.2.10
    (THI-390..395 / weave 0.2.10); align / heading chrome / footnotes 0.2.11
-   (THI-398 / 409 / 396); weave **0.2.14** pin for in-column mixed blocks
-   (THI-416 / tessera #20).
+   (THI-398 / 409 / 396); **0.2.12** weave **0.2.14** pin + `\box` + article
+   dogfood (THI-416 / 412 / 414 / 397).
 
 ---
 
