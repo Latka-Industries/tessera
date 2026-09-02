@@ -7,8 +7,9 @@ native print caption/underline bridge via **`ariadnes-weave` ≥ 0.2.8** /
 THI-349; resume dogfood wire via weave **0.2.9** / THI-324 — `\row`, `\icon`,
 `\block{indent=N}`, multi-arg `\phrase`, `--theme-id resume`; long-doc print via
 weave **0.2.10** / THI-390..395 — `\toc` / `\lof` / `\lot`, `\columns`, page
-chrome + hyphen knobs, PDF outline; **0.2.11** pins weave **0.2.11** — per-chunk
-`align`, `{heading}` chrome, `\footnote` / `\endnote`). Chromium remains
+chrome + hyphen knobs, PDF outline; **0.2.11** pins weave **0.2.14** — per-chunk
+`align`, `{heading}` chrome, `\footnote` / `\endnote`, and in-column headings /
+`\box` / math / tables). Chromium remains
 the default PDF backend. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
@@ -32,10 +33,13 @@ figure title/caption + inline underline (THI-349). **0.2.9** pins weave
 **0.2.9** and lands THI-324 resume print/Tessprek surface (`\row` / `\icon` /
 indent / multi-arg phrases). **0.2.10** pins weave **0.2.10** and lands the
 THI-316 long-doc print slice (`\toc` / `\lof` / `\lot` / `\columns`, chrome,
-hyphen, outline). **0.2.11** pins weave **0.2.11** and lands per-chunk align
-(THI-398), live `{heading}` chrome (THI-409), and footnotes/endnotes (THI-396).
-Article dogfood is THI-397 (`article_bands.tes` vs a local gitignored golden; gap notes in `docs/thi-397-jimis-gaps.md`). Corpus LaTeX is not vendored. This is an implementation plan, not a
-release schedule.
+hyphen, outline). **0.2.11** landed per-chunk align
+(THI-398), live `{heading}` chrome (THI-409), and footnotes/endnotes (THI-396);
+the crate still **0.2.11**, now pinning weave **0.2.14** so native `\columns`
+keep headings / `\box` / math / tables (THI-416). Article dogfood (THI-397) is
+done (`article_bands.tes` vs a local gitignored golden; gap notes in
+`docs/thi-397-jimis-gaps.md`). Corpus LaTeX is not vendored. This is an
+implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
 links.
@@ -283,8 +287,8 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **Native PDF long-doc follow-ons:** article/report dogfood (THI-397);
-   promote `--backend native` when ready (THI-350).
+1. **Native PDF default:** promote `--backend native` (THI-350). Article
+   dogfood (THI-397) is done; last-page column leftover is THI-417.
 2. **Tesscriptor later:** layout op-list UI (THI-366) when that track resumes.
 3. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 4. **open format / bench:** MIME/magic conformance cases and claim-backed
@@ -296,7 +300,8 @@ freeze. CRDT/live cursors are not part of M10.
    bridge 0.2.8 (THI-349 / weave 0.2.8); resume Tessprek/print 0.2.9
    (THI-324 / 386 / 387 / weave 0.2.9); long-doc print 0.2.10
    (THI-390..395 / weave 0.2.10); align / heading chrome / footnotes 0.2.11
-   (THI-398 / 409 / 396 / weave 0.2.11).
+   (THI-398 / 409 / 396); weave **0.2.14** pin for in-column mixed blocks
+   (THI-416 / tessera #20).
 
 ---
 

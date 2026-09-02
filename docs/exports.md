@@ -313,8 +313,9 @@ Pack `fonts.toml` (id → relative `.ttf`/`.otf`) loads into
 `EmitOptions::pinned_faces` for sealed `\font{id}{…}` spans (D23 / THI-356).
 Category defaults (`[text|heading|quote|cite].font` = pin id) apply when a run
 has no `TextRun.face`; explicit `\font` still overrides (THI-360).
-`--backend native` with weave **0.2.11+** paints per-chunk `align`, `{heading}`
-chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396).
+`--backend native` with weave **0.2.14+** paints per-chunk `align`, `{heading}`
+chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396), and keeps headings /
+`\box` / display math / tables **in** `\columns` (THI-416; figures still span).
 
 | Flag | Behavior |
 | --- | --- |

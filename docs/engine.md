@@ -10,7 +10,9 @@ THI-369) in **0.2.7**; figure title/caption + underline print bridge (THI-349) i
 **0.2.8**; resume Tessprek/print (`\row` / `\icon` / indent / multi-arg `\phrase`,
 THI-324) in **0.2.9**; long-doc print (`\toc` / `\lof` / `\lot` / `\columns`, chrome,
 hyphen, outline — THI-390..395) in **0.2.10**; per-chunk `align`, live `{heading}`
-chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396) in **0.2.11**.
+chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396) in **0.2.11**. Native
+PDF now pins **`ariadnes-weave` 0.2.14** (in-column headings / `\box` / math /
+tables; THI-416).
 
 This doc sits **between** the wire spec and the user-facing CLI: how bytes become documents, how documents become exports, and what is **not** in the engine (GUI, query stack, Tetration dependency).
 
@@ -102,7 +104,7 @@ The LSP binary (`src/bin/tes_lsp.rs`) is a thin wrapper around `tessera_doc::lsp
 | `io::import` | `--markdown`, `--html` | [decisions](decisions.md) |
 | `io::bib` | BibTeX / CSL-JSON bibliography interchange | [exports.md](exports.md#bibliography) |
 | `vault` | Multi-file link resolve, backlinks, search (scan / Tantivy) | Phase 5 / THI-223 |
-| `render` | Template packs (D23 overlays), `tes serve`, Chromium PDF, print IR → weave | Phase 7 / 0.2.0; D23 in 0.2.5+; category fonts 0.2.6; master pack + LSP 0.2.7; caption/underline 0.2.8; resume row/icon/indent 0.2.9; long-doc toc/columns/chrome/lof 0.2.10; align/heading/footnotes 0.2.11 |
+| `render` | Template packs (D23 overlays), `tes serve`, Chromium PDF, print IR → weave | Phase 7 / 0.2.0; D23 in 0.2.5+; category fonts 0.2.6; master pack + LSP 0.2.7; caption/underline 0.2.8; resume row/icon/indent 0.2.9; long-doc toc/columns/chrome/lof 0.2.10; align/heading/footnotes 0.2.11; weave 0.2.14 in-column mixed blocks |
 | `edit` | Tessera Markdown + typed safe mutation | Layout v1 |
 | `history` | save/log/diff/blame/pending/`merge-file` over THST | M10 |
 | `cli` | Clap surface + command runners for `tes` | [cli.md](cli.md) |

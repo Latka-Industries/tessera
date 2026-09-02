@@ -62,6 +62,12 @@ Measure open-format claims (mmap / import / export / vault) with
 
 See `tes --help` and [docs/cli.md](docs/cli.md).
 
+**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.2.11`).
+`.github/workflows/release.yml` publishes a GitHub Release (not a draft) with
+generated notes and `cargo publish --locked` to crates.io. `workflow_dispatch`
+from a branch does not publish. Chromium stays the `tes export --pdf` default
+until THI-350.
+
 ## Documentation
 
 Spec, decisions, and engine notes live under [`docs/`](docs/) as Markdown so
