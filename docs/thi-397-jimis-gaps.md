@@ -37,20 +37,20 @@ Open side-by-side: golden (local) · native · Chromium.
 
 ## Native columns (why a short region looks one-col)
 
-Weave `PrintBlock::Columns` flows **paragraphs / lists / quotes / code** down
-each column. Headings, callouts, figures, tables, and display math **span**
-full measure and flush the band (THI-391). A region with one short paragraph
-only fills column 0 — that is the packer, not a missing `\columns` emit.
+Weave **0.2.14** (`PrintBlock::Columns`) keeps headings, titled bands (`Callout`),
+tables, and display math **in** the column. Figures, TOC, rows, notes, and nested
+columns still span full measure and flush the band. A region with one short
+paragraph only fills column 0 — fill-left-then-right leftover is [THI-417](https://linear.app/thicclatka/issue/THI-417), not a missing `\columns` emit.
 
 `article_bands.tes` keeps titled bands full-width, then several paragraphs in
-`\columns` so the 2-col band can actually fill.
+`\columns` so the 2-col band can actually fill. After this pin, mixed blocks
+*inside* `\columns` stay at column width.
 
 ## Gaps — accept for 0.3.0 (already routed)
 
 | Gap | Where it lives |
 | --- | --- |
-| Native 2-col **spans** tables/math/figures full measure; some witnesses put a table in one column | [THI-391](https://linear.app/thicclatka/issue/THI-391) — locked |
-| No last-page column balancing | THI-391 out |
+| Native 2-col: figures still span; last-page leftover stays in column 0 | figures: THI-391 leftover; last page: [THI-417](https://linear.app/thicclatka/issue/THI-417) |
 | Witness geometry (tight A4 10 pt two-col from page 1) vs pack defaults | pack knobs; not a new ticket |
 | Chromium HTML print may be Letter, not A4 | pack `print.css` |
 | Theorem paint label is English (`Definition (…)`.) | Tessera-owned `callout_band_title` |

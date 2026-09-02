@@ -8,7 +8,7 @@
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
 **In active development — layout v0 wire may change before a stable v1.**
-Crate **0.2.11** ships native PDF via `ariadnes-weave` **0.2.11+** (alongside Chromium print): per-chunk `align`, live `{heading}` chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396) on top of the THI-316 long-doc surface (`\toc` / `\lof` / `\lot`, `\columns`, hyphen/widow knobs, PDF outline), resume `\row` / `\icon` / indent (THI-324), and the D23 / THI-349 surface.
+Crate **0.2.11** ships native PDF via `ariadnes-weave` **0.2.14** (alongside Chromium print): per-chunk `align`, live `{heading}` chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396) on top of the THI-316 long-doc surface (`\toc` / `\lof` / `\lot`, `\columns`, hyphen/widow knobs, PDF outline), resume `\row` / `\icon` / indent (THI-324), and the D23 / THI-349 surface. Weave 0.2.14 keeps headings, `\box` bands, display math, and tables **in** `\columns` (figures still span).
 
 ## What it does today
 
