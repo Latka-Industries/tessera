@@ -375,7 +375,7 @@ Continuous multi-column **body flow** (newspaper / article). Distinct from
 \columns{n=2 gap=16}
 Lorem… (fills left, then right)
 
-## Mid heading spans full measure
+## Mid heading stays in the column (native)
 
 More lorem…
 \endcolumns
@@ -394,9 +394,11 @@ Lorem… (children inherit justify)
 Seals as empty-body markers `TextRole::Columns` / `TextRole::ColumnsEnd`
 (`columns_count`, `columns_gap`, optional `align`). Print folds intervening
 chunks into weave `PrintBlock::Columns`. Nested `\columns` soft-flushes the
-previous region and starts a new one; unclosed regions flush at EOF. HTML emits
+previous region and starts a new one; unclosed regions flush at EOF. Native PDF
+(weave **0.2.14**) keeps headings, `\box`, tables, and display math **in** the
+column; figures, TOC, rows, notes, and nested columns still span. HTML emits
 `<div class="tes-columns" style="columns: N; column-gap: Xpt; text-align: …">`
-… `</div>` (headings get `column-span: all`). Per-chunk `\block{align=…}` still
+… `</div>` (headings still get `column-span: all` on Chromium). Per-chunk `\block{align=…}` still
 overrides the region default on that chunk.
 
 ### `\box{kind=note title="…"}`

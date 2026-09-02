@@ -2,7 +2,8 @@
 
 **Status (Tessera 0.2.11):** prose print-tree builder + CLI `--backend native`
 shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Requires
-**`ariadnes-weave` ≥ 0.2.13** (titled-band `PrintBlock::Callout`; `[body].line_numbers`;
+**`ariadnes-weave` ≥ 0.2.14** (in-column headings / titled bands / math / tables
+inside `Columns`; titled-band `PrintBlock::Callout`; `[body].line_numbers`;
 roman/arabic `{page}` + even/odd chrome; per-block `text_align`, live `{heading}` chrome,
 `PrintBlock::Note` footnote band / endnote dump; long-doc: page chrome,
 hyphen/widows, `TocEntry`, `/Outlines`, `Columns`, figure/table `dest_id` since
@@ -347,7 +348,7 @@ done
 | --- | --- |
 | Text `heading` level N | `Heading { level: N, dest_id: h-{chunk_id}, … }`; level 1 + `manuscript` → `PageAlways` |
 | Text `toc` | Expanded `TocEntry` lines (+ optional title paragraph); not a frozen sealed list |
-| Text `columns` / `columns_end` | Folded into `PrintBlock::Columns` (THI-391); optional `text_align` region default (THI-398); distinct from `Row` |
+| Text `columns` / `columns_end` | Folded into `PrintBlock::Columns` (THI-391 / THI-416); headings, `Callout`, tables, and display math stay in-column at weave 0.2.14; figures / TOC / rows / notes still span; optional `text_align` region default (THI-398); distinct from `Row` |
 | `paragraph` / quote / code / list | Matching blocks; optional `text_align` from `TextHeader.align` (THI-398); inline spans → `TextRun` styles |
 | Text chunk `title` | `Paragraph` with `style.strong` (label stand-in; no non-figure title IR) |
 | Text chunk `caption` | `Paragraph` with `style.emphasis` (stand-in; weave `[caption]` is figure-only) |
@@ -378,7 +379,8 @@ tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
 ```
 
 Default stays `chromium` until native is promoted; both backends ship since 0.2.0
-(`ariadnes-weave` **0.2.11+** for per-block align / `{heading}` / notes;
+(`ariadnes-weave` **0.2.14+** for in-column headings/bands/math/tables;
+**0.2.11+** for per-block align / `{heading}` / notes;
 **0.2.10+** for long-doc chrome / hyphen / TOC / columns / outline / float dests;
 **0.2.9+** for resume densify / Row / indent; **0.2.8+** for figure title/caption
 + underline; category fonts + aesthetic knobs since 0.2.7). Native CLI uses
