@@ -1,8 +1,8 @@
 //! Presentation surfaces: template packs, browser preview, and PDF print.
 //!
 //! Shared pipeline: `io::export` HTML → [`template`] pack/theme → screen ([`preview`])
-//! or Chromium print ([`pdf`]). Native print IR → ariadnes-weave is [`print`]
-//! (feature `native-pdf`, THI-290); CLI `--backend native` is THI-294.
+//! or optional Chromium print ([`pdf`]). Native print IR → ariadnes-weave is [`print`]
+//! (feature `native-pdf`, THI-290); CLI default `--backend native` is THI-350.
 //!
 //! D23 pack overlays (sparse): [`pack_text`] (typography / aliases / phrases),
 //! [`pack_fonts`] (`fonts.toml` → pinned TTFs), and `weave_pack` (`weave.toml`
@@ -11,7 +11,7 @@
 //!
 //! - [`template`] — external theme/template packs (`docs/structure_v1.md`).
 //! - [`preview`] — loopback `tes serve` HTML preview.
-//! - [`pdf`] — print-theme HTML → headless Chromium PDF (+ native when enabled).
+//! - [`pdf`] — native print IR → weave by default; Chromium HTML-print opt-in.
 //! - [`print`] — `.tes` → ariadnes-weave `PrintDocument` (`native-pdf` feature).
 
 pub mod floats;

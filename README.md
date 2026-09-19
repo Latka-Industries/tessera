@@ -8,12 +8,12 @@
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
 **In active development — layout v0 wire may change before a stable v1.**
-Crate **0.2.12** ships native PDF via `ariadnes-weave` **0.2.14** (alongside Chromium print): per-chunk `align`, live `{heading}` chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396) on top of the THI-316 long-doc surface (`\toc` / `\lof` / `\lot`, `\columns`, hyphen/widow knobs, PDF outline), resume `\row` / `\icon` / indent (THI-324), and the D23 / THI-349 surface. Weave 0.2.14 keeps headings, `\box` bands, display math, and tables **in** `\columns` (figures still span).
+Crate **0.3.0** makes native PDF the `tes export --pdf` default (THI-350) via `ariadnes-weave` **0.2.14**. Chromium HTML-print stays opt-in (`--backend chromium`). Native surface: per-chunk `align`, live `{heading}` chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396) on top of the THI-316 long-doc surface (`\toc` / `\lof` / `\lot`, `\columns`, hyphen/widow knobs, PDF outline), resume `\row` / `\icon` / indent (THI-324), and the D23 / THI-349 surface. Weave 0.2.14 keeps headings, `\box` bands, display math, and tables **in** `\columns` (figures still span).
 
 ## What it does today
 
 - **Container** — `TESS` superblock, catalog JSON, `TIDX` chunk index, `TLNK` links, sealed writer + mmap / buffered reader, golden fixtures, deep `tes verify` (`--copy`), `cargo-fuzz` on `verify_bytes`
-- **Exports** — raw / linear / AI text / JSONL / Markdown / semantic HTML / print PDF (Chromium default; `--backend native` via `ariadnes-weave`); chapter-scoped `--chapter`
+- **Exports** — raw / linear / AI text / JSONL / Markdown / semantic HTML / print PDF (native `ariadnes-weave` default; `--backend chromium` opt-in); chapter-scoped `--chapter`
 - **Import** — CommonMark subset, semantic HTML, BibTeX / CSL-JSON → cite chunks
 - **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering; slides
 - **Preview** — loopback `tes serve` with external template/theme packs (`draft` / `print` / `manuscript`)
@@ -39,7 +39,7 @@ tes verify --copy --deep /mnt/nfs/untrusted.tes
 tes export fixtures/v0/note_one_chunk.tes --markdown
 tes serve fixtures/v0/note_one_chunk.tes --template-root templates
 tes export fixtures/v0/note_one_chunk.tes --pdf -o /tmp/note.pdf --template-root templates
-tes export fixtures/v0/note_one_chunk.tes --pdf --backend native -o /tmp/note-native.pdf
+tes export fixtures/v0/note_one_chunk.tes --pdf --backend chromium -o /tmp/note-chromium.pdf
 
 # Tessprek browse / Neovim: fixtures/samples/tessprek_showcase.tes
 # Pack phrases: fixtures/samples/phrases_demo.tessprek
@@ -62,11 +62,11 @@ Measure open-format claims (mmap / import / export / vault) with
 
 See `tes --help` and [docs/cli.md](docs/cli.md).
 
-**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.2.12`).
+**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.3.0`).
 `.github/workflows/release.yml` publishes a GitHub Release (not a draft) with
 generated notes and `cargo publish --locked` to crates.io. `workflow_dispatch`
-from a branch does not publish. Chromium stays the `tes export --pdf` default
-until THI-350.
+from a branch does not publish. `tes export --pdf` defaults to `--backend native`
+(THI-350); Chromium is `--backend chromium`.
 
 ## Documentation
 

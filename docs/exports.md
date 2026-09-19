@@ -298,10 +298,10 @@ execute attachment payloads.
 Paginated PDF (**0.2.0**). **Direction (D21):** native layout via the
 [print IR](print_ir.md) and **`ariadnes-weave`** (profiles such as `print` /
 `manuscript` / `deck`). `--backend native` requires Cargo feature `native-pdf`
-(crate default). **CLI default remains `chromium`** (HTML + print-theme CSS →
-headless Chromium/Chrome via `TES_CHROME` or auto-detect) until native is
-promoted. On Linux and in CI, Tessera passes `--no-sandbox` when needed
-(`TES_CHROME_NO_SANDBOX`).
+(crate default). **CLI default is `native` since 0.3.0** (THI-350). `--backend
+chromium` remains the HTML + print-theme CSS → headless Chromium/Chrome path
+(`TES_CHROME` or auto-detect). On Linux and in CI, Tessera passes `--no-sandbox`
+when needed (`TES_CHROME_NO_SANDBOX`).
 
 Optional weave font packs: Cargo features `weave-cjk`, `weave-emoji`,
 `weave-icons` (pass-through to `ariadnes-weave`). Native CLI emit uses sealed
@@ -320,7 +320,7 @@ chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396), and keeps headings /
 | Flag | Behavior |
 | --- | --- |
 | `-o PATH` | **Required** output PDF path |
-| `--backend chromium\|native` | `chromium` (default) or `native` (ariadnes-weave; needs `native-pdf`) |
+| `--backend chromium\|native` | `native` (default; ariadnes-weave; needs `native-pdf`) or `chromium` |
 | `--theme-id ID` | Pack theme for Chromium HTML-print; also selects native profile when set (`print` / `manuscript` / `deck`) |
 | `--template ID` / `--template-root DIR` | Template pack (Chromium CSS; native optional `weave.toml`) |
 | `--chapter N` | Restrict body to the Nth H1-bounded chapter (1-based; same flag on all export views) |
@@ -330,7 +330,7 @@ preview (`tes serve`) stays on semantic HTML + CSS. Native PDF and HTML preview
 share **structure** (`.tes` chunks), not a single CSS pagination engine.
 Manuscript / beta-reader **print profile** `manuscript` encodes Courier-like /
 double-spaced policy in `ariadnes-weave`; the pack theme `manuscript` remains
-for HTML/Chromium until cutover.
+for HTML/Chromium.
 
 ---
 

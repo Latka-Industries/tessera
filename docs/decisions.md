@@ -206,7 +206,7 @@ Chapter-scoped export: `tes export draft.tes --markdown --chapter 2` or
 
 Native PDF (`ariadnes-weave`) uses print profile `manuscript` for the same
 conventions (H1 → always new page). Chromium HTML-print still uses pack theme
-CSS and remains the CLI default until native is promoted.
+CSS (`--backend chromium`).
 
 ---
 
@@ -219,8 +219,8 @@ the source of truth for native pagination.
 
 | Path | Role |
 | --- | --- |
-| `.tes` → print IR → `ariadnes-weave` → PDF | Deterministic print (`--backend native`; target default) |
-| `.tes` → HTML + theme CSS → browser / Chromium print | Preview; CLI default `--backend chromium` |
+| `.tes` → print IR → `ariadnes-weave` → PDF | Deterministic print (CLI default `--backend native` since 0.3.0) |
+| `.tes` → HTML + theme CSS → browser / Chromium print | Preview; `--backend chromium` |
 
 **Rationale:** Markdown/HTML→PDF toolchains disagree on page breaks. Tessera
 should guarantee **replayable unfolding** (especially manuscripts): same file +

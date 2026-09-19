@@ -127,7 +127,7 @@ tes export paper.tes --chunks-jsonl -o chunks.jsonl
 tes export doc.tes --markdown -o doc.md
 tes export paper.tes --pdf -o paper.pdf --theme-id print
 tes export draft.tes --pdf -o ch2.pdf --chapter 2 --theme-id manuscript
-tes export note.tes --pdf --backend native -o note.pdf
+tes export note.tes --pdf --backend chromium -o note.pdf
 tes export draft.tes --markdown --chapter 1
 tes export paper.tes --bibliography --bib-format bibtex -o refs.bib
 tes export note.tes --attachment --chunk 3 -o notes.pdf
@@ -137,10 +137,11 @@ tes import --bibtex fixtures/assets/citations/sample.bib refs.tes
 # tes export doc.tes --meta toml
 ```
 
-`--pdf` defaults to **Chromium**: same semantic HTML + template theme path as
-`tes serve` (requires `TES_CHROME` or auto-detect). `--backend native` (0.2.0,
-Cargo feature `native-pdf`) uses print IR → [`ariadnes-weave`](print_ir.md)
-with no browser. PDF is a lossy print sink, not an editable source. For
+`--pdf` defaults to **native** (0.3.0, THI-350): print IR →
+[`ariadnes-weave`](print_ir.md) (Cargo feature `native-pdf`, crate default).
+`--backend chromium` is the HTML + template theme path shared with `tes serve`
+(requires `TES_CHROME` or auto-detect). PDF is a lossy print sink, not an
+editable source. For
 `doc_kind = manuscript`, the default pack theme / native profile is
 `manuscript` instead of academic `print`. `--chapter N` scopes **any** export
 view to the Nth H1-bounded chapter (conflicts with `--chunk`).
@@ -154,7 +155,7 @@ view to the Nth H1-bounded chapter (conflicts with `--chunk`).
 | `--markdown`                   | Lossy Markdown                                                    |
 | `--html`                       | HTML fragment (+ `--theme`, `--standalone`, `--embed-css`)        |
 | `--pdf`                        | PDF export (requires `-o`; engine via `--backend`)                |
-| `--backend chromium\|native`   | PDF engine (default `chromium`; `native` needs Cargo `native-pdf`) |
+| `--backend chromium\|native`   | PDF engine (default `native`; `chromium` is HTML-print fallback) |
 | `--bibliography`               | BibTeX / CSL-JSON from cite chunks (`--bib-format`)               |
 | `--attachment`                 | Write opaque attachment chunk bytes (requires `--chunk` and `-o`) |
 | `--bib-format`                 | `bibtex` (default) or `csl-json` with `--bibliography`            |

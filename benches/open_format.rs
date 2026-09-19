@@ -25,7 +25,7 @@ use tessera_doc::catalog::{
 use tessera_doc::io::export::{ExportOptions, ExportView, export_view};
 use tessera_doc::io::import::{MarkdownImportOptions, import_markdown_v0};
 use tessera_doc::layout::DocKind;
-use tessera_doc::render::pdf::{PdfExportOptions, export_pdf, find_chrome};
+use tessera_doc::render::pdf::{PdfBackend, PdfExportOptions, export_pdf, find_chrome};
 use tessera_doc::vault::Vault;
 use uuid::Uuid;
 
@@ -199,17 +199,31 @@ fn bench_export(c: &mut Criterion) {
         b.iter(|| black_box(export_len(black_box(long), ExportView::Html)));
     });
 
+    group.sample_size(10);
+    let native_opts = PdfExportOptions {
+        template_root: crate_root().join("templates"),
+        backend: PdfBackend::Native,
+        ..PdfExportOptions::default()
+    };
+    group.bench_function("pdf_native_note_one_chunk", |b| {
+        b.iter(|| {
+            let dir = tempdir().unwrap();
+            let out = dir.path().join("out.pdf");
+            export_pdf(black_box(&small), &out, &native_opts).unwrap();
+            black_box(fs::metadata(&out).unwrap().len());
+        });
+    });
     if find_chrome().is_ok() {
-        group.sample_size(10);
-        let pdf_opts = PdfExportOptions {
+        let chromium_opts = PdfExportOptions {
             template_root: crate_root().join("templates"),
+            backend: PdfBackend::Chromium,
             ..PdfExportOptions::default()
         };
-        group.bench_function("pdf_note_one_chunk", |b| {
+        group.bench_function("pdf_chromium_note_one_chunk", |b| {
             b.iter(|| {
                 let dir = tempdir().unwrap();
                 let out = dir.path().join("out.pdf");
-                export_pdf(black_box(&small), &out, &pdf_opts).unwrap();
+                export_pdf(black_box(&small), &out, &chromium_opts).unwrap();
                 black_box(fs::metadata(&out).unwrap().len());
             });
         });

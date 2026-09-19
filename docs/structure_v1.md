@@ -228,8 +228,8 @@ pack hashes. Pack bytes are external by default; standalone exports may embed
 CSS/assets.
 
 `tes serve` projects `.tes` to HTML and applies a draft or print theme.
-`tes export --pdf` defaults to HTML + print-theme + Chromium; `--backend native`
-uses print IR → `ariadnes-weave` (optional pack `weave.toml` / `fonts.toml`).
+`tes export --pdf` defaults to print IR → `ariadnes-weave` (optional pack
+`weave.toml` / `fonts.toml`); `--backend chromium` uses HTML + print-theme.
 Browser preview and PDF are two sinks of shared `.tes` structure, not one CSS
 engine.
 

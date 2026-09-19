@@ -13,8 +13,8 @@ mise run bench
 ```
 
 HTML reports land under `target/criterion/` (open `report/index.html` in a
-browser). PDF export benches run only when a Chromium-family browser is
-detectable via [`find_chrome`](../src/render/pdf.rs).
+browser). Native PDF export benches always run. Chromium PDF benches run only
+when a Chromium-family browser is detectable via [`find_chrome`](../src/render/pdf.rs).
 
 ## Axes (`benches/open_format.rs`)
 
@@ -22,7 +22,7 @@ detectable via [`find_chrome`](../src/render/pdf.rs).
 | --- | --- |
 | `mmap_partial_chunk` | Open + decode chunk 1 on `note_one_chunk` and imported `lorem_long` |
 | `import_markdown` | MD → `.tes` for `minimal` and ~900 KiB `lorem_long` |
-| `export` | raw (small), linear + HTML on long fixture; optional PDF on small |
+| `export` | raw (small), linear + HTML on long fixture; native PDF on small; optional Chromium PDF |
 | `vault` | backlinks (8 hubs); Markdown vault full-file reads vs `.tes` vault open/list |
 
 ## Publishing numbers
