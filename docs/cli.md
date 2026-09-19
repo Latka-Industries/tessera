@@ -525,7 +525,7 @@ suggestion only. Deep verify runs on accept (and on footer rewrites).
 | Variable                | Effect                                                              |
 | ----------------------- | ------------------------------------------------------------------- |
 | `TES_TEMPLATE_ROOT`     | Default template pack root for `tes serve` / `--pdf`                |
-| `TES_CHROME`            | Chromium/Chrome binary for `tes export --pdf`                       |
+| `TES_CHROME`            | Chromium/Chrome binary for `--backend chromium`                     |
 | `TES_CHROME_NO_SANDBOX` | Force `--no-sandbox` for headless print (also auto on Linux / `CI`) |
 | `RUST_LOG`              | `trace`/`debug` for library logging                                 |
 

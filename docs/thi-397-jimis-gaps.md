@@ -14,7 +14,7 @@ Tracked sample: [`fixtures/samples/article_bands.tes`](../fixtures/samples/artic
 cargo run --example gen_sample_fixtures
 mkdir -p tmp/thi-397-smoke
 cargo run -q --bin tes --features native-pdf -- export \
-  fixtures/samples/article_bands.tes --pdf --backend native \
+  fixtures/samples/article_bands.tes --pdf \
   --template-root templates --template article \
   -o tmp/thi-397-smoke/article_bands-native.pdf
 cargo run -q --bin tes -- export \

@@ -15,6 +15,6 @@ Out: glossaries, KOMA chapter numbers, publisher thesis classes.
 Smoke with [`fixtures/samples/manuscript_chapters.tes`](../../fixtures/samples/):
 
 ```bash
-tes export fixtures/samples/manuscript_chapters.tes --pdf --backend native \
+tes export fixtures/samples/manuscript_chapters.tes --pdf \
   --template-root templates --template frontmatter -o tmp/frontmatter.pdf
 ```

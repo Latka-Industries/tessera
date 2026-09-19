@@ -7,7 +7,7 @@ Pair with [`fixtures/samples/article_bands.tes`](../../fixtures/samples/)
 (authors, abstract, keywords, definition, proof, note/Q&A, then `\columns`).
 
 ```bash
-tes export fixtures/samples/article_bands.tes --pdf --backend native \
+tes export fixtures/samples/article_bands.tes --pdf \
   --template-root templates --template article -o tmp/article.pdf
 ```
 

@@ -297,9 +297,9 @@ execute attachment payloads.
 
 Paginated PDF (**0.2.0**). **Direction (D21):** native layout via the
 [print IR](print_ir.md) and **`ariadnes-weave`** (profiles such as `print` /
-`manuscript` / `deck`). `--backend native` requires Cargo feature `native-pdf`
-(crate default). **CLI default is `native` since 0.3.0** (THI-350). `--backend
-chromium` remains the HTML + print-theme CSS → headless Chromium/Chrome path
+`manuscript` / `deck`). Native PDF (the CLI default since 0.3.0 / THI-350)
+requires Cargo feature `native-pdf` (crate default). `--backend chromium`
+remains the HTML + print-theme CSS → headless Chromium/Chrome path
 (`TES_CHROME` or auto-detect). On Linux and in CI, Tessera passes `--no-sandbox`
 when needed (`TES_CHROME_NO_SANDBOX`).
 
@@ -308,12 +308,12 @@ Optional weave font packs: Cargo features `weave-cjk`, `weave-emoji`,
 faces only; library embeds can pin host TTFs via weave `EmitOptions` /
 `TextRun::face` ([print IR](print_ir.md#host-pinned-faces-ariadnes-weave--022)).
 Pack `weave.toml` (manifest `weave` or convention) sparsely overlays
-`LayoutKnobs` for `--backend native` (D23); CSS themes stay Chromium-only.
+`LayoutKnobs` for native PDF (D23); CSS themes stay Chromium-only.
 Pack `fonts.toml` (id → relative `.ttf`/`.otf`) loads into
 `EmitOptions::pinned_faces` for sealed `\font{id}{…}` spans (D23 / THI-356).
 Category defaults (`[text|heading|quote|cite].font` = pin id) apply when a run
 has no `TextRun.face`; explicit `\font` still overrides (THI-360).
-`--backend native` with weave **0.2.14+** paints per-chunk `align`, `{heading}`
+Native PDF with weave **0.2.14+** paints per-chunk `align`, `{heading}`
 chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396), and keeps headings /
 `\box` / display math / tables **in** `\columns` (THI-416; figures still span).
 

@@ -284,7 +284,7 @@ Smoke with page chrome (TOC + bookmarks):
 mkdir -p tmp/thi-393-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/manuscript_chapters.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root fixtures/packs --template page_chrome \
   -o tmp/thi-393-smoke/manuscript_chapters__page_chrome.pdf
 ```
@@ -303,7 +303,7 @@ on the float blocks. See `docs/tessprek.md` and
 mkdir -p tmp/thi-395-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/lists_of_floats.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root fixtures/packs --template page_chrome \
   -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
 ```
@@ -325,7 +325,7 @@ or enclosing columns set align. Samples: `fixtures/samples/article_columns.tes`
 mkdir -p tmp/thi-398-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/mixed_align.tes \
-  --pdf --backend native \
+  --pdf \
   -o tmp/thi-398-smoke/mixed_align.pdf
 ```
 
@@ -334,7 +334,7 @@ mkdir -p tmp/thi-391-smoke
 for pack in columns_left columns_justify; do
   cargo run -q --bin tes --features native-pdf -- export \
     fixtures/samples/article_columns.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$pack" \
     -o "tmp/thi-391-smoke/article_columns__${pack}.pdf"
 done

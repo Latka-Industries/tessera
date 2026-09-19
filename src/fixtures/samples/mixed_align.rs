@@ -24,7 +24,7 @@ fn paragraph_align(align: TextAlign) -> TextHeader {
 
 /// Mixed start / justify / center alignments in one document.
 ///
-/// Pair with `tes export --pdf --backend native` (pack default is flush-left).
+/// Pair with `tes export --pdf` (pack default is flush-left).
 ///
 /// # Panics
 ///
