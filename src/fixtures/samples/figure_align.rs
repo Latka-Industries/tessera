@@ -1,7 +1,7 @@
 //! Figure title/caption band + pack weave alignment tour (`figure_align.tes`).
 //!
 //! Pair with packs under `fixtures/packs/figure_*` and:
-//! `tes export --pdf --backend native --template-root fixtures/packs --template figure_left …`
+//! `tes export --pdf --template-root fixtures/packs --template figure_left …`
 
 use crate::catalog::{TesWriterSession, TextHeader};
 use crate::layout::DocKind;
@@ -39,7 +39,7 @@ pub fn encode_figure_align() -> Vec<u8> {
             &TextHeader::paragraph(),
             "Same .tes, different pack weave.toml. Export with \
              --template-root fixtures/packs --template figure_left|figure_center|figure_right|figure_caption_justify \
-             and --pdf --backend native. Caption band always match_figure (wraps under the image); \
+             and --pdf. Caption band always match_figure (wraps under the image); \
              left/center/right use text_align=follow; figure_caption_justify is the same geometry with justify. \
              max_width_factor=0.55 makes left/center/right obvious. Swatch is 240×120.",
         )

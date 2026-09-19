@@ -14,7 +14,7 @@ mkdir -p tmp/thi-391-smoke
 for pack in columns_left columns_justify; do
   cargo run -q --bin tes --features native-pdf -- export \
     fixtures/samples/article_columns.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$pack" \
     -o "tmp/thi-391-smoke/article_columns__${pack}.pdf"
 done

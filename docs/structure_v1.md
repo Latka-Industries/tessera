@@ -51,7 +51,7 @@ re-printing HTML/CSS. HTML remains the preview/interchange sink (D21).
 | Citations | Cite wire + BibTeX/CSL | Cite writer, spans, styles, interchange | shipped (M8) |
 | HTML | Import/export implemented | AI-safe and themed profiles remain distinct | shipped (M6) |
 | Browser preview | `tes serve` + theme packs | Theme packs + safe reload | shipped (M7) |
-| PDF | `tes export --pdf` | HTML + print theme pipeline | shipped (M7) |
+| PDF | `tes export --pdf` | Native print IR → ariadnes-weave (Chromium opt-in) | shipped (M7 / 0.3.0 default) |
 | Slides | Region-based slide chunks | Named regions, no freeform coordinates | shipped (M9) |
 | Layout blocks | `ChunkType::Layout` + `place`/`vspace`/`rule` | Closed ops; weave paints; not pack macros | shipped (D24 / THI-363..364) |
 | History (first slice) | `save` / `log` / `diff` / `changelog` | Content-addressed revisions + drafts | shipped (M10) |
@@ -207,7 +207,7 @@ A Tessera template is a folder/pack with a versioned manifest:
 - id, version, compatible structure/features;
 - CSS themes (HTML / Chromium only) and optional fonts/assets;
 - optional `weave.toml` (or manifest `weave` path) — sparse overlay on
-  ariadnes-weave `LayoutKnobs` for `--backend native` (D23); optional
+  ariadnes-weave `LayoutKnobs` for native PDF (D23); optional
   category `font` pin ids (`[text|heading|quote|cite].font`, THI-360);
 - optional `typography.toml` / `aliases.toml` / `phrases.toml` — expand once at
   `tes format` / edit-write (D23 / THI-354 / THI-355); sealed body stores
@@ -228,8 +228,8 @@ pack hashes. Pack bytes are external by default; standalone exports may embed
 CSS/assets.
 
 `tes serve` projects `.tes` to HTML and applies a draft or print theme.
-`tes export --pdf` defaults to HTML + print-theme + Chromium; `--backend native`
-uses print IR → `ariadnes-weave` (optional pack `weave.toml` / `fonts.toml`).
+`tes export --pdf` defaults to print IR → `ariadnes-weave` (optional pack
+`weave.toml` / `fonts.toml`); `--backend chromium` uses HTML + print-theme.
 Browser preview and PDF are two sinks of shared `.tes` structure, not one CSS
 engine.
 

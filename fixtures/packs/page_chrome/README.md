@@ -23,7 +23,7 @@ mkdir -p tmp/thi-392-smoke
 for doc in manuscript_chapters / field_notes / studio_brief; do
   for pack in page_chrome page_chrome_footer_left page_chrome_footer_center page_chrome_footer_right page_chrome_fmt_slash page_chrome_fmt_of page_chrome_fmt_bare page_chrome_fmt_title_page page_chrome_header_center page_chrome_header_right; do
     cargo run -q --bin tes -- export "fixtures/samples/${doc}.tes" \
-      --pdf --backend native \
+      --pdf \
       --template-root fixtures/packs --template "$pack" \
       -o "tmp/thi-392-smoke/${doc}__${pack}.pdf"
   done

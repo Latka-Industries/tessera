@@ -72,7 +72,7 @@ Terms used consistently across Tessera docs, issues, and code.
 | **Footnote / endnote** | Tessprek `\footnote{…}` / `\endnote{…}` → `InlineKind::Note`; native print uses weave `PrintBlock::Note` (THI-396 / 410). |
 | **Layout block** | Sealed `place` / `vspace` / `rule` chunk (D24). See [decisions.md — D24](decisions.md). |
 | **`ariadnes-weave`** | Separate crate that lays out print IR → deterministic PDF bytes. |
-| **PDF backend** | `chromium` (HTML-print, CLI default) or `native` (print IR + weave). |
+| **PDF backend** | `native` (print IR + weave, CLI default since 0.3.0) or `chromium` (HTML-print fallback). |
 
 ---
 

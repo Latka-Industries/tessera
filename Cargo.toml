@@ -1,6 +1,6 @@
 [package]
 name = "tessera-doc"
-version = "0.2.12"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.95"
 default-run = "tes"
@@ -31,7 +31,7 @@ path = "src/bin/tes_lsp.rs"
 
 [features]
 default = ["native-pdf"]
-# Print IR → ariadnes-weave (`tes export --pdf --backend native`).
+# Print IR → ariadnes-weave (`tes export --pdf` default since 0.3.0).
 native-pdf = ["dep:ariadnes-weave"]
 # Pass-through sealed font packs from ariadnes-weave (large; opt-in).
 weave-cjk = ["native-pdf", "ariadnes-weave/cjk"]

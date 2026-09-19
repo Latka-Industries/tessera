@@ -1,10 +1,12 @@
 //! Print/PDF export under [`crate::render`].
 //!
 //! Two backends:
-//! - **Chromium** (default): semantic HTML + print-theme → headless Chromium
-//! - **Native** (THI-294, feature `native-pdf`): print IR → `ariadnes_weave::emit_pdf_with`
-//!   with pack overlays (D23): `weave.toml` → layout knobs (THI-357),
-//!   `fonts.toml` → `EmitOptions::pinned_faces` (THI-356)
+//! - **Native** (THI-294 / THI-350, feature `native-pdf`): print IR →
+//!   `ariadnes_weave::emit_pdf_with` with pack overlays (D23): `weave.toml` →
+//!   layout knobs (THI-357), `fonts.toml` → `EmitOptions::pinned_faces` (THI-356).
+//!   CLI / library default since 0.3.0.
+//! - **Chromium** (opt-in `--backend chromium`): semantic HTML + print-theme →
+//!   headless Chromium
 //!
 //! Browser preview (`tes serve --theme print`) still shares the HTML path with
 //! the Chromium backend. PDF is never an editable canonical source.
@@ -23,13 +25,22 @@ use crate::io::export::{ExportOptions, ExportView, export_file};
 use crate::layout::DocKind;
 
 /// PDF generation engine for [`export_pdf`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PdfBackend {
-    /// HTML + print theme → headless Chromium (current default).
-    #[default]
+    /// HTML + print theme → headless Chromium (`--backend chromium` since 0.3.0).
     Chromium,
-    /// Print IR → ariadnes-weave (no Chromium).
+    /// Print IR → ariadnes-weave (CLI / library default since 0.3.0).
     Native,
+}
+
+impl Default for PdfBackend {
+    fn default() -> Self {
+        if cfg!(feature = "native-pdf") {
+            Self::Native
+        } else {
+            Self::Chromium
+        }
+    }
 }
 
 impl PdfBackend {
@@ -72,7 +83,7 @@ pub struct PdfExportOptions {
     pub chapter: Option<u32>,
     /// Explicit Chromium/Chrome binary; otherwise auto-detect.
     pub chrome_path: Option<PathBuf>,
-    /// PDF engine; defaults to [`PdfBackend::Chromium`].
+    /// PDF engine; defaults to [`PdfBackend::default`] (`native` with `native-pdf`).
     pub backend: PdfBackend,
 }
 
@@ -85,7 +96,7 @@ impl Default for PdfExportOptions {
             theme_id: None,
             chapter: None,
             chrome_path: None,
-            backend: PdfBackend::Chromium,
+            backend: PdfBackend::default(),
         }
     }
 }
@@ -133,8 +144,8 @@ pub fn render_themed_html(path: impl AsRef<Path>, options: &PdfExportOptions) ->
 
 /// Export `path` to a PDF file at `output`.
 ///
-/// Backend is selected by [`PdfExportOptions::backend`] (`chromium` default,
-/// `native` for ariadnes-weave when the `native-pdf` Cargo feature is enabled).
+/// Backend is selected by [`PdfExportOptions::backend`] (`native` default since
+/// 0.3.0 when `native-pdf` is enabled; `--backend chromium` remains opt-in).
 ///
 /// # Errors
 ///
@@ -455,6 +466,22 @@ mod tests {
 
     #[cfg(feature = "native-pdf")]
     #[test]
+    fn export_pdf_default_backend_is_native() {
+        assert_eq!(PdfBackend::default(), PdfBackend::Native);
+        assert_eq!(PdfExportOptions::default().backend, PdfBackend::Native);
+
+        let dir = tempdir().unwrap();
+        let tes = dir.path().join("note.tes");
+        fs::write(&tes, crate::fixtures::v0::encode_note_three_chunks()).unwrap();
+        let out = dir.path().join("default.pdf");
+        export_pdf(&tes, &out, &PdfExportOptions::default()).unwrap();
+        let bytes = fs::read(&out).unwrap();
+        assert!(bytes.starts_with(b"%PDF-"));
+        assert!(bytes.len() > 200);
+    }
+
+    #[cfg(feature = "native-pdf")]
+    #[test]
     fn export_pdf_native_note_three_chunks() {
         let dir = tempdir().unwrap();
         let tes = dir.path().join("note.tes");
@@ -617,6 +644,7 @@ mod tests {
                 template_root: templates,
                 theme_id: Some("print".into()),
                 chrome_path: Some(chrome),
+                backend: PdfBackend::Chromium,
                 ..PdfExportOptions::default()
             },
         ) {

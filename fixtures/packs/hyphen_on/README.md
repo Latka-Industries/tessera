@@ -14,7 +14,7 @@ Compare `hyphen_on` vs `hyphen_off` side by side.
 mkdir -p tmp/thi-394-smoke
 for pack in hyphen_on hyphen_off hyphen_widows_3; do
   cargo run -q --bin tes -- export fixtures/samples/hyphen_dense.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$pack" \
     -o "tmp/thi-394-smoke/${pack}.pdf"
 done

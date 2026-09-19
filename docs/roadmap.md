@@ -1,16 +1,16 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.2.12** (document-depth wire: Tessprek v2,
-captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering; **D23** pack
-authoring complete — category fonts, master `tessera.toml`, pack-aware LSP;
-native print caption/underline bridge via **`ariadnes-weave` ≥ 0.2.8** /
-THI-349; resume dogfood wire via weave **0.2.9** / THI-324 — `\row`, `\icon`,
-`\block{indent=N}`, multi-arg `\phrase`, `--theme-id resume`; long-doc print via
-weave **0.2.10** / THI-390..395 — `\toc` / `\lof` / `\lot`, `\columns`, page
-chrome + hyphen knobs, PDF outline; **0.2.12** pins weave **0.2.14** — per-chunk
-`align`, `{heading}` chrome, `\footnote` / `\endnote`, and in-column headings /
-`\box` / math / tables). Chromium remains
-the default PDF backend. M10 history tools
+**Status:** M0–M11 shipped; crate **0.3.0** (`tes export --pdf` defaults to
+`--backend native`; Chromium is `--backend chromium`). Document-depth wire:
+Tessprek v2, captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering;
+**D23** pack authoring complete — category fonts, master `tessera.toml`,
+pack-aware LSP; native print caption/underline bridge via **`ariadnes-weave` ≥
+0.2.8** / THI-349; resume dogfood wire via weave **0.2.9** / THI-324 — `\row`,
+`\icon`, `\block{indent=N}`, multi-arg `\phrase`, `--theme-id resume`; long-doc
+print via weave **0.2.10** / THI-390..395 — `\toc` / `\lof` / `\lot`, `\columns`,
+page chrome + hyphen knobs, PDF outline; **0.2.12** pins weave **0.2.14** —
+per-chunk `align`, `{heading}` chrome, `\footnote` / `\endnote`, and in-column
+headings / `\box` / math / tables. M10 history tools
 (`save`/`log`/`diff`/`changelog`/`export-revs`/`checkout`/`textconv`/`blame`/
 `pending`/`merge-file`), layout-v1 **text wire** (spans/math/tables/lang),
 **inert attachments**, and **typed TLNK targets** (external URI heap v1) are
@@ -19,8 +19,8 @@ catalog feature flags, GitHub Tessprek PR + push-branch summaries (THI-212 /
 THI-219), manuscript conventions + `--chapter` + `manuscript` theme (THI-220),
 theme polish (THI-221), `tes repair` (THI-225), and `TesOp::SetTags` are in.
 **0.1.12** added parser hygiene (THI-296..299). **0.2.0** wires print IR →
-**`ariadnes-weave`** (`tes export --pdf --backend native`; Chromium remains
-default) — THI-290 / THI-294 under epic THI-256. **0.2.1** requires weave
+**`ariadnes-weave`** (`tes export --pdf --backend native`; Chromium was still
+default until **0.3.0** / THI-350) — THI-290 / THI-294 under epic THI-256. **0.2.1** requires weave
 0.2.2 (`TextRun.face` / pinned faces). **0.2.5** lands D23 Tessera Phase B:
 pack `weave.toml` → `EmitOptions` (THI-357), typography + aliases (THI-354),
 `\phrase` (THI-355), `\font` + `fonts.toml` pins (THI-356). **0.2.6** adds
@@ -38,7 +38,9 @@ hyphen, outline). **0.2.11** landed per-chunk align
 **0.2.12** pins weave **0.2.14** so native `\columns` keep headings / `\box` /
 math / tables (THI-416), and ships `\box` plus article dogfood (THI-397;
 `article_bands.tes` vs a local gitignored golden; gap notes in
-`docs/thi-397-jimis-gaps.md`). Corpus LaTeX is not vendored. This is an
+`docs/thi-397-jimis-gaps.md`). **0.3.0** promotes `--backend native` to the
+`tes export --pdf` default (THI-350); Chromium stays `--backend chromium`.
+Corpus LaTeX is not vendored. This is an
 implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
@@ -53,7 +55,7 @@ links.
 | Tables | structured header table + TSV fallback | — | rich import/export |
 | Links | internal UUID/chunk graph + typed external/attachment targets (TLNK v0/v1); light `vault.tes` (`tes vault`); multi-root membership (THI-217) | — | — |
 | Media | image payload + `FigureRef`; inert attachments | — | — |
-| Human render | template packs, `tes serve`, Chromium PDF (default), native PDF via **`ariadnes-weave`** (`--backend native`), slides, theme polish; print IR; D23 pack overlays (`weave.toml` / `\font` pins / category fonts); D24 layout blocks (`\layout`) | promote native default; tables/math/decks; OS fonts (THI-311) | Tesscriptor layout op UI (THI-366) when needed |
+| Human render | template packs, `tes serve`, native PDF via **`ariadnes-weave`** (CLI default), Chromium PDF (`--backend chromium`), slides, theme polish; print IR; D23 pack overlays (`weave.toml` / `\font` pins / category fonts); D24 layout blocks (`\layout`) | last-page columns (THI-417); tables/math/decks; OS fonts (THI-311) | Tesscriptor layout op UI (THI-366) when needed |
 | AI | raw/linear/AI text/JSONL, multimodal parts, cites/BibTeX | Markdown or semantic HTML profiles (already distinct) | — |
 | History | `THST` v1, drafts, structural diff/changelog, export-revs/checkout/textconv, blame, pending, merge-file; GitHub PR + push Tessprek (THI-212 / THI-219) | — | — |
 
@@ -287,8 +289,7 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **Native PDF default:** promote `--backend native` (THI-350). Article
-   dogfood (THI-397) is done; last-page column leftover is THI-417.
+1. **Shipped:** native PDF default (THI-350) in **0.3.0**. Last-page column leftover is THI-417.
 2. **Tesscriptor later:** layout op-list UI (THI-366) when that track resumes.
 3. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 4. **open format / bench:** MIME/magic conformance cases and claim-backed
@@ -301,7 +302,7 @@ freeze. CRDT/live cursors are not part of M10.
    (THI-324 / 386 / 387 / weave 0.2.9); long-doc print 0.2.10
    (THI-390..395 / weave 0.2.10); align / heading chrome / footnotes 0.2.11
    (THI-398 / 409 / 396); **0.2.12** weave **0.2.14** pin + `\box` + article
-   dogfood (THI-416 / 412 / 414 / 397).
+   dogfood (THI-416 / 412 / 414 / 397); **0.3.0** native PDF default (THI-350).
 
 ---
 

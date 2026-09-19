@@ -1,7 +1,7 @@
 # Print IR (`ariadnes-weave`)
 
-**Status (Tessera 0.2.12):** prose print-tree builder + CLI `--backend native`
-shipped (THI-288 / THI-290 / THI-294). Spec + D21 accepted. Requires
+**Status (Tessera 0.3.0):** prose print-tree builder + CLI `--backend native`
+default (THI-288 / THI-290 / THI-294 / THI-350). Spec + D21 accepted. Requires
 **`ariadnes-weave` ≥ 0.2.14** (in-column headings / titled bands / math / tables
 inside `Columns`; titled-band `PrintBlock::Callout`; `[body].line_numbers`;
 roman/arabic `{page}` + even/odd chrome; per-block `text_align`, live `{heading}` chrome,
@@ -57,8 +57,8 @@ unfolding**: same `.tes` + same **print profile** version → same pagination.
 **PDF source of truth for layout** = print IR + profile, not CSS.
 **HTML** remains the browser sink; it does not drive native PDF.
 
-Chromium HTML-print remains the **CLI default** (`--backend chromium`); native
-is opt-in until promoted. After cutover, Chromium stays as optional fallback.
+`tes export --pdf` defaults to native (`--backend native`) since 0.3.0
+(THI-350). Chromium HTML-print is `--backend chromium`.
 
 ---
 
@@ -284,7 +284,7 @@ Smoke with page chrome (TOC + bookmarks):
 mkdir -p tmp/thi-393-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/manuscript_chapters.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root fixtures/packs --template page_chrome \
   -o tmp/thi-393-smoke/manuscript_chapters__page_chrome.pdf
 ```
@@ -303,7 +303,7 @@ on the float blocks. See `docs/tessprek.md` and
 mkdir -p tmp/thi-395-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/lists_of_floats.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root fixtures/packs --template page_chrome \
   -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
 ```
@@ -325,7 +325,7 @@ or enclosing columns set align. Samples: `fixtures/samples/article_columns.tes`
 mkdir -p tmp/thi-398-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/mixed_align.tes \
-  --pdf --backend native \
+  --pdf \
   -o tmp/thi-398-smoke/mixed_align.pdf
 ```
 
@@ -334,7 +334,7 @@ mkdir -p tmp/thi-391-smoke
 for pack in columns_left columns_justify; do
   cargo run -q --bin tes --features native-pdf -- export \
     fixtures/samples/article_columns.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$pack" \
     -o "tmp/thi-391-smoke/article_columns__${pack}.pdf"
 done
@@ -374,11 +374,11 @@ done
 ## CLI
 
 ```bash
-tes export doc.tes --pdf -o out.pdf --backend native   # ariadnes-weave
-tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print (default)
+tes export doc.tes --pdf -o out.pdf                  # ariadnes-weave (default)
+tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print
 ```
 
-Default stays `chromium` until native is promoted; both backends ship since 0.2.0
+Default is `native` since 0.3.0 (THI-350); both backends ship since 0.2.0
 (`ariadnes-weave` **0.2.14+** for in-column headings/bands/math/tables;
 **0.2.11+** for per-block align / `{heading}` / notes;
 **0.2.10+** for long-doc chrome / hyphen / TOC / columns / outline / float dests;
@@ -396,5 +396,5 @@ pin path.
 1. This sketch + D21 (THI-288) — done
 2. Scaffold `ariadnes-weave` (THI-289) — done
 3. Tessera print-tree builder, prose (THI-290) — done (0.2.0)
-4. Pagination + CLI wiring (THI-294) — done (0.2.0, `--backend native`)
-5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363); caption/underline bridge (Tessera 0.2.8 / weave 0.2.8 / THI-349); resume row/icon/indent (Tessera 0.2.9 / weave 0.2.9 / THI-324); long-doc toc/columns/chrome/lof (Tessera 0.2.10 / weave 0.2.10 / THI-390..395); per-chunk align + `{heading}` + footnotes (Tessera 0.2.11 / weave 0.2.11 / THI-398 / 409 / 396); in-column mixed blocks (Tessera 0.2.12 / weave 0.2.14 / THI-416)
+4. Pagination + CLI wiring (THI-294) — done (0.2.0); native default (THI-350) — done (0.3.0)
+5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363); caption/underline bridge (Tessera 0.2.8 / weave 0.2.8 / THI-349); resume row/icon/indent (Tessera 0.2.9 / weave 0.2.9 / THI-324); long-doc toc/columns/chrome/lof (Tessera 0.2.10 / weave 0.2.10 / THI-390..395); per-chunk align + `{heading}` + footnotes (Tessera 0.2.11 / weave 0.2.11 / THI-398 / 409 / 396); in-column mixed blocks (Tessera 0.2.12 / weave 0.2.14 / THI-416); native CLI default (Tessera 0.3.0 / THI-350)

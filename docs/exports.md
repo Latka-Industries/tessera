@@ -297,30 +297,30 @@ execute attachment payloads.
 
 Paginated PDF (**0.2.0**). **Direction (D21):** native layout via the
 [print IR](print_ir.md) and **`ariadnes-weave`** (profiles such as `print` /
-`manuscript` / `deck`). `--backend native` requires Cargo feature `native-pdf`
-(crate default). **CLI default remains `chromium`** (HTML + print-theme CSS →
-headless Chromium/Chrome via `TES_CHROME` or auto-detect) until native is
-promoted. On Linux and in CI, Tessera passes `--no-sandbox` when needed
-(`TES_CHROME_NO_SANDBOX`).
+`manuscript` / `deck`). Native PDF (the CLI default since 0.3.0 / THI-350)
+requires Cargo feature `native-pdf` (crate default). `--backend chromium`
+remains the HTML + print-theme CSS → headless Chromium/Chrome path
+(`TES_CHROME` or auto-detect). On Linux and in CI, Tessera passes `--no-sandbox`
+when needed (`TES_CHROME_NO_SANDBOX`).
 
 Optional weave font packs: Cargo features `weave-cjk`, `weave-emoji`,
 `weave-icons` (pass-through to `ariadnes-weave`). Native CLI emit uses sealed
 faces only; library embeds can pin host TTFs via weave `EmitOptions` /
 `TextRun::face` ([print IR](print_ir.md#host-pinned-faces-ariadnes-weave--022)).
 Pack `weave.toml` (manifest `weave` or convention) sparsely overlays
-`LayoutKnobs` for `--backend native` (D23); CSS themes stay Chromium-only.
+`LayoutKnobs` for native PDF (D23); CSS themes stay Chromium-only.
 Pack `fonts.toml` (id → relative `.ttf`/`.otf`) loads into
 `EmitOptions::pinned_faces` for sealed `\font{id}{…}` spans (D23 / THI-356).
 Category defaults (`[text|heading|quote|cite].font` = pin id) apply when a run
 has no `TextRun.face`; explicit `\font` still overrides (THI-360).
-`--backend native` with weave **0.2.14+** paints per-chunk `align`, `{heading}`
+Native PDF with weave **0.2.14+** paints per-chunk `align`, `{heading}`
 chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396), and keeps headings /
 `\box` / display math / tables **in** `\columns` (THI-416; figures still span).
 
 | Flag | Behavior |
 | --- | --- |
 | `-o PATH` | **Required** output PDF path |
-| `--backend chromium\|native` | `chromium` (default) or `native` (ariadnes-weave; needs `native-pdf`) |
+| `--backend chromium\|native` | `native` (default; ariadnes-weave; needs `native-pdf`) or `chromium` |
 | `--theme-id ID` | Pack theme for Chromium HTML-print; also selects native profile when set (`print` / `manuscript` / `deck`) |
 | `--template ID` / `--template-root DIR` | Template pack (Chromium CSS; native optional `weave.toml`) |
 | `--chapter N` | Restrict body to the Nth H1-bounded chapter (1-based; same flag on all export views) |
@@ -330,7 +330,7 @@ preview (`tes serve`) stays on semantic HTML + CSS. Native PDF and HTML preview
 share **structure** (`.tes` chunks), not a single CSS pagination engine.
 Manuscript / beta-reader **print profile** `manuscript` encodes Courier-like /
 double-spaced policy in `ariadnes-weave`; the pack theme `manuscript` remains
-for HTML/Chromium until cutover.
+for HTML/Chromium.
 
 ---
 

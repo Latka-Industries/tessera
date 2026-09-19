@@ -463,7 +463,7 @@ cargo run --example gen_sample_fixtures
 for id in {figure_loop}; do
   cargo run -q --bin tes --features native-pdf -- export \
     fixtures/samples/figure_align.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$id" \
     -o "tmp/tessera-349-smoke/${{id}}.pdf"
 done
@@ -483,7 +483,7 @@ for doc in {docs}; do
   for pack in {chrome_loop}; do
     cargo run -q --bin tes --features native-pdf -- export \
       "fixtures/samples/${{doc}}.tes" \
-      --pdf --backend native \
+      --pdf \
       --template-root fixtures/packs --template "$pack" \
       -o "tmp/thi-392-smoke/${{doc}}__${{pack}}.pdf"
   done
@@ -509,7 +509,7 @@ mkdir -p tmp/thi-394-smoke
 for pack in {hyphen_loop}; do
   cargo run -q --bin tes --features native-pdf -- export \
     fixtures/samples/hyphen_dense.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$pack" \
     -o "tmp/thi-394-smoke/${{pack}}.pdf"
 done
@@ -524,7 +524,7 @@ done
 mkdir -p tmp/thi-390-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/manuscript_chapters.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root fixtures/packs --template page_chrome \
   -o tmp/thi-390-smoke/manuscript_chapters__page_chrome.pdf
 ```
@@ -539,7 +539,7 @@ mkdir -p tmp/thi-391-smoke
 for pack in {columns_loop}; do
   cargo run -q --bin tes --features native-pdf -- export \
     fixtures/samples/article_columns.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$pack" \
     -o "tmp/thi-391-smoke/article_columns__${{pack}}.pdf"
 done
@@ -554,7 +554,7 @@ done
 mkdir -p tmp/thi-395-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/lists_of_floats.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root fixtures/packs --template page_chrome \
     -o tmp/thi-395-smoke/lists_of_floats__page_chrome.pdf
 ```
@@ -571,12 +571,12 @@ Smoke overlays here:
 mkdir -p tmp/thi-411-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/article_bands.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root templates --template article \
   -o tmp/thi-411-smoke/article_bands__article.pdf
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/article_bands.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root fixtures/packs --template line_numbers \
   -o tmp/thi-411-smoke/article_bands__line_numbers.pdf
 ```
@@ -592,7 +592,7 @@ Tracked sample is [`../samples/article_bands.tes`](../samples/article_bands.tes)
 mkdir -p tmp/thi-397-smoke
 cargo run -q --bin tes --features native-pdf -- export \
   fixtures/samples/article_bands.tes \
-  --pdf --backend native \
+  --pdf \
   --template-root templates --template article \
   -o tmp/thi-397-smoke/article_bands-native.pdf
 cargo run -q --bin tes -- export \
@@ -635,7 +635,7 @@ mkdir -p tmp/thi-392-smoke
 for doc in {docs}; do
   for pack in {packs}; do
     cargo run -q --bin tes -- export "fixtures/samples/${{doc}}.tes" \
-      --pdf --backend native \
+      --pdf \
       --template-root fixtures/packs --template "$pack" \
       -o "tmp/thi-392-smoke/${{doc}}__${{pack}}.pdf"
   done
@@ -665,7 +665,7 @@ Compare `hyphen_on` vs `hyphen_off` side by side.
 mkdir -p tmp/thi-394-smoke
 for pack in {packs}; do
   cargo run -q --bin tes -- export fixtures/samples/hyphen_dense.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$pack" \
     -o "tmp/thi-394-smoke/${{pack}}.pdf"
 done
@@ -694,7 +694,7 @@ mkdir -p tmp/thi-391-smoke
 for pack in {packs}; do
   cargo run -q --bin tes --features native-pdf -- export \
     fixtures/samples/article_columns.tes \
-    --pdf --backend native \
+    --pdf \
     --template-root fixtures/packs --template "$pack" \
     -o "tmp/thi-391-smoke/article_columns__${{pack}}.pdf"
 done

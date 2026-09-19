@@ -1,7 +1,7 @@
 //! Build ariadnes-weave print IR from `.tes` reading-order chunks (THI-290).
 //!
-//! Bridge only: `.tes` → [`PrintDocument`]. Native PDF emit is THI-294
-//! (`tes export --pdf --backend native`). Inline [`InlineKind::Font`](crate::catalog::InlineKind::Font)
+//! Bridge only: `.tes` → [`PrintDocument`]. Native PDF emit is THI-294 /
+//! THI-350 (`tes export --pdf`, default `--backend native`). Inline [`InlineKind::Font`](crate::catalog::InlineKind::Font)
 //! maps to weave `TextRun.face` (pack pins loaded at emit, not here).
 
 mod blocks;
