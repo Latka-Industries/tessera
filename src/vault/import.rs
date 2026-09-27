@@ -15,8 +15,8 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::catalog::TesFile;
-use crate::error::Result;
 use crate::catalog::TextRole;
+use crate::error::Result;
 use crate::error::TesError;
 use crate::io::import::{
     MarkdownImportOptions, WikilinkResolver, WikilinkSectionResolver, collect_unresolved_wikilinks,
@@ -224,8 +224,7 @@ fn heading_chunk_map_from_markdown(markdown: &str) -> HashMap<String, u64> {
             continue;
         }
         // First heading with a given title wins (matches typical Obsidian resolve).
-        out.entry(text.to_owned())
-            .or_insert((i as u64) + 1);
+        out.entry(text.to_owned()).or_insert((i as u64) + 1);
     }
     out
 }
@@ -258,9 +257,12 @@ fn import_planned_notes(
                         ),
                     });
                 };
-                headings.get(section).copied().ok_or_else(|| TesError::InvalidLink {
-                    message: format!("wikilink section heading not found: {section}"),
-                })
+                headings
+                    .get(section)
+                    .copied()
+                    .ok_or_else(|| TesError::InvalidLink {
+                        message: format!("wikilink section heading not found: {section}"),
+                    })
             }))
         })
         .transpose()?;
@@ -505,11 +507,7 @@ mod tests {
         )
         .unwrap();
         assert!(report.unresolved_wikilinks.is_empty());
-        let cover = report
-            .imported
-            .iter()
-            .find(|e| e.title == "Cover")
-            .unwrap();
+        let cover = report.imported.iter().find(|e| e.title == "Cover").unwrap();
         let file = TesFile::open(dst.path().join(&cover.output)).unwrap();
         let links = file.links();
         assert_eq!(links.len(), 2);

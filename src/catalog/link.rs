@@ -118,18 +118,14 @@ pub fn parse_internal_destination(dest: &str) -> Result<(Uuid, u64)> {
             .and_then(|n| n.parse::<u64>().ok())
             .filter(|&n| n > 0)
             .ok_or_else(|| TesError::InvalidLink {
-                message: format!(
-                    "internal link fragment must be chunk-N (N > 0), got: {trimmed}"
-                ),
+                message: format!("internal link fragment must be chunk-N (N > 0), got: {trimmed}"),
             })?;
         (uuid_part, chunk_id)
     } else {
         (trimmed, 0)
     };
     let uuid = Uuid::parse_str(uuid_part).map_err(|_| TesError::InvalidLink {
-        message: format!(
-            "link destination is neither an allowed URI nor a UUID: {dest}"
-        ),
+        message: format!("link destination is neither an allowed URI nor a UUID: {dest}"),
     })?;
     Ok((uuid, chunk_id))
 }
@@ -229,9 +225,7 @@ impl LinkTarget {
     pub fn markdown_destination(&self) -> String {
         match self {
             Self::External { uri } => uri.clone(),
-            Self::Internal { doc_id, chunk_id } => {
-                format_internal_destination(*doc_id, *chunk_id)
-            }
+            Self::Internal { doc_id, chunk_id } => format_internal_destination(*doc_id, *chunk_id),
             Self::Attachment { chunk_id } => format!("attachment:{chunk_id}"),
         }
     }
