@@ -191,7 +191,7 @@ Emitted when the document has figures; ignored on decode (regenerated from the
 `.tes` on `edit-read`). `tes format` preserves declared attrs when open as a
 buffer only. Legacy `\media{7}` / packed one-line entries still skip cleanly.
 
-### `\block{title="…" caption="…" class="…" lang=… align=… indent=N}`
+### `\block{title="…" caption="…" class="…" lang=… align=… indent=N size=N}`
 
 Optional, immediately before a Markdown block, for the few `TextHeader`
 attributes Markdown can't express. Prefer the multiline form (same shape as
@@ -216,6 +216,11 @@ fn main() {}
   `\block{indent=2}` before a list applies to every item in that run; Markdown
   `  - nested` only bumps `list_depth`. Also attaches to a following `\row{…}`
   when the `\block` body is otherwise empty.
+- `size=N` (integer PDF points, **6..=72**) is valid **only on headings**.
+  Seals to `TextHeader.body_size`; print IR maps it to weave
+  `Heading.body_size` so the section body (this heading through the next
+  same-or-higher-level heading) lays out at that size. Absent → profile body
+  size (THI-435 / **0.3.1**, weave **0.2.15**).
 
 Also accepted: `class`, `lang`, `align` (`start` / `center` / `end` / `justify`).
 Print maps `align` onto weave per-block `text_align` (`start→left`, `end→right`);

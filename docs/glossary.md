@@ -68,6 +68,8 @@ Terms used consistently across Tessera docs, issues, and code.
 | **Render** | Generated HTML, PDF, deck, or AI view; never stored as canonical layout. |
 | **Print IR** | Pagination-ready tree Tessera builds from `.tes` for native PDF ([print_ir.md](print_ir.md)). |
 | **Per-chunk align** | Tessprek `\block{align=…}` / `\columns{align=…}` → `TextHeader.align` → weave `text_align` (THI-398). |
+| **Section body size** | Tessprek `\block{size=N}` on a heading → `TextHeader.body_size` → weave `Heading.body_size` (THI-435 / **0.3.1**). Applies through the next same-or-higher-level heading; absent → profile body size. |
+| **Section wikilink** | Obsidian-style `[[Note#Heading]]` / `[[Note#Heading\|label]]` → `TLNK.target_chunk_id` = heading chunk (THI-439 / **0.3.1**). Whole-note links still use `target_chunk_id = 0`. |
 | **Running heading** | Weave page-chrome `{heading}`: last H1/H2 on or before the page (THI-409). |
 | **Footnote / endnote** | Tessprek `\footnote{…}` / `\endnote{…}` → `InlineKind::Note`; native print uses weave `PrintBlock::Note` (THI-396 / 410). |
 | **Layout block** | Sealed `place` / `vspace` / `rule` chunk (D24). See [decisions.md — D24](decisions.md). |

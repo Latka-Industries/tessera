@@ -147,7 +147,7 @@ See [format-comparison.md — HTML](format-comparison.md#html--the-closest-cousi
 | --- | --- |
 | ATX headings, paragraphs, lists, fenced code, blockquotes | Footnotes and raw HTML blocks |
 | GFM pipe tables → `TextRole::Table` + `TableData` (header / body / column align) | |
-| Link display text; `[text](https://…)` / UUID destinations → `TLNK` + `InlineKind::Link`; vault import resolves `[[wikilinks]]` via title → slug → aliases | Footnote link kinds |
+| Link display text; `[text](https://…)` / UUID destinations → `TLNK` + `InlineKind::Link`; vault import resolves `[[wikilinks]]` via title → slug → aliases; `[[Note#Section]]` / labeled form store the heading `chunk_id` (THI-439 / **0.3.1**) | Footnote link kinds |
 
 **Export:** `tes export --markdown` generates GFM-ish Markdown from chunks; **lossy** for cite/slide richness.
 

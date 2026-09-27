@@ -8,7 +8,7 @@
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
 **In active development — layout v0 wire may change before a stable v1.**
-Crate **0.3.0** makes native PDF the `tes export --pdf` default (THI-350) via `ariadnes-weave` **0.2.14**. Chromium HTML-print stays opt-in (`--backend chromium`). Native surface: per-chunk `align`, live `{heading}` chrome, and `\footnote` / `\endnote` (THI-398 / 409 / 396) on top of the THI-316 long-doc surface (`\toc` / `\lof` / `\lot`, `\columns`, hyphen/widow knobs, PDF outline), resume `\row` / `\icon` / indent (THI-324), and the D23 / THI-349 surface. Weave 0.2.14 keeps headings, `\box` bands, display math, and tables **in** `\columns` (figures still span).
+Crate **0.3.1** (on the 0.3.0 native-PDF default) pins `ariadnes-weave` **0.2.15**: vault / import `[[Note#Section]]` wikilinks round-trip the heading `chunk_id` (THI-439), and Tessprek `\block{size=N}` stores a per-section body size on the heading that print IR passes through as `Heading.body_size` (THI-435). Chromium HTML-print stays opt-in (`--backend chromium`). Native surface otherwise unchanged from 0.3.0: per-chunk `align`, live `{heading}` chrome, `\footnote` / `\endnote`, long-doc `\toc` / `\lof` / `\lot` / `\columns`, resume `\row` / `\icon` / indent, and in-column headings / `\box` / math / tables.
 
 ## What it does today
 
@@ -62,7 +62,7 @@ Measure open-format claims (mmap / import / export / vault) with
 
 See `tes --help` and [docs/cli.md](docs/cli.md).
 
-**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.3.0`).
+**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.3.1`).
 `.github/workflows/release.yml` publishes a GitHub Release (not a draft) with
 generated notes and `cargo publish --locked` to crates.io. `workflow_dispatch`
 from a branch does not publish. `tes export --pdf` defaults to `--backend native`

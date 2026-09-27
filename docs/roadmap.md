@@ -1,7 +1,9 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.3.0** (`tes export --pdf` defaults to
-`--backend native`; Chromium is `--backend chromium`). Document-depth wire:
+**Status:** M0–M11 shipped; crate **0.3.1** (native PDF default from **0.3.0** /
+THI-350; Chromium is `--backend chromium`). **0.3.1** pins weave **0.2.15** —
+section wikilink `#` targets as heading `chunk_id` (THI-439) and per-section
+`body_size` / Tessprek `\block{size=N}` (THI-435). Document-depth wire:
 Tessprek v2, captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering;
 **D23** pack authoring complete — category fonts, master `tessera.toml`,
 pack-aware LSP; native print caption/underline bridge via **`ariadnes-weave` ≥
@@ -40,7 +42,8 @@ math / tables (THI-416), and ships `\box` plus article dogfood (THI-397;
 `article_bands.tes` vs a local gitignored golden; gap notes in
 `docs/thi-397-jimis-gaps.md`). **0.3.0** promotes `--backend native` to the
 `tes export --pdf` default (THI-350); Chromium stays `--backend chromium`.
-Corpus LaTeX is not vendored. This is an
+**0.3.1** pins weave **0.2.15** and ships section `#` wikilinks (THI-439) plus
+per-section `body_size` (THI-435). Corpus LaTeX is not vendored. This is an
 implementation plan, not a release schedule.
 
 Linear is the canonical tracker. Each phase lists acceptance criteria and doc
@@ -289,7 +292,7 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **Shipped:** native PDF default (THI-350) in **0.3.0**. Last-page column leftover is THI-417.
+1. **Shipped:** native PDF default (THI-350) in **0.3.0**; section `#` wikilinks + `body_size` (THI-439 / THI-435) in **0.3.1**. Last-page column leftover is THI-417.
 2. **Tesscriptor later:** layout op-list UI (THI-366) when that track resumes.
 3. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 4. **open format / bench:** MIME/magic conformance cases and claim-backed
@@ -302,7 +305,8 @@ freeze. CRDT/live cursors are not part of M10.
    (THI-324 / 386 / 387 / weave 0.2.9); long-doc print 0.2.10
    (THI-390..395 / weave 0.2.10); align / heading chrome / footnotes 0.2.11
    (THI-398 / 409 / 396); **0.2.12** weave **0.2.14** pin + `\box` + article
-   dogfood (THI-416 / 412 / 414 / 397); **0.3.0** native PDF default (THI-350).
+   dogfood (THI-416 / 412 / 414 / 397); **0.3.0** native PDF default (THI-350);
+   **0.3.1** weave **0.2.15** + section wikilinks / `body_size` (THI-439 / 435).
 
 ---
 

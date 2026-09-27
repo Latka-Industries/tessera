@@ -285,7 +285,8 @@ and `--tsv` keep the legacy TSV shape (optional `section=…` extras).
 path re-seed); top-level folder → `category`, remaining parent path → `section`
 (e.g. `Literature/Books/X.md` → category `Literature`, section `Books`); front
 matter tags/aliases/slug; `* Index.md` → `hub`; resolves `[[wikilinks]]` via
-title → slug → aliases; rebuilds `vault.tes`.
+title → slug → aliases (`[[Note#Section]]` → heading `chunk_id`, THI-439);
+rebuilds `vault.tes`.
 
 **Stale detection (`vault.tes`):** entry count / display paths / file mtimes must
 match the index over the full membership set; otherwise list falls back to a

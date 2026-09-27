@@ -180,7 +180,7 @@ Outbound and internal links for **backlink resolution** without scanning text pa
 | `source_byte_start` | `u32` | UTF-8 byte offset in text chunk (optional anchor) |
 | `source_byte_end` | `u32` | Exclusive end |
 | `target_doc_id` | `[u8;16]` | UUID bytes (RFC 4122 binary) for **internal** targets. For **external** (v1), first 8 bytes hold `uri_offset` / `uri_len` (little-endian `u32`s) into the trailing URI heap; remaining 8 bytes zero. |
-| `target_chunk_id` | `u64` | **`0`** = whole document (internal); attachment chunk id when `target_kind = 2`; **0** for external |
+| `target_chunk_id` | `u64` | **`0`** = whole document (internal); heading chunk id for `[[Note#Section]]` section wikilinks (THI-439 / **0.3.1**); attachment chunk id when `target_kind = 2`; **0** for external |
 | `link_kind` | `u32` | `0` = wiki, `1` = footnote, `2` = citation stub |
 | `reserved` / `target_kind` | `u32` | v0: **0**. v1: `0` = internal, `1` = external, `2` = attachment |
 
@@ -281,6 +281,7 @@ Wire layout:
   "code_lang": "rust",
   "title": "Listing 1",
   "caption": "Prints hello",
+  "body_size": 14,
   "table": { "rows": [{ "cells": [{ "text": "A", "is_header": true }] }] }
 }
 ```
@@ -288,7 +289,7 @@ Wire layout:
 | `role` | Meaning |
 | --- | --- |
 | `paragraph` | Body text |
-| `heading` | `level` 1–6 |
+| `heading` | `level` 1–6; optional `body_size` (u16 PDF points, 6..=72) applies from this heading through the next same-or-higher-level heading (THI-435 / **0.3.1**) |
 | `list_item` | `list_kind`: `bullet` \| `ordered` |
 | `blockquote` | Pull quote / block quote |
 | `code_block` | Monospace block; optional `code_lang`; optional `title` / `caption` |
@@ -296,11 +297,11 @@ Wire layout:
 | `math` | Display math; body is LaTeX; optional `title` / `caption` |
 
 Additive optional fields (`spans`, `lang`, `align`, `code_lang`, `title`,
-`caption`, `table`) are layout-v1 text structure on `layout_version = 0`.
+`caption`, `table`, `body_size`) are layout-v1 text structure on `layout_version = 0`.
 Readers that ignore unknown JSON keys remain compatible; writers that emit these
 fields must validate span bounds and nesting. `title` / `caption` are allowed
 only on `table`, `math`, and `code_block` (max 1024 bytes each; title above,
-caption below). Catalog may also carry optional BCP-47 `language`.
+caption below). `body_size` is allowed only on `heading`. Catalog may also carry optional BCP-47 `language`.
 
 **Default codec:** raw (`codec = 0`); text chunks are **uncompressed UTF-8** unless body &gt; 64 KiB (reference writer may zstd at `codec = 1`).
 

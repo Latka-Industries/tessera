@@ -1,9 +1,10 @@
 # Print IR (`ariadnes-weave`)
 
-**Status (Tessera 0.3.0):** prose print-tree builder + CLI `--backend native`
+**Status (Tessera 0.3.1):** prose print-tree builder + CLI `--backend native`
 default (THI-288 / THI-290 / THI-294 / THI-350). Spec + D21 accepted. Requires
-**`ariadnes-weave` ≥ 0.2.14** (in-column headings / titled bands / math / tables
-inside `Columns`; titled-band `PrintBlock::Callout`; `[body].line_numbers`;
+**`ariadnes-weave` ≥ 0.2.15** (optional `Heading.body_size` for per-section
+body size — THI-435; plus 0.2.14 in-column headings / titled bands / math /
+tables inside `Columns`; titled-band `PrintBlock::Callout`; `[body].line_numbers`;
 roman/arabic `{page}` + even/odd chrome; per-block `text_align`, live `{heading}` chrome,
 `PrintBlock::Note` footnote band / endnote dump; long-doc: page chrome,
 hyphen/widows, `TocEntry`, `/Outlines`, `Columns`, figure/table `dest_id` since
@@ -22,7 +23,9 @@ dests. THI-398 maps per-chunk `align=` into weave `text_align`. THI-396 maps
 (page-bottom band vs end dump; collision with footer chrome is weave THI-410).
 THI-414 / THI-412 map `\box{kind=…}` onto one
 `PrintBlock::Callout` (kind is IR-only). Pack `[body].line_numbers` (THI-415) and
-`[page.numbers]` / `align_even` (THI-413) overlay via `weave.toml`.
+`[page.numbers]` / `align_even` (THI-413) overlay via `weave.toml`. THI-435 maps
+heading `TextHeader.body_size` / Tessprek `\block{size=N}` via
+`PrintBlock::heading_dest_sized`.
 Layout quality beyond prose (THI-291+ tables/math/decks; OS fonts THI-311)
 continues in **`ariadnes-weave`** / Tessera under epic THI-256 / THI-316.
 
@@ -346,7 +349,7 @@ done
 
 | `.tes` | Print IR |
 | --- | --- |
-| Text `heading` level N | `Heading { level: N, dest_id: h-{chunk_id}, … }`; level 1 + `manuscript` → `PageAlways` |
+| Text `heading` level N | `Heading { level: N, dest_id: h-{chunk_id}, body_size?, … }` via `heading_dest_sized`; optional `body_size` from `TextHeader` / `\block{size=N}` (THI-435 / weave 0.2.15); level 1 + `manuscript` → `PageAlways` |
 | Text `toc` | Expanded `TocEntry` lines (+ optional title paragraph); not a frozen sealed list |
 | Text `columns` / `columns_end` | Folded into `PrintBlock::Columns` (THI-391 / THI-416); headings, `Callout`, tables, and display math stay in-column at weave 0.2.14; figures / TOC / rows / notes still span; optional `text_align` region default (THI-398); distinct from `Row` |
 | `paragraph` / quote / code / list | Matching blocks; optional `text_align` from `TextHeader.align` (THI-398); inline spans → `TextRun` styles |
@@ -379,7 +382,8 @@ tes export doc.tes --pdf -o out.pdf --backend chromium # HTML print
 ```
 
 Default is `native` since 0.3.0 (THI-350); both backends ship since 0.2.0
-(`ariadnes-weave` **0.2.14+** for in-column headings/bands/math/tables;
+(`ariadnes-weave` **0.2.15+** for section `body_size`;
+**0.2.14+** for in-column headings/bands/math/tables;
 **0.2.11+** for per-block align / `{heading}` / notes;
 **0.2.10+** for long-doc chrome / hyphen / TOC / columns / outline / float dests;
 **0.2.9+** for resume densify / Row / indent; **0.2.8+** for figure title/caption
@@ -397,4 +401,4 @@ pin path.
 2. Scaffold `ariadnes-weave` (THI-289) — done
 3. Tessera print-tree builder, prose (THI-290) — done (0.2.0)
 4. Pagination + CLI wiring (THI-294) — done (0.2.0); native default (THI-350) — done (0.3.0)
-5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363); caption/underline bridge (Tessera 0.2.8 / weave 0.2.8 / THI-349); resume row/icon/indent (Tessera 0.2.9 / weave 0.2.9 / THI-324); long-doc toc/columns/chrome/lof (Tessera 0.2.10 / weave 0.2.10 / THI-390..395); per-chunk align + `{heading}` + footnotes (Tessera 0.2.11 / weave 0.2.11 / THI-398 / 409 / 396); in-column mixed blocks (Tessera 0.2.12 / weave 0.2.14 / THI-416); native CLI default (Tessera 0.3.0 / THI-350)
+5. Deterministic fixtures (THI-292) — done in weave; tables/figures/math (THI-291); decks (THI-293); fonts (THI-307/308); host pins via `EmitOptions` (weave 0.2.2 / Tessera 0.2.1); pack `fonts.toml` + `\font` (Tessera 0.2.5 / THI-356); category fonts (Tessera 0.2.6 / THI-360); layout blocks (D24 / THI-362..363); caption/underline bridge (Tessera 0.2.8 / weave 0.2.8 / THI-349); resume row/icon/indent (Tessera 0.2.9 / weave 0.2.9 / THI-324); long-doc toc/columns/chrome/lof (Tessera 0.2.10 / weave 0.2.10 / THI-390..395); per-chunk align + `{heading}` + footnotes (Tessera 0.2.11 / weave 0.2.11 / THI-398 / 409 / 396); in-column mixed blocks (Tessera 0.2.12 / weave 0.2.14 / THI-416); native CLI default (Tessera 0.3.0 / THI-350); section body size + `#` wikilink chunk ids (Tessera 0.3.1 / weave 0.2.15 / THI-435 / THI-439)
