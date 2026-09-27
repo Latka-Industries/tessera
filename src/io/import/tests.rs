@@ -245,13 +245,18 @@ fn parses_obsidian_front_matter_lists() {
 
 #[test]
 fn rewrite_wikilinks_resolves_known_targets() {
-    let out = rewrite_wikilinks("See [[Erasure|the novel]] and [[Missing]].", &|name| {
-        if name == "Erasure" {
-            Some("550e8400-e29b-41d4-a716-446655440000".into())
-        } else {
-            None
-        }
-    });
+    let out = rewrite_wikilinks(
+        "See [[Erasure|the novel]] and [[Missing]].",
+        &|name| {
+            if name == "Erasure" {
+                Some("550e8400-e29b-41d4-a716-446655440000".into())
+            } else {
+                None
+            }
+        },
+        None,
+    )
+    .unwrap();
     assert!(out.contains("[the novel](550e8400-e29b-41d4-a716-446655440000)"));
     assert!(out.contains("[[Missing]]"));
 }

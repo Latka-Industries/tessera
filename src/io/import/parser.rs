@@ -1,7 +1,6 @@
 //! `CommonMark` / GFM → [`MarkdownBlock`] parse (pulldown-cmark).
 
 use pulldown_cmark::{Alignment, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
-use uuid::Uuid;
 
 use super::MarkdownBlock;
 use crate::catalog::{
@@ -203,7 +202,7 @@ impl ParseState {
                         let end = u32::try_from(table.current_cell.len()).unwrap_or(u32::MAX);
                         let keep = end > start
                             && (crate::catalog::validate_external_uri(&dest).is_ok()
-                                || Uuid::parse_str(dest.trim()).is_ok());
+                                || crate::catalog::is_internal_destination(&dest));
                         if keep {
                             table
                                 .cell_pending_links
@@ -218,7 +217,7 @@ impl ParseState {
                     let end = u32::try_from(active.body.len()).unwrap_or(u32::MAX);
                     let keep = end > start
                         && (crate::catalog::validate_external_uri(&dest).is_ok()
-                            || Uuid::parse_str(dest.trim()).is_ok());
+                            || crate::catalog::is_internal_destination(&dest));
                     if keep {
                         active.pending_links.push(OutboundLink { start, end, dest });
                     }

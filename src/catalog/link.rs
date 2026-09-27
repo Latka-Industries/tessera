@@ -83,21 +83,61 @@ impl OutboundLink {
                 link_kind,
             );
         }
-        let uuid = Uuid::parse_str(self.dest.trim()).map_err(|_| TesError::InvalidLink {
-            message: format!(
-                "link destination is neither an allowed URI nor a UUID: {}",
-                self.dest
-            ),
-        })?;
+        let (uuid, chunk_id) = parse_internal_destination(&self.dest)?;
         Ok(LinkEntry::new(
             source_chunk_id,
             self.start,
             self.end,
             uuid,
-            0,
+            chunk_id,
             link_kind,
         ))
     }
+}
+
+/// Markdown / Tessprek destination for an internal target (`uuid` or `uuid#chunk-N`).
+#[must_use]
+pub fn format_internal_destination(doc_id: Uuid, chunk_id: u64) -> String {
+    if chunk_id == 0 {
+        doc_id.to_string()
+    } else {
+        format!("{doc_id}#chunk-{chunk_id}")
+    }
+}
+
+/// Parse an internal destination produced by [`format_internal_destination`].
+///
+/// # Errors
+///
+/// Returns [`TesError::InvalidLink`] when `dest` is not a UUID or `uuid#chunk-N`.
+pub fn parse_internal_destination(dest: &str) -> Result<(Uuid, u64)> {
+    let trimmed = dest.trim();
+    let (uuid_part, chunk_id) = if let Some((uuid_part, frag)) = trimmed.split_once('#') {
+        let chunk_id = frag
+            .strip_prefix("chunk-")
+            .and_then(|n| n.parse::<u64>().ok())
+            .filter(|&n| n > 0)
+            .ok_or_else(|| TesError::InvalidLink {
+                message: format!(
+                    "internal link fragment must be chunk-N (N > 0), got: {trimmed}"
+                ),
+            })?;
+        (uuid_part, chunk_id)
+    } else {
+        (trimmed, 0)
+    };
+    let uuid = Uuid::parse_str(uuid_part).map_err(|_| TesError::InvalidLink {
+        message: format!(
+            "link destination is neither an allowed URI nor a UUID: {dest}"
+        ),
+    })?;
+    Ok((uuid, chunk_id))
+}
+
+/// True when `dest` is a bare UUID or `uuid#chunk-N` (not an external URI).
+#[must_use]
+pub fn is_internal_destination(dest: &str) -> bool {
+    parse_internal_destination(dest).is_ok()
 }
 
 /// Semantic link kind stored in a [`LinkEntry`].
@@ -182,13 +222,16 @@ impl LinkTarget {
 
     /// Destination string for Markdown / Tessprek `[text](dest)` syntax.
     ///
-    /// Internal targets use the bare document UUID; attachments use
-    /// `attachment:{chunk_id}` (round-trips via [`OutboundLink::into_entry`]).
+    /// Internal targets use the document UUID, plus `#chunk-N` when pointing at
+    /// a block (`chunk_id != 0`). Attachments use `attachment:{chunk_id}`
+    /// (round-trips via [`OutboundLink::into_entry`]).
     #[must_use]
     pub fn markdown_destination(&self) -> String {
         match self {
             Self::External { uri } => uri.clone(),
-            Self::Internal { doc_id, .. } => doc_id.to_string(),
+            Self::Internal { doc_id, chunk_id } => {
+                format_internal_destination(*doc_id, *chunk_id)
+            }
             Self::Attachment { chunk_id } => format!("attachment:{chunk_id}"),
         }
     }
@@ -198,7 +241,13 @@ impl LinkTarget {
     pub fn html_href(&self) -> String {
         match self {
             Self::External { uri } => uri.clone(),
-            Self::Internal { doc_id, .. } => format!("tes://{doc_id}"),
+            Self::Internal { doc_id, chunk_id } => {
+                if *chunk_id == 0 {
+                    format!("tes://{doc_id}")
+                } else {
+                    format!("tes://{doc_id}#chunk-{chunk_id}")
+                }
+            }
             Self::Attachment { chunk_id } => format!("/attachment/{chunk_id}"),
         }
     }
@@ -637,6 +686,43 @@ mod tests {
         assert_eq!(&bytes[..4], b"TLNK");
         assert_eq!(bytes[4], 0); // v0
         assert_eq!(read_link_table(&bytes).unwrap(), vec![entry]);
+    }
+
+    #[test]
+    fn internal_destination_round_trips_chunk_id() {
+        let target = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let dest = format_internal_destination(target, 2);
+        assert_eq!(dest, "550e8400-e29b-41d4-a716-446655440000#chunk-2");
+        let link = OutboundLink {
+            start: 0,
+            end: 4,
+            dest,
+        };
+        let entry = link.into_entry(1, LinkKind::Wiki).unwrap();
+        assert_eq!(entry.target_chunk_id(), Some(2));
+        assert_eq!(
+            entry.target.markdown_destination(),
+            "550e8400-e29b-41d4-a716-446655440000#chunk-2"
+        );
+        assert_eq!(
+            entry.target.html_href(),
+            "tes://550e8400-e29b-41d4-a716-446655440000#chunk-2"
+        );
+    }
+
+    #[test]
+    fn whole_note_destination_stays_bare_uuid() {
+        let target = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        assert_eq!(format_internal_destination(target, 0), target.to_string());
+        let entry = OutboundLink {
+            start: 0,
+            end: 1,
+            dest: target.to_string(),
+        }
+        .into_entry(1, LinkKind::Wiki)
+        .unwrap();
+        assert_eq!(entry.target_chunk_id(), Some(0));
+        assert_eq!(entry.target.html_href(), format!("tes://{target}"));
     }
 
     #[test]
