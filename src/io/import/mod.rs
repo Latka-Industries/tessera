@@ -28,8 +28,8 @@ pub use types::{
     WikilinkResolver, WikilinkSectionResolver,
 };
 pub use wikilinks::{
-    WikilinkSpan, collect_unresolved_wikilinks, rewrite_wikilinks, split_note_section,
-    visit_wikilinks,
+    ResolveSectionFn, WikilinkSpan, collect_unresolved_wikilinks, rewrite_wikilinks,
+    split_note_section, visit_wikilinks,
 };
 
 /// GFM pipe table separator row (`| --- | :---: |`).

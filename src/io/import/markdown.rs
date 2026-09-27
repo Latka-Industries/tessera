@@ -33,7 +33,7 @@ pub fn import_markdown_v0(
         let section = options
             .wikilink_section_resolver
             .as_ref()
-            .map(|r| r.as_ref() as &dyn Fn(&str, &str) -> Result<u64>);
+            .map(|r| r.as_ref() as &crate::io::import::wikilinks::ResolveSectionFn);
         rewrite_wikilinks(markdown, resolver.as_ref(), section)?
     } else {
         markdown.to_owned()

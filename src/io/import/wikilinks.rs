@@ -4,6 +4,9 @@ use crate::catalog::format_internal_destination;
 use crate::error::{Result, TesError};
 use uuid::Uuid;
 
+/// Resolve `(doc_id, section_heading) → chunk_id` during wikilink rewrite.
+pub type ResolveSectionFn = dyn Fn(&str, &str) -> Result<u64>;
+
 /// One `[[target]]` / `[[target|label]]` / `[[note#section|label]]` span in Markdown source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WikilinkSpan<'a> {
@@ -97,7 +100,7 @@ pub fn collect_unresolved_wikilinks(
 pub fn rewrite_wikilinks(
     markdown: &str,
     resolve_note: &dyn Fn(&str) -> Option<String>,
-    resolve_section: Option<&dyn Fn(&str, &str) -> Result<u64>>,
+    resolve_section: Option<&ResolveSectionFn>,
 ) -> Result<String> {
     let mut out = String::with_capacity(markdown.len());
     let mut cursor = 0;
