@@ -25,10 +25,11 @@ pub use markdown::{import_markdown_v0, resolve_import_doc_id, seal_text_blocks};
 pub use parser::parse_markdown_blocks;
 pub use types::{
     MarkdownBlock, MarkdownFrontMatter, MarkdownImportOptions, MarkdownImportReport,
-    WikilinkResolver,
+    WikilinkResolver, WikilinkSectionResolver,
 };
 pub use wikilinks::{
-    WikilinkSpan, collect_unresolved_wikilinks, rewrite_wikilinks, visit_wikilinks,
+    ResolveSectionFn, WikilinkSpan, collect_unresolved_wikilinks, rewrite_wikilinks,
+    split_note_section, visit_wikilinks,
 };
 
 /// GFM pipe table separator row (`| --- | :---: |`).

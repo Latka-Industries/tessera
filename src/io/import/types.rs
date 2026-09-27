@@ -5,8 +5,14 @@ use std::path::PathBuf;
 use crate::catalog::{OutboundLink, TextHeader};
 use crate::layout::DocKind;
 
-/// Shared wikilink name → catalog `doc_id` resolver (vault batch import).
+/// Shared wikilink note name → catalog `doc_id` resolver (vault batch import).
 pub type WikilinkResolver = std::sync::Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
+/// Resolve a heading title inside a document to its sealed chunk id.
+///
+/// Arguments are `(doc_id_uuid_string, section_heading_text)`.
+pub type WikilinkSectionResolver =
+    std::sync::Arc<dyn Fn(&str, &str) -> crate::error::Result<u64> + Send + Sync>;
 
 /// Options for Markdown → `.tes` import.
 #[derive(Clone)]
@@ -36,6 +42,8 @@ pub struct MarkdownImportOptions {
     pub slug_override: bool,
     /// When set, rewrite resolved `[[wikilinks]]` to Markdown UUID links before parse.
     pub wikilink_resolver: Option<WikilinkResolver>,
+    /// When set with [`Self::wikilink_resolver`], resolve `[[Note#Section]]` to `#chunk-N`.
+    pub wikilink_section_resolver: Option<WikilinkSectionResolver>,
 }
 
 impl Default for MarkdownImportOptions {
@@ -52,6 +60,7 @@ impl Default for MarkdownImportOptions {
             slug: None,
             slug_override: false,
             wikilink_resolver: None,
+            wikilink_section_resolver: None,
         }
     }
 }
@@ -72,6 +81,10 @@ impl std::fmt::Debug for MarkdownImportOptions {
             .field(
                 "wikilink_resolver",
                 &self.wikilink_resolver.as_ref().map(|_| "<fn>"),
+            )
+            .field(
+                "wikilink_section_resolver",
+                &self.wikilink_section_resolver.as_ref().map(|_| "<fn>"),
             )
             .finish()
     }

@@ -15,10 +15,12 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use crate::catalog::TesFile;
+use crate::catalog::TextRole;
 use crate::error::Result;
+use crate::error::TesError;
 use crate::io::import::{
-    MarkdownImportOptions, WikilinkResolver, collect_unresolved_wikilinks, import_markdown_v0,
-    parse_front_matter,
+    MarkdownImportOptions, WikilinkResolver, WikilinkSectionResolver, collect_unresolved_wikilinks,
+    import_markdown_v0, parse_front_matter, parse_markdown_blocks,
 };
 use crate::layout::DocKind;
 use crate::vault::index::rebuild_vault_index;
@@ -209,6 +211,24 @@ fn build_wikilink_resolve_map(plans: &[PlannedNote]) -> HashMap<String, String> 
     resolve_map
 }
 
+/// Predict heading chunk ids from Markdown block order (matches seal assignment).
+fn heading_chunk_map_from_markdown(markdown: &str) -> HashMap<String, u64> {
+    let blocks = parse_markdown_blocks(markdown);
+    let mut out = HashMap::new();
+    for (i, block) in blocks.iter().enumerate() {
+        if block.header.role != TextRole::Heading {
+            continue;
+        }
+        let text = block.body.trim();
+        if text.is_empty() {
+            continue;
+        }
+        // First heading with a given title wins (matches typical Obsidian resolve).
+        out.entry(text.to_owned()).or_insert((i as u64) + 1);
+    }
+    out
+}
+
 /// Seal each planned note and accumulate unresolved wikilink targets.
 fn import_planned_notes(
     plans: &[PlannedNote],
@@ -219,6 +239,33 @@ fn import_planned_notes(
         let map = resolve_map.clone();
         Arc::new(move |name: &str| map.get(name).cloned())
     });
+
+    let section_resolver = options
+        .resolve_wikilinks
+        .then(|| -> Result<WikilinkSectionResolver> {
+            let mut by_doc: HashMap<String, HashMap<String, u64>> = HashMap::new();
+            for plan in plans {
+                let source = fs::read_to_string(&plan.abs_md)?;
+                let (_, body) = parse_front_matter(&source);
+                by_doc.insert(plan.doc_id.clone(), heading_chunk_map_from_markdown(body));
+            }
+            Ok(Arc::new(move |doc_id: &str, section: &str| {
+                let Some(headings) = by_doc.get(doc_id) else {
+                    return Err(TesError::InvalidLink {
+                        message: format!(
+                            "wikilink section target document not in import batch: {doc_id}"
+                        ),
+                    });
+                };
+                headings
+                    .get(section)
+                    .copied()
+                    .ok_or_else(|| TesError::InvalidLink {
+                        message: format!("wikilink section heading not found: {section}"),
+                    })
+            }))
+        })
+        .transpose()?;
 
     let mut unresolved = HashSet::new();
     let mut imported = Vec::with_capacity(plans.len());
@@ -235,6 +282,7 @@ fn import_planned_notes(
             slug: plan.slug.clone(),
             slug_override: true,
             wikilink_resolver: resolver.clone(),
+            wikilink_section_resolver: section_resolver.clone(),
         };
 
         if let Some(parent) = plan.abs_tes.parent() {
@@ -436,6 +484,48 @@ mod tests {
     use super::*;
     use crate::vault::index::{INDEX_VERSION, load_vault_index};
     use tempfile::tempdir;
+
+    #[test]
+    fn imports_vault_section_wikilink_keeps_chunk_id() {
+        let src = tempdir().unwrap();
+        let dst = tempdir().unwrap();
+        fs::write(
+            src.path().join("Resume.md"),
+            "# Resume\n\nIntro.\n\n# Experience\n\nJobs.\n",
+        )
+        .unwrap();
+        fs::write(
+            src.path().join("Cover.md"),
+            "# Cover\n\nSee [[Resume#Experience|the job]] and [[Resume]].\n",
+        )
+        .unwrap();
+
+        let report = import_markdown_vault(
+            src.path(),
+            dst.path(),
+            &VaultMarkdownImportOptions::default(),
+        )
+        .unwrap();
+        assert!(report.unresolved_wikilinks.is_empty());
+        let cover = report.imported.iter().find(|e| e.title == "Cover").unwrap();
+        let file = TesFile::open(dst.path().join(&cover.output)).unwrap();
+        let links = file.links();
+        assert_eq!(links.len(), 2);
+        let section = links
+            .iter()
+            .find(|e| e.target_chunk_id() == Some(3))
+            .expect("Experience heading is chunk 3");
+        assert_ne!(section.target_chunk_id(), Some(0));
+        let whole = links
+            .iter()
+            .find(|e| e.target_chunk_id() == Some(0))
+            .expect("whole-note link");
+        assert_eq!(whole.target_uuid(), section.target_uuid());
+        assert_eq!(
+            section.target.html_href(),
+            format!("tes://{}#chunk-3", section.target_uuid().unwrap())
+        );
+    }
 
     #[test]
     fn imports_vault_with_wikilinks_and_category() {

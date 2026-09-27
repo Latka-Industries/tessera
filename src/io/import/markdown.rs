@@ -30,7 +30,11 @@ pub fn import_markdown_v0(
     let source = std::fs::read_to_string(input)?;
     let (front, markdown) = parse_front_matter(&source);
     let markdown = if let Some(resolver) = options.wikilink_resolver.as_ref() {
-        rewrite_wikilinks(markdown, resolver.as_ref())
+        let section = options
+            .wikilink_section_resolver
+            .as_ref()
+            .map(|r| r.as_ref() as &crate::io::import::wikilinks::ResolveSectionFn);
+        rewrite_wikilinks(markdown, resolver.as_ref(), section)?
     } else {
         markdown.to_owned()
     };
