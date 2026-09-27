@@ -82,9 +82,9 @@ pub mod prelude {
     pub use crate::io::export::{AiPart, ExportOptions, ExportView, export_ai_parts, export_view};
     pub use crate::io::import::{
         HtmlImportOptions, HtmlImportReport, MarkdownFrontMatter, MarkdownImportOptions,
-        MarkdownImportReport, WikilinkResolver, WikilinkSpan, collect_unresolved_wikilinks,
-        import_html_v0, import_markdown_v0, parse_front_matter, resolve_import_doc_id,
-        rewrite_wikilinks, visit_wikilinks,
+        MarkdownImportReport, WikilinkResolver, WikilinkSectionResolver, WikilinkSpan,
+        collect_unresolved_wikilinks, import_html_v0, import_markdown_v0, parse_front_matter,
+        resolve_import_doc_id, rewrite_wikilinks, visit_wikilinks,
     };
     pub use crate::layout::{DocKind, OpenMode, Region, SuperblockV0};
     pub use crate::render::pdf::{PdfBackend, PdfExportOptions, export_pdf, render_themed_html};

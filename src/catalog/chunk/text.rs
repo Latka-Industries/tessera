@@ -267,6 +267,12 @@ pub struct TextHeader {
     /// IR-only for weave paint (one titled band). Tessera owns the visible label.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub callout_kind: Option<String>,
+    /// Section body size in PDF points when `role` is [`TextRole::Heading`].
+    ///
+    /// Applies from this heading through the next heading of the same or higher
+    /// level (THI-435). Absent → print profile body size.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_size: Option<u16>,
 }
 
 impl TextHeader {
@@ -297,6 +303,7 @@ impl TextHeader {
             columns_count: None,
             columns_gap: None,
             callout_kind: None,
+            body_size: None,
         }
     }
 
@@ -469,6 +476,7 @@ impl TextHeader {
                     | TextRole::Callout
             )
             || self.callout_kind.is_some()
+            || self.body_size.is_some()
     }
 
     /// Effective print band indent level (absent → 0).
@@ -683,6 +691,18 @@ impl TextHeader {
         {
             return Err(TesError::InvalidTextHeader {
                 message: format!("heading level {level} must be 1..=6"),
+            });
+        }
+        if self.body_size.is_some() && self.role != TextRole::Heading {
+            return Err(TesError::InvalidTextHeader {
+                message: "body_size is only valid on heading".into(),
+            });
+        }
+        if let Some(size) = self.body_size
+            && !(6..=72).contains(&size)
+        {
+            return Err(TesError::InvalidTextHeader {
+                message: format!("body_size {size} must be 6..=72 points"),
             });
         }
         Ok(())

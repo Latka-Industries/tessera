@@ -41,7 +41,10 @@ pub use info::{
 pub use layout::{
     EmAmount, LayoutOp, LayoutPayload, MeasureFrac, PlaceSkip, RuleWidth, VspaceAmount,
 };
-pub use link::{LinkEntry, LinkKind, LinkTarget, OutboundLink, validate_external_uri};
+pub use link::{
+    LinkEntry, LinkKind, LinkTarget, OutboundLink, format_internal_destination,
+    is_internal_destination, parse_internal_destination, validate_external_uri,
+};
 pub use media::{
     AttachmentPayload, FigureRef, ImagePayload, ImagePlacement, base64_decode, base64_encode,
     normalize_attachment_filename,

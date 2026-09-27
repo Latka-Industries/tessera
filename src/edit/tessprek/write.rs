@@ -405,6 +405,7 @@ fn write_block_directive(out: &mut String, header: &TextHeader) {
         && header.indent.is_none()
         && header.title.is_none()
         && header.caption.is_none()
+        && header.body_size.is_none()
     {
         return;
     }
@@ -426,6 +427,9 @@ fn write_block_directive(out: &mut String, header: &TextHeader) {
     }
     if let Some(indent) = header.indent.filter(|&n| n > 0) {
         parts.push(format!("indent={indent}"));
+    }
+    if let Some(size) = header.body_size {
+        parts.push(format!("size={size}"));
     }
     write_brace_block(out, BLOCK_PREFIX, &parts);
 }

@@ -116,9 +116,9 @@ dependencies = [
 
 [[package]]
 name = "ariadnes-weave"
-version = "0.2.14"
+version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2366063bc5f9515ed951544a51d2d26941c6c5a330b5530beca13c1c643b5e4a"
+checksum = "abae4d531c2df54f9e4c4d552cf45d460cd5ff1f49d36b16d088f1c3b677de8b"
 dependencies = [
  "image",
  "miniz_oxide 0.8.9",
@@ -2176,7 +2176,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-doc"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "argus-chunk",

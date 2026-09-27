@@ -135,6 +135,23 @@ fn block_directive_preserves_class_and_align() {
 }
 
 #[test]
+fn block_size_on_heading_round_trips() {
+    let input = "\\block{size=14}\n# Large section\n\nBody text.\n";
+    let out = normalize_tessprek(input).unwrap();
+    assert!(out.contains("size=14"), "{out}");
+    let blocks = crate::edit::decode_tessprek(&out).unwrap();
+    let heading = blocks.iter().find_map(|b| match b {
+        crate::edit::ContentBlock::Text { header, .. }
+            if header.role == crate::catalog::chunk::TextRole::Heading =>
+        {
+            Some(header)
+        }
+        _ => None,
+    });
+    assert_eq!(heading.and_then(|h| h.body_size), Some(14));
+}
+
+#[test]
 fn block_indent_applies_to_list_run_and_rewrites() {
     let input = "\\block{indent=2}\n- top\n  - nested\n";
     let out = normalize_tessprek(input).unwrap();

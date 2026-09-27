@@ -248,5 +248,27 @@ pub(super) fn apply_preserved_attrs(
         }
         header.caption = Some(caption.clone());
     }
+    if header.body_size.is_none()
+        && let Some(raw) = map.get("size")
+    {
+        let size: u16 = raw.parse().map_err(|_| {
+            parse_err(
+                line_no,
+                1,
+                format!("invalid size={raw} (expected integer points)"),
+            )
+        })?;
+        if !(6..=72).contains(&size) {
+            return Err(parse_err(
+                line_no,
+                1,
+                format!("invalid size={size} (expected 6..=72)"),
+            ));
+        }
+        if header.role != TextRole::Heading {
+            return Err(parse_err(line_no, 1, "size is only valid on heading"));
+        }
+        header.body_size = Some(size);
+    }
     Ok(())
 }
