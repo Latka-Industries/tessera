@@ -40,6 +40,27 @@ fn note_one_chunk_paragraph_with_code_span() {
 }
 
 #[test]
+fn heading_body_size_maps_to_print_block() {
+    let mut session = TesWriterSession::create("sized.tes", crate::layout::DocKind::Note);
+    let mut heading = TextHeader::heading(1);
+    heading.body_size = Some(14);
+    session.add_text_chunk(&heading, "Large").unwrap();
+    session
+        .add_text_chunk(&TextHeader::paragraph(), "Body under sized heading.")
+        .unwrap();
+    let file = open_bytes("sized.tes", session.encode_file().unwrap());
+    let doc = build_print_document(&file, &PrintBuildOptions::default()).unwrap();
+    match &doc.blocks[0] {
+        PrintBlock::Heading {
+            level: 1,
+            body_size: Some(14),
+            ..
+        } => {}
+        other => panic!("expected Heading with body_size 14, got {other:?}"),
+    }
+}
+
+#[test]
 fn font_span_sets_text_run_face() {
     let mut session = TesWriterSession::create("font.tes", crate::layout::DocKind::Note);
     let body = "hello barev world";

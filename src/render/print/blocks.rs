@@ -34,11 +34,12 @@ pub(crate) fn map_text_block(
     match header.role {
         TextRole::Heading => {
             let level = u8::try_from(header.level.unwrap_or(1).clamp(1, 6)).unwrap_or(1);
-            PrintBlock::heading_dest(
+            PrintBlock::heading_dest_sized(
                 level,
                 runs(),
                 heading_break(level, profile),
                 heading_dest_id(chunk_id),
+                header.body_size,
             )
         }
         // ListItem: isolated items should have been coalesced; paragraph fallback.

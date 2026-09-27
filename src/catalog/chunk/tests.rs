@@ -169,6 +169,15 @@ fn heading_payload_round_trip() {
 }
 
 #[test]
+fn heading_body_size_round_trips() {
+    let mut header = TextHeader::heading(1);
+    header.body_size = Some(14);
+    let bytes = encode_text_payload(&header, "Large").unwrap();
+    let (h2, _) = decode_text_payload(&bytes).unwrap();
+    assert_eq!(h2.body_size, Some(14));
+}
+
+#[test]
 fn spans_math_table_round_trip() {
     let body = "alpha beta";
     let mut header = TextHeader::paragraph();

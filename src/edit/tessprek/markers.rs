@@ -79,6 +79,7 @@ pub const BLOCK_ATTR_KEYS: &[&str] = &[
     "align",
     "indent",
     "code_lang",
+    "size",
 ];
 /// Deprecated alias for [`BLOCK_ATTR_KEYS`].
 pub const TEXT_ATTR_KEYS: &[&str] = BLOCK_ATTR_KEYS;
