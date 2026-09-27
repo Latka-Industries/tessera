@@ -1,6 +1,6 @@
 [package]
 name = "tessera-doc"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 rust-version = "1.95"
 default-run = "tes"
@@ -40,7 +40,7 @@ weave-icons = ["native-pdf", "ariadnes-weave/icons"]
 
 [dependencies]
 argus-chunk = "0.1.0"
-ariadnes-weave = { version = "0.2.14", optional = true }
+ariadnes-weave = { version = "0.2.15", optional = true }
 clap = { version = "4.6.4", features = ["derive"] }
 memmap2 = "0.9.11"
 pulldown-cmark = "0.13.4"
