@@ -32,7 +32,7 @@ Synced from `v0/`:
 - `research_cite.tes` — cite chunk + citation link
 - `figure_sample.tes` — image + figure (with caption)
 
-See also `fixtures/vault/` for a sample `vault.tes` TOC (not part of the
+See also `fixtures/local-fixtures/` for a sample `vault.tes` TOC (not part of the
 must-accept kit).
 
 ## Reject set

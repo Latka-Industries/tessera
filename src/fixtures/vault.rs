@@ -1,4 +1,4 @@
-//! Sample vault under `fixtures/vault/` (notes + optional `vault.tes` TOC).
+//! Sample vault under `fixtures/local-fixtures/` (notes + optional `vault.tes` TOC).
 
 use std::fs;
 use std::path::Path;

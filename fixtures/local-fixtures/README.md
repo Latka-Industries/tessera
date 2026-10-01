@@ -11,9 +11,9 @@ Small tagged vault for `tes vault` demos (THI-216).
 
 ```bash
 cargo run --example gen_vault_fixtures
-cargo run --bin tes -- vault --vault fixtures/vault list
-cargo run --bin tes -- vault --vault fixtures/vault list --tag research
+cargo run --bin tes -- vault --vault fixtures/local-fixtures list
+cargo run --bin tes -- vault --vault fixtures/local-fixtures list --tag research
 ```
 
 `vault.tes` embeds member mtimes. If list reports a stale index after checkout,
-re-run the generator (or `tes vault --vault fixtures/vault rebuild`).
+re-run the generator (or `tes vault --vault fixtures/local-fixtures rebuild`).

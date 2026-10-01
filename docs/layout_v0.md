@@ -450,7 +450,7 @@ Exit code **1** on failure (CI-friendly). See [cli.md](cli.md).
 | `fixtures/v0/attachment_sample.tes` | Inert attachment |
 
 Regenerate via `mise run fixtures` (or `cargo run --example gen_v0_fixtures`).
-Builders live in `src/fixtures/`. Sample vault: `fixtures/vault/`.
+Builders live in `src/fixtures/`. Sample vault: `fixtures/local-fixtures/`.
 
 ---
 
