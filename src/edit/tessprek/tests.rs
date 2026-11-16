@@ -843,7 +843,10 @@ fn nested_font_size_encode_decode_encode_stable() {
                 .find(|f| f.font_id.as_deref() == Some("greek"))
                 .expect("greek");
             assert_eq!(face_size.size_milli_pt, Some(9_000));
-            assert_eq!(&b[face_size.start as usize..face_size.end as usize], "Hello");
+            assert_eq!(
+                &b[face_size.start as usize..face_size.end as usize],
+                "Hello"
+            );
             // No coextensive greek-only duplicate.
             assert!(
                 !pending_fonts.iter().any(|f| {
@@ -860,7 +863,9 @@ fn nested_font_size_encode_decode_encode_stable() {
 
     let twice = encode_content_blocks(&TessprekDocMeta::default(), &decoded, &[], &[]);
     assert_eq!(
-        once.lines().filter(|l| !l.starts_with('\\')).collect::<Vec<_>>(),
+        once.lines()
+            .filter(|l| !l.starts_with('\\'))
+            .collect::<Vec<_>>(),
         twice
             .lines()
             .filter(|l| !l.starts_with('\\'))
@@ -871,7 +876,10 @@ fn nested_font_size_encode_decode_encode_stable() {
         twice.contains("\\font{greek}{\\size{9}{Hello}}"),
         "re-encode must keep single nest:\n{twice}"
     );
-    assert!(!twice.contains("\\font{greek}{\\font"), "no double-wrap:\n{twice}");
+    assert!(
+        !twice.contains("\\font{greek}{\\font"),
+        "no double-wrap:\n{twice}"
+    );
 
     // Pending-only path (pre-seal) also nests once.
     let pending_only = ContentBlock::Text {
@@ -888,8 +896,7 @@ fn nested_font_size_encode_decode_encode_stable() {
         }],
         pending_notes: vec![],
     };
-    let pending_out =
-        encode_content_blocks(&TessprekDocMeta::default(), &[pending_only], &[], &[]);
+    let pending_out = encode_content_blocks(&TessprekDocMeta::default(), &[pending_only], &[], &[]);
     assert!(
         pending_out.contains("\\font{greek}{\\size{9}{Hello}}"),
         "{pending_out}"

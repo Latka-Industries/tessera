@@ -426,7 +426,11 @@ mod tests {
         let (body, fonts) =
             extract_inline_fonts("x \\font{armenian}{\\size{12}{barev}} y").unwrap();
         assert_eq!(body, "x barev y");
-        assert_eq!(fonts.len(), 1, "coextensive nest must be one merged pending: {fonts:?}");
+        assert_eq!(
+            fonts.len(),
+            1,
+            "coextensive nest must be one merged pending: {fonts:?}"
+        );
         assert_eq!(fonts[0].font_id.as_deref(), Some("armenian"));
         assert_eq!(fonts[0].size_milli_pt, Some(12_000));
         assert_eq!(
@@ -440,7 +444,11 @@ mod tests {
         let (body, fonts) =
             extract_inline_fonts("x \\size{12}{\\font{armenian}{barev}} y").unwrap();
         assert_eq!(body, "x barev y");
-        assert_eq!(fonts.len(), 1, "coextensive nest must be one merged pending: {fonts:?}");
+        assert_eq!(
+            fonts.len(),
+            1,
+            "coextensive nest must be one merged pending: {fonts:?}"
+        );
         assert_eq!(fonts[0].font_id.as_deref(), Some("armenian"));
         assert_eq!(fonts[0].size_milli_pt, Some(12_000));
         assert_eq!(
@@ -451,8 +459,7 @@ mod tests {
 
     #[test]
     fn outer_font_still_covers_partial_inner_size() {
-        let (body, fonts) =
-            extract_inline_fonts("\\font{armenian}{Hi \\size{9}{Lo}}").unwrap();
+        let (body, fonts) = extract_inline_fonts("\\font{armenian}{Hi \\size{9}{Lo}}").unwrap();
         assert_eq!(body, "Hi Lo");
         assert_eq!(fonts.len(), 2, "{fonts:?}");
         let full = fonts
