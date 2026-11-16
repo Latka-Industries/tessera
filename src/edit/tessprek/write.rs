@@ -366,13 +366,7 @@ fn render_text_body(
                 continue;
             };
             let inner = body[start..end].to_owned();
-            let replacement = if let Some(name) =
-                crate::catalog::icon_name_for_face_glyph(&font.font_id, &inner)
-            {
-                format!("\\icon{{{name}}}")
-            } else {
-                format!("\\font{{{}}}{{{inner}}}", font.font_id)
-            };
+            let replacement = super::inline_font::format_pending_font_macro(font, &inner);
             body.replace_range(start..end, &replacement);
         }
     }

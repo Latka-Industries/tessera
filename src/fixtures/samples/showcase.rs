@@ -103,7 +103,8 @@ fn add_showcase_fonts(session: &mut TesWriterSession) {
                 start,
                 end,
                 kind: InlineKind::Font {
-                    font_id: font_id.into(),
+                    font_id: Some(font_id.into()),
+                    size_milli_pt: None,
                 },
             });
         }

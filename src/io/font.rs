@@ -12,5 +12,7 @@ pub struct PendingFont {
     /// Exclusive end byte offset in the rewritten body.
     pub end: u32,
     /// Pack font id (`armenian`, `test`, …); must exist in pack `fonts.toml` for native PDF.
-    pub font_id: String,
+    pub font_id: Option<String>,
+    /// Point size × 1000 (`12000` = 12pt) from Tessprek `\size{N}{…}`.
+    pub size_milli_pt: Option<u32>,
 }

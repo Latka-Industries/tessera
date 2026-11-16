@@ -35,6 +35,7 @@ pub(crate) fn push_cite_block(
                         ..Default::default()
                     },
                     face: None,
+                    size_milli_pt: None,
                     link_uri: None,
                     note_id: None,
                 },

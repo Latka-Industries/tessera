@@ -79,7 +79,7 @@ pub enum InlineKind {
     Math { tex: String },
     Link { link_id: u64 },
     Citation { cite_chunk_id: u64 },
-    Font { font_id: String }, // pack-pinned TTF (D23 / THI-356)
+    Font { font_id: Option<String>, size_milli_pt: Option<u32> }, // `\font` / `\size` (D23 / THI-356)
 }
 
 pub struct InlineSpan {

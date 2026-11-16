@@ -82,10 +82,12 @@ pub enum InlineKind {
         /// Cite chunk id.
         cite_chunk_id: u64,
     },
-    /// Pack-pinned font (`\font{font_id}{…}` → weave `TextRun.face` / `pinned_faces`).
+    /// Pack-pinned font and/or mid-document size (`\font{…}` / `\size{…}`).
     Font {
-        /// Pack font id (ASCII identifier).
-        font_id: String,
+        /// Pack font id (ASCII identifier); `None` = size-only span.
+        font_id: Option<String>,
+        /// Point size × 1000 (`12000` = 12pt); `None` = inherit category default.
+        size_milli_pt: Option<u32>,
     },
     /// Footnote or endnote callout (THI-396). Body is the note text.
     Note {
@@ -166,12 +168,23 @@ pub(super) fn validate_spans(body: &str, spans: &[InlineSpan]) -> Result<()> {
                 message: "inline math tex must be non-empty".into(),
             });
         }
-        if let InlineKind::Font { font_id } = &span.kind
-            && !is_font_id(font_id)
+        if let InlineKind::Font {
+            font_id,
+            size_milli_pt,
+        } = &span.kind
         {
-            return Err(TesError::InvalidTextHeader {
-                message: format!("invalid font id {font_id:?}"),
-            });
+            if font_id.is_none() && size_milli_pt.is_none() {
+                return Err(TesError::InvalidTextHeader {
+                    message: "font span requires font_id and/or size_milli_pt".into(),
+                });
+            }
+            if let Some(id) = font_id
+                && !is_font_id(id)
+            {
+                return Err(TesError::InvalidTextHeader {
+                    message: format!("invalid font id {id:?}"),
+                });
+            }
         }
     }
     let mut ordered: Vec<&InlineSpan> = spans.iter().collect();
@@ -325,11 +338,23 @@ fn wrap_markdown_span(inner: String, span: &InlineSpan, links: &[LinkEntry]) -> 
             let _ = cite_chunk_id;
             inner
         }
-        InlineKind::Font { font_id } => {
-            if let Some(name) = crate::catalog::icon_name_for_face_glyph(font_id, &inner) {
-                format!("\\icon{{{name}}}")
+        InlineKind::Font {
+            font_id,
+            size_milli_pt,
+        } => {
+            let mut wrapped = inner;
+            if let Some(milli) = size_milli_pt {
+                let pt = milli / 1000;
+                wrapped = format!("\\size{{{pt}}}{{{wrapped}}}");
+            }
+            if let Some(font_id) = font_id {
+                if let Some(name) = crate::catalog::icon_name_for_face_glyph(font_id, &wrapped) {
+                    format!("\\icon{{{name}}}")
+                } else {
+                    format!("\\font{{{font_id}}}{{{wrapped}}}")
+                }
             } else {
-                format!("\\font{{{font_id}}}{{{inner}}}")
+                wrapped
             }
         }
         InlineKind::Note { kind, body } => match kind {

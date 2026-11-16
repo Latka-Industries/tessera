@@ -31,7 +31,6 @@ use commands::{
 use util::result_exit;
 
 /// Parse argv and dispatch a `tes` subcommand.
-#[must_use]
 pub fn run() -> ExitCode {
     match Cli::parse().command {
         Commands::Info {

@@ -586,12 +586,28 @@ fn apply_spans_html(
                     format!("<cite>{}</cite>", escape_html(&marker))
                 }
             }
-            InlineKind::Font { font_id } => {
-                format!(
-                    "<span class=\"font\" data-font=\"{}\">{}</span>",
-                    escape_html(font_id),
-                    escape_html(&inner)
-                )
+            InlineKind::Font {
+                font_id,
+                size_milli_pt,
+            } => {
+                let size_style =
+                    size_milli_pt.map(|m| format!(" style=\"font-size: {}pt\"", m / 1000));
+                match (font_id, size_style) {
+                    (Some(id), Some(style)) => format!(
+                        "<span class=\"font\" data-font=\"{}\"{style}>{}</span>",
+                        escape_html(id),
+                        escape_html(&inner)
+                    ),
+                    (Some(id), None) => format!(
+                        "<span class=\"font\" data-font=\"{}\">{}</span>",
+                        escape_html(id),
+                        escape_html(&inner)
+                    ),
+                    (None, Some(style)) => {
+                        format!("<span class=\"font\"{style}>{}</span>", escape_html(&inner))
+                    }
+                    (None, None) => escape_html(&inner),
+                }
             }
             InlineKind::Note { kind, body } => {
                 let class = match kind {

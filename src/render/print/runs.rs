@@ -36,7 +36,7 @@ pub(crate) fn cell_to_runs(
     cite: Option<CiteProj<'_>>,
     links: &[LinkEntry],
 ) -> Vec<TextRun> {
-    if !text.contains("\\font{") && !text.contains("\\icon{") {
+    if !text.contains("\\font{") && !text.contains("\\icon{") && !text.contains("\\size{") {
         return body_to_runs(text, spans, cite, links, 0);
     }
     let Ok(extracted) = extract_inline_fonts_mapped(text) else {
@@ -59,7 +59,10 @@ pub(crate) fn cell_to_runs(
     merged.extend(extracted.pending.into_iter().map(|f| InlineSpan {
         start: f.start,
         end: f.end,
-        kind: InlineKind::Font { font_id: f.font_id },
+        kind: InlineKind::Font {
+            font_id: f.font_id.clone(),
+            size_milli_pt: f.size_milli_pt,
+        },
     }));
     body_to_runs(&extracted.body, &merged, cite, links, 0)
 }
@@ -152,6 +155,7 @@ fn body_to_runs_projected(
         }
         let mut style = InlineStyle::default();
         let mut face: Option<String> = None;
+        let mut size_milli_pt: Option<u32> = None;
         let mut link_uri: Option<String> = None;
         let mut note_id: Option<String> = None;
         for span in spans {
@@ -160,9 +164,17 @@ fn body_to_runs_projected(
             if start <= a && end >= b {
                 apply_inline_kind(&mut style, &span.kind);
                 match &span.kind {
-                    InlineKind::Font { font_id } => {
-                        // Innermost / last covering Font wins → weave TextRun.face.
-                        face = Some(font_id.clone());
+                    InlineKind::Font {
+                        font_id,
+                        size_milli_pt: span_size,
+                    } => {
+                        // Innermost / last covering Font wins per field.
+                        if let Some(id) = font_id {
+                            face = Some(id.clone());
+                        }
+                        if let Some(milli) = span_size {
+                            size_milli_pt = Some(*milli);
+                        }
                     }
                     InlineKind::Link { link_id } => {
                         if let Some(uri) =
@@ -183,6 +195,7 @@ fn body_to_runs_projected(
             text: body[a..b].to_owned(),
             style,
             face,
+            size_milli_pt,
             link_uri,
             note_id,
         });
