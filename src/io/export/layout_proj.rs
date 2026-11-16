@@ -125,15 +125,33 @@ fn apply_place_spans_html(body: &str, spans: &[InlineSpan]) -> String {
             continue;
         }
         out.push_str(&escape_html(&body[cursor..start]));
-        let InlineKind::Font { font_id } = &span.kind else {
+        let InlineKind::Font {
+            font_id,
+            size_milli_pt,
+        } = &span.kind
+        else {
             continue;
         };
-        let _ = write!(
-            out,
-            "<span class=\"tes-font\" data-font=\"{}\">{}</span>",
-            escape_html(font_id),
-            escape_html(&body[start..end])
-        );
+        let size_attr = size_milli_pt
+            .map(|m| format!(" style=\"font-size: {}pt\"", m / 1000))
+            .unwrap_or_default();
+        match font_id {
+            Some(id) => {
+                let _ = write!(
+                    out,
+                    "<span class=\"tes-font\" data-font=\"{}\"{size_attr}>{}</span>",
+                    escape_html(id),
+                    escape_html(&body[start..end])
+                );
+            }
+            None => {
+                let _ = write!(
+                    out,
+                    "<span class=\"tes-font\"{size_attr}>{}</span>",
+                    escape_html(&body[start..end])
+                );
+            }
+        }
         cursor = end;
     }
     out.push_str(&escape_html(&body[cursor..]));

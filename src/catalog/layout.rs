@@ -334,10 +334,14 @@ fn validate_op(op: &LayoutOp) -> std::result::Result<(), String> {
                         content.len()
                     ));
                 }
-                if let InlineKind::Font { font_id } = &span.kind
-                    && font_id.trim().is_empty()
+                if let InlineKind::Font {
+                    font_id,
+                    size_milli_pt,
+                } = &span.kind
+                    && font_id.as_ref().is_some_and(|id| id.trim().is_empty())
+                    && size_milli_pt.is_none()
                 {
-                    return Err("place font span requires non-empty font_id".into());
+                    return Err("place font span requires font_id and/or size".into());
                 }
             }
             Ok(())

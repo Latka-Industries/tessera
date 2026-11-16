@@ -307,6 +307,7 @@ fn pending_to_font_spans(pending: &[PendingFont]) -> Vec<InlineSpan> {
             end: p.end,
             kind: InlineKind::Font {
                 font_id: p.font_id.clone(),
+                size_milli_pt: p.size_milli_pt,
             },
         })
         .collect()
@@ -366,7 +367,11 @@ fn render_place_content(content: &str, spans: &[InlineSpan]) -> String {
         .collect();
     fonts.sort_by_key(|s| std::cmp::Reverse(s.start));
     for span in fonts {
-        let InlineKind::Font { font_id } = &span.kind else {
+        let InlineKind::Font {
+            font_id,
+            size_milli_pt,
+        } = &span.kind
+        else {
             continue;
         };
         let start = span.start as usize;
@@ -375,12 +380,13 @@ fn render_place_content(content: &str, spans: &[InlineSpan]) -> String {
             continue;
         }
         let inner = out[start..end].to_owned();
-        let replacement =
-            if let Some(name) = crate::catalog::icon_name_for_face_glyph(font_id, &inner) {
-                format!("\\icon{{{name}}}")
-            } else {
-                format!("\\font{{{font_id}}}{{{inner}}}")
-            };
+        let pending = PendingFont {
+            start: span.start,
+            end: span.end,
+            font_id: font_id.clone(),
+            size_milli_pt: *size_milli_pt,
+        };
+        let replacement = super::inline_font::format_pending_font_macro(&pending, &inner);
         out.replace_range(start..end, &replacement);
     }
     out
@@ -420,7 +426,10 @@ mod tests {
         };
         assert_eq!(content, "barev");
         assert_eq!(spans.len(), 1);
-        assert!(matches!(&spans[0].kind, InlineKind::Font { font_id } if font_id == "armenian"));
+        assert!(matches!(
+            &spans[0].kind,
+            InlineKind::Font { font_id: Some(id), .. } if id == "armenian"
+        ));
     }
 
     #[test]

@@ -753,7 +753,7 @@ Say \\font{armenian}{barev} now.\n\
         } => {
             assert_eq!(body, "Say barev now.");
             assert_eq!(pending_fonts.len(), 1);
-            assert_eq!(pending_fonts[0].font_id, "armenian");
+            assert_eq!(pending_fonts[0].font_id.as_deref(), Some("armenian"));
             assert_eq!(
                 &body[pending_fonts[0].start as usize..pending_fonts[0].end as usize],
                 "barev"

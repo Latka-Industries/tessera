@@ -71,7 +71,8 @@ fn font_span_sets_text_run_face() {
         start,
         end,
         kind: InlineKind::Font {
-            font_id: "armenian".into(),
+            font_id: Some("armenian".into()),
+            size_milli_pt: None,
         },
     }];
     session.add_text_chunk(&para, body).unwrap();

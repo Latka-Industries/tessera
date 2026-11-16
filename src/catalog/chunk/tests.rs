@@ -77,7 +77,8 @@ fn font_and_link_coextensive_spans_keep_backslash_font() {
             start: 0,
             end,
             kind: InlineKind::Font {
-                font_id: "fab".into(),
+                font_id: Some("fab".into()),
+                size_milli_pt: None,
             },
         },
         InlineSpan {
@@ -125,7 +126,8 @@ fn nested_font_inside_link_label_round_trips() {
             start: glyph_start,
             end,
             kind: InlineKind::Font {
-                font_id: "fab".into(),
+                font_id: Some("fab".into()),
+                size_milli_pt: None,
             },
         },
         InlineSpan {

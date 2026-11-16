@@ -202,6 +202,7 @@ fn write_compiled_block(
                         end: pending.end,
                         kind: InlineKind::Font {
                             font_id: pending.font_id.clone(),
+                            size_milli_pt: pending.size_milli_pt,
                         },
                     });
                 }

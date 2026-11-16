@@ -116,16 +116,15 @@ dependencies = [
 
 [[package]]
 name = "ariadnes-weave"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abae4d531c2df54f9e4c4d552cf45d460cd5ff1f49d36b16d088f1c3b677de8b"
+checksum = "00975231abbbab3c16abb36c8788cc0948ea58ff17e7f74ea94416f400b0a820"
 dependencies = [
  "image",
  "miniz_oxide 0.8.9",
  "pdf-writer",
  "rustybuzz",
  "serde",
- "serde_json",
  "subsetter",
  "thiserror",
  "toml",

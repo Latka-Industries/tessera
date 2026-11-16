@@ -121,6 +121,7 @@ fn emphasized_run(text: impl Into<String>) -> TextRun {
             ..InlineStyle::default()
         },
         face: None,
+        size_milli_pt: None,
         link_uri: None,
         note_id: None,
     }

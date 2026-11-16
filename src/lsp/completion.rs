@@ -188,6 +188,17 @@ fn push_inline_macro_snippets(
             "\\font{${1:font_id}}{${2:text}}$0".into(),
         ));
     }
+    if "size".starts_with(typed) || typed.is_empty() {
+        items.push(snippet_command_item(
+            "\\size",
+            "mid-document point size (→ Font span)",
+            "Seal `\\size{N}{text}` → inline Font span with `size_milli_pt` (N = whole points; nest inside `\\font` for both).".into(),
+            line,
+            replace_start,
+            character,
+            "\\size{${1:12}}{${2:text}}$0".into(),
+        ));
+    }
     // Named Font Awesome icons (seal as Font span; encode prefers `\icon{name}`).
     if "icon".starts_with(typed) || typed.is_empty() {
         items.push(snippet_command_item(
