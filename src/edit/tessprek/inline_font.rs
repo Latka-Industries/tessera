@@ -214,12 +214,16 @@ fn take_font(
         &Some(font_id.to_owned()),
         None,
     );
-    pending.push(PendingFont {
-        start,
-        end,
-        font_id: Some(font_id.to_owned()),
-        size_milli_pt: None,
-    });
+    // Nested `\font{id}{\size{N}{…}}` already covers this range after inherit;
+    // pushing an outer font-only pending double-wraps on re-encode (THI-723).
+    if !child_covers_font_id(&pending[pending_base..], start, end, font_id) {
+        pending.push(PendingFont {
+            start,
+            end,
+            font_id: Some(font_id.to_owned()),
+            size_milli_pt: None,
+        });
+    }
     Ok(abs_close_end)
 }
 
@@ -287,12 +291,16 @@ fn take_size(
         &None,
         Some(size_milli_pt),
     );
-    pending.push(PendingFont {
-        start,
-        end,
-        font_id: None,
-        size_milli_pt: Some(size_milli_pt),
-    });
+    // Nested `\size{N}{\font{id}{…}}` already covers this range after inherit;
+    // skip coextensive outer size-only (THI-723).
+    if !child_covers_size(&pending[pending_base..], start, end, size_milli_pt) {
+        pending.push(PendingFont {
+            start,
+            end,
+            font_id: None,
+            size_milli_pt: Some(size_milli_pt),
+        });
+    }
     Ok(abs_close_end)
 }
 
@@ -354,6 +362,18 @@ fn merge_pending_inherit(
     }
 }
 
+fn child_covers_font_id(pending: &[PendingFont], start: u32, end: u32, font_id: &str) -> bool {
+    pending
+        .iter()
+        .any(|p| p.start == start && p.end == end && p.font_id.as_deref() == Some(font_id))
+}
+
+fn child_covers_size(pending: &[PendingFont], start: u32, end: u32, size_milli_pt: u32) -> bool {
+    pending
+        .iter()
+        .any(|p| p.start == start && p.end == end && p.size_milli_pt == Some(size_milli_pt))
+}
+
 fn map_tail(old_to_new: &mut [u32], from: usize, to: usize, pos: u32) {
     for slot in old_to_new.iter_mut().take(to).skip(from) {
         *slot = pos;
@@ -406,19 +426,68 @@ mod tests {
         let (body, fonts) =
             extract_inline_fonts("x \\font{armenian}{\\size{12}{barev}} y").unwrap();
         assert_eq!(body, "x barev y");
-        assert_eq!(fonts.len(), 2);
-        let inner = fonts
-            .iter()
-            .find(|f| f.size_milli_pt == Some(12_000))
-            .expect("inner size span");
-        assert_eq!(inner.font_id.as_deref(), Some("armenian"));
-        let outer = fonts
+        assert_eq!(
+            fonts.len(),
+            1,
+            "coextensive nest must be one merged pending: {fonts:?}"
+        );
+        assert_eq!(fonts[0].font_id.as_deref(), Some("armenian"));
+        assert_eq!(fonts[0].size_milli_pt, Some(12_000));
+        assert_eq!(
+            &body[fonts[0].start as usize..fonts[0].end as usize],
+            "barev"
+        );
+    }
+
+    #[test]
+    fn extracts_nested_size_then_font() {
+        let (body, fonts) =
+            extract_inline_fonts("x \\size{12}{\\font{armenian}{barev}} y").unwrap();
+        assert_eq!(body, "x barev y");
+        assert_eq!(
+            fonts.len(),
+            1,
+            "coextensive nest must be one merged pending: {fonts:?}"
+        );
+        assert_eq!(fonts[0].font_id.as_deref(), Some("armenian"));
+        assert_eq!(fonts[0].size_milli_pt, Some(12_000));
+        assert_eq!(
+            &body[fonts[0].start as usize..fonts[0].end as usize],
+            "barev"
+        );
+    }
+
+    #[test]
+    fn outer_font_still_covers_partial_inner_size() {
+        let (body, fonts) = extract_inline_fonts("\\font{armenian}{Hi \\size{9}{Lo}}").unwrap();
+        assert_eq!(body, "Hi Lo");
+        assert_eq!(fonts.len(), 2, "{fonts:?}");
+        let full = fonts
             .iter()
             .find(|f| f.size_milli_pt.is_none())
-            .expect("outer font span");
-        assert_eq!(outer.font_id.as_deref(), Some("armenian"));
-        assert_eq!(inner.start, outer.start);
-        assert_eq!(inner.end, outer.end);
+            .expect("outer font-only");
+        assert_eq!(full.font_id.as_deref(), Some("armenian"));
+        assert_eq!(&body[full.start as usize..full.end as usize], "Hi Lo");
+        let sized = fonts
+            .iter()
+            .find(|f| f.size_milli_pt == Some(9_000))
+            .expect("inner size");
+        assert_eq!(sized.font_id.as_deref(), Some("armenian"));
+        assert_eq!(&body[sized.start as usize..sized.end as usize], "Lo");
+    }
+
+    #[test]
+    fn format_merged_face_and_size_nests_once() {
+        let font = PendingFont {
+            start: 0,
+            end: 5,
+            font_id: Some("greek".into()),
+            size_milli_pt: Some(9_000),
+        };
+        assert_eq!(
+            format_pending_font_macro(&font, "Hello"),
+            "\\font{greek}{\\size{9}{Hello}}"
+        );
     }
 
     #[test]

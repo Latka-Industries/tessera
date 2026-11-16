@@ -63,7 +63,7 @@ Terms used consistently across Tessera docs, issues, and code.
 | **Theme pack** | External versioned manifest + CSS/assets applied at export; referenced by id/hash, not canonical content. |
 | **Template** | Theme pack plus allowed blocks, `doc_kind` defaults, cite style, slide regions, export targets, and optional starter Tessera Markdown. Optional D23 overlays: sparse `weave.toml` / `typography.toml` / `aliases.toml` / `phrases.toml` / `fonts.toml`, or master `tessera.toml` (THI-367). |
 | **Pack-pinned font** | Pack `fonts.toml` id → TTF/OTF bytes loaded into weave `EmitOptions::pinned_faces`; Tessprek `\font{id}{…}` seals to `InlineKind::Font`. Category defaults (`[text|heading|quote|cite].font` in `weave.toml`) use the same pin ids when `TextRun.face` is unset. |
-| **Mid-document size** | Tessprek `\size{N}{…}` (N = whole points) → `InlineKind::Font.size_milli_pt` → weave `TextRun.size_milli_pt` / HTML `font-size: Npt` (THI-714 / THI-715 / **0.3.2**). Nest inside `\font` for face + size. |
+| **Mid-document size** | Tessprek `\size{N}{…}` (N = whole points) → `InlineKind::Font.size_milli_pt` → weave `TextRun.size_milli_pt` / HTML `font-size: Npt` (THI-714 / THI-715 / **0.3.2**). Nest inside `\font` for face + size; **0.3.3** / THI-723 dedupes coextensive extract. |
 | **Export / view** | Decoded projection: `--raw`, `--ai-text`, `--html`, etc. |
 | **Parse once** | Import or save compiles markup into chunks; reads do not re-parse Markdown/HTML. |
 | **Render** | Generated HTML, PDF, deck, or AI view; never stored as canonical layout. |

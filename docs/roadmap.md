@@ -1,8 +1,9 @@
 # Roadmap and phases
 
-**Status:** M0–M11 shipped; crate **0.3.2** (native PDF default from **0.3.0** /
-THI-350; Chromium is `--backend chromium`). **0.3.2** pins weave **0.2.16** —
-mid-doc `\size{N}{…}` / `size_milli_pt` through print + HTML (THI-714 / THI-715).
+**Status:** M0–M11 shipped; crate **0.3.3** (native PDF default from **0.3.0** /
+THI-350; Chromium is `--backend chromium`). **0.3.3** dedupes nested `\font`/`\size`
+extract (THI-723). **0.3.2** pins weave **0.2.16** — mid-doc `\size{N}{…}` /
+`size_milli_pt` through print + HTML (THI-714 / THI-715).
 **0.3.1** added section wikilink `#` targets as heading `chunk_id` (THI-439) and
 per-section `body_size` / Tessprek `\block{size=N}` (THI-435). Document-depth wire:
 Tessprek v2, captions, ranged `\quote`/`\ref`, biblio `\cite` + numbering;
@@ -294,7 +295,7 @@ freeze. CRDT/live cursors are not part of M10.
 
 ## Next Linear issue batch
 
-1. **Shipped:** native PDF default (THI-350) in **0.3.0**; section `#` wikilinks + `body_size` (THI-439 / THI-435) in **0.3.1**; mid-doc `\size` / `size_milli_pt` (THI-714 / THI-715) in **0.3.2**. Last-page column leftover is THI-417.
+1. **Shipped:** native PDF default (THI-350) in **0.3.0**; section `#` wikilinks + `body_size` (THI-439 / THI-435) in **0.3.1**; mid-doc `\size` / `size_milli_pt` (THI-714 / THI-715) in **0.3.2**; nested `\font`/`\size` extract dedupe (THI-723) in **0.3.3**. Last-page column leftover is THI-417.
 2. **Tesscriptor later:** layout op-list UI (THI-366) when that track resumes.
 3. **optional:** `layout_version` / feature-flag bump when must-understand features land.
 4. **open format / bench:** MIME/magic conformance cases and claim-backed
@@ -309,7 +310,8 @@ freeze. CRDT/live cursors are not part of M10.
    (THI-398 / 409 / 396); **0.2.12** weave **0.2.14** pin + `\box` + article
    dogfood (THI-416 / 412 / 414 / 397); **0.3.0** native PDF default (THI-350);
    **0.3.1** weave **0.2.15** + section wikilinks / `body_size` (THI-439 / 435);
-   **0.3.2** weave **0.2.16** + `\size` / `size_milli_pt` (THI-714 / 715).
+   **0.3.2** weave **0.2.16** + `\size` / `size_milli_pt` (THI-714 / 715);
+   **0.3.3** nested `\font`/`\size` extract dedupe (THI-723).
 
 ---
 

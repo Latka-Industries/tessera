@@ -8,7 +8,7 @@
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
 **In active development — layout v0 wire may change before a stable v1.**
-Crate **0.3.2** pins `ariadnes-weave` **0.2.16**: Tessprek `\size{N}{…}` (nestable with `\font`) seals as `InlineKind::Font.size_milli_pt`, native print maps to weave `TextRun.size_milli_pt`, and HTML export emits `font-size: Npt` (THI-714 / THI-715). Still includes **0.3.1** section `#` wikilinks (THI-439) and `\block{size=N}` → `Heading.body_size` (THI-435). Chromium HTML-print stays opt-in (`--backend chromium`).
+Crate **0.3.3** fixes nested `\font`/`\size` extract so face+pt seals as one span and encode→decode→encode stays stable (THI-723; unblocks Tesscriptor Fluid face+pt). Still pins `ariadnes-weave` **0.2.16** with `\size{N}{…}` / `size_milli_pt` (THI-714 / THI-715), section `#` wikilinks (THI-439), and `\block{size=N}` → `Heading.body_size` (THI-435). Chromium HTML-print stays opt-in (`--backend chromium`).
 
 ## What it does today
 
@@ -62,7 +62,7 @@ Measure open-format claims (mmap / import / export / vault) with
 
 See `tes --help` and [docs/cli.md](docs/cli.md).
 
-**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.3.2`).
+**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.3.3`).
 `.github/workflows/release.yml` publishes a GitHub Release (not a draft) with
 generated notes and `cargo publish --locked` to crates.io. `workflow_dispatch`
 from a branch does not publish. `tes export --pdf` defaults to `--backend native`
