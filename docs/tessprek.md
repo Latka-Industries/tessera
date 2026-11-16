@@ -24,7 +24,7 @@ Markdown has no syntax for.
 | Inline bibliography markers | `\cite{key}` in prose → `InlineKind::Citation` |
 | Footnote / endnote | `\footnote{body}` / `\endnote{body}` in prose → `InlineKind::Note` (THI-396). Marker is a ZWSP in the sealed body; encode restores the command. Native print maps to weave `PrintBlock::Note` + `TextRun.note_id`. Note body is plain text in v1 (no nested Tessprek). |
 | Pack-pinned font | `\font{font_id}{text}` → `InlineKind::Font` (seals; multiple pins/scripts OK in one paragraph) |
-| Mid-document size | `\size{N}{text}` (N = whole points) → `InlineKind::Font` with `size_milli_pt`; nest inside `\font` for face + size (THI-714 / **0.3.2**, weave **0.2.16**) |
+| Mid-document size | `\size{N}{text}` (N = whole points) → `InlineKind::Font` with `size_milli_pt`; nest inside `\font` for face + size (THI-714 / **0.3.2**, weave **0.2.16**). Coextensive nest extracts as **one** pending (THI-723 / **0.3.3**) |
 | Named FA icon | `\icon{name}` → same Font seal (`fab`/`fas` + glyph); encode prefers `\icon` when known |
 | Pack phrase (expand) | `\phrase{key}{arg…}` → ordinary Tessprek at format (lossy; not sealed). `{arg}`/`$1` and `{argN}`/`$N` |
 | Text attrs that can't live in Markdown (`class` / `lang` / `align` / `title` / `caption`) | Optional `\block{…}` immediately before the Markdown block |

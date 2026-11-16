@@ -769,6 +769,134 @@ Say \\font{armenian}{barev} now.\n\
 }
 
 #[test]
+fn nested_font_size_encode_decode_encode_stable() {
+    // Fluid-style sealed face+pt spans (THI-723 / THI-717 repro).
+    use crate::catalog::{InlineKind, InlineSpan};
+    use crate::io::font::PendingFont;
+
+    let body = "Hello sized face".to_owned();
+    let mut header = TextHeader::paragraph();
+    header.spans = vec![
+        InlineSpan {
+            start: 0,
+            end: 5,
+            kind: InlineKind::Font {
+                font_id: Some("greek".into()),
+                size_milli_pt: Some(9_000),
+            },
+        },
+        InlineSpan {
+            start: 6,
+            end: 11,
+            kind: InlineKind::Font {
+                font_id: None,
+                size_milli_pt: Some(11_000),
+            },
+        },
+        InlineSpan {
+            start: 12,
+            end: 16,
+            kind: InlineKind::Font {
+                font_id: Some("armenian".into()),
+                size_milli_pt: None,
+            },
+        },
+    ];
+    let sealed = ContentBlock::Text {
+        chunk_id: Some(1),
+        header,
+        body,
+        pending_links: vec![],
+        pending_cites: vec![],
+        pending_fonts: vec![],
+        pending_notes: vec![],
+    };
+    let once = encode_content_blocks(&TessprekDocMeta::default(), &[sealed], &[], &[]);
+    assert!(
+        once.contains("\\font{greek}{\\size{9}{Hello}}"),
+        "expected nested face+size:\n{once}"
+    );
+    assert!(
+        once.contains("\\size{11}{sized}"),
+        "expected size-only:\n{once}"
+    );
+    assert!(
+        once.contains("\\font{armenian}{face}"),
+        "expected face-only:\n{once}"
+    );
+    assert!(
+        !once.contains("\\font{greek}{\\font"),
+        "must not double-wrap font:\n{once}"
+    );
+
+    let decoded = decode_tessprek(&once).expect("decode nested face+size");
+    match &decoded[0] {
+        ContentBlock::Text {
+            body: b,
+            pending_fonts,
+            ..
+        } => {
+            assert_eq!(b, "Hello sized face");
+            assert_eq!(pending_fonts.len(), 3, "{pending_fonts:?}");
+            let face_size = pending_fonts
+                .iter()
+                .find(|f| f.font_id.as_deref() == Some("greek"))
+                .expect("greek");
+            assert_eq!(face_size.size_milli_pt, Some(9_000));
+            assert_eq!(&b[face_size.start as usize..face_size.end as usize], "Hello");
+            // No coextensive greek-only duplicate.
+            assert!(
+                !pending_fonts.iter().any(|f| {
+                    f.start == face_size.start
+                        && f.end == face_size.end
+                        && f.font_id.as_deref() == Some("greek")
+                        && f.size_milli_pt.is_none()
+                }),
+                "duplicate outer font pending: {pending_fonts:?}"
+            );
+        }
+        other => panic!("expected text, got {other:?}"),
+    }
+
+    let twice = encode_content_blocks(&TessprekDocMeta::default(), &decoded, &[], &[]);
+    assert_eq!(
+        once.lines().filter(|l| !l.starts_with('\\')).collect::<Vec<_>>(),
+        twice
+            .lines()
+            .filter(|l| !l.starts_with('\\'))
+            .collect::<Vec<_>>(),
+        "body macros must be stable across encode→decode→encode\n once:\n{once}\n twice:\n{twice}"
+    );
+    assert!(
+        twice.contains("\\font{greek}{\\size{9}{Hello}}"),
+        "re-encode must keep single nest:\n{twice}"
+    );
+    assert!(!twice.contains("\\font{greek}{\\font"), "no double-wrap:\n{twice}");
+
+    // Pending-only path (pre-seal) also nests once.
+    let pending_only = ContentBlock::Text {
+        chunk_id: Some(1),
+        header: TextHeader::paragraph(),
+        body: "Hello".into(),
+        pending_links: vec![],
+        pending_cites: vec![],
+        pending_fonts: vec![PendingFont {
+            start: 0,
+            end: 5,
+            font_id: Some("greek".into()),
+            size_milli_pt: Some(9_000),
+        }],
+        pending_notes: vec![],
+    };
+    let pending_out =
+        encode_content_blocks(&TessprekDocMeta::default(), &[pending_only], &[], &[]);
+    assert!(
+        pending_out.contains("\\font{greek}{\\size{9}{Hello}}"),
+        "{pending_out}"
+    );
+}
+
+#[test]
 fn inline_cite_key_round_trips_in_tessprek() {
     let input = "\
 \\tessera{format=tessprek version=2 cite_style_id=numeric}\n\

@@ -1,6 +1,6 @@
 # Print IR (`ariadnes-weave`)
 
-**Status (Tessera 0.3.2):** prose print-tree builder + CLI `--backend native`
+**Status (Tessera 0.3.3):** prose print-tree builder + CLI `--backend native`
 default (THI-288 / THI-290 / THI-294 / THI-350). Spec + D21 accepted. Requires
 **`ariadnes-weave` ≥ 0.2.16** (`TextRun.size_milli_pt` for mid-doc `\size` —
 THI-714 / THI-715; optional `Heading.body_size` for per-section body size —
