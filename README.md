@@ -8,7 +8,7 @@
 **Open document format (`.tes`)** — mmap-friendly chunked binary for notes, wikis, manuscripts, research, and slides. Structure in the file; themes outside it; exports for humans and models.
 
 **In active development — layout v0 wire may change before a stable v1.**
-Crate **0.3.1** (on the 0.3.0 native-PDF default) pins `ariadnes-weave` **0.2.15**: vault / import `[[Note#Section]]` wikilinks round-trip the heading `chunk_id` (THI-439), and Tessprek `\block{size=N}` stores a per-section body size on the heading that print IR passes through as `Heading.body_size` (THI-435). Chromium HTML-print stays opt-in (`--backend chromium`). Native surface otherwise unchanged from 0.3.0: per-chunk `align`, live `{heading}` chrome, `\footnote` / `\endnote`, long-doc `\toc` / `\lof` / `\lot` / `\columns`, resume `\row` / `\icon` / indent, and in-column headings / `\box` / math / tables.
+Crate **0.3.2** pins `ariadnes-weave` **0.2.16**: Tessprek `\size{N}{…}` (nestable with `\font`) seals as `InlineKind::Font.size_milli_pt`, native print maps to weave `TextRun.size_milli_pt`, and HTML export emits `font-size: Npt` (THI-714 / THI-715). Still includes **0.3.1** section `#` wikilinks (THI-439) and `\block{size=N}` → `Heading.body_size` (THI-435). Chromium HTML-print stays opt-in (`--backend chromium`).
 
 ## What it does today
 
@@ -17,9 +17,9 @@ Crate **0.3.1** (on the 0.3.0 native-PDF default) pins `ariadnes-weave` **0.2.15
 - **Import** — CommonMark subset, semantic HTML, BibTeX / CSL-JSON → cite chunks
 - **Media & research** — reusable image payloads + figure refs; cite chunks with TLNK mirrors; numeric bibliography rendering; slides
 - **Preview** — loopback `tes serve` with external template/theme packs (`draft` / `print` / `manuscript`)
-- **Packs (D23)** — sparse overlays or master `tessera.toml`: `weave.toml` → native knobs; typography / aliases / phrases at format/seal; `\font{id}{…}` + `fonts.toml` pins
+- **Packs (D23)** — sparse overlays or master `tessera.toml`: `weave.toml` → native knobs (incl. `[page.setup]`); typography / aliases / phrases at format/seal; `\font{id}{…}` / `\size{N}{…}` + `fonts.toml` pins
 - **Edit** — Tessprek `edit-read` / `format` / `edit-write` / `apply` (typed `TesOp`s including catalog tags/aliases); stable attach ids across format/insert
-- **LSP** — `tes-lsp` pack-aware `\font` / `\phrase` / alias completions + post-write buffer refresh ([docs/lsp.md](docs/lsp.md); Neovim: [contrib/nvim](contrib/nvim/README.md))
+- **LSP** — `tes-lsp` pack-aware `\font` / `\size` / `\phrase` / alias completions + post-write buffer refresh ([docs/lsp.md](docs/lsp.md); Neovim: [contrib/nvim](contrib/nvim/README.md))
 - **History** — `THST` revisions, drafts, diff/changelog, blame, pending redline, export-revs/checkout/textconv/merge-file; GitHub Tessprek Action
 - **Vault** — resolve / backlinks / broken-link check; `vault.tes` TOC; multi-root members; scan + Tantivy FTS
 
@@ -62,7 +62,7 @@ Measure open-format claims (mmap / import / export / vault) with
 
 See `tes --help` and [docs/cli.md](docs/cli.md).
 
-**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.3.1`).
+**Release:** push a `v*` tag that matches `Cargo.toml` (e.g. `v0.3.2`).
 `.github/workflows/release.yml` publishes a GitHub Release (not a draft) with
 generated notes and `cargo publish --locked` to crates.io. `workflow_dispatch`
 from a branch does not publish. `tes export --pdf` defaults to `--backend native`

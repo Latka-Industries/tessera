@@ -51,7 +51,7 @@ re-printing HTML/CSS. HTML remains the preview/interchange sink (D21).
 | Citations | Cite wire + BibTeX/CSL | Cite writer, spans, styles, interchange | shipped (M8) |
 | HTML | Import/export implemented | AI-safe and themed profiles remain distinct | shipped (M6) |
 | Browser preview | `tes serve` + theme packs | Theme packs + safe reload | shipped (M7) |
-| PDF | `tes export --pdf` | Native print IR → ariadnes-weave (Chromium opt-in) | shipped (M7 / 0.3.0 default; 0.3.1 section size) |
+| PDF | `tes export --pdf` | Native print IR → ariadnes-weave (Chromium opt-in) | shipped (M7 / 0.3.0 default; 0.3.1 section size; 0.3.2 mid-doc `\size`) |
 | Slides | Region-based slide chunks | Named regions, no freeform coordinates | shipped (M9) |
 | Layout blocks | `ChunkType::Layout` + `place`/`vspace`/`rule` | Closed ops; weave paints; not pack macros | shipped (D24 / THI-363..364) |
 | History (first slice) | `save` / `log` / `diff` / `changelog` | Content-addressed revisions + drafts | shipped (M10) |
@@ -79,7 +79,7 @@ pub enum InlineKind {
     Math { tex: String },
     Link { link_id: u64 },
     Citation { cite_chunk_id: u64 },
-    Font { font_id: Option<String>, size_milli_pt: Option<u32> }, // `\font` / `\size` (D23 / THI-356)
+    Font { font_id: Option<String>, size_milli_pt: Option<u32> }, // `\font` / `\size` (D23 / THI-356 / THI-714)
 }
 
 pub struct InlineSpan {
